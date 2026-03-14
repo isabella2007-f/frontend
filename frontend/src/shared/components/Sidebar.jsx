@@ -10,7 +10,7 @@ const menuItems = [
     { label: "Control de Acceso", icon: "🔐", link: "/control-acceso" }, // Ruta ejemplo
   ]},
   { section: "Compras", icon: "🛒", items: [
-    { label: "Categorías de Insumos", icon: "🗂️", link: "/categorias-insumos" },
+    { label: "Categorías de Insumos", icon: "🗂️", link: "/categorias_insumos" },
     { label: "Gestión de Insumos", icon: "📦", link: "/gestion-insumos" },
     { label: "Proveedores", icon: "🏭", link: "/proveedores" },
   ]},

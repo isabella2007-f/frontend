@@ -1,11 +1,14 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import AppRouter from "./routes/AppRouter";
+import { AppProvider } from "./AppContext.jsx";
 
-console.log("Root:", document.getElementById("root")); // <-- esto debe imprimir <div id="root"></div>
+console.log("Root:", document.getElementById("root"));
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <AppRouter />
+    <AppProvider>
+      <AppRouter />
+    </AppProvider>
   </React.StrictMode>
 );

@@ -6,6 +6,9 @@ import CategoriaProductos from "../features/produccion/CategoriaProductos/Catego
 import Productos from "../features/produccion/Productos/Productos";
 import Roles from "../features/configuracion/roles/Roles";
 import GestionClientes from "../features/ventas/Clientes/GestionClientes";
+import CategoriaInsumos from "../features/compras/categoriainsumos/CategoriaInsumos";
+import GestionInsumos from "../features/compras/insumos/GestionInsumos";
+
 
 const AppRouter = () => {
   return (
@@ -19,6 +22,8 @@ const AppRouter = () => {
           <Route path="products" element={<Productos/>} /> 
           <Route path="roles" element={<Roles />} /> 
           <Route path="clientes" element={<GestionClientes/>} />
+          <Route path="categorias_insumos" element={<CategoriaInsumos />} />
+          <Route path="gestion-insumos" element={<GestionInsumos/>} />
         </Route>
 
         {/* Ruta 404 */}

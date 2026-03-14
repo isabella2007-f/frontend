@@ -1,0 +1,130 @@
+import { useState } from "react";
+import { ModalOverlay } from "./ui.jsx";
+import "./CategoriaInsumos.css";
+
+const ICON_OPTIONS = ["🥬","🥩","🧀","🌾","🧂","🛢️","🥫","📦","🫙","🧈","🥚","🌽","🍋","🧄","🫚","🍅","🥕","🧅","🌶️","🫑"];
+
+export default function EditarCategoriaInsumo({ cat, onClose, onSave }) {
+  const [form, setForm]              = useState({ ...cat, insumos: [...(cat.insumos || [""])] });
+  const [errors, setErrors]          = useState({});
+  const [saving, setSaving]          = useState(false);
+  const [pickingIcon, setPickingIcon] = useState(false);
+
+  const set = (k, v) => { setForm(p => ({ ...p, [k]: v })); setErrors(p => ({ ...p, [k]: "" })); };
+
+  const setInsumo = (idx, val) => setForm(p => {
+    const arr = [...p.insumos]; arr[idx] = val; return { ...p, insumos: arr };
+  });
+  const addInsumo = () => setForm(p => ({ ...p, insumos: [...p.insumos, ""] }));
+  const delInsumo = idx => setForm(p => ({ ...p, insumos: p.insumos.filter((_, i) => i !== idx) }));
+
+  const validate = () => {
+    const e = {};
+    if (!form.nombre.trim())      e.nombre      = "Campo requerido";
+    if (!form.descripcion.trim()) e.descripcion = "Campo requerido";
+    return e;
+  };
+
+  const handleSave = async () => {
+    const e = validate();
+    if (Object.keys(e).length) { setErrors(e); return; }
+    setSaving(true);
+    await new Promise(r => setTimeout(r, 500));
+    onSave({ ...form, insumos: form.insumos.map(i => i.trim()).filter(Boolean) });
+    setSaving(false);
+  };
+
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div className="modal-header">
+        <div>
+          <p className="modal-header__eyebrow">Categorías de Insumos</p>
+          <h2 className="modal-header__title">Editar categoría</h2>
+        </div>
+        <button className="modal-close-btn" onClick={onClose}>✕</button>
+      </div>
+
+      <div className="modal-body">
+
+        {/* Ícono */}
+        <div className="form-group">
+          <label className="form-label">Ícono</label>
+          <button className={`icon-picker-trigger${pickingIcon ? " open" : ""}`}
+            onClick={() => setPickingIcon(v => !v)}>{form.icon}</button>
+          {pickingIcon && (
+            <div className="icon-picker-grid">
+              {ICON_OPTIONS.map(ic => (
+                <button key={ic} className={`icon-option${form.icon === ic ? " selected" : ""}`}
+                  onClick={() => { set("icon", ic); setPickingIcon(false); }}>{ic}</button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Nombre */}
+        <div className="form-group">
+          <label className="form-label">Nombre</label>
+          <input className={`field-input${errors.nombre ? " field-input--error" : ""}`}
+            value={form.nombre} onChange={e => set("nombre", e.target.value)}
+            placeholder="Ej. Vegetales"
+            onFocus={e => e.target.style.borderColor = "#4caf50"}
+            onBlur={e => e.target.style.borderColor = errors.nombre ? "#e53935" : "#e0e0e0"}
+          />
+          {errors.nombre && <p className="field-error">{errors.nombre}</p>}
+        </div>
+
+        {/* Descripción */}
+        <div className="form-group">
+          <label className="form-label">Descripción</label>
+          <textarea className={`field-input${errors.descripcion ? " field-input--error" : ""}`}
+            rows={2} style={{ resize: "none" }}
+            value={form.descripcion} onChange={e => set("descripcion", e.target.value)}
+            placeholder="Describe esta categoría de insumos"
+            onFocus={e => e.target.style.borderColor = "#4caf50"}
+            onBlur={e => e.target.style.borderColor = errors.descripcion ? "#e53935" : "#e0e0e0"}
+          />
+          {errors.descripcion && <p className="field-error">{errors.descripcion}</p>}
+        </div>
+
+        {/* Insumos */}
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label className="form-label">Insumos</label>
+          <div className="insumos-editor">
+            <div className="insumos-editor__header">
+              <p className="insumos-editor__title">Lista de insumos de esta categoría</p>
+              <span style={{ fontSize: 11, color: "#9e9e9e" }}>{form.insumos.filter(Boolean).length} insumos</span>
+            </div>
+            <div className="insumos-editor__list">
+              {form.insumos.map((ins, idx) => (
+                <div key={idx} className="insumo-row">
+                  <input
+                    className="insumo-row__input"
+                    value={ins}
+                    onChange={e => setInsumo(idx, e.target.value)}
+                    placeholder={`Insumo ${idx + 1}`}
+                    onFocus={e => e.target.style.borderColor = "#4caf50"}
+                    onBlur={e => e.target.style.borderColor = "#e0e0e0"}
+                  />
+                  {form.insumos.length > 1 && (
+                    <button className="insumo-row__del" onClick={() => delInsumo(idx)} title="Eliminar">✕</button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button className="insumos-editor__add" onClick={addInsumo}>
+              <span style={{ fontSize: 15 }}>+</span> Agregar insumo
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <div className="modal-footer">
+        <button className="btn-ghost" onClick={onClose}>Cancelar</button>
+        <button className="btn-save" onClick={handleSave} disabled={saving}>
+          {saving ? "Guardando…" : "Guardar cambios"}
+        </button>
+      </div>
+    </ModalOverlay>
+  );
+}
