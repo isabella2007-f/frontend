@@ -1,118 +1,221 @@
 import { useState } from "react";
-import { Toggle, Avatar } from "./CrearUsuario.jsx";
+import { useApp } from "../../../AppContext.jsx";
+import { Avatar } from "./CrearUsuario.jsx";
 import { Ic } from "./usuariosIcons.jsx";
-import { G, GB } from "./usuariosUtils.js";
+import { getRolStyle } from "./usuariosUtils.js";
 import "./Usuarios.css";
 
-// ─── SHARED FIELD (read-only) ─────────────────────────────
-function FieldReadOnly({ label, value }) {
+/* ─── Campo solo lectura (igual a field-input--disabled en Clientes) ── */
+function FieldView({ label, value, full = false }) {
   return (
-    <div className="field-wrap">
-      <label className="field-label">{label}</label>
-      <input readOnly value={value ?? ""} className="field-input readonly" />
+    <div className="form-group" style={full ? { gridColumn: "1 / -1" } : {}}>
+      <label className="form-label">{label}</label>
+      <div className="field-input field-input--disabled">{value || "—"}</div>
     </div>
   );
 }
 
-// ─── MODAL: VER DETALLES ──────────────────────────────────
-export function ModalVerUsuario({ user, onClose }) {
+/* ─── Toggle visual solo lectura con tooltip de razón ─────── */
+function ToggleView({ value, razon }) {
   return (
-    <div className="overlay" onClick={onClose}>
-      <div className="modal-card" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
-
-        <div className="modal-header">
-          <h2 className="modal-title">
-            Detalles de <em>{user.nombre} {user.apellidos}</em>
-          </h2>
-          <button className="modal-close-btn" onClick={onClose}><Ic.Close /></button>
-        </div>
-
-        <div className="ver-body">
-          {/* Avatar */}
-          <div className="ver-avatar-col">
-            <Avatar foto={user.foto} size={80} />
-            <span style={{ fontSize: 11, color: "#9e9e9e", fontWeight: 600 }}>Foto</span>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 4 }}>
+      <div style={{ position: "relative", display: "inline-flex" }} className="toggle-tooltip-wrap">
+        <button
+          className="toggle-btn"
+          style={{
+            background: value ? "#43a047" : "#c62828",
+            boxShadow: value
+              ? "0 2px 8px rgba(67,160,71,0.45)"
+              : "0 2px 8px rgba(198,40,40,0.3)",
+            cursor: "default",
+            opacity: razon ? 0.6 : 1,
+          }}
+        >
+          <span className="toggle-thumb" style={{ left: value ? 27 : 3 }}>
+            <span className="toggle-label" style={{ color: "black" }}>
+              {value ? "ON" : "OFF"}
+            </span>
+          </span>
+        </button>
+        {razon && <div className="toggle-tooltip">{razon}</div>}
+      </div>
+      <div>
+        <span style={{ fontSize: 13, fontWeight: 600, color: value ? "#2e7d32" : "#9e9e9e" }}>
+          {value ? "Activo" : "Inactivo"}
+        </span>
+        {razon && (
+          <div style={{ fontSize: 11, color: "#ef5350", marginTop: 2, fontWeight: 600 }}>
+            ⚠️ {razon}
           </div>
-
-          {/* Campos */}
-          <div className="ver-fields-grid">
-            <FieldReadOnly label="Nombre"       value={user.nombre} />
-            <FieldReadOnly label="Apellidos"    value={user.apellidos} />
-            <FieldReadOnly label="Correo"       value={user.correo} />
-            <FieldReadOnly label="Cédula"       value={user.cedula} />
-            <FieldReadOnly label="Teléfono"     value={user.telefono} />
-            <FieldReadOnly label="Dirección"    value={user.direccion} />
-            <FieldReadOnly label="Municipio"    value={user.municipio} />
-            <FieldReadOnly label="Departamento" value={user.departamento} />
-            <div className="field-wrap" style={{ gridColumn: "1 / -1" }}>
-              <label className="field-label">Rol</label>
-              <input readOnly value={user.rol ?? ""} className="field-input readonly" />
-            </div>
-          </div>
-        </div>
-
-        {/* Botón cerrar — derecha abajo */}
-        <div style={{ display: "flex", justifyContent: "flex-end", padding: "0 24px 20px" }}>
-          <button className="btn-cancel" onClick={onClose}>Cerrar</button>
-        </div>
-
+        )}
       </div>
     </div>
   );
 }
 
-// ─── MODAL: ELIMINAR ──────────────────────────────────────
-export function ModalEliminarUsuario({ user, onClose, onConfirm }) {
-  const tieneAsociados = user.id % 2 === 0;
+/* ─── MODAL VER USUARIO ──────────────────────────────────── */
+export function ModalVerUsuario({ user, onClose }) {
+  const { roles } = useApp();
+  const rolObj   = roles.find(r => r.nombre === user.rol);
+  const rolStyle = getRolStyle(user.rol);
+  const razonInactivo = !user.estado && rolObj && !rolObj.estado
+    ? `El rol "${user.rol}" está desactivado`
+    : null;
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box--wide" onClick={e => e.stopPropagation()}>
+
+        {/* HEADER — igual a Clientes */}
+        <div className="modal-header">
+          <div>
+            <p className="modal-header__eyebrow">Usuarios</p>
+            <h2 className="modal-header__title">
+              {user.nombre} {user.apellidos}
+            </h2>
+          </div>
+          <button className="modal-close-btn" onClick={onClose}>✕</button>
+        </div>
+
+        {/* BODY */}
+        <div className="modal-body" style={{ maxHeight: "68vh", overflowY: "auto" }}>
+
+          {/* Avatar — igual a Clientes */}
+          <div style={{ textAlign: "center", marginBottom: 20 }}>
+            <div className="avatar-upload-wrap" style={{ cursor: "default" }}>
+              {user.foto
+                ? <img className="avatar-upload-img" src={user.foto} alt="avatar" />
+                : <div className="avatar-upload-placeholder">👤</div>}
+            </div>
+            <p style={{ margin: 0, fontSize: 11, color: "#9e9e9e" }}>Foto de perfil</p>
+          </div>
+
+          {/* Identificación */}
+          <p className="section-label">Identificación</p>
+          <div className="form-group">
+            <label className="form-label">Tipo y Número de documento</label>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span className="doc-type">CC</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: "#424242" }}>
+                {user.cedula || "—"}
+              </span>
+            </div>
+          </div>
+
+          {/* Datos personales */}
+          <p className="section-label">Datos personales</p>
+          <div className="form-grid-2">
+            <FieldView label="Nombre"    value={user.nombre} />
+            <FieldView label="Apellidos" value={user.apellidos} />
+            <FieldView label="Correo electrónico" value={user.correo} full />
+            <FieldView label="Teléfono"  value={user.telefono} />
+
+            {/* Fecha de registro */}
+            <div className="form-group">
+              <label className="form-label">Fecha de registro</label>
+              <div className="field-input field-input--disabled">
+                {user.fechaCreacion || "—"}
+              </div>
+            </div>
+
+            {/* Estado */}
+            <div className="form-group" style={{ gridColumn: "1 / -1" }}>
+              <label className="form-label">Estado</label>
+              <ToggleView value={user.estado} razon={razonInactivo} />
+            </div>
+          </div>
+
+          {/* Ubicación */}
+          <p className="section-label">Ubicación</p>
+          <div className="form-grid-2">
+            <FieldView label="Dirección"    value={user.direccion} full />
+            <FieldView label="Departamento" value={user.departamento} />
+            <FieldView label="Municipio"    value={user.municipio} />
+          </div>
+
+          {/* Rol */}
+          <p className="section-label">Rol</p>
+          <div className="form-group">
+            <label className="form-label">Rol asignado</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 4 }}>
+              <span
+                className="rol-badge"
+                style={{
+                  background: rolStyle.bg,
+                  color: rolStyle.color,
+                  borderColor: rolStyle.border,
+                  fontSize: 13,
+                  padding: "4px 14px",
+                }}
+              >
+                {user.rol || "—"}
+              </span>
+            </div>
+          </div>
+
+          {/* Fecha creación */}
+          {user.fechaCreacion && (
+            <div className="date-info" style={{ marginTop: 8 }}>
+              <span>📅</span>
+              <span>
+                Usuario desde <strong>{user.fechaCreacion}</strong>
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* FOOTER */}
+        <div className="modal-footer">
+          <button className="btn-ghost" onClick={onClose}>Cerrar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── MODAL ELIMINAR ─────────────────────────────────────── */
+export function ModalEliminarUsuario({ user, razon, onClose, onConfirm }) {
   const [done, setDone] = useState(false);
 
   const handleEliminar = () => {
     setDone(true);
-    setTimeout(() => { onConfirm(user.id); }, 1800);
+    setTimeout(() => { onConfirm(user.id); }, 800);
   };
 
-  return (
-    <div className="overlay" onClick={onClose}>
-      <div className="modal-card" style={{ maxWidth: 360 }} onClick={e => e.stopPropagation()}>
-        <div className="delete-modal-body">
-          <button className="modal-close-btn" onClick={onClose}
-            style={{ position: "absolute", top: 14, right: 14 }}>
-            <Ic.Close />
-          </button>
-
-          <div className="delete-modal-content">
-            {tieneAsociados ? <Ic.Warn /> : <Ic.TrashBig />}
-
-            {tieneAsociados ? (
-              <>
-                <p className="delete-modal-text">
-                  Esta acción no se puede realizar porque tiene usuarios asociados.{" "}
-                  <em style={{ fontWeight: 700 }}>El estado cambiará a inactivo.</em>
-                </p>
-                <button className="btn-save" onClick={onClose}>Aceptar</button>
-              </>
-            ) : (
-              <>
-                <p className="delete-modal-text">
-                  ¿Estás seguro que quieres eliminar a{" "}
-                  <strong>{user.nombre}</strong>?{" "}
-                  <strong>Esta acción no se puede deshacer.</strong>
-                </p>
-                <div className="delete-modal-btn-row">
-                  <button className="btn-delete"  onClick={handleEliminar} disabled={done}>
-                    {done ? "Eliminando…" : "Eliminar"}
-                  </button>
-                  <button className="btn-cancel"  onClick={onClose}>Cancelar</button>
-                </div>
-              </>
-            )}
+  // Bloqueado por validación del contexto
+  if (razon) {
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
+          <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
+            <div className="delete-icon-wrap">⚠️</div>
+            <h3 className="delete-title">No se puede eliminar</h3>
+            <p className="delete-body">{razon}</p>
           </div>
+          <div className="modal-footer" style={{ justifyContent: "center" }}>
+            <button className="btn-ghost" onClick={onClose}>Entendido</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-          {done && (
-            <div className="modal-success-toast" style={{ bottom: -56 }}>
-              <Ic.Check /><span>Eliminación exitosa</span>
-            </div>
-          )}
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
+        <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
+          <div className="delete-icon-wrap">🗑️</div>
+          <h3 className="delete-title">Eliminar usuario</h3>
+          <p className="delete-body">
+            ¿Eliminar a <strong>"{user.nombre} {user.apellidos}"</strong>?
+          </p>
+          <p className="delete-warn">Esta acción no se puede deshacer.</p>
+          <div className="modal-footer modal-footer--center">
+            <button className="btn-cancel-full" onClick={onClose}>Cancelar</button>
+            <button className="btn-danger" onClick={handleEliminar} disabled={done}>
+              {done ? "Eliminando…" : "Eliminar"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -8,6 +8,7 @@ import Roles from "../features/configuracion/roles/Roles";
 import GestionClientes from "../features/ventas/Clientes/GestionClientes";
 import CategoriaInsumos from "../features/compras/categoriainsumos/CategoriaInsumos";
 import GestionInsumos from "../features/compras/insumos/GestionInsumos";
+import Proveedores from "../features/compras/proveedores/Proveedores";
 
 
 const AppRouter = () => {
@@ -24,6 +25,7 @@ const AppRouter = () => {
           <Route path="clientes" element={<GestionClientes/>} />
           <Route path="categorias_insumos" element={<CategoriaInsumos />} />
           <Route path="gestion-insumos" element={<GestionInsumos/>} />
+          <Route path="proveedores" element={<Proveedores />} />
         </Route>
 
         {/* Ruta 404 */}

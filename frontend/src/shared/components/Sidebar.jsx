@@ -13,11 +13,12 @@ const menuItems = [
     { label: "Categorías de Insumos", icon: "🗂️", link: "/categorias_insumos" },
     { label: "Gestión de Insumos", icon: "📦", link: "/gestion-insumos" },
     { label: "Proveedores", icon: "🏭", link: "/proveedores" },
+    { label: "Compras", icon: "🛒", link: "/compras" }, // Ruta ejemplo
   ]},
   { section: "Producción", icon: "⚡", items: [
     { label: "Categoría de Productos", icon: "🏷️", link: "/categorias_productos" },
     { label: "Gestión de Productos", icon: "📦", link: "/products" },
-    { label: "Órdenes de Compra", icon: "📋", link: "/ordenes-compra" },
+    { label: "Órdenes de Producción", icon: "📋", link: "/ordenes-compra" },
   ]},
   { section: "Ventas", icon: "💰", items: [
     { label: "Clientes", icon: "👤", link: "/clientes" },
