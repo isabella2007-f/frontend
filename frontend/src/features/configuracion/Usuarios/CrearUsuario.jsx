@@ -310,10 +310,10 @@ export default function CrearUsuario({ user, onClose, onSave }) {
           </div>
 
           <div className="modal-btn-row">
+            <button className="btn-ghost" onClick={onClose}>Cancelar</button>
             <button className="btn-save" onClick={handleSave} disabled={saved}>
               {saved ? "Guardando…" : "Guardar"}
             </button>
-            <button className="btn-cancel" onClick={onClose}>Cancelar</button>
           </div>
         </div>
 

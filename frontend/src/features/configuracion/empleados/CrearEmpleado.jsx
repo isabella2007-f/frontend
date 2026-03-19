@@ -1,0 +1,292 @@
+import { useState, useRef, useEffect } from "react";
+import { TIPOS_DOC, ROLES_EMPLEADO, uid, fmtTel, toInputDate, fromInputDate } from "./empleadosUtils.js";
+import "./empleados.css";
+
+/* ─── RolBadge ───────────────────────────────────────────── */
+export function RolBadge({ idRol }) {
+  const rol = ROLES_EMPLEADO.find(r => r.id === Number(idRol));
+  if (!rol) return null;
+  return (
+    <span style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"3px 10px", borderRadius:20, fontSize:12, fontWeight:700, background:rol.bg, color:rol.color, border:`1px solid ${rol.border}`, whiteSpace:"nowrap" }}>
+      <span style={{ fontSize:13 }}>{rol.icon}</span>{rol.nombre}
+    </span>
+  );
+}
+
+/* ─── API Colombia ───────────────────────────────────────── */
+export function LocationSelects({ departamento, municipio, onDepto, onMunicipio, errDepto, errMunicipio, isView }) {
+  const [deptos,     setDeptos]     = useState([]);
+  const [municipios, setMunicipios] = useState([]);
+  const [loadingD,   setLoadingD]   = useState(false);
+  const [loadingM,   setLoadingM]   = useState(false);
+
+  useEffect(() => {
+    setLoadingD(true);
+    fetch("https://api-colombia.com/api/v1/Department")
+      .then(r => r.json())
+      .then(data => setDeptos(data.sort((a, b) => a.name.localeCompare(b.name))))
+      .catch(() => {})
+      .finally(() => setLoadingD(false));
+  }, []);
+
+  useEffect(() => {
+    if (!departamento) { setMunicipios([]); onMunicipio(""); return; }
+    const found = deptos.find(d => d.name === departamento);
+    if (!found) return;
+    setLoadingM(true);
+    onMunicipio("");
+    fetch(`https://api-colombia.com/api/v1/Department/${found.id}/cities`)
+      .then(r => r.json())
+      .then(data => setMunicipios(data.sort((a, b) => a.name.localeCompare(b.name))))
+      .catch(() => {})
+      .finally(() => setLoadingM(false));
+  }, [departamento, deptos]);
+
+  if (isView) return (
+    <div className="form-grid-2">
+      <div className="form-group"><label className="form-label">Departamento</label><div className="field-input field-input--disabled">{departamento || "—"}</div></div>
+      <div className="form-group"><label className="form-label">Municipio</label><div className="field-input field-input--disabled">{municipio || "—"}</div></div>
+    </div>
+  );
+
+  return (
+    <div className="form-grid-2">
+      <div className="form-group">
+        <label className="form-label">Departamento <span className="required">*</span></label>
+        <select className={"field-input" + (errDepto ? " field-input--error" : "")}
+          value={departamento || ""} onChange={e => onDepto(e.target.value)}
+          disabled={loadingD} style={{ cursor:"pointer" }}>
+          <option value="">{loadingD ? "Cargando…" : "— Seleccionar —"}</option>
+          {deptos.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+        </select>
+        {errDepto && <p className="field-error">{errDepto}</p>}
+      </div>
+      <div className="form-group">
+        <label className="form-label">Municipio <span className="required">*</span></label>
+        <select className={"field-input" + (errMunicipio ? " field-input--error" : "")}
+          value={municipio || ""} onChange={e => onMunicipio(e.target.value)}
+          disabled={!departamento || loadingM} style={{ cursor:"pointer" }}>
+          <option value="">{!departamento ? "Seleccione depto…" : loadingM ? "Cargando…" : "— Seleccionar —"}</option>
+          {municipios.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+        </select>
+        {errMunicipio && <p className="field-error">{errMunicipio}</p>}
+      </div>
+    </div>
+  );
+}
+
+function Field({ k, label, type = "text", ph = "", full = false, form, errors, onChange }) {
+  return (
+    <div className="form-group" style={full ? { gridColumn:"1 / -1" } : {}}>
+      <label className="form-label">{label} <span className="required">*</span></label>
+      <input className={"field-input" + (errors[k] ? " field-input--error" : "")}
+        type={type} value={form[k] || ""} onChange={e => onChange(k, e.target.value)} placeholder={ph}
+        onFocus={e => e.target.style.borderColor = "#4caf50"}
+        onBlur={e => e.target.style.borderColor = errors[k] ? "#e53935" : "#e0e0e0"} />
+      {errors[k] && <p className="field-error">{errors[k]}</p>}
+    </div>
+  );
+}
+
+/* ─── CrearEmpleado ──────────────────────────────────────── */
+export default function CrearEmpleado({ onClose, onSave }) {
+  const empty = { tipoDoc:"CC", numDoc:"", nombre:"", apellidos:"", correo:"", telefono:"", direccion:"", departamento:"", municipio:"", contrasena:"", confirmar:"", idRol:"", estado:true, fotoPreview:null, fechaIngreso:"" };
+
+  const [form, setForm]         = useState(empty);
+  const [errors, setErrors]     = useState({});
+  const [saving, setSaving]     = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  const fotoRef = useRef();
+
+  const set = (k, v) => { setForm(p => ({ ...p, [k]: v })); setErrors(p => ({ ...p, [k]: "" })); };
+
+  const handleFoto = e => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => set("fotoPreview", ev.target.result);
+    reader.readAsDataURL(file);
+  };
+
+  const validate = () => {
+    const e = {};
+    if (!form.tipoDoc)             e.tipoDoc      = "Requerido";
+    if (!form.numDoc.trim())       e.numDoc       = "Requerido";
+    if (!form.nombre.trim())       e.nombre       = "Requerido";
+    if (!form.apellidos.trim())    e.apellidos    = "Requerido";
+    if (!form.correo.trim() || !/\S+@\S+\.\S+/.test(form.correo)) e.correo = "Correo inválido";
+    if (!form.telefono.trim())     e.telefono     = "Requerido";
+    if (!form.fechaIngreso.trim()) e.fechaIngreso = "Requerido";
+    if (!form.departamento)        e.departamento = "Requerido";
+    if (!form.municipio)           e.municipio    = "Requerido";
+    if (!form.idRol)               e.idRol        = "Selecciona un rol";
+    if (form.contrasena.length < 6)           e.contrasena = "Mínimo 6 caracteres";
+    if (form.contrasena !== form.confirmar)    e.confirmar  = "No coinciden";
+    return e;
+  };
+
+  const handleSave = async () => {
+    const e = validate();
+    if (Object.keys(e).length) { setErrors(e); return; }
+    setSaving(true);
+    await new Promise(r => setTimeout(r, 500));
+    const { confirmar: _confirmar, ...data } = form;
+    onSave({ ...data, id: uid(), fechaIngreso: form.fechaIngreso });
+    setSaving(false);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box--wide" onClick={e => e.stopPropagation()}>
+
+        <div className="modal-header">
+          <div>
+            <p className="modal-header__eyebrow">Empleados</p>
+            <h2 className="modal-header__title">Nuevo Empleado</h2>
+          </div>
+          <button className="modal-close-btn" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="modal-body" style={{ maxHeight:"68vh", overflowY:"auto" }}>
+
+          {/* Avatar */}
+          <div style={{ textAlign:"center", marginBottom:20 }}>
+            <div className="avatar-upload-wrap" onClick={() => fotoRef.current.click()}>
+              {form.fotoPreview ? <img className="avatar-upload-img" src={form.fotoPreview} alt="avatar" /> : <div className="avatar-upload-placeholder">👤</div>}
+              <div className="avatar-upload-overlay">📷</div>
+            </div>
+            <p style={{ margin:0, fontSize:11, color:"#9e9e9e" }}>Foto de perfil</p>
+            <input ref={fotoRef} type="file" accept="image/*" style={{ display:"none" }} onChange={handleFoto} />
+          </div>
+
+          {/* Identificación */}
+          <p className="section-label">Identificación</p>
+          <div className="form-group">
+            <label className="form-label">Tipo y Número de documento <span className="required">*</span></label>
+            <div className="doc-combo">
+              <select className={"field-input doc-sel" + (errors.tipoDoc ? " field-input--error" : "")}
+                value={form.tipoDoc} onChange={e => set("tipoDoc", e.target.value)} style={{ cursor:"pointer" }}>
+                {TIPOS_DOC.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <input className={"field-input doc-input" + (errors.numDoc ? " field-input--error" : "")}
+                type="text" value={form.numDoc} onChange={e => set("numDoc", e.target.value)} placeholder="Número de documento"
+                onFocus={e => e.target.style.borderColor = "#4caf50"}
+                onBlur={e => e.target.style.borderColor = errors.numDoc ? "#e53935" : "#e0e0e0"} />
+            </div>
+            {(errors.tipoDoc || errors.numDoc) && <p className="field-error">{errors.tipoDoc || errors.numDoc}</p>}
+          </div>
+
+          {/* Rol */}
+          <p className="section-label">Rol</p>
+          <div className="form-group">
+            <label className="form-label">Rol del empleado <span className="required">*</span></label>
+            <select className={"field-input" + (errors.idRol ? " field-input--error" : "")}
+              value={form.idRol || ""} onChange={e => set("idRol", Number(e.target.value))} style={{ cursor:"pointer" }}>
+              <option value="">— Seleccionar rol —</option>
+              {ROLES_EMPLEADO.map(r => <option key={r.id} value={r.id}>{r.icon} {r.nombre}</option>)}
+            </select>
+            {errors.idRol && <p className="field-error">{errors.idRol}</p>}
+          </div>
+
+          {/* Datos personales */}
+          <p className="section-label">Datos personales</p>
+          <div className="form-grid-2">
+            <Field form={form} errors={errors} onChange={set} k="nombre"    label="Nombre"    ph="Ej. Laura" />
+            <Field form={form} errors={errors} onChange={set} k="apellidos" label="Apellidos" ph="Ej. Sánchez Ríos" />
+            <Field form={form} errors={errors} onChange={set} k="correo"    label="Correo electrónico" type="email" ph="correo@empresa.com" full />
+
+            {/* Teléfono */}
+            <div className="form-group">
+              <label className="form-label">Teléfono <span className="required">*</span></label>
+              <input className={"field-input" + (errors.telefono ? " field-input--error" : "")}
+                type="tel" value={form.telefono} maxLength={12}
+                onChange={e => set("telefono", fmtTel(e.target.value))} placeholder="300 000 0000"
+                onFocus={e => e.target.style.borderColor = "#4caf50"}
+                onBlur={e => e.target.style.borderColor = errors.telefono ? "#e53935" : "#e0e0e0"} />
+              {errors.telefono && <p className="field-error">{errors.telefono}</p>}
+            </div>
+
+            {/* Fecha ingreso */}
+            <div className="form-group">
+              <label className="form-label">Fecha de ingreso <span className="required">*</span></label>
+              <input className={"field-input" + (errors.fechaIngreso ? " field-input--error" : "")}
+                type="date" value={toInputDate(form.fechaIngreso)}
+                onChange={e => set("fechaIngreso", fromInputDate(e.target.value))}
+                onFocus={e => e.target.style.borderColor = "#4caf50"}
+                onBlur={e => e.target.style.borderColor = errors.fechaIngreso ? "#e53935" : "#e0e0e0"} />
+              {errors.fechaIngreso && <p className="field-error">{errors.fechaIngreso}</p>}
+            </div>
+
+            {/* Estado */}
+            <div className="form-group" style={{ gridColumn:"1 / -1" }}>
+              <label className="form-label">Estado</label>
+              <div style={{ display:"flex", alignItems:"center", gap:10, paddingTop:4 }}>
+                <button onClick={() => set("estado", !form.estado)} className="toggle-btn"
+                  style={{ background: form.estado ? "#43a047" : "#c62828", boxShadow: form.estado ? "0 2px 8px rgba(67,160,71,0.45)" : "0 2px 8px rgba(198,40,40,0.3)" }}>
+                  <span className="toggle-thumb" style={{ left: form.estado ? 27 : 3 }}>
+                    <span className="toggle-label" style={{ color:"black" }}>{form.estado ? "ON" : "OFF"}</span>
+                  </span>
+                </button>
+                <span style={{ fontSize:13, fontWeight:600, color: form.estado ? "#2e7d32" : "#9e9e9e" }}>{form.estado ? "Activo" : "Inactivo"}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Ubicación */}
+          <p className="section-label">Ubicación</p>
+          <div className="form-group">
+            <label className="form-label">Dirección</label>
+            <input className="field-input" type="text" value={form.direccion || ""}
+              onChange={e => set("direccion", e.target.value)} placeholder="Ej. Calle 10 # 5-20"
+              onFocus={e => e.target.style.borderColor = "#4caf50"}
+              onBlur={e => e.target.style.borderColor = "#e0e0e0"} />
+          </div>
+          <LocationSelects
+            departamento={form.departamento} municipio={form.municipio}
+            onDepto={v => { set("departamento", v); set("municipio", ""); }}
+            onMunicipio={v => set("municipio", v)}
+            errDepto={errors.departamento} errMunicipio={errors.municipio}
+          />
+
+          {/* Contraseña */}
+          <p className="section-label">Contraseña</p>
+          <div className="form-grid-2">
+            <div className="form-group">
+              <label className="form-label">Contraseña <span className="required">*</span></label>
+              <div className="pass-wrap">
+                <input className={"field-input" + (errors.contrasena ? " field-input--error" : "")}
+                  type={showPass ? "text" : "password"} style={{ paddingRight:36 }}
+                  value={form.contrasena || ""} onChange={e => set("contrasena", e.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                  onFocus={e => e.target.style.borderColor = "#4caf50"}
+                  onBlur={e => e.target.style.borderColor = errors.contrasena ? "#e53935" : "#e0e0e0"} />
+                <button className="pass-toggle-btn" onClick={() => setShowPass(v => !v)}>{showPass ? "🙈" : "👁"}</button>
+              </div>
+              {errors.contrasena && <p className="field-error">{errors.contrasena}</p>}
+            </div>
+            <div className="form-group">
+              <label className="form-label">Confirmar contraseña <span className="required">*</span></label>
+              <div className="pass-wrap">
+                <input className={"field-input" + (errors.confirmar ? " field-input--error" : "")}
+                  type={showPass ? "text" : "password"} style={{ paddingRight:36 }}
+                  value={form.confirmar || ""} onChange={e => set("confirmar", e.target.value)}
+                  placeholder="Repetir contraseña"
+                  onFocus={e => e.target.style.borderColor = "#4caf50"}
+                  onBlur={e => e.target.style.borderColor = errors.confirmar ? "#e53935" : "#e0e0e0"} />
+                <button className="pass-toggle-btn" onClick={() => setShowPass(v => !v)}>{showPass ? "🙈" : "👁"}</button>
+              </div>
+              {errors.confirmar && <p className="field-error">{errors.confirmar}</p>}
+            </div>
+          </div>
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn-ghost" onClick={onClose}>Cancelar</button>
+          <button className="btn-save" onClick={handleSave} disabled={saving}>
+            {saving && <span className="spinner">◌</span>}
+            {saving ? "Guardando…" : "Guardar"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

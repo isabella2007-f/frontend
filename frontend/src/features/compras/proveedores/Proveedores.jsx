@@ -9,11 +9,11 @@ const ITEMS_PER_PAGE = 6;
 
 /* ── Datos de ejemplo ─────────────────────────────────────── */
 const initialProveedores = [
-  { id: uid(), responsable: "Juan Morales",    direccion: "Cra 45 # 10-20, Medellín",      celular: "300 123 4567", correo: "juan.morales@prov.com"   },
-  { id: uid(), responsable: "Sandra López",    direccion: "Calle 80 # 23-15, Bogotá",      celular: "312 456 7890", correo: "sandra.lopez@prov.com"   },
-  { id: uid(), responsable: "Pedro Ríos",      direccion: "Av. 6N # 12-50, Cali",          celular: "315 789 0123", correo: "pedro.rios@prov.com"     },
-  { id: uid(), responsable: "Marcela Gómez",   direccion: "Cl. 50 # 40-30, Barranquilla",  celular: "318 012 3456", correo: "marcela.gomez@prov.com"  },
-  { id: uid(), responsable: "Andrés Herrera",  direccion: "Cra 15 # 68-10, Bucaramanga",   celular: "321 345 6789", correo: "andres.herrera@prov.com" },
+  { id: uid(), responsable: "Juan Morales",    direccion: "Cra 45 # 10-20, Medellín",      celular: "300 123 4567", correo: "juan.morales@prov.com",   ciudad: "Medellín"    },
+  { id: uid(), responsable: "Sandra López",    direccion: "Calle 80 # 23-15, Bogotá",      celular: "312 456 7890", correo: "sandra.lopez@prov.com",   ciudad: "Bogotá"      },
+  { id: uid(), responsable: "Pedro Ríos",      direccion: "Av. 6N # 12-50, Cali",          celular: "315 789 0123", correo: "pedro.rios@prov.com",     ciudad: "Cali"        },
+  { id: uid(), responsable: "Marcela Gómez",   direccion: "Cl. 50 # 40-30, Barranquilla",  celular: "318 012 3456", correo: "marcela.gomez@prov.com",  ciudad: "Barranquilla"},
+  { id: uid(), responsable: "Andrés Herrera",  direccion: "Cra 15 # 68-10, Bucaramanga",   celular: "321 345 6789", correo: "andres.herrera@prov.com", ciudad: "Bucaramanga" },
 ];
 
 /* Compras de ejemplo vinculadas a proveedores */
@@ -91,30 +91,49 @@ export default function GestionProveedores() {
   const [proveedores, setProveedores] = useState(initialProveedores);
   const [compras]                     = useState(initialCompras);
   const [search, setSearch]           = useState("");
+  const [filterCiudad, setFilterCiudad] = useState("todas");
+  const [showFilter, setShowFilter]   = useState(false);
   const [page, setPage]               = useState(1);
   const [modal, setModal]             = useState(null);
   const [toast, setToast]             = useState(null);
+  const filterRef                     = useRef();
+
+  /* Cerrar dropdown al hacer clic fuera */
+  useEffect(() => {
+    const h = e => {
+      if (filterRef.current && !filterRef.current.contains(e.target)) setShowFilter(false);
+    };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
 
   const showToast = (msg, type = "success") => {
     setToast({ message: msg, type });
     setTimeout(() => setToast(null), 3000);
   };
 
+  /* Ciudades únicas para el filtro */
+  const ciudadesUnicas = [...new Set(proveedores.map(p => p.ciudad).filter(Boolean))].sort();
+
   /* ── Filtrado ── */
   const filtered = proveedores.filter(p => {
     const q = search.toLowerCase();
-    return (
+    const matchQ = (
       p.responsable.toLowerCase().includes(q) ||
       (p.correo    || "").toLowerCase().includes(q) ||
       (p.celular   || "").toLowerCase().includes(q) ||
       (p.direccion || "").toLowerCase().includes(q)
     );
+    const matchCiudad = filterCiudad === "todas" || p.ciudad === filterCiudad;
+    return matchQ && matchCiudad;
   });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const safePage   = Math.min(page, totalPages);
   const paginated  = filtered.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
-  useEffect(() => setPage(1), [search]);
+  useEffect(() => setPage(1), [search, filterCiudad]);
+
+  const hasFilter = filterCiudad !== "todas";
 
   /* ── CRUD ── */
   const handleCreate = data => {
@@ -153,9 +172,41 @@ export default function GestionProveedores() {
               className="search-input"
               placeholder="Buscar por responsable, correo, celular o dirección…"
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
             />
           </div>
+
+          {/* Botón filtro + dropdown */}
+          <div ref={filterRef} style={{ position: "relative" }}>
+            <button
+              className={"filter-icon-btn" + (hasFilter ? " has-filter" : "")}
+              onClick={() => setShowFilter(v => !v)}
+            >
+              ▼
+            </button>
+
+            {showFilter && (
+              <div className="filter-dropdown" style={{ minWidth: 170 }}>
+                <p className="filter-section-title">Ciudad</p>
+                <button
+                  className={"filter-option" + (filterCiudad === "todas" ? " active" : "")}
+                  onClick={() => { setFilterCiudad("todas"); setPage(1); setShowFilter(false); }}
+                >
+                  <span className="filter-dot" style={{ background: "#bdbdbd" }} />Todas
+                </button>
+                {ciudadesUnicas.map(ciudad => (
+                  <button
+                    key={ciudad}
+                    className={"filter-option" + (filterCiudad === ciudad ? " active" : "")}
+                    onClick={() => { setFilterCiudad(ciudad); setPage(1); setShowFilter(false); }}
+                  >
+                    <span className="filter-dot" style={{ background: "#2e7d32" }} />{ciudad}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <button className="btn-agregar" onClick={() => setModal({ mode: "new" })}>
             Agregar <span style={{ fontSize: 18 }}>+</span>
           </button>
@@ -181,7 +232,9 @@ export default function GestionProveedores() {
                     <td colSpan={6}>
                       <div className="empty-state">
                         <div className="empty-state__icon">🏭</div>
-                        <p className="empty-state__text">Sin proveedores registrados</p>
+                        <p className="empty-state__text">
+                          {hasFilter || search ? "Sin proveedores que coincidan." : "Sin proveedores registrados"}
+                        </p>
                       </div>
                     </td>
                   </tr>
