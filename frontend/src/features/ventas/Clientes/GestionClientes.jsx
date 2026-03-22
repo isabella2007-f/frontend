@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
+import { useApp } from "../../../AppContext.jsx";
 import "./clientes.css";
 
 const TIPOS_DOC = ["CC", "TI", "CE", "Pasaporte", "NIT", "PPT"];
-const uid = () => Math.random().toString(36).slice(2, 10).toUpperCase();
 const fmtTel = raw => {
   const d = raw.replace(/\D/g, "").slice(0, 10);
   if (d.length <= 3) return d;
@@ -13,14 +13,6 @@ const toInputDate   = v => v && v.includes("/") ? v.split("/").reverse().join("-
 const fromInputDate = v => { if (!v) return ""; const [y,m,d] = v.split("-"); return `${d}/${m}/${y}`; };
 const ITEMS_PER_PAGE = 4;
 
-const initialClientes = [
-  { id: uid(), tipoDoc: "CC", numDoc: "1012345678", nombre: "Ana",    apellidos: "García López",   correo: "ana.garcia@email.com",   telefono: "300 123 4567", direccion: "Calle 50 # 40-20",   departamento: "Antioquia",    municipio: "Medellín",    estado: true,  fotoPreview: null, fechaCreacion: "12/12/2025" },
-  { id: uid(), tipoDoc: "CC", numDoc: "80456789",   nombre: "Carlos", apellidos: "Pérez Ruiz",     correo: "carlos.perez@email.com", telefono: "310 987 6543", direccion: "Carrera 15 # 8-30",  departamento: "Cundinamarca", municipio: "Bogotá",      estado: true,  fotoPreview: null, fechaCreacion: "15/01/2026" },
-  { id: uid(), tipoDoc: "CE", numDoc: "E-1234567",  nombre: "Lucía",  apellidos: "Martínez Vega",  correo: "lucia.mv@email.com",     telefono: "315 456 7890", direccion: "Av. 6N # 23-10",     departamento: "Valle",        municipio: "Cali",        estado: false, fotoPreview: null, fechaCreacion: "01/02/2026" },
-  { id: uid(), tipoDoc: "CC", numDoc: "72654321",   nombre: "Jorge",  apellidos: "Torres Suárez",  correo: "jorge.torres@email.com", telefono: "320 321 0987", direccion: "Calle 72 # 45-55",   departamento: "Atlántico",    municipio: "Barranquilla",estado: true,  fotoPreview: null, fechaCreacion: "20/02/2026" },
-  { id: uid(), tipoDoc: "TI", numDoc: "1234567890", nombre: "María",  apellidos: "López Castillo", correo: "maria.lc@email.com",     telefono: "317 654 3210", direccion: "Diagonal 30 # 12-5", departamento: "Santander",    municipio: "Bucaramanga", estado: true,  fotoPreview: null, fechaCreacion: "28/02/2026" },
-];
-
 /* ── API Colombia ─────────────────────────────────────────── */
 function LocationSelects({ departamento, municipio, onDepto, onMunicipio, errDepto, errMunicipio, isView }) {
   const [deptos,     setDeptos]     = useState([]);
@@ -29,15 +21,17 @@ function LocationSelects({ departamento, municipio, onDepto, onMunicipio, errDep
   const [loadingM,   setLoadingM]   = useState(false);
 
   useEffect(() => {
+    if (isView) return;
     setLoadingD(true);
     fetch("https://api-colombia.com/api/v1/Department")
       .then(r => r.json())
       .then(data => setDeptos(data.sort((a, b) => a.name.localeCompare(b.name))))
       .catch(() => {})
       .finally(() => setLoadingD(false));
-  }, []);
+  }, [isView]);
 
   useEffect(() => {
+    if (isView) return;
     if (!departamento) { setMunicipios([]); onMunicipio(""); return; }
     const found = deptos.find(d => d.name === departamento);
     if (!found) return;
@@ -48,7 +42,7 @@ function LocationSelects({ departamento, municipio, onDepto, onMunicipio, errDep
       .then(data => setMunicipios(data.sort((a, b) => a.name.localeCompare(b.name))))
       .catch(() => {})
       .finally(() => setLoadingM(false));
-  }, [departamento, deptos]);
+  }, [departamento, deptos, isView]);
 
   if (isView) return (
     <div className="form-grid-2">
@@ -106,8 +100,26 @@ function Toast({ toast }) {
 }
 
 /* ── Modal Eliminar ───────────────────────────────────────── */
-function EliminarModal({ cliente, onClose, onConfirm }) {
+function EliminarModal({ cliente, razon, onClose, onConfirm }) {
   const [deleting, setDeleting] = useState(false);
+
+  if (razon) {
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
+          <div style={{ padding: "28px 24px", textAlign: "center" }}>
+            <div className="delete-icon-wrap">⚠️</div>
+            <h3 className="delete-title">No se puede eliminar</h3>
+            <p className="delete-body">{razon}</p>
+          </div>
+          <div className="modal-footer" style={{ justifyContent: "center" }}>
+            <button className="btn-ghost" onClick={onClose}>Entendido</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const run = async () => { setDeleting(true); await new Promise(r => setTimeout(r, 500)); onConfirm(); };
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -171,7 +183,7 @@ function ClienteForm({ initial, isNew = false, isView = false, onClose, onSave }
     setSaving(true);
     await new Promise(r => setTimeout(r, 500));
     const { confirmar, ...data } = form;
-    onSave({ ...data, id: initial?.id ?? uid() });
+    onSave({ ...data, id: initial?.id });
     setSaving(false);
   };
 
@@ -205,8 +217,6 @@ function ClienteForm({ initial, isNew = false, isView = false, onClose, onSave }
         </div>
 
         <div className="modal-body" style={{ maxHeight: "68vh", overflowY: "auto" }}>
-
-          {/* Avatar */}
           <div style={{ textAlign: "center", marginBottom: 20 }}>
             <div className="avatar-upload-wrap" style={{ cursor: isView ? "default" : "pointer" }}
               onClick={() => !isView && fotoRef.current.click()}>
@@ -217,7 +227,6 @@ function ClienteForm({ initial, isNew = false, isView = false, onClose, onSave }
             <input ref={fotoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFoto} />
           </div>
 
-          {/* Identificación */}
           <p className="section-label">Identificación</p>
           <div className="form-group">
             <label className="form-label">Tipo y Número de documento</label>
@@ -241,13 +250,11 @@ function ClienteForm({ initial, isNew = false, isView = false, onClose, onSave }
             {(errors.tipoDoc || errors.numDoc) && <p className="field-error">{errors.tipoDoc || errors.numDoc}</p>}
           </div>
 
-          {/* Datos personales */}
           <p className="section-label">Datos personales</p>
           <div className="form-grid-2">
             <Field k="nombre"    label="Nombre"    ph="Ej. Ana" />
             <Field k="apellidos" label="Apellidos" ph="Ej. García López" />
             <Field k="correo"    label="Correo electrónico" type="email" ph="correo@ejemplo.com" full />
-
             <div className="form-group">
               <label className="form-label">Teléfono</label>
               {isView ? <div className="field-input field-input--disabled">{form.telefono || "—"}</div>
@@ -261,7 +268,6 @@ function ClienteForm({ initial, isNew = false, isView = false, onClose, onSave }
                   </>
               }
             </div>
-
             <div className="form-group">
               <label className="form-label">Fecha de registro</label>
               {isView ? <div className="field-input field-input--disabled">{form.fechaCreacion || "—"}</div>
@@ -275,7 +281,6 @@ function ClienteForm({ initial, isNew = false, isView = false, onClose, onSave }
                   </>
               }
             </div>
-
             <div className="form-group" style={{ gridColumn: "1 / -1" }}>
               <label className="form-label">Estado</label>
               <div style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 4 }}>
@@ -285,7 +290,6 @@ function ClienteForm({ initial, isNew = false, isView = false, onClose, onSave }
             </div>
           </div>
 
-          {/* Ubicación */}
           <p className="section-label">Ubicación</p>
           <div className="form-grid-2" style={{ marginBottom: 12 }}>
             <Field k="direccion" label="Dirección" ph="Ej. Calle 50 # 40-20, Apto 301" full />
@@ -298,7 +302,6 @@ function ClienteForm({ initial, isNew = false, isView = false, onClose, onSave }
             isView={isView}
           />
 
-          {/* Contraseña */}
           {!isView && (
             <>
               <p className="section-label" style={{ marginTop: 14 }}>{isNew ? "Contraseña" : "Cambiar contraseña"}</p>
@@ -353,9 +356,16 @@ function ClienteForm({ initial, isNew = false, isView = false, onClose, onSave }
   );
 }
 
-/* ── Página principal ─────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════
+   PÁGINA PRINCIPAL — conectada al AppContext
+══════════════════════════════════════════════════════════ */
 export default function GestionClientes() {
-  const [clientes, setClientes]     = useState(initialClientes);
+  const {
+    clientes,
+    crearCliente, editarCliente, toggleCliente, eliminarCliente,
+    canDeleteCliente,
+  } = useApp();
+
   const [search, setSearch]         = useState("");
   const [filter, setFilter]         = useState("todos");
   const [showFilter, setShowFilter] = useState(false);
@@ -370,11 +380,17 @@ export default function GestionClientes() {
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const showToast = (msg, type = "success") => { setToast({ message: msg, type }); setTimeout(() => setToast(null), 3000); };
+  const showToast = (msg, type = "success") => {
+    setToast({ message: msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const filtered = clientes.filter(c => {
     const q = search.toLowerCase();
-    const matchQ = `${c.nombre} ${c.apellidos}`.toLowerCase().includes(q) || c.correo.toLowerCase().includes(q) || (c.municipio || "").toLowerCase().includes(q) || (c.numDoc || "").toLowerCase().includes(q);
+    const matchQ = `${c.nombre} ${c.apellidos}`.toLowerCase().includes(q)
+      || c.correo.toLowerCase().includes(q)
+      || (c.municipio || "").toLowerCase().includes(q)
+      || (c.numDoc || "").toLowerCase().includes(q);
     const matchE = filter === "todos" || (filter === "activo" ? c.estado : !c.estado);
     return matchQ && matchE;
   });
@@ -384,10 +400,28 @@ export default function GestionClientes() {
   const paginated  = filtered.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
   useEffect(() => setPage(1), [search, filter]);
 
-  const handleCreate = data => { setClientes(p => [data, ...p]); showToast("Cliente creado");         setModal(null); };
-  const handleEdit   = data => { setClientes(p => p.map(c => c.id === data.id ? data : c)); showToast("Cambios guardados"); setModal(null); };
-  const handleDelete = ()   => { setClientes(p => p.filter(c => c.id !== modal.cliente.id)); showToast("Cliente eliminado", "error"); setModal(null); };
-  const toggleEstado = id   => setClientes(p => p.map(c => c.id === id ? { ...c, estado: !c.estado } : c));
+  const handleCreate = (data) => {
+    crearCliente(data);
+    showToast("Cliente creado");
+    setModal(null);
+  };
+
+  const handleEdit = (data) => {
+    editarCliente(data);
+    showToast("Cambios guardados");
+    setModal(null);
+  };
+
+  const handleDeleteClick = (cliente) => {
+    const check = canDeleteCliente(cliente.id);
+    setModal({ mode: "delete", cliente, razon: check.ok ? null : check.razon });
+  };
+
+  const handleDelete = () => {
+    eliminarCliente(modal.cliente.id);
+    showToast("Cliente eliminado", "error");
+    setModal(null);
+  };
 
   return (
     <div className="page-wrapper">
@@ -399,21 +433,32 @@ export default function GestionClientes() {
         <div className="toolbar">
           <div className="search-wrap">
             <span className="search-icon">🔍</span>
-            <input type="text" className="search-input" placeholder="Buscar por nombre, correo, ciudad o documento…" value={search} onChange={e => setSearch(e.target.value)} />
+            <input type="text" className="search-input"
+              placeholder="Buscar por nombre, correo, ciudad o documento…"
+              value={search} onChange={e => setSearch(e.target.value)} />
           </div>
           <div ref={filterRef} style={{ position: "relative" }}>
-            <button className={"filter-icon-btn" + (filter !== "todos" ? " has-filter" : "")} onClick={() => setShowFilter(v => !v)}>▼</button>
+            <button className={"filter-icon-btn" + (filter !== "todos" ? " has-filter" : "")}
+              onClick={() => setShowFilter(v => !v)}>▼</button>
             {showFilter && (
               <div className="filter-dropdown">
-                {[{ val: "todos", label: "Todos", dot: "#bdbdbd" }, { val: "activo", label: "Activos", dot: "#43a047" }, { val: "inactivo", label: "Inactivos", dot: "#ef5350" }].map(f => (
-                  <button key={f.val} className={"filter-option" + (filter === f.val ? " active" : "")} onClick={() => { setFilter(f.val); setShowFilter(false); }}>
+                {[
+                  { val: "todos",    label: "Todos",    dot: "#bdbdbd" },
+                  { val: "activo",   label: "Activos",  dot: "#43a047" },
+                  { val: "inactivo", label: "Inactivos",dot: "#ef5350" },
+                ].map(f => (
+                  <button key={f.val}
+                    className={"filter-option" + (filter === f.val ? " active" : "")}
+                    onClick={() => { setFilter(f.val); setShowFilter(false); }}>
                     <span className="filter-dot" style={{ background: f.dot }} />{f.label}
                   </button>
                 ))}
               </div>
             )}
           </div>
-          <button className="btn-agregar" onClick={() => setModal({ mode: "new" })}>Agregar <span style={{ fontSize: 18 }}>+</span></button>
+          <button className="btn-agregar" onClick={() => setModal({ mode: "new" })}>
+            Agregar <span style={{ fontSize: 18 }}>+</span>
+          </button>
         </div>
 
         <div className="card">
@@ -433,26 +478,61 @@ export default function GestionClientes() {
               </thead>
               <tbody>
                 {paginated.length === 0 ? (
-                  <tr><td colSpan={8}><div className="empty-state"><div className="empty-state__icon">👤</div><p className="empty-state__text">Sin clientes</p></div></td></tr>
+                  <tr><td colSpan={8}>
+                    <div className="empty-state">
+                      <div className="empty-state__icon">👤</div>
+                      <p className="empty-state__text">
+                        {filter !== "todos" || search ? "Sin clientes que coincidan." : "No hay clientes registrados."}
+                      </p>
+                    </div>
+                  </td></tr>
                 ) : paginated.map((c, idx) => (
                   <tr key={c.id} className="tbl-row">
-                    <td><span className="row-num">{String((safePage - 1) * ITEMS_PER_PAGE + idx + 1).padStart(2, "0")}</span></td>
+                    <td>
+                      <span className="row-num">
+                        {String((safePage - 1) * ITEMS_PER_PAGE + idx + 1).padStart(2, "0")}
+                      </span>
+                    </td>
                     <td>
                       <div className="client-cell">
-                        <div className="avatar-wrap">{c.fotoPreview ? <img src={c.fotoPreview} alt={c.nombre} /> : <span>👤</span>}</div>
-                        <div><div className="client-name">{c.nombre} {c.apellidos}</div><div className="client-email">{c.correo}</div></div>
+                        <div className="avatar-wrap">
+                          {c.fotoPreview
+                            ? <img src={c.fotoPreview} alt={c.nombre} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            : <span>👤</span>}
+                        </div>
+                        <div>
+                          <div className="client-name">{c.nombre} {c.apellidos}</div>
+                          <div className="client-email">{c.correo}</div>
+                        </div>
                       </div>
                     </td>
-                    <td><div className="doc-badge"><span className="doc-type">{c.tipoDoc}</span><span className="doc-num">{c.numDoc}</span></div></td>
-                    <td><span className="phone-cell"><span className="phone-icon">📞</span>{c.telefono}</span></td>
-                    <td><div className="location-city">{c.municipio}</div><div className="location-dept">{c.departamento}</div></td>
-                    <td><Toggle value={c.estado} onChange={() => toggleEstado(c.id)} /></td>
+                    <td>
+                      <div className="doc-badge">
+                        <span className="doc-type">{c.tipoDoc}</span>
+                        <span className="doc-num">{c.numDoc}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="phone-cell">
+                        <span className="phone-icon">📞</span>{c.telefono}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="location-city">{c.municipio}</div>
+                      <div className="location-dept">{c.departamento}</div>
+                    </td>
+                    <td>
+                      <Toggle value={c.estado} onChange={() => toggleCliente(c.id)} />
+                    </td>
                     <td><span className="date-badge">{c.fechaCreacion}</span></td>
                     <td>
                       <div className="actions-cell">
-                        <button className="act-btn act-btn--view"   onClick={() => setModal({ mode: "view",   cliente: c })}>👁</button>
-                        <button className="act-btn act-btn--edit"   onClick={() => setModal({ mode: "edit",   cliente: c })}>✎</button>
-                        <button className="act-btn act-btn--delete" onClick={() => setModal({ mode: "delete", cliente: c })}>🗑️</button>
+                        <button className="act-btn act-btn--view"
+                          onClick={() => setModal({ mode: "view",   cliente: c })}>👁</button>
+                        <button className="act-btn act-btn--edit"
+                          onClick={() => setModal({ mode: "edit",   cliente: c })}>✎</button>
+                        <button className="act-btn act-btn--delete"
+                          onClick={() => handleDeleteClick(c)}>🗑️</button>
                       </div>
                     </td>
                   </tr>
@@ -461,11 +541,15 @@ export default function GestionClientes() {
             </table>
           </div>
           <div className="pagination-bar">
-            <span className="pagination-count">{filtered.length} {filtered.length === 1 ? "cliente" : "clientes"} en total</span>
+            <span className="pagination-count">
+              {filtered.length} {filtered.length === 1 ? "cliente" : "clientes"} en total
+            </span>
             <div className="pagination-btns">
-              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
+              <button className="pg-btn-arrow"
+                onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
               <span className="pg-pill">Página {safePage} de {totalPages}</span>
-              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
+              <button className="pg-btn-arrow"
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
             </div>
           </div>
         </div>
@@ -474,7 +558,14 @@ export default function GestionClientes() {
       {modal?.mode === "new"    && <ClienteForm isNew onClose={() => setModal(null)} onSave={handleCreate} />}
       {modal?.mode === "edit"   && <ClienteForm initial={modal.cliente} onClose={() => setModal(null)} onSave={handleEdit} />}
       {modal?.mode === "view"   && <ClienteForm initial={modal.cliente} isView onClose={() => setModal(null)} />}
-      {modal?.mode === "delete" && <EliminarModal cliente={modal.cliente} onClose={() => setModal(null)} onConfirm={handleDelete} />}
+      {modal?.mode === "delete" && (
+        <EliminarModal
+          cliente={modal.cliente}
+          razon={modal.razon}
+          onClose={() => setModal(null)}
+          onConfirm={handleDelete}
+        />
+      )}
 
       <Toast toast={toast} />
     </div>

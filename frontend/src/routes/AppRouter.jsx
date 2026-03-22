@@ -8,14 +8,18 @@ import Dashboard from "../features/dashboard/Dashboard";
 import GestionUsuarios from "../features/configuracion/Usuarios/GestionUsuarios";
 import Empleados from "../features/configuracion/empleados/Empleados";
 import Roles from "../features/configuracion/roles/Roles";
-import AccessManagement from "../features/configuracion/ControlAcceso/AccessManagement";
+import AccessManagement from "../features/configuracion/control_acceso/AccessManagement";
 
 // Producción
-import CategoriaProductos from "../features/produccion/CategoriaProductos/Categoriaproductos";
+import CategoriaProductos from "../features/produccion/categoria_productos/Categoriaproductos";
 import Productos from "../features/produccion/Productos/Productos";
+import GestionOrdenesProduccion from "../features/produccion/orden_produccion/GestionOrdenesProduccion";
 
 // Ventas
-import GestionClientes from "../features/ventas/Clientes/GestionClientes";
+import GestionClientes from "../features/ventas/clientes/GestionClientes";
+import GestionPedidos from "../features/ventas/pedidos/GestionPedidos";
+import GestionDevoluciones from "../features/ventas/devoluciones/GestionDevoluciones";
+import GestionDomicilios from "../features/ventas/domicilios/Gestiondomicilios";
 
 // Compras
 import CategoriaInsumos from "../features/compras/categoriainsumos/CategoriaInsumos";
@@ -54,8 +58,12 @@ const AppRouter = () => {
 
             <Route path="categorias_productos" element={<CategoriaProductos />} />
             <Route path="products" element={<Productos />} />
+            <Route path="ordenes-produccion" element={<GestionOrdenesProduccion />} />
+            <Route path="domicilios" element={<GestionDomicilios />} />
 
             <Route path="clientes" element={<GestionClientes />} />
+            <Route path="pedidos" element={<GestionPedidos/>} />
+            <Route path="devoluciones" element={<GestionDevoluciones />} />
 
             <Route path="categorias_insumos" element={<CategoriaInsumos />} />
             <Route path="gestion-insumos" element={<GestionInsumos />} />

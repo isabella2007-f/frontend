@@ -23,6 +23,9 @@ const adminMenuItems = [
   ]},
   { section: "Ventas", icon: "💰", items: [
     { label: "Clientes", icon: "👤", link: "/clientes" },
+    { label: "Pedidos", icon: "🛍️", link: "/pedidos" },
+    { label: "Devoluciones", icon: "↩️", link: "/devoluciones" },
+    { label: "Domicilios", icon: "🏠", link: "/domicilios" },
   ]},
   { section: "Dashboard", icon: "▦", items: [
     { label: "Vista General", icon: "🖥️", link: "/admin" },

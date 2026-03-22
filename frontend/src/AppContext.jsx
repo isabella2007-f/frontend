@@ -4,7 +4,6 @@ import { createContext, useContext, useState } from "react";
    UTILIDADES DE FECHAS
 ══════════════════════════════════════════════════════════ */
 
-/** Días que faltan desde hoy hasta una fecha ISO "YYYY-MM-DD" */
 export const diasHasta = (fechaISO) => {
   if (!fechaISO) return Infinity;
   const hoy    = new Date(); hoy.setHours(0, 0, 0, 0);
@@ -12,7 +11,6 @@ export const diasHasta = (fechaISO) => {
   return Math.round((target - hoy) / 86_400_000);
 };
 
-/** Estado visual de un lote según días restantes y stock */
 export const estadoLote = (lote) => {
   if (lote.cantidadActual <= 0)      return "agotado";
   const dias = diasHasta(lote.fechaVencimiento);
@@ -20,6 +18,8 @@ export const estadoLote = (lote) => {
   if (dias <= 7)                     return "por-vencer";
   return "activo";
 };
+
+const uid = () => Math.random().toString(36).slice(2, 10).toUpperCase();
 
 /* ══════════════════════════════════════════════════════════
    DATOS INICIALES
@@ -54,8 +54,6 @@ export const UNIDADES_MEDIDA = [
   { id: 7, simbolo: "bol", nombre: "Bolsa"     },
 ];
 
-/* Insumos — stockActual es derivado de lotes, pero lo mantenemos
-   para compatibilidad con módulos que aún no usan lotes */
 const initInsumos = [
   { id: 1,  nombre: "Plátano verde",       idCategoria: 1, idUnidad: 1, stockActual: 120, stockMinimo: 30,  estado: true },
   { id: 2,  nombre: "Cebolla",             idCategoria: 1, idUnidad: 1, stockActual: 15,  stockMinimo: 20,  estado: true },
@@ -71,28 +69,12 @@ const initInsumos = [
   { id: 12, nombre: "Bolsas",              idCategoria: 8, idUnidad: 5, stockActual: 500, stockMinimo: 200, estado: true },
 ];
 
-/*
-  LOTES — cada lote es un batch físico recibido de una compra.
-  Campos:
-    id               → "LC-001"
-    idInsumo         → qué insumo
-    idCompra         → de qué compra proviene
-    idDetalleRef     → ID del detalle de compra que lo originó
-    cantidadInicial  → cuánto llegó
-    cantidadActual   → cuánto queda (se descuenta al producir, FIFO)
-    fechaVencimiento → "YYYY-MM-DD"
-    fechaIngreso     → "YYYY-MM-DD"
-*/
 const initLotes = [
-  // C-001 completada (Harina y Sal)
-  { id: "LC-001", idInsumo: 6,  idCompra: "C-001", idDetalleRef: "C-001-D1", cantidadInicial: 10, cantidadActual: 8,  fechaVencimiento: "2026-08-20", fechaIngreso: "2026-03-10" },
-  { id: "LC-002", idInsumo: 7,  idCompra: "C-001", idDetalleRef: "C-001-D2", cantidadInicial: 5,  cantidadActual: 3,  fechaVencimiento: "2027-01-01", fechaIngreso: "2026-03-10" },
-  // C-002 completada (Sal — segundo lote)
-  { id: "LC-003", idInsumo: 7,  idCompra: "C-002", idDetalleRef: "C-002-D1", cantidadInicial: 3,  cantidadActual: 3,  fechaVencimiento: "2027-01-01", fechaIngreso: "2026-03-02" },
-  // Demo: lote próximo a vencer (Cebolla, vence en 4 días desde hoy)
-  { id: "LC-004", idInsumo: 2,  idCompra: "C-001", idDetalleRef: "C-001-D3", cantidadInicial: 20, cantidadActual: 12, fechaVencimiento: "2026-03-22", fechaIngreso: "2026-02-01" },
-  // Demo: lote vencido (Tomate)
-  { id: "LC-005", idInsumo: 3,  idCompra: "C-001", idDetalleRef: "C-001-D4", cantidadInicial: 15, cantidadActual: 5,  fechaVencimiento: "2026-03-10", fechaIngreso: "2026-01-15" },
+  { id: "LC-001", idInsumo: 6, idCompra: "C-001", idDetalleRef: "C-001-D1", cantidadInicial: 10, cantidadActual: 8,  fechaVencimiento: "2026-08-20", fechaIngreso: "2026-03-10" },
+  { id: "LC-002", idInsumo: 7, idCompra: "C-001", idDetalleRef: "C-001-D2", cantidadInicial: 5,  cantidadActual: 3,  fechaVencimiento: "2027-01-01", fechaIngreso: "2026-03-10" },
+  { id: "LC-003", idInsumo: 7, idCompra: "C-002", idDetalleRef: "C-002-D1", cantidadInicial: 3,  cantidadActual: 3,  fechaVencimiento: "2027-01-01", fechaIngreso: "2026-03-02" },
+  { id: "LC-004", idInsumo: 2, idCompra: "C-001", idDetalleRef: "C-001-D3", cantidadInicial: 20, cantidadActual: 12, fechaVencimiento: "2026-03-22", fechaIngreso: "2026-02-01" },
+  { id: "LC-005", idInsumo: 3, idCompra: "C-001", idDetalleRef: "C-001-D4", cantidadInicial: 15, cantidadActual: 5,  fechaVencimiento: "2026-03-10", fechaIngreso: "2026-01-15" },
 ];
 
 const initProductos = [
@@ -111,10 +93,6 @@ const initProveedores = [
   { id: "PROV0005", responsable: "Andrés Herrera", direccion: "Cra 15 # 68-10, Bucaramanga",  celular: "321 345 6789", correo: "andres.herrera@prov.com", ciudad: "Bucaramanga"  },
 ];
 
-/*
-  COMPRAS — cada detalle ahora lleva fechaVencimiento para el lote.
-  stockAplicado = true → los lotes ya fueron creados y el stock ya subió.
-*/
 const initCompras = [
   {
     id: "C-001", idProveedor: "PROV0001", fecha: "2026-03-10",
@@ -158,17 +136,136 @@ const initRoles = [
   { id: 3, nombre: "Cliente",  icono: "👤", iconoPreview: null, estado: true,  fecha: "01/01/2026", esAdmin: false, permisos: [] },
 ];
 
+/* Usuarios internos — solo Admin y Empleado */
 const initUsuarios = [
-  { id: 1, nombre: "Carlos", apellidos: "Pérez Ruiz",     correo: "carlos.perez@email.com", cedula: "80456789",   telefono: "310 987 6543", direccion: "Carrera 15 # 8-30",  departamento: "Cundinamarca",    municipio: "Bogotá",       rol: "Admin",    estado: true,  foto: null, fechaCreacion: "12/12/2025", esAdmin: true },
-  { id: 2, nombre: "Ana",    apellidos: "García López",   correo: "ana.garcia@email.com",   cedula: "1012345678", telefono: "300 123 4567", direccion: "Calle 50 # 40-20",   departamento: "Antioquia",       municipio: "Medellín",     rol: "Empleado", estado: true,  foto: null, fechaCreacion: "15/01/2026" },
-  { id: 3, nombre: "Lucía",  apellidos: "Martínez Vega",  correo: "lucia.mv@email.com",     cedula: "1234567890", telefono: "315 456 7890", direccion: "Av. 6N # 23-10",     departamento: "Valle del Cauca", municipio: "Cali",         rol: "Empleado", estado: false, foto: null, fechaCreacion: "01/02/2026" },
-  { id: 4, nombre: "Jorge",  apellidos: "Torres Suárez",  correo: "jorge.torres@email.com", cedula: "72654321",   telefono: "320 321 0987", direccion: "Calle 72 # 45-55",   departamento: "Atlántico",       municipio: "Barranquilla", rol: "Cliente",  estado: true,  foto: null, fechaCreacion: "20/02/2026" },
-  { id: 5, nombre: "María",  apellidos: "López Castillo", correo: "maria.lc@email.com",     cedula: "1234567891", telefono: "317 654 3210", direccion: "Diagonal 30 # 12-5", departamento: "Santander",       municipio: "Bucaramanga",  rol: "Cliente",  estado: true,  foto: null, fechaCreacion: "28/02/2026" },
+  { id: 1, nombre: "Carlos", apellidos: "Pérez Ruiz",   correo: "carlos.perez@email.com", cedula: "80456789",   telefono: "310 987 6543", direccion: "Carrera 15 # 8-30", departamento: "Cundinamarca", municipio: "Bogotá",   rol: "Admin",    estado: true,  foto: null, fechaCreacion: "12/12/2025", esAdmin: true },
+  { id: 2, nombre: "Ana",    apellidos: "García López", correo: "ana.garcia@email.com",   cedula: "1012345678", telefono: "300 123 4567", direccion: "Calle 50 # 40-20",  departamento: "Antioquia",    municipio: "Medellín", rol: "Empleado", estado: true,  foto: null, fechaCreacion: "15/01/2026" },
+  { id: 3, nombre: "Lucía",  apellidos: "Martínez Vega",correo: "lucia.mv@email.com",     cedula: "1234567890", telefono: "315 456 7890", direccion: "Av. 6N # 23-10",    departamento: "Valle del Cauca", municipio: "Cali",  rol: "Empleado", estado: false, foto: null, fechaCreacion: "01/02/2026" },
+];
+
+/* ══════════════════════════════════════════════════════════
+   CLIENTES — entidad propia, misma estructura que GestionClientes
+   Estos son los que ve CrearPedido / EditarPedido
+══════════════════════════════════════════════════════════ */
+const initClientes = [
+  { id: uid(), tipoDoc: "CC", numDoc: "1012345678", nombre: "Ana",    apellidos: "García López",   correo: "ana.garcia@email.com",   telefono: "300 123 4567", direccion: "Calle 50 # 40-20",   departamento: "Antioquia",    municipio: "Medellín",    estado: true,  fotoPreview: null, fechaCreacion: "12/12/2025" },
+  { id: uid(), tipoDoc: "CC", numDoc: "80456789",   nombre: "Carlos", apellidos: "Pérez Ruiz",     correo: "carlos.perez@email.com", telefono: "310 987 6543", direccion: "Carrera 15 # 8-30",  departamento: "Cundinamarca", municipio: "Bogotá",      estado: true,  fotoPreview: null, fechaCreacion: "15/01/2026" },
+  { id: uid(), tipoDoc: "CE", numDoc: "E-1234567",  nombre: "Lucía",  apellidos: "Martínez Vega",  correo: "lucia.mv@email.com",     telefono: "315 456 7890", direccion: "Av. 6N # 23-10",     departamento: "Valle",        municipio: "Cali",        estado: false, fotoPreview: null, fechaCreacion: "01/02/2026" },
+  { id: uid(), tipoDoc: "CC", numDoc: "72654321",   nombre: "Jorge",  apellidos: "Torres Suárez",  correo: "jorge.torres@email.com", telefono: "320 321 0987", direccion: "Calle 72 # 45-55",   departamento: "Atlántico",    municipio: "Barranquilla", estado: true,  fotoPreview: null, fechaCreacion: "20/02/2026" },
+  { id: uid(), tipoDoc: "TI", numDoc: "1234567890", nombre: "María",  apellidos: "López Castillo", correo: "maria.lc@email.com",     telefono: "317 654 3210", direccion: "Diagonal 30 # 12-5", departamento: "Santander",    municipio: "Bucaramanga", estado: true,  fotoPreview: null, fechaCreacion: "28/02/2026" },
+];
+
+/* ══════════════════════════════════════════════════════════
+   PEDIDOS
+══════════════════════════════════════════════════════════ */
+const initPedidos = [
+  {
+    id: 1,
+    numero: "PED-001",
+    idCliente: null, /* se llena con el id real del cliente al crear */
+    cliente: { nombre: "Jorge Torres Suárez",  correo: "jorge.torres@email.com", telefono: "320 321 0987" },
+    productosItems: [
+      { idProducto: 1, nombre: "Muffin de plátano",     precio: 10000, cantidad: 3, stockActual: 50, stockOk: true },
+      { idProducto: 3, nombre: "Chips de plátano verde", precio: 3500,  cantidad: 2, stockActual: 7,  stockOk: true },
+    ],
+    subtotal: 37000, descuento: 0, total: 37000,
+    metodo_pago: "Efectivo", domicilio: false, direccion_entrega: null,
+    idEmpleado: null, notas: "", estado: "Pendiente",
+    orden_produccion: false, fecha_pedido: "2026-03-18",
+  },
+  {
+    id: 2,
+    numero: "PED-002",
+    idCliente: null,
+    cliente: { nombre: "María López Castillo", correo: "maria.lc@email.com", telefono: "317 654 3210" },
+    productosItems: [
+      { idProducto: 2, nombre: "Palito de queso",        precio: 5000,  cantidad: 4, stockActual: 0,  stockOk: false },
+      { idProducto: 4, nombre: "Harina de plátano 500g", precio: 12000, cantidad: 1, stockActual: 80, stockOk: true  },
+    ],
+    subtotal: 32000, descuento: 0, total: 32000,
+    metodo_pago: "Transferencia", domicilio: true,
+    direccion_entrega: "Diagonal 30 # 12-5, Bucaramanga",
+    idEmpleado: null, notas: "Sin sal extra por favor",
+    estado: "En producción", orden_produccion: true, fecha_pedido: "2026-03-19",
+  },
+  {
+    id: 3,
+    numero: "PED-003",
+    idCliente: null,
+    cliente: { nombre: "Jorge Torres Suárez", correo: "jorge.torres@email.com", telefono: "320 321 0987" },
+    productosItems: [
+      { idProducto: 5, nombre: "Tostones orgánicos", precio: 7500, cantidad: 2, stockActual: 15, stockOk: true },
+    ],
+    subtotal: 15000, descuento: 1500, total: 13500,
+    metodo_pago: "Nequi", domicilio: true,
+    direccion_entrega: "Calle 72 # 45-55, Barranquilla",
+    idEmpleado: 2, notas: "", estado: "En camino",
+    orden_produccion: false, fecha_pedido: "2026-03-20",
+  },
 ];
 
 /* ══════════════════════════════════════════════════════════
    HELPERS
 ══════════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════════
+   ÓRDENES DE PRODUCCIÓN
+══════════════════════════════════════════════════════════ */
+
+const initOrdenes = [
+  {
+    id: "OP-001",
+    idPedido: 2,
+    numeroPedido: "PED-002",
+    productos: [
+      { idProducto: 2, nombre: "Palito de queso", cantidad: 4, precio: 5000 },
+    ],
+    insumos: [
+      { idInsumo: 1, nombre: "Plátano verde",  cantidad: 2,   unidad: "kg", stockOk: true  },
+      { idInsumo: 5, nombre: "Queso",          cantidad: 1,   unidad: "kg", stockOk: true  },
+      { idInsumo: 8, nombre: "Aceite vegetal", cantidad: 0.5, unidad: "l",  stockOk: true  },
+      { idInsumo: 7, nombre: "Sal",            cantidad: 0.1, unidad: "kg", stockOk: false },
+    ],
+    idEmpleado:   2,
+    estado:       "En proceso",
+    fechaInicio:  "2026-03-19",
+    fechaEntrega: "2026-03-22",
+    fechaCierre:  null,
+    costo:        18500,
+    notas:        "Sin sal extra por favor",
+  },
+];
+
+/* ══════════════════════════════════════════════════════════
+   DEVOLUCIONES
+   estado: "Pendiente" → "Aprobada" → "Reembolsada"
+                       → "Rechazada"
+══════════════════════════════════════════════════════════ */
+
+const initDevoluciones = [
+  {
+    id: "DEV-001",
+    numero: "DEV-001",
+    idPedido: 2,
+    numeroPedido: "PED-002",
+    idCliente: null,
+    cliente: { nombre: "María López Castillo", correo: "maria.lc@email.com", telefono: "317 654 3210" },
+    motivo: "Producto en mal estado",
+    comentario: "El palito de queso llegó con moho.",
+    productos: [
+      { idProducto: 2, nombre: "Palito de queso", cantidad: 2, precioUnitario: 5000, subtotal: 10000 },
+    ],
+    totalDevuelto:  10000,
+    estado:         "Pendiente",
+    fechaSolicitud: "2026-03-20",
+    fechaAprobacion: null,
+    fechaReembolso:  null,
+    motivoRechazo:   null,
+  },
+];
+
+/* Créditos por cliente: { [idCliente]: saldo } */
+const initCreditosClientes = {};
 
 export const calcularTotal = (detalles) =>
   detalles.reduce((acc, d) => acc + (Number(d.cantidad) || 0) * (Number(d.precioUnd) || 0), 0);
@@ -182,6 +279,23 @@ const nextLoteId = (lotesArr) => {
   const nums = lotesArr.map(l => parseInt(l.id.replace("LC-", "")) || 0);
   return `LC-${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`;
 };
+
+const nextPedidoNumero = (pedidos) => {
+  const nums = pedidos.map(p => parseInt(p.numero.replace("PED-", "")) || 0);
+  return `PED-${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`;
+};
+
+const nextOrdenId = (ordenes) => {
+  const nums = ordenes.map(o => parseInt(o.id.replace("OP-", "")) || 0);
+  return `OP-${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`;
+};
+
+const nextDevolucionNumero = (devoluciones) => {
+  const nums = devoluciones.map(d => parseInt(d.numero.replace("DEV-", "")) || 0);
+  return `DEV-${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`;
+};
+
+const fechaHoy = () => new Date().toISOString().split("T")[0];
 
 /* ══════════════════════════════════════════════════════════
    CONTEXT
@@ -198,8 +312,13 @@ export function AppProvider({ children }) {
   const [productos,           setProductos]           = useState(initProductos);
   const [roles,               setRoles]               = useState(initRoles);
   const [usuarios,            setUsuarios]            = useState(initUsuarios);
+  const [clientes,            setClientes]            = useState(initClientes);
   const [proveedores,         setProveedores]         = useState(initProveedores);
   const [compras,             setCompras]             = useState(initCompras);
+  const [pedidos,             setPedidos]             = useState(initPedidos);
+  const [ordenes,             setOrdenes]             = useState(initOrdenes);
+  const [devoluciones,        setDevoluciones]        = useState(initDevoluciones);
+  const [creditosClientes,    setCreditosClientes]    = useState(initCreditosClientes);
 
   /* ── Derivados ──────────────────────────────────────── */
 
@@ -207,6 +326,7 @@ export function AppProvider({ children }) {
   const categoriasInsumosActivas   = categoriasInsumos.filter(c => c.estado);
   const insumosActivos             = insumos.filter(i => i.estado);
   const rolesActivos               = roles.filter(r => r.estado).map(r => r.nombre);
+  const clientesActivos            = clientes.filter(c => c.estado);
 
   const insumosPorCategoriaId = categoriasInsumos.reduce((acc, cat) => {
     acc[cat.id] = insumos.filter(i => i.idCategoria === cat.id && i.estado).map(i => i.nombre);
@@ -225,17 +345,11 @@ export function AppProvider({ children }) {
 
   /* ── Helpers de lotes ───────────────────────────────── */
 
-  /**
-   * Todos los lotes de un insumo, ordenados por fecha de vencimiento (FIFO).
-   */
   const getLotesDeInsumo = (idInsumo) =>
     lotes
       .filter(l => l.idInsumo === Number(idInsumo))
       .sort((a, b) => new Date(a.fechaVencimiento) - new Date(b.fechaVencimiento));
 
-  /**
-   * Stock real = suma de cantidadActual de lotes no vencidos y no agotados.
-   */
   const getStockRealInsumo = (idInsumo) => {
     const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
     return lotes
@@ -255,6 +369,7 @@ export function AppProvider({ children }) {
   const getRol         = nombre => roles.find(r => r.nombre === nombre)       || null;
   const getProveedor   = id     => proveedores.find(p => p.id === id)         || null;
   const getInsumo      = id     => insumos.find(i => i.id === Number(id))     || null;
+  const getCliente     = id     => clientes.find(c => c.id === id)            || null;
 
   /* ── Validaciones ───────────────────────────────────── */
 
@@ -279,6 +394,12 @@ export function AppProvider({ children }) {
   };
 
   const canDeleteProducto = (productoId) => {
+    const enPedidosActivos = pedidos.filter(ped =>
+      !["Entregado", "Cancelado"].includes(ped.estado) &&
+      (ped.productosItems || []).some(pi => pi.idProducto === productoId)
+    );
+    if (enPedidosActivos.length)
+      return { ok: false, razon: `Este producto está en ${enPedidosActivos.length} pedido${enPedidosActivos.length > 1 ? "s" : ""} activo${enPedidosActivos.length > 1 ? "s" : ""}. Finalízalos primero.` };
     const p = productos.find(x => x.id === productoId);
     if (p?.ficha) return { ok: true, advertencia: "Este producto tiene una ficha técnica que también se eliminará." };
     return { ok: true };
@@ -300,6 +421,16 @@ export function AppProvider({ children }) {
     return { ok: true };
   };
 
+  const canDeleteCliente = (clienteId) => {
+    const enPedidos = pedidos.filter(p =>
+      p.idCliente === clienteId &&
+      !["Entregado", "Cancelado"].includes(p.estado)
+    );
+    if (enPedidos.length)
+      return { ok: false, razon: `Este cliente tiene ${enPedidos.length} pedido${enPedidos.length > 1 ? "s" : ""} activo${enPedidos.length > 1 ? "s" : ""}. Finalízalos primero.` };
+    return { ok: true };
+  };
+
   const canDeleteProveedor = (proveedorId) => {
     const qty = compras.filter(c => c.idProveedor === proveedorId).length;
     if (!qty) return { ok: true };
@@ -313,22 +444,35 @@ export function AppProvider({ children }) {
     return { ok: true };
   };
 
-  /* ── CRUD — existentes ──────────────────────────────── */
+  const canDeletePedido = (pedidoId) => {
+    const ped = pedidos.find(p => p.id === pedidoId);
+    if (!ped) return { ok: true };
+    if (ped.estado === "Entregado") return { ok: false, razon: "Los pedidos entregados no se pueden eliminar." };
+    return { ok: true };
+  };
+
+  /* ── CRUD — categorías productos ────────────────────── */
 
   const crearCatProducto    = f  => setCategoriasProductos(p => [{ ...f, id: Date.now() }, ...p]);
   const editarCatProducto   = f  => setCategoriasProductos(p => p.map(c => c.id === f.id ? f : c));
   const toggleCatProducto   = id => setCategoriasProductos(p => p.map(c => c.id === id ? { ...c, estado: !c.estado } : c));
   const eliminarCatProducto = id => setCategoriasProductos(p => p.filter(c => c.id !== id));
 
+  /* ── CRUD — categorías insumos ──────────────────────── */
+
   const crearCatInsumo    = f  => setCategoriasInsumos(p => [{ ...f, id: Date.now() }, ...p]);
   const editarCatInsumo   = f  => setCategoriasInsumos(p => p.map(c => c.id === f.id ? f : c));
   const toggleCatInsumo   = id => setCategoriasInsumos(p => p.map(c => c.id === id ? { ...c, estado: !c.estado } : c));
   const eliminarCatInsumo = id => setCategoriasInsumos(p => p.filter(c => c.id !== id));
 
+  /* ── CRUD — insumos ─────────────────────────────────── */
+
   const crearInsumo    = f  => setInsumos(p => [{ ...f, id: Date.now() }, ...p]);
   const editarInsumo   = f  => setInsumos(p => p.map(i => i.id === f.id ? f : i));
   const toggleInsumo   = id => setInsumos(p => p.map(i => i.id === id ? { ...i, estado: !i.estado } : i));
   const eliminarInsumo = id => setInsumos(p => p.filter(i => i.id !== id));
+
+  /* ── CRUD — productos ───────────────────────────────── */
 
   const crearProducto    = f            => setProductos(p => [{ ...f, id: Date.now() }, ...p]);
   const editarProducto   = f            => setProductos(p => p.map(x => x.id === f.id ? f : x));
@@ -353,7 +497,7 @@ export function AppProvider({ children }) {
     return { ok: true };
   };
 
-  /* ── CRUD — usuarios ────────────────────────────────── */
+  /* ── CRUD — usuarios internos ───────────────────────── */
 
   const crearUsuario  = (form) => setUsuarios(p => [{ ...form, id: Date.now(), fechaCreacion: new Date().toLocaleDateString("es-CO"), esAdmin: false }, ...p]);
   const editarUsuario = (form) => setUsuarios(p => p.map(u => u.id === form.id ? { ...u, ...form } : u));
@@ -371,6 +515,22 @@ export function AppProvider({ children }) {
     return { ok: true };
   };
 
+  /* ── CRUD — clientes ────────────────────────────────── */
+
+  const crearCliente  = (form) => {
+    const nuevo = { ...form, id: uid(), fechaCreacion: form.fechaCreacion || new Date().toLocaleDateString("es-CO") };
+    setClientes(p => [nuevo, ...p]);
+    return nuevo.id;
+  };
+  const editarCliente  = (form) => setClientes(p => p.map(c => c.id === form.id ? { ...form } : c));
+  const toggleCliente  = (id)   => setClientes(p => p.map(c => c.id === id ? { ...c, estado: !c.estado } : c));
+  const eliminarCliente = (id)  => {
+    const check = canDeleteCliente(id);
+    if (!check.ok) return check;
+    setClientes(p => p.filter(c => c.id !== id));
+    return { ok: true };
+  };
+
   /* ── CRUD — proveedores ─────────────────────────────── */
 
   const crearProveedor    = (form) => setProveedores(p => [{ ...form, id: `PROV${String(Date.now()).slice(-4)}` }, ...p]);
@@ -384,93 +544,47 @@ export function AppProvider({ children }) {
 
   /* ── CRUD — compras + lotes ─────────────────────────── */
 
-  /**
-   * Genera los objetos de lote a partir de los detalles de una compra.
-   * Recibe el array de lotes actual para calcular el siguiente ID.
-   */
   const _buildLotes = (compraId, detalles, lotesActuales) => {
-    const nuevos = [];
-    let ref = [...lotesActuales];
+    const nuevos = []; let ref = [...lotesActuales];
     detalles.forEach(d => {
-      const id = nextLoteId([...ref, ...nuevos]);
-      const lote = {
-        id,
-        idInsumo:         Number(d.idInsumo),
-        idCompra:         compraId,
-        idDetalleRef:     d.id,
-        cantidadInicial:  Number(d.cantidad),
-        cantidadActual:   Number(d.cantidad),
-        fechaVencimiento: d.fechaVencimiento,
-        fechaIngreso:     new Date().toISOString().split("T")[0],
-      };
-      nuevos.push(lote);
-      ref.push(lote);
+      const id   = nextLoteId([...ref, ...nuevos]);
+      const lote = { id, idInsumo: Number(d.idInsumo), idCompra: compraId, idDetalleRef: d.id, cantidadInicial: Number(d.cantidad), cantidadActual: Number(d.cantidad), fechaVencimiento: d.fechaVencimiento, fechaIngreso: fechaHoy() };
+      nuevos.push(lote); ref.push(lote);
     });
     return nuevos;
   };
 
-  /** Sube stockActual de los insumos afectados */
   const _subirStock = (detalles) => {
     setInsumos(prev => prev.map(ins => {
-      const suma = detalles
-        .filter(d => Number(d.idInsumo) === ins.id)
-        .reduce((acc, d) => acc + Number(d.cantidad), 0);
+      const suma = detalles.filter(d => Number(d.idInsumo) === ins.id).reduce((acc, d) => acc + Number(d.cantidad), 0);
       return suma > 0 ? { ...ins, stockActual: ins.stockActual + suma } : ins;
     }));
   };
 
-  /**
-   * CREAR COMPRA
-   * Si se crea como completada → genera lotes y sube stock al instante.
-   */
   const crearCompra = (form) => {
-    const id = nextCompraId(compras);
-    const detalles = form.detalles.map((d, i) => ({ ...d, id: `${id}-D${i + 1}` }));
+    const id            = nextCompraId(compras);
+    const detalles      = form.detalles.map((d, i) => ({ ...d, id: `${id}-D${i + 1}` }));
     const stockAplicado = form.estado === "completada";
-    const nueva = { ...form, id, detalles, stockAplicado };
-
+    const nueva         = { ...form, id, detalles, stockAplicado };
     setCompras(p => [nueva, ...p]);
-
-    if (stockAplicado) {
-      setLotes(prev => [...prev, ..._buildLotes(id, detalles, prev)]);
-      _subirStock(detalles);
-    }
-
+    if (stockAplicado) { setLotes(prev => [...prev, ..._buildLotes(id, detalles, prev)]); _subirStock(detalles); }
     return id;
   };
 
-  /**
-   * EDITAR COMPRA
-   * - Completada → solo cambia notas y metodoPago (lotes intocables).
-   * - Pendiente → Completada: genera lotes + sube stock.
-   * - Pendiente → Pendiente: actualiza todo libremente.
-   */
   const editarCompra = (form) => {
     setCompras(p => p.map(c => {
       if (c.id !== form.id) return c;
-
-      if (c.stockAplicado) {
-        // Solo campos no-stock
-        return { ...c, notas: form.notas, metodoPago: form.metodoPago };
-      }
-
+      if (c.stockAplicado) return { ...c, notas: form.notas, metodoPago: form.metodoPago };
       if (form.estado === "completada") {
-        // Pendiente → Completada
-        const detallesConId = form.detalles.map((d, i) => ({
-          ...d,
-          id: d.id || `${c.id}-D${i + 1}`,
-        }));
+        const detallesConId = form.detalles.map((d, i) => ({ ...d, id: d.id || `${c.id}-D${i + 1}` }));
         setLotes(prev => [...prev, ..._buildLotes(c.id, detallesConId, prev)]);
         _subirStock(detallesConId);
         return { ...form, detalles: detallesConId, stockAplicado: true };
       }
-
-      // Pendiente → Pendiente
       return { ...form, stockAplicado: false };
     }));
   };
 
-  /** ELIMINAR COMPRA — solo pendientes */
   const eliminarCompra = (id) => {
     const check = canDeleteCompra(id);
     if (!check.ok) return check;
@@ -478,68 +592,268 @@ export function AppProvider({ children }) {
     return { ok: true };
   };
 
-  /**
-   * DESCONTAR STOCK POR LOTE — FIFO
-   * Descuenta del lote más próximo a vencer primero.
-   * Útil para el módulo de producción.
-   * Retorna { ok, faltante }
-   */
   const descontarStockFIFO = (idInsumo, cantidadNecesaria) => {
-    const lotesDisp = lotes
-      .filter(l => l.idInsumo === Number(idInsumo) && l.cantidadActual > 0)
-      .sort((a, b) => new Date(a.fechaVencimiento) - new Date(b.fechaVencimiento));
-
-    let restante = cantidadNecesaria;
-    const cambios = [];
-
+    const lotesDisp = lotes.filter(l => l.idInsumo === Number(idInsumo) && l.cantidadActual > 0).sort((a, b) => new Date(a.fechaVencimiento) - new Date(b.fechaVencimiento));
+    let restante = cantidadNecesaria; const cambios = [];
     for (const lote of lotesDisp) {
       if (restante <= 0) break;
       const descontar = Math.min(lote.cantidadActual, restante);
       cambios.push({ id: lote.id, nueva: lote.cantidadActual - descontar });
       restante -= descontar;
     }
-
     if (restante > 0) return { ok: false, faltante: restante };
+    setLotes(prev => prev.map(l => { const cambio = cambios.find(c => c.id === l.id); return cambio ? { ...l, cantidadActual: cambio.nueva } : l; }));
+    setInsumos(prev => prev.map(ins => ins.id === Number(idInsumo) ? { ...ins, stockActual: Math.max(0, ins.stockActual - cantidadNecesaria) } : ins));
+    return { ok: true, faltante: 0 };
+  };
 
-    setLotes(prev => prev.map(l => {
-      const cambio = cambios.find(c => c.id === l.id);
-      return cambio ? { ...l, cantidadActual: cambio.nueva } : l;
+  /* ── Helper interno: construir objeto de orden desde un pedido ── */
+  const _buildOrden = (pedido, { fechaEntrega, notas }, prevOrdenes, productosActuales, insumosActuales) => {
+    const id = nextOrdenId(prevOrdenes);
+    const productoresSinStock = (pedido.productosItems || []).filter(p => !p.stockOk);
+
+    /* Insumos desde ficha técnica */
+    const insumosOrden = [];
+    productoresSinStock.forEach(item => {
+      const prod  = productosActuales.find(p => p.id === item.idProducto);
+      const ficha = prod?.ficha;
+      if (ficha?.insumos?.length) {
+        ficha.insumos.forEach(fi => {
+          const ins = insumosActuales.find(i => i.nombre === fi.nombre || i.id === fi.idInsumo);
+          if (!ins) return;
+          const cantTotal = (Number(fi.cantidad) || 0) * item.cantidad;
+          insumosOrden.push({
+            idInsumo: ins.id,
+            nombre:   ins.nombre,
+            cantidad: cantTotal,
+            unidad:   UNIDADES_MEDIDA.find(u => u.id === ins.idUnidad)?.simbolo || "und",
+            stockOk:  (ins.stockActual || 0) >= cantTotal,
+          });
+        });
+      }
+    });
+
+    const costoEst = productoresSinStock.reduce(
+      (acc, p) => acc + (p.precio || 0) * p.cantidad, 0
+    );
+
+    return {
+      id,
+      idPedido:     pedido.id,
+      numeroPedido: pedido.numero,
+      productos:    productoresSinStock.map(p => ({
+        idProducto: p.idProducto,
+        nombre:     p.nombre,
+        cantidad:   p.cantidad,
+        precio:     p.precio,
+      })),
+      insumos:      insumosOrden,
+      idEmpleado:   null,
+      estado:       "Pendiente",
+      fechaInicio:  fechaHoy(),
+      fechaEntrega: fechaEntrega || null,
+      fechaCierre:  null,
+      costo:        costoEst,
+      notas:        notas || "",
+    };
+  };
+
+  /* ── CRUD — pedidos ─────────────────────────────────── */
+
+  const crearPedido = (payload) => {
+    const numero   = nextPedidoNumero(pedidos);
+    const estadoInicial = payload.orden_produccion ? "En producción" : "Pendiente";
+    const nuevo    = {
+      ...payload,
+      id:              Date.now(),
+      numero,
+      estado:          estadoInicial,
+      orden_produccion: payload.orden_produccion || false,
+      fecha_pedido:    fechaHoy(),
+      idEmpleado:      null,
+    };
+
+    setPedidos(prev => [nuevo, ...prev]);
+
+    /* Descontar stock de productos disponibles */
+    setProductos(prev => prev.map(prod => {
+      const item = payload.productosItems.find(p => p.idProducto === prod.id && p.stockOk);
+      if (!item) return prod;
+      return { ...prod, stock: Math.max(0, prod.stock - item.cantidad) };
     }));
-    setInsumos(prev => prev.map(ins =>
-      ins.id === Number(idInsumo)
-        ? { ...ins, stockActual: Math.max(0, ins.stockActual - cantidadNecesaria) }
-        : ins
+
+    /* Si hay productos sin stock → crear orden de producción automáticamente */
+    if (nuevo.orden_produccion) {
+      setOrdenes(prev => {
+        const orden = _buildOrden(nuevo, { fechaEntrega: null, notas: payload.notas || "" }, prev, productos, insumos);
+        return [orden, ...prev];
+      });
+    }
+
+    return numero;
+  };
+
+  const editarPedido = (payload) => {
+    setPedidos(prev => prev.map(p => {
+      if (p.id !== payload.id) return p;
+      if (["Entregado", "Cancelado"].includes(p.estado)) {
+        /* En estados finales solo permitir obs_domicilio y fecha_entrega_real */
+        const patch = {};
+        if (payload.obs_domicilio    !== undefined) patch.obs_domicilio    = payload.obs_domicilio;
+        if (payload.fecha_entrega_real !== undefined) patch.fecha_entrega_real = payload.fecha_entrega_real;
+        return { ...p, ...patch };
+      }
+      return { ...p, ...payload, estado: p.estado, numero: p.numero, fecha_pedido: p.fecha_pedido, idEmpleado: p.idEmpleado };
+    }));
+  };
+
+  const eliminarPedido = (id) => {
+    const ped = pedidos.find(p => p.id === id);
+    if (!ped) return { ok: true };
+    if (ped.estado === "Entregado") return { ok: false, razon: "Los pedidos entregados no se pueden eliminar." };
+    if (!["Cancelado"].includes(ped.estado)) {
+      setProductos(prev => prev.map(prod => {
+        const item = (ped.productosItems || []).find(p => p.idProducto === prod.id && p.stockOk);
+        if (!item) return prod;
+        return { ...prod, stock: prod.stock + item.cantidad };
+      }));
+    }
+    setPedidos(prev => prev.filter(p => p.id !== id));
+    return { ok: true };
+  };
+
+  const cambiarEstadoPedido = (id, nuevoEstado) => {
+    setPedidos(prev => prev.map(p => {
+      if (p.id !== id) return p;
+      if (nuevoEstado === "Cancelado" && p.estado !== "Cancelado") {
+        setProductos(prods => prods.map(prod => {
+          const item = (p.productosItems || []).find(pi => pi.idProducto === prod.id && pi.stockOk);
+          if (!item) return prod;
+          return { ...prod, stock: prod.stock + item.cantidad };
+        }));
+      }
+      return { ...p, estado: nuevoEstado };
+    }));
+  };
+
+  const asignarDomiciliario = (pedidoId, empleadoId) => {
+    setPedidos(prev => prev.map(p => p.id === pedidoId ? { ...p, idEmpleado: empleadoId } : p));
+  };
+
+  const generarOrdenProduccion = (pedidoId, { fechaEntrega, notas }) => {
+    const pedido = pedidos.find(p => p.id === pedidoId);
+    if (!pedido) return;
+
+    /* Marcar pedido */
+    setPedidos(prev => prev.map(p =>
+      p.id !== pedidoId ? p : {
+        ...p,
+        orden_produccion:   true,
+        estado:             "En producción",
+        fecha_entrega_prod: fechaEntrega,
+        notas_produccion:   notas,
+      }
     ));
 
-    return { ok: true, faltante: 0 };
+    /* Crear entidad orden usando el helper con estado actual */
+    setOrdenes(prev => {
+      const orden = _buildOrden(pedido, { fechaEntrega, notas }, prev, productos, insumos);
+      return [orden, ...prev];
+    });
+  };
+
+  /* ── CRUD — órdenes de producción ──────────────────────── */
+
+  const cambiarEstadoOrden = (ordenId, nuevoEstado) => {
+    setOrdenes(prev => prev.map(o => {
+      if (o.id !== ordenId) return o;
+      const fechaCierre = nuevoEstado === "Completada" ? fechaHoy() : o.fechaCierre;
+
+      /* Si se completa la orden → actualizar stock del producto y estado del pedido */
+      if (nuevoEstado === "Completada" && o.estado !== "Completada") {
+        setProductos(prods => prods.map(prod => {
+          const item = (o.productos || []).find(p => p.idProducto === prod.id);
+          if (!item) return prod;
+          return { ...prod, stock: prod.stock + item.cantidad };
+        }));
+        /* Actualizar pedido relacionado a "Listo" si ya no hay más órdenes pendientes */
+        if (o.idPedido) {
+          setPedidos(prevP => prevP.map(p => {
+            if (p.id !== o.idPedido) return p;
+            return { ...p, estado: "Listo" };
+          }));
+        }
+      }
+
+      return { ...o, estado: nuevoEstado, fechaCierre };
+    }));
+  };
+
+  const asignarEmpleadoOrden = (ordenId, empleadoId) => {
+    setOrdenes(prev => prev.map(o =>
+      o.id === ordenId ? { ...o, idEmpleado: empleadoId } : o
+    ));
+  };
+
+  const crearDevolucion = (payload) => {
+    const numero = nextDevolucionNumero(devoluciones);
+    const nueva  = { ...payload, id: numero, numero, estado: "Pendiente", fechaSolicitud: fechaHoy(), fechaAprobacion: null, fechaReembolso: null, motivoRechazo: null };
+    setDevoluciones(prev => [nueva, ...prev]);
+    return numero;
+  };
+
+  const aprobarDevolucion = (id) => {
+    setDevoluciones(prev => prev.map(d => d.id !== id ? d : { ...d, estado: "Aprobada", fechaAprobacion: fechaHoy() }));
+  };
+
+  const rechazarDevolucion = (id, motivoRechazo) => {
+    setDevoluciones(prev => prev.map(d => d.id !== id ? d : { ...d, estado: "Rechazada", fechaAprobacion: fechaHoy(), motivoRechazo }));
+  };
+
+  const reembolsarDevolucion = (id) => {
+    const dev = devoluciones.find(d => d.id === id);
+    if (!dev || dev.estado !== "Aprobada") return;
+    setDevoluciones(prev => prev.map(d => d.id !== id ? d : { ...d, estado: "Reembolsada", fechaReembolso: fechaHoy() }));
+    if (dev.idCliente) {
+      setCreditosClientes(prev => ({ ...prev, [dev.idCliente]: (prev[dev.idCliente] || 0) + dev.totalDevuelto }));
+    }
+  };
+
+  const eliminarDevolucion = (id) => {
+    const dev = devoluciones.find(d => d.id === id);
+    if (!dev || dev.estado === "Reembolsada") return { ok: false };
+    setDevoluciones(prev => prev.filter(d => d.id !== id));
+    return { ok: true };
   };
 
   /* ══════════════════════════════════════════════════════
      PROVIDER
   ══════════════════════════════════════════════════════ */
-
   return (
     <AppContext.Provider value={{
       /* Estado raw */
       categoriasProductos, categoriasInsumos, insumos, lotes, productos,
-      roles, usuarios, proveedores, compras,
+      roles, usuarios, clientes, proveedores, compras, pedidos, ordenes, devoluciones, creditosClientes,
 
       /* Derivados */
       categoriasProductosActivas, categoriasInsumosActivas,
       insumosPorCategoriaId, insumosPorCategoriaNombre,
       unidades: UNIDADES_MEDIDA,
       rolesActivos, usuariosPorRol, insumosActivos,
+      clientesActivos,
 
       /* Lookups */
       getCatProducto, getCatInsumo, getUnidad, getRol,
-      getProveedor, getInsumo,
+      getProveedor, getInsumo, getCliente,
       getLotesDeInsumo, getStockRealInsumo,
 
       /* Validaciones */
       canDeleteCatProducto, canDeleteCatInsumo,
       canDeleteInsumo, canDeleteProducto,
       canDeleteRol, canDeleteUsuario,
+      canDeleteCliente,
       canDeleteProveedor, canDeleteCompra,
+      canDeletePedido,
 
       /* CRUD */
       crearCatProducto, editarCatProducto, toggleCatProducto, eliminarCatProducto,
@@ -548,11 +862,16 @@ export function AppProvider({ children }) {
       crearProducto,    editarProducto,    eliminarProducto,  guardarFicha,
       crearRol,         editarRol,         toggleRol,         eliminarRol,
       crearUsuario,     editarUsuario,     toggleUsuario,     eliminarUsuario,
+      crearCliente,     editarCliente,     toggleCliente,     eliminarCliente,
       crearProveedor,   editarProveedor,   eliminarProveedor,
       crearCompra,      editarCompra,      eliminarCompra,
       descontarStockFIFO,
+      crearPedido,      editarPedido,      eliminarPedido,
+      cambiarEstadoPedido, asignarDomiciliario, generarOrdenProduccion,
+      cambiarEstadoOrden, asignarEmpleadoOrden,
+      crearDevolucion, aprobarDevolucion, rechazarDevolucion, reembolsarDevolucion, eliminarDevolucion,
 
-      /* Utilidades exportadas */
+      /* Utilidades */
       calcularTotal, diasHasta, estadoLote,
     }}>
       {children}
