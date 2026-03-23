@@ -1,22 +1,29 @@
+import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import Navbar from "../shared/components/Navbar";
 import Sidebar from "../shared/components/Sidebar";
 import "../App.css";
 
 const MainLayout = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
   return (
     <div className="app-layout">
-      {/* Navbar superior */}
-      <Navbar />
+      <Navbar onToggleSidebar={() => setSidebarOpen(v => !v)} />
 
-      {/* Contenedor principal: fila */}
       <div className="app-body">
-        {/* Sidebar a la izquierda */}
-        <Sidebar />
+        {/* Overlay mobile — clic cierra el sidebar */}
+        {sidebarOpen && (
+          <div
+            className="sidebar-overlay"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
 
-        {/* Contenido principal */}
+        <Sidebar isOpen={sidebarOpen} />
+
         <main className="main-content">
-          <Outlet /> {/* Aquí se renderiza DashboardPage, Usuarios, etc */}
+          <Outlet />
         </main>
       </div>
     </div>

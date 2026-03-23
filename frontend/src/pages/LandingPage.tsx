@@ -246,16 +246,6 @@ const LandingPage = ({ hideNavbar = false }: { hideNavbar?: boolean }) => {
           </div>
         </div>
       </footer>
-
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes float { 0%, 100% { transform: translateY(12px); } 50% { transform: translateY(-10px); } }
-        .animate-float { animation: float 5s infinite ease-in-out; }
-        @keyframes fade-in-up { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade-in-up { animation: fade-in-up 0.8s forwards ease-out; }
-        @keyframes gradient { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
-        .animate-gradient { animation: gradient 3s infinite linear; }
-        .animation-bounce-slow { animation: bounce 4s infinite; }
-      `}} />
     </div>
   );
 };

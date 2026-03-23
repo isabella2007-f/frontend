@@ -1,163 +1,191 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { getUser, logout } from "../../services/authService";
 import "./Sidebar.css";
 
+/* =========================
+   MENÚS
+========================= */
+
 const adminMenuItems = [
-  { section: "Configuración", icon: "⚙️", items: [
-    { label: "Roles y Permisos", icon: "🛡️", link: "/roles" },
-    { label: "Gestión de Usuario", icon: "👤", link: "/usuarios" },
-    { label: "Gestión de Empleados", icon: "👥", link: "/empleados" },
-    { label: "Control de Acceso", icon: "🔐", link: "/control-acceso" },
-  ]},
-  { section: "Compras", icon: "🛒", items: [
-    { label: "Categorías de Insumos", icon: "🗂️", link: "/categorias_insumos" },
-    { label: "Gestión de Insumos", icon: "📦", link: "/gestion-insumos" },
-    { label: "Compras", icon: "🧾", link: "/compras" },
-    { label: "Proveedores", icon: "🏭", link: "/proveedores" },
-  ]},
-  { section: "Producción", icon: "⚡", items: [
-    { label: "Categoría de Productos", icon: "🏷️", link: "/categorias_productos" },
-    { label: "Gestión de Productos", icon: "📦", link: "/products" },
-    { label: "Órdenes de Producción", icon: "🏭", link: "/ordenes-produccion" },
-  ]},
-  { section: "Ventas", icon: "💰", items: [
-    { label: "Clientes", icon: "👤", link: "/clientes" },
-    { label: "Pedidos", icon: "🛍️", link: "/pedidos" },
-    { label: "Devoluciones", icon: "↩️", link: "/devoluciones" },
-    { label: "Domicilios", icon: "🏠", link: "/domicilios" },
-  ]},
-  { section: "Dashboard", icon: "▦", items: [
-    { label: "Vista General", icon: "🖥️", link: "/admin" },
-  ]},
+  {
+    section: "Dashboard",
+    icon: "▦",
+    items: [
+      { label: "Vista General", icon: "🖥️", link: "/admin" },
+    ],
+  },
+  {
+    section: "Configuración",
+    icon: "⚙️",
+    items: [
+      { label: "Roles y Permisos", icon: "🛡️", link: "/admin/roles" },
+      { label: "Gestión de Usuario", icon: "👤", link: "/admin/usuarios" },
+      { label: "Gestión de Empleados", icon: "👥", link: "/admin/empleados" },
+      { label: "Control de Acceso", icon: "🔐", link: "/admin/control-acceso" },
+    ],
+  },
+  {
+    section: "Compras",
+    icon: "🛒",
+    items: [
+      { label: "Categorías de Insumos", icon: "🗂️", link: "/admin/categorias_insumos" },
+      { label: "Gestión de Insumos", icon: "📦", link: "/admin/gestion-insumos" },
+      { label: "Compras", icon: "🧾", link: "/admin/compras" },
+      { label: "Proveedores", icon: "🏭", link: "/admin/proveedores" },
+    ],
+  },
+  {
+    section: "Producción",
+    icon: "⚡",
+    items: [
+      { label: "Categoría de Productos", icon: "🏷️", link: "/admin/categorias_productos" },
+      { label: "Gestión de Productos", icon: "📦", link: "/admin/products" },
+      { label: "Órdenes de Producción", icon: "📋", link: "/admin/ordenes-produccion" },
+    ],
+  },
+  {
+    section: "Ventas",
+    icon: "💰",
+    items: [
+      { label: "Clientes", icon: "👤", link: "/admin/clientes" },
+      { label: "Pedidos", icon: "🛍️", link: "/admin/pedidos" },
+      { label: "Domicilios", icon: "🚚", link: "/admin/domicilios" },
+      { label: "Devoluciones", icon: "🔄", link: "/admin/devoluciones" },
+    
+    ],
+  },
 ];
 
 const clienteMenuItems = [
   { section: "Mi Cuenta", icon: "👤", items: [
     { label: "Mis Pedidos", icon: "🛍️", link: "/cliente/pedidos" },
+    { label: "Seguimiento de Pedidos", icon: "🚚", link: "/cliente/domicilios" },
+    { label: "Mis Devoluciones", icon: "🔄", link: "/cliente/devoluciones" },
     { label: "Mi Perfil", icon: "👤", link: "/cliente/perfil" },
   ]},
 ];
+/* =========================
+   COMPONENTE
+========================= */
 
-const BADGES = { Ventas: "7", Compras: "4" };
+export default function Sidebar({ isOpen }) {
+  const [openSections, setOpenSections] = useState({
+    Dashboard: true,
+    Ventas: true,
+    "Mi Cuenta": true,
+  });
 
-export default function Sidebar() {
-  const [openSections, setOpenSections] = useState({ Ventas: true, "Mi Cuenta": true });
-  const [activeItem, setActiveItem] = useState("");
   const [search, setSearch] = useState("");
   const [user, setUser] = useState(null);
+
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     setUser(getUser());
   }, []);
 
-  const menuItems = user?.rol === "administrador" ? adminMenuItems : clienteMenuItems;
+  const menuItems =
+    user?.rol === "administrador" ? adminMenuItems : clienteMenuItems;
 
-  const toggle = (section) =>
-    setOpenSections((prev) => ({ ...prev, [section]: !prev[section] }));
+  const toggle = (section) => {
+    setOpenSections((prev) => ({
+      ...prev,
+      [section]: !prev[section],
+    }));
+  };
 
   const handleLogout = () => {
     logout();
+    navigate("/login");
   };
 
   if (!user) return null;
 
   return (
-    <aside className="sidebar">
-      {/* Search */}
-      <div className="sidebar-search">
-        <span className="search-icon">🔍</span>
-        <input
-          className="search-input"
-          placeholder="Buscar módulo..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
+    <aside className={`sidebar ${isOpen ? "is-open" : "is-closed"}`}>
+      <div className="sidebar-inner">
 
-      <div className="nav-group-label">Módulos</div>
+        {/* BUSCADOR */}
+        <div className="sidebar-search">
+          <span className="search-icon">🔍</span>
+          <input
+            className="search-input"
+            placeholder="Buscar módulo..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
 
-      {/* Navigation */}
-      <nav className="sidebar-nav">
-        {menuItems.map(({ section, icon, items }, i) => {
-          const filtered = search
-            ? items.filter((it) => it.label.toLowerCase().includes(search.toLowerCase()))
-            : items;
-          if (search && filtered.length === 0) return null;
-          const isOpen = openSections[section] || !!search;
+        <div className="nav-group-label">Módulos</div>
 
-          return (
-            <div key={section}>
-              {i === 4 && <div className="nav-divider" />}
+        {/* NAVEGACIÓN */}
+        <nav className="sidebar-nav">
+          {menuItems.map(({ section, icon, items }) => {
+            const filtered = search
+              ? items.filter((it) =>
+                  it.label.toLowerCase().includes(search.toLowerCase())
+                )
+              : items;
 
-              <button
-                className={`section-btn ${isOpen ? "open" : ""}`}
-                onClick={() => toggle(section)}
-              >
-                <span className="section-icon-wrap">{icon}</span>
-                <span className="section-label">{section}</span>
-                {BADGES[section] && !search && (
-                  <span className="section-badge">{BADGES[section]}</span>
-                )}
-                <span className={`chevron ${isOpen ? "rotated" : ""}`}>▼</span>
-              </button>
+            if (search && filtered.length === 0) return null;
 
-              <div className={`submenu ${isOpen ? "open" : ""}`}>
-                <div className="submenu-inner">
-                  <div className="submenu-line" />
-                  {filtered.map(({ label, icon: subIcon, link }) => (
-                    <Link
-                      key={label}
-                      to={link}
-                      className={`sub-item ${activeItem === label ? "active" : ""}`}
-                      onClick={() => setActiveItem(label)}
-                    >
-                      {activeItem === label && <div className="sub-item-dot" />}
-                      <span className="sub-icon">{subIcon}</span>
-                      <span className="sub-label">{label}</span>
-                    </Link>
-                  ))}
+            const isSectionOpen = openSections[section] || !!search;
+
+            return (
+              <div key={section}>
+                <button
+                  className={`section-btn ${isSectionOpen ? "open" : ""}`}
+                  onClick={() => toggle(section)}
+                >
+                  <span className="section-icon-wrap">{icon}</span>
+                  <span className="section-label">{section}</span>
+                  <span className={`chevron ${isSectionOpen ? "rotated" : ""}`}>
+                    ▼
+                  </span>
+                </button>
+
+                <div className={`submenu ${isSectionOpen ? "open" : ""}`}>
+                  <div className="submenu-inner">
+                    {filtered.map(({ label, icon: subIcon, link }) => (
+                      <Link
+                        key={label}
+                        to={link}
+                        className={`sub-item ${
+                          location.pathname === link ? "active" : ""
+                        }`}
+                      >
+                        <span className="sub-icon">{subIcon}</span>
+                        <span className="sub-label">{label}</span>
+                      </Link>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
-      </nav>
+            );
+          })}
+        </nav>
 
-      {/* Footer Dinámico */}
-      <div className="sidebar-footer">
-        <div className="avatar" style={{ 
-          background: "var(--g)", 
-          color: "white", 
-          fontWeight: "800", 
-          display: "flex", 
-          alignItems: "center", 
-          justifyContent: "center" 
-        }}>
-          {user?.nombre?.charAt(0) || "U"}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="user-name" style={{ 
-            whiteSpace: 'nowrap', 
-            overflow: 'hidden', 
-            textOverflow: 'ellipsis',
-            fontSize: "14px",
-            fontWeight: "700"
-          }}>
-            {user?.nombre || "Usuario"}
+        {/* FOOTER */}
+        <div className="sidebar-footer">
+          <div className="avatar">
+            {user?.nombre?.charAt(0) || "U"}
           </div>
-          <div className="user-role" style={{ 
-            fontSize: "10px", 
-            textTransform: "uppercase", 
-            fontWeight: "800", 
-            color: "var(--g)",
-            letterSpacing: "0.5px"
-          }}>
-            {user?.rol || "Invitado"}
+
+          <div className="footer-info">
+            <div className="user-name">{user?.nombre}</div>
+            <div className="user-role">{user?.rol}</div>
           </div>
+
+          <button
+            className="logout-btn-sidebar"
+            onClick={handleLogout}
+            title="Cerrar sesión"
+          >
+            ⏏
+          </button>
         </div>
-        <button className="logout-btn" title="Cerrar sesión" onClick={handleLogout}>⏏</button>
       </div>
     </aside>
   );

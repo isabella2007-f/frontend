@@ -1,100 +1,55 @@
-/* ─── RESET Y BASE ────────────────────────────── */
-html, body {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  font-family: sans-serif;
-  background: #f9f9f9;
+:root {
+  --sidebar-w: 240px;
+  --navbar-h: 64px;
+  --g: #2e7d32;
+  --g-soft: #f1f8f1;
+  --g-light: #4caf50;
 }
 
-*, *::before, *::after {
-  box-sizing: inherit;
-}
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; font-family: 'DM Sans', sans-serif; }
 
-/* ─── ROOT ───────────────────────────────────── */
-#root {
-  display: flex;
-  flex-direction: column; /* Navbar arriba */
-  min-height: 100vh;
-  width: 100%;
-  padding: 0;
-  background: linear-gradient(135deg, #f4faf0 0%, #edf7e8 50%, #f9fdf6 100%);
-}
-
-/* ─── LOGO ───────────────────────────────────── */
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  margin: 0 auto;
-  will-change: filter;
-  transition: filter 300ms;
-}
-
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
-}
-
-@keyframes logo-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-/* ─── LAYOUT PRINCIPAL ───────────────────────── */
+/* ─── LAYOUT RAÍZ ────────────────────────────────────────── */
 .app-layout {
   display: flex;
-  flex-direction: column; /* Navbar arriba */
-  min-height: 100vh;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
 }
 
-/* Wrapper fila: Sidebar + contenido */
+/* ─── CUERPO (sidebar + contenido) ──────────────────────── */
 .app-body {
   display: flex;
-  flex: 1; /* ocupa todo el espacio restante debajo del Navbar */
-  min-height: 0; /* importante para scroll dentro del main */
+  flex: 1;
+  overflow: hidden;     /* importante — el scroll va dentro de main */
 }
 
-/* Sidebar ya tiene width definido en su CSS, main ocupa el resto */
+/* ─── CONTENIDO PRINCIPAL ────────────────────────────────── */
 .main-content {
   flex: 1;
-  padding: 20px;
-  overflow-y: auto;
-  background: #f9f9f9;
+  overflow-y: auto;     /* scroll solo aquí, no en toda la página */
+  overflow-x: hidden;
+  background: #f8fbf8;
+  min-width: 0;         /* evita que empuje el sidebar */
 }
 
-/* ─── CARD ───────────────────────────────────── */
-.card {
-  display: flex;
-  flex-direction: column;
-  justify-content: center; /* centra verticalmente el contenido dentro de la card */
-  align-items: center;     /* centra horizontalmente */
-  padding: 2em;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-  width: 100%;
-  max-width: 800px;
-  margin: 0 auto;
+/* ─── OVERLAY MOBILE (clic fuera cierra sidebar) ─────────── */
+.sidebar-overlay {
+  display: none;
 }
 
-/* ─── LINKS Y DOCUMENTACIÓN ──────────────────── */
-.read-the-docs {
-  color: #888;
-  text-decoration: none;
-  font-size: 0.9rem;
-  display: inline-block;
-  margin-top: 1rem;
-}
-.read-the-docs:hover {
-  text-decoration: underline;
+@media (max-width: 768px) {
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 150;
+    animation: fadeIn 0.2s ease;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
 }
