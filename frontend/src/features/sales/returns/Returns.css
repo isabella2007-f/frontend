@@ -1,0 +1,111 @@
+/* 🌿 PALETA REFINADA: Verdes Orgánicos */
+:root {
+  --primary-green: #1a5c2a;
+  --soft-green: #f1f8f3;
+  --border-green: #dcedde;
+}
+
+/* 📐 ESTRUCTURA SIN SCROLL (Viewport Fit) */
+.returns-dashboard {
+  height: calc(100vh - 120px); /* Ajuste para navbar y padding */
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow: hidden; /* Evita scroll en la página principal */
+}
+
+.returns-header {
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+
+.returns-content {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 24px;
+  flex: 1;
+  min-height: 0; /* Vital para que los hijos respeten el alto del padre */
+}
+
+/* 📝 COLUMNA FORMULARIO */
+.form-column {
+  background: white;
+  border-radius: 16px;
+  border: 1px solid var(--border-green);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 📋 COLUMNA LISTADO (Con Scroll Interno) */
+.list-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto; /* Solo esta parte hace scroll */
+  padding-right: 10px;
+}
+
+/* Estilo del scrollbar */
+.list-column::-webkit-scrollbar {
+  width: 6px;
+}
+.list-column::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+.list-column::-webkit-scrollbar-thumb {
+  background: var(--border-green);
+  border-radius: 10px;
+}
+
+/* 💎 TARJETAS COMPACTAS */
+.compact-card {
+  background: white;
+  border: 1px solid var(--border-green);
+  border-radius: 12px;
+  padding: 16px;
+  transition: background 0.2s;
+}
+
+.compact-card:hover {
+  background: var(--soft-green);
+}
+
+/* 🟢 BOTONES Y ELEMENTOS */
+.btn-green {
+  background: var(--primary-green);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 12px;
+  font-weight: 600;
+  transition: opacity 0.2s;
+}
+
+.btn-green:hover {
+  opacity: 0.9;
+  color: white;
+}
+
+.badge-status {
+  font-size: 11px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* Inputs sencillos y limpios */
+.input-clean {
+  background: #f9fbf9;
+  border: 1px solid var(--border-green);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.input-clean:focus {
+  border-color: var(--primary-green);
+  box-shadow: 0 0 0 3px rgba(26, 92, 42, 0.05);
+  outline: none;
+}

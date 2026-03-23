@@ -1,39 +1,46 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 
-// Vistas principales
+/* ─── DASHBOARD ─── */
 import Dashboard from "../features/dashboard/Dashboard";
 
-// Configuración
+/* ─── CONFIGURACIÓN ─── */
 import GestionUsuarios from "../features/configuracion/Usuarios/GestionUsuarios";
 import Empleados from "../features/configuracion/empleados/Empleados";
 import Roles from "../features/configuracion/roles/Roles";
 import AccessManagement from "../features/configuracion/control_acceso/AccessManagement";
 
-// Producción
+/* ─── PRODUCCIÓN ─── */
 import CategoriaProductos from "../features/produccion/categoria_productos/Categoriaproductos";
 import Productos from "../features/produccion/Productos/Productos";
 import GestionOrdenesProduccion from "../features/produccion/orden_produccion/GestionOrdenesProduccion";
 
-// Ventas
+/* ─── VENTAS ADMIN ─── */
 import GestionClientes from "../features/ventas/clientes/GestionClientes";
 import GestionPedidos from "../features/ventas/pedidos/GestionPedidos";
 import GestionDevoluciones from "../features/ventas/devoluciones/GestionDevoluciones";
 import GestionDomicilios from "../features/ventas/domicilios/Gestiondomicilios";
 
-// Compras
+/* ─── CLIENTE REAL ─── */
+import OrdersPage from "../features/sales/orders/OrdersPage";
+import ReturnsPage from "../features/sales/returns/ReturnsPage";
+import DeliveryPage from "../features/sales/delivery/DeliveryPage";
+import ProfilePage from "../features/client/profile/ProfilePage";
+
+/* ─── COMPRAS ─── */
 import CategoriaInsumos from "../features/compras/categoriainsumos/CategoriaInsumos";
 import GestionInsumos from "../features/compras/insumos/GestionInsumos";
 import GestionCompras from "../features/compras/gestioncompras/GestionCompras";
 import Proveedores from "../features/compras/proveedores/Proveedores";
 
-// Auth
+/* ─── AUTH ─── */
 import Login from "../pages/Login";
 import Register from "../pages/Register";
+import LandingPage from "../pages/LandingPage";
 import ProtectedRoute from "../components/ProtectedRoute";
 import { initUsers } from "../services/userService";
 
-// Inicializar usuarios
+/* ─── INIT ─── */
 initUsers();
 
 const AppRouter = () => {
@@ -41,47 +48,59 @@ const AppRouter = () => {
     <BrowserRouter>
       <Routes>
 
-        {/* ================= RUTAS PÚBLICAS ================= */}
+        {/* ───────────── PÚBLICO ───────────── */}
+        <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
-        {/* ================= ADMIN ================= */}
+        {/* ───────────── ADMIN ───────────── */}
         <Route element={<ProtectedRoute allowedRoles={["administrador"]} />}>
-          <Route path="/" element={<MainLayout />}>
-            <Route index element={<Navigate to="/admin" replace />} />
+          <Route path="/admin" element={<MainLayout />}>
             
-            <Route path="admin" element={<Dashboard />} />
+            <Route index element={<Dashboard />} />
+
+            {/* Configuración */}
             <Route path="usuarios" element={<GestionUsuarios />} />
             <Route path="empleados" element={<Empleados />} />
             <Route path="roles" element={<Roles />} />
             <Route path="control-acceso" element={<AccessManagement />} />
 
+            {/* Producción */}
             <Route path="categorias_productos" element={<CategoriaProductos />} />
             <Route path="products" element={<Productos />} />
             <Route path="ordenes-produccion" element={<GestionOrdenesProduccion />} />
+
+            {/* Ventas */}
+            <Route path="clientes" element={<GestionClientes />} />
+            <Route path="pedidos" element={<GestionPedidos />} />
+            <Route path="devoluciones" element={<GestionDevoluciones />} />
             <Route path="domicilios" element={<GestionDomicilios />} />
 
-            <Route path="clientes" element={<GestionClientes />} />
-            <Route path="pedidos" element={<GestionPedidos/>} />
-            <Route path="devoluciones" element={<GestionDevoluciones />} />
-
+            {/* Compras */}
             <Route path="categorias_insumos" element={<CategoriaInsumos />} />
             <Route path="gestion-insumos" element={<GestionInsumos />} />
             <Route path="compras" element={<GestionCompras />} />
             <Route path="proveedores" element={<Proveedores />} />
+
           </Route>
         </Route>
 
-        {/* ================= CLIENTE ================= */}
+        {/* ───────────── CLIENTE ───────────── */}
         <Route element={<ProtectedRoute allowedRoles={["cliente"]} />}>
           <Route path="/cliente" element={<MainLayout />}>
+            
             <Route index element={<Navigate to="pedidos" replace />} />
-            <Route path="pedidos" element={<h1>Mis Pedidos (En construcción)</h1>} />
-            <Route path="perfil" element={<h1>Mi Perfil (En construcción)</h1>} />
+
+            <Route path="inicio" element={<LandingPage hideNavbar={true} />} />
+            <Route path="pedidos" element={<OrdersPage />} />
+            <Route path="domicilios" element={<DeliveryPage />} />
+            <Route path="devoluciones" element={<ReturnsPage />} />
+            <Route path="perfil" element={<ProfilePage />} />
+
           </Route>
         </Route>
 
-        {/* ================= 404 ================= */}
+        {/* ───────────── 404 ───────────── */}
         <Route path="*" element={<h1>404 - Página no encontrada</h1>} />
 
       </Routes>
