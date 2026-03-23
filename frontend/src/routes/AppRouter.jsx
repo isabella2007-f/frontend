@@ -36,6 +36,7 @@ import Proveedores from "../features/compras/proveedores/Proveedores";
 /* ─── AUTH ─── */
 import Login from "../pages/Login";
 import Register from "../pages/Register";
+import ForgotPassword from "../pages/Forgotpassword";
 import LandingPage from "../pages/LandingPage";
 import ProtectedRoute from "../components/ProtectedRoute";
 import { initUsers } from "../services/userService";
@@ -52,6 +53,7 @@ const AppRouter = () => {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/recuperar" element={<ForgotPassword />} />
 
         {/* ───────────── ADMIN ───────────── */}
         <Route element={<ProtectedRoute allowedRoles={["administrador"]} />}>

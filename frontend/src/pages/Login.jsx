@@ -1,29 +1,24 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { login } from "../services/authService";
-import { Ic } from "../features/configuracion/Usuarios/usuariosIcons";
 import Navbar from "../shared/components/Navbar";
-import "../features/configuracion/Usuarios/Usuarios.css";
+import "./Auth.css";
 
 const Login = () => {
-  const [email, setEmail] = useState("");
+  const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  const [error, setError]       = useState("");
+  const [loading, setLoading]   = useState(false);
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
-
     try {
       const user = login(email, password);
-      if (user.rol === "administrador") {
-        navigate("/admin");
-      } else {
-        navigate("/cliente");
-      }
+      navigate(user.rol === "administrador" ? "/admin" : "/cliente");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -32,100 +27,93 @@ const Login = () => {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
-      
-      {/* ✅ NAVBAR */}
+    <div className="auth-page">
       <Navbar isLanding={true} />
 
-      {/* ✅ CONTENIDO */}
-      <div style={{ 
-        flex: 1,
-        display: "flex", 
-        alignItems: "center", 
-        justifyContent: "center", 
-        background: "linear-gradient(180deg, #1b5e20 0%, #388e3c 50%, #c8e6c9 100%)",
-        padding: "20px",
-        position: "relative",
-        overflow: "hidden"
-      }}>
+      <div className="auth-bg">
+        {/* Decorative blobs — same as before */}
+        <div className="auth-blob auth-blob--1" />
+        <div className="auth-blob auth-blob--2" />
 
-        {/* 🎨 DECORACIÓN */}
-        <div style={{ position: "absolute", top: "-50px", right: "-50px", width: "250px", height: "250px", borderRadius: "50%", background: "rgba(255,255,255,0.15)", filter: "blur(40px)" }} />
-        <div style={{ position: "absolute", bottom: "10%", left: "-30px", width: "150px", height: "150px", borderRadius: "50%", background: "rgba(255,255,255,0.1)" }} />
+        <div className="auth-card" style={{ animationDelay: "0s" }}>
 
-        {/* 🧾 CARD */}
-        <div className="modal-card" style={{ 
-          maxWidth: "420px", 
-          width: "100%",
-          borderRadius: "22px",
-          boxShadow: "0 20px 40px rgba(0, 0, 0, 0.3)",
-          overflow: "hidden",
-          background: "white"
-        }}>
+          {/* Top bar */}
+          <div className="auth-topbar" />
 
-          {/* HEADER */}
-          <div style={{ padding: "30px 40px 10px", textAlign: "center" }}>
-            <h1 style={{ 
-              fontFamily: "var(--font-head)", 
-              fontSize: "34px", 
-              color: "var(--g)", 
-              fontWeight: "900",
-              margin: 0,
-              fontStyle: "italic"
-            }}>
-              Tostón App
-            </h1>
-            <div style={{ width: "60px", height: "4px", background: "var(--g)", margin: "10px auto" }} />
+          {/* Logo / Brand */}
+          <div className="auth-brand">
+            <div className="auth-brand-icon">🍌</div>
+            <h1 className="auth-brand-name">Tostón App</h1>
+            <p className="auth-brand-sub">Bienvenido de vuelta</p>
           </div>
 
-          {/* BODY */}
-          <div style={{ padding: "15px 40px 35px" }}>
-            
-            {error && (
-              <div style={{ 
-                background: "#fff5f5",
-                color: "#c62828",
-                padding: "10px",
-                borderRadius: "10px",
-                marginBottom: "15px",
-                display: "flex",
-                gap: "8px",
-                alignItems: "center"
-              }}>
-                <Ic.XCircle /> {error}
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-              
-              <input
-                type="email"
-                placeholder="Correo"
-                required
-                className="field-input"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-
-              <input
-                type="password"
-                placeholder="Contraseña"
-                required
-                className="field-input"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-
-              <button type="submit" className="btn-save" disabled={loading}>
-                {loading ? "Entrando..." : "Iniciar Sesión"}
-              </button>
-            </form>
-
-            <div style={{ marginTop: "20px", textAlign: "center" }}>
-              <span>¿No tienes cuenta? </span>
-              <Link to="/register">Regístrate</Link>
+          {/* Error */}
+          {error && (
+            <div className="auth-error">
+              <span className="auth-error-icon">⚠</span>
+              {error}
             </div>
-          </div>
+          )}
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="auth-form">
+
+            <div className="auth-field">
+              <label className="auth-label">Correo electrónico</label>
+              <div className="auth-input-wrap">
+                <span className="auth-input-icon">✉</span>
+                <input
+                  type="email"
+                  required
+                  placeholder="tu@correo.com"
+                  className="auth-input"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="auth-field">
+              <div className="auth-label-row">
+                <label className="auth-label">Contraseña</label>
+                <Link to="/recuperar" className="auth-forgot">¿Olvidaste tu contraseña?</Link>
+              </div>
+              <div className="auth-input-wrap">
+                <span className="auth-input-icon">🔒</span>
+                <input
+                  type={showPass ? "text" : "password"}
+                  required
+                  placeholder="••••••••"
+                  className="auth-input"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="auth-eye"
+                  onClick={() => setShowPass(v => !v)}
+                  tabIndex={-1}
+                >
+                  {showPass ? "🙈" : "👁"}
+                </button>
+              </div>
+            </div>
+
+            <button type="submit" className="auth-submit" disabled={loading}>
+              {loading ? (
+                <span className="auth-spinner" />
+              ) : (
+                <>Iniciar Sesión <span className="auth-arrow">→</span></>
+              )}
+            </button>
+          </form>
+
+          {/* Footer */}
+          <p className="auth-switch">
+            ¿No tienes cuenta?{" "}
+            <Link to="/register" className="auth-switch-link">Regístrate gratis</Link>
+          </p>
+
         </div>
       </div>
     </div>

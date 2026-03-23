@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { getUser, logout } from "../../services/authService";
+import LogoutModal from "./LogoutModal";
 import "./Sidebar.css";
 
 /* =========================
@@ -81,6 +82,8 @@ export default function Sidebar({ isOpen }) {
 
   const navigate = useNavigate();
   const location = useLocation();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
 
   useEffect(() => {
     setUser(getUser());
@@ -96,11 +99,8 @@ export default function Sidebar({ isOpen }) {
     }));
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
-
+  const handleLogout = () => setShowLogoutModal(true);
+  const confirmLogout = () => { logout(); navigate("/login"); };
   if (!user) return null;
 
   return (
@@ -187,6 +187,12 @@ export default function Sidebar({ isOpen }) {
           </button>
         </div>
       </div>
+      {showLogoutModal && (
+        <LogoutModal
+          onConfirm={confirmLogout}
+          onCancel={() => setShowLogoutModal(false)}
+        />
+      )}
     </aside>
   );
 }

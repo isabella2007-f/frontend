@@ -2,8 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+.form-label {
+  text-transform: none !important;
+}
 html, body, #root {
   height: 100%;
   margin: 0;
   padding: 0;
+}
+/* ── Evitar que Tailwind/Preflight pise text-transform ── */
+h1, h2, h3, h4, h5, h6,
+button, label, input, p {
+  text-transform: none;
 }

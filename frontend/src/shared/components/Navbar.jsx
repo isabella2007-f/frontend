@@ -6,6 +6,7 @@ import "./Navbar.css";
 import { getCartCount, getCart, getTotal } from "../../features/sales/orders/services/cartService";
 import CartAside from "../../features/sales/orders/components/CartAside";
 import CheckoutModal from "../../features/sales/orders/components/CheckoutModal";
+import LogoutModal from "./LogoutModal";
 
 export default function Navbar({ isLanding = false, onToggleSidebar }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -15,7 +16,7 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [orderDetails, setOrderDetails] = useState(null);
   const [cartUpdateToggle, setCartUpdateToggle] = useState(false);
-  
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -36,10 +37,9 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
     setCartCount(getCartCount());
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
+const handleLogout = () => setShowLogoutModal(true);
+const confirmLogout = () => { logout(); navigate("/login"); };
+
 
   const handleCheckout = (details) => {
     setOrderDetails({
@@ -99,15 +99,16 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
           <div className="nav-right">
             <div className="links-bell-wrapper">
               <div className="nav-links">
-                {isLanding ? (
+                  {isLanding ? (
                   <>
-                    <button onClick={() => scrollToSection('inicio')} className="nav-link">Inicio</button>
-                    <button onClick={() => scrollToSection('productos')} className="nav-link">Productos</button>
-                    <button onClick={() => scrollToSection('nosotros')} className="nav-link">Nosotros</button>
-                  </>
-                ) : (
+                      <button onClick={() => navigate('/')} className="nav-link">Inicio</button>
+                      <button onClick={() => scrollToSection('productos')} className="nav-link">Productos</button>
+                      <button onClick={() => scrollToSection('nosotros')} className="nav-link">Nosotros</button>
+                    </>) : (
                   <>
-                    <Link to={user?.rol === 'administrador' ? "/admin/inicio" : "/cliente/inicio"} className="nav-link">Inicio</Link>
+                   {user?.rol !== 'administrador' && (
+                      <Link to="/cliente/inicio" className="nav-link">Inicio</Link>
+                    )}
                     <Link to={user?.rol === 'administrador' ? "/admin" : "/cliente"} className="nav-link">Dashboard</Link>
                   </>
                 )}
@@ -115,10 +116,10 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
             </div>
 
             {/* Carrito Icon - Solo para clientes o logueados */}
-            {user && (
-              <button 
-                className="cart-btn"
-                onClick={() => setIsCartOpen(true)}
+          {user?.rol === "cliente" && (
+            <button 
+              className="cart-btn"
+              onClick={() => setIsCartOpen(true)}
                 title="Ver carrito"
               >
                 <ShoppingCart size={22} />
@@ -158,7 +159,7 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
         {/* Mobile dropdown Landing */}
         {isLanding && menuOpen && (
           <div className="mobile-menu">
-            <button onClick={() => scrollToSection('inicio')} className="mobile-link">Inicio</button>
+            <button onClick={() => navigate('/')} className="mobile-link">Inicio</button>
             <button onClick={() => scrollToSection('productos')} className="mobile-link">Productos</button>
             <button onClick={() => scrollToSection('nosotros')} className="mobile-link">Nosotros</button>
             <button onClick={() => navigate("/login")} className="mobile-link">Iniciar sesión</button>
@@ -181,6 +182,13 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
           onClose={() => setIsCheckoutOpen(false)} 
           orderDetails={orderDetails}
           onConfirm={handleConfirmOrder}
+        />
+      )}
+
+      {showLogoutModal && (
+        <LogoutModal
+          onConfirm={confirmLogout}
+          onCancel={() => setShowLogoutModal(false)}
         />
       )}
     </>
