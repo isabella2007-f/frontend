@@ -14,9 +14,6 @@ const fmtFecha = (iso) => {
 
 const PER_PAGE = 5;
 
-/* Estados de pedido que tienen domicilio activo o completado */
-const ESTADOS_CON_DOMICILIO = ["Listo", "En camino", "Entregado"];
-
 const ESTADO_CONFIG = {
   "Listo":     { dot: "#43a047" },
   "En camino": { dot: "#8e24aa" },
@@ -24,7 +21,7 @@ const ESTADO_CONFIG = {
   "Pendiente": { dot: "#f9a825" },
 };
 
-/* ─── Componentes ────────────────────────────────────────── */
+/* ─── Componentes pequeños ───────────────────────────────── */
 function EstadoBadge({ estado }) {
   const cls = `estado-badge estado--${estado.replace(/ /g, "-")}`;
   return (
@@ -59,15 +56,26 @@ function SelectArrow() {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   MODAL VER DETALLE
+   MODAL VER DETALLE — Side panel
    ═══════════════════════════════════════════════════════════ */
+const NAV_VER = [
+  { id: "cliente",      label: "Cliente",      icon: "👤" },
+  { id: "direccion",    label: "Dirección",    icon: "📍" },
+  { id: "domiciliario", label: "Domiciliario", icon: "🛵" },
+  { id: "fechas",       label: "Fechas",       icon: "📅" },
+];
+
 function ModalVerDomicilio({ pedido, emp, onClose, onReasignar, onObservaciones }) {
+  const [activeSection, setActiveSection] = useState("cliente");
   const activo = !["Entregado", "Cancelado"].includes(pedido.estado);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box--wide" onClick={e => e.stopPropagation()}>
-
+      <div
+        className="modal-box modal-box--wide"
+        onClick={e => e.stopPropagation()}
+        style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}      >
+        {/* Header */}
         <div className="modal-header">
           <div>
             <p className="modal-header__eyebrow">DOMICILIO</p>
@@ -79,81 +87,145 @@ function ModalVerDomicilio({ pedido, emp, onClose, onReasignar, onObservaciones 
           </div>
         </div>
 
-        <div className="modal-body">
+        {/* Side panel layout */}
+        <div style={{ display: "flex" }}>
 
-          {/* Cliente */}
-          <p className="section-label">Cliente</p>
-          <div className="form-grid-2">
-            <div>
-              <label className="form-label">Nombre</label>
-              <div className="field-input--disabled">{pedido.cliente?.nombre || "—"}</div>
-            </div>
-            <div>
-              <label className="form-label">Teléfono</label>
-              <div className="field-input--disabled">{pedido.cliente?.telefono || "—"}</div>
-            </div>
-          </div>
-
-          {/* Dirección */}
-          <p className="section-label">Dirección de entrega</p>
-          <div className="info-box info-box--info">
-            <span className="info-box__icon">📍</span>
-            <span className="info-box__text">{pedido.direccion_entrega || "—"}</span>
-          </div>
-
-          {/* Domiciliario */}
-          <p className="section-label">Domiciliario asignado</p>
-          {emp ? (
-            <div style={{
-              display: "flex", alignItems: "center", gap: 14, padding: "12px 16px",
-              borderRadius: 10, border: "1.5px solid #c8e6c9", background: "#f9fdf9",
-            }}>
+          {/* Nav lateral */}
+          <nav style={{
+            width: 150, borderRight: "1px solid #f0f0f0", background: "#fafdf9",
+            display: "flex", flexDirection: "column", padding: "12px 0", flexShrink: 0,
+          }}>
+            {/* Avatar domicilio */}
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 16, paddingBottom: 12, borderBottom: "1px solid #f0f0f0" }}>
               <div style={{
-                width: 42, height: 42, borderRadius: "50%", background: "#e8f5e9",
+                width: 48, height: 48, borderRadius: "50%", background: "#e8f5e9",
                 border: "1.5px solid #a5d6a7", display: "flex", alignItems: "center",
-                justifyContent: "center", fontSize: 20, flexShrink: 0,
+                justifyContent: "center", fontSize: 22,
               }}>🛵</div>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "#1a1a1a" }}>
-                  {emp.nombre} {emp.apellidos}
+            </div>
+
+            {NAV_VER.map(item => (
+              <button
+                key={item.id}
+                onClick={() => setActiveSection(item.id)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "10px 16px", border: "none",
+                  borderLeft: activeSection === item.id ? "3px solid #2e7d32" : "3px solid transparent",
+                  background: activeSection === item.id ? "#e8f5e9" : "transparent",
+                  color: activeSection === item.id ? "#2e7d32" : "#757575",
+                  fontWeight: activeSection === item.id ? 700 : 500,
+                  fontSize: 13, cursor: "pointer", fontFamily: "inherit",
+                  transition: "all 0.15s", textAlign: "left", width: "100%",
+                }}
+              >
+                <span style={{ fontSize: 14 }}>{item.icon}</span>
+                {item.label}
+              </button>
+            ))}
+          </nav>
+
+          {/* Contenido */}
+          <div style={{ flex: 1, padding: "20px 24px" }}>
+
+            {/* ── Cliente ── */}
+            {activeSection === "cliente" && (
+              <>
+                <p className="section-label" style={{ marginTop: 0 }}>Datos del cliente</p>
+                <div className="form-grid-2">
+                  <div>
+                    <label className="form-label">Nombre</label>
+                    <div className="field-input--disabled">{pedido.cliente?.nombre || "—"}</div>
+                  </div>
+                  <div>
+                    <label className="form-label">Teléfono</label>
+                    <div className="field-input--disabled">{pedido.cliente?.telefono || "—"}</div>
+                  </div>
                 </div>
-                <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 2 }}>{emp.correo}</div>
-              </div>
-            </div>
-          ) : (
-            <div className="info-box info-box--warn">
-              <span className="info-box__icon">⚠️</span>
-              <span className="info-box__text">Sin domiciliario asignado.</span>
-            </div>
-          )}
+                <div style={{ marginTop: 8 }}>
+                  <label className="form-label">Total del pedido</label>
+                  <div className="field-input--disabled" style={{ color: "#2e7d32", fontWeight: 700 }}>
+                    {fmt(pedido.total)}
+                  </div>
+                </div>
+              </>
+            )}
 
-          {/* Fechas */}
-          <p className="section-label">Fechas</p>
-          <div className="form-grid-2">
-            <div>
-              <label className="form-label">Fecha del pedido</label>
-              <div className="field-input--disabled">{fmtFecha(pedido.fecha_pedido)}</div>
-            </div>
-            <div>
-              <label className="form-label">Fecha de entrega real</label>
-              <div className="field-input--disabled" style={{ color: pedido.fecha_entrega_real ? "#00695c" : "#bdbdbd" }}>
-                {pedido.fecha_entrega_real ? fmtFecha(pedido.fecha_entrega_real) : "Pendiente"}
-              </div>
-            </div>
+            {/* ── Dirección ── */}
+            {activeSection === "direccion" && (
+              <>
+                <p className="section-label" style={{ marginTop: 0 }}>Dirección de entrega</p>
+                <div className="info-box info-box--info">
+                  <span className="info-box__icon">📍</span>
+                  <span className="info-box__text">{pedido.direccion_entrega || "—"}</span>
+                </div>
+                {pedido.obs_domicilio && (
+                  <>
+                    <p className="section-label">Observaciones</p>
+                    <div className="info-box info-box--warn">
+                      <span className="info-box__icon">📝</span>
+                      <span className="info-box__text">{pedido.obs_domicilio}</span>
+                    </div>
+                  </>
+                )}
+                {!pedido.obs_domicilio && (
+                  <p style={{ fontSize: 12, color: "#bdbdbd", marginTop: 12 }}>Sin observaciones registradas.</p>
+                )}
+              </>
+            )}
+
+            {/* ── Domiciliario ── */}
+            {activeSection === "domiciliario" && (
+              <>
+                <p className="section-label" style={{ marginTop: 0 }}>Domiciliario asignado</p>
+                {emp ? (
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: 14, padding: "12px 16px",
+                    borderRadius: 10, border: "1.5px solid #c8e6c9", background: "#f9fdf9",
+                  }}>
+                    <div style={{
+                      width: 42, height: 42, borderRadius: "50%", background: "#e8f5e9",
+                      border: "1.5px solid #a5d6a7", display: "flex", alignItems: "center",
+                      justifyContent: "center", fontSize: 20, flexShrink: 0,
+                    }}>🛵</div>
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: "#1a1a1a" }}>
+                        {emp.nombre} {emp.apellidos}
+                      </div>
+                      <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 2 }}>{emp.correo}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="info-box info-box--warn">
+                    <span className="info-box__icon">⚠️</span>
+                    <span className="info-box__text">Sin domiciliario asignado.</span>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── Fechas ── */}
+            {activeSection === "fechas" && (
+              <>
+                <p className="section-label" style={{ marginTop: 0 }}>Fechas</p>
+                <div className="form-grid-2">
+                  <div>
+                    <label className="form-label">Fecha del pedido</label>
+                    <div className="field-input--disabled">{fmtFecha(pedido.fecha_pedido)}</div>
+                  </div>
+                  <div>
+                    <label className="form-label">Fecha de entrega real</label>
+                    <div className="field-input--disabled" style={{ color: pedido.fecha_entrega_real ? "#00695c" : "#bdbdbd" }}>
+                      {pedido.fecha_entrega_real ? fmtFecha(pedido.fecha_entrega_real) : "Pendiente"}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
-
-          {/* Observaciones */}
-          {pedido.obs_domicilio && (
-            <>
-              <p className="section-label">Observaciones</p>
-              <div className="info-box info-box--warn">
-                <span className="info-box__icon">📝</span>
-                <span className="info-box__text">{pedido.obs_domicilio}</span>
-              </div>
-            </>
-          )}
         </div>
 
+        {/* Footer */}
         <div className="modal-footer">
           <button className="btn-ghost" onClick={onClose}>Cerrar</button>
           {activo && (
@@ -198,7 +270,7 @@ function ModalReasignar({ pedido, empleados, onClose, onConfirm }) {
           <button className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
 
-        <div className="modal-body">
+        <div className="modal-body" style={{ overflow: "visible" }}>
           <p style={{ margin: 0, fontSize: 12, color: "#616161" }}>
             Pedido: <strong>{pedido.numero}</strong>
           </p>
@@ -252,7 +324,7 @@ function ModalReasignar({ pedido, empleados, onClose, onConfirm }) {
    MODAL OBSERVACIONES
    ═══════════════════════════════════════════════════════════ */
 function ModalObservaciones({ pedido, onClose, onConfirm }) {
-  const [obs, setObs] = useState(pedido.obs_domicilio || "");
+  const [obs, setObs]   = useState(pedido.obs_domicilio || "");
   const [done, setDone] = useState(false);
 
   return (
@@ -267,7 +339,7 @@ function ModalObservaciones({ pedido, onClose, onConfirm }) {
           <button className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
 
-        <div className="modal-body">
+        <div className="modal-body" style={{ overflow: "visible" }}>
           <p style={{ margin: 0, fontSize: 12, color: "#616161" }}>
             Pedido: <strong>{pedido.numero}</strong> · {pedido.cliente?.nombre}
           </p>
@@ -307,15 +379,13 @@ function ModalObservaciones({ pedido, onClose, onConfirm }) {
    ═══════════════════════════════════════════════════════════ */
 function HistorialDomiciliario({ domicilios, empleados }) {
   const [abiertos, setAbiertos] = useState({});
-
   const toggle = (id) => setAbiertos(p => ({ ...p, [id]: !p[id] }));
 
-  /* Agrupar por empleado */
   const grupos = empleados.map(emp => {
     const pedidosEmp = domicilios.filter(p => p.idEmpleado === emp.id);
     return {
       emp,
-      total:     pedidosEmp.length,
+      total:      pedidosEmp.length,
       entregados: pedidosEmp.filter(p => p.estado === "Entregado").length,
       enCamino:   pedidosEmp.filter(p => p.estado === "En camino").length,
       pedidos:    pedidosEmp,
@@ -353,7 +423,11 @@ function HistorialDomiciliario({ domicilios, empleados }) {
                 {entregados > 0 && <span className="hist-stat hist-stat--entregado">✓ {entregados}</span>}
                 {enCamino   > 0 && <span className="hist-stat hist-stat--camino">🛵 {enCamino}</span>}
               </div>
-              <span style={{ color: "#9e9e9e", fontSize: 16, transform: abiertos[emp.id] ? "rotate(90deg)" : "none", transition: "transform 0.2s" }}>›</span>
+              <span style={{
+                color: "#9e9e9e", fontSize: 16,
+                transform: abiertos[emp.id] ? "rotate(90deg)" : "none",
+                transition: "transform 0.2s",
+              }}>›</span>
             </div>
           </div>
 
@@ -382,11 +456,9 @@ export default function GestionDomicilios() {
   const { pedidos, editarPedido, asignarDomiciliario, usuarios } = useApp();
 
   const empleados  = usuarios.filter(u => u.rol === "Empleado" && u.estado);
-
-  /* Solo pedidos con domicilio */
   const domicilios = pedidos.filter(p => p.domicilio);
 
-  const [tab,          setTab]          = useState("tabla");   /* "tabla" | "historial" */
+  const [tab,          setTab]          = useState("tabla");
   const [search,       setSearch]       = useState("");
   const [filterEstado, setFilterEstado] = useState("todos");
   const [showFilter,   setShowFilter]   = useState(false);
@@ -408,7 +480,7 @@ export default function GestionDomicilios() {
 
   /* Filtrado */
   const filtered = domicilios.filter(p => {
-    const q = search.toLowerCase();
+    const q   = search.toLowerCase();
     const emp = empleados.find(e => e.id === p.idEmpleado);
     const matchQ = [
       p.numero, p.cliente?.nombre, p.cliente?.correo,
@@ -447,32 +519,26 @@ export default function GestionDomicilios() {
     setModal(null);
   };
 
-  /* Validaciones */
   const abrirReasignar = (ped) => {
     if (["Entregado", "Cancelado"].includes(ped.estado)) {
-      showToast("No se puede reasignar un domicilio ya finalizado", "warn");
-      return;
+      showToast("No se puede reasignar un domicilio ya finalizado", "warn"); return;
     }
     setModal({ type: "reasignar", pedido: ped });
   };
 
   const abrirObservaciones = (ped) => {
     if (["Entregado", "Cancelado"].includes(ped.estado)) {
-      showToast("No se pueden editar observaciones de un domicilio finalizado", "warn");
-      return;
+      showToast("No se pueden editar observaciones de un domicilio finalizado", "warn"); return;
     }
     setModal({ type: "obs", pedido: ped });
   };
 
-  /* ─── Stats rápidas ─── */
-  const totalDom    = domicilios.length;
-  const enCamino    = domicilios.filter(p => p.estado === "En camino").length;
-  const entregados  = domicilios.filter(p => p.estado === "Entregado").length;
-  const sinAsignar  = domicilios.filter(p => !p.idEmpleado && !["Entregado","Cancelado"].includes(p.estado)).length;
+  /* Stats */
+  const totalDom   = domicilios.length;
+  const enCamino   = domicilios.filter(p => p.estado === "En camino").length;
+  const entregados = domicilios.filter(p => p.estado === "Entregado").length;
+  const sinAsignar = domicilios.filter(p => !p.idEmpleado && !["Entregado", "Cancelado"].includes(p.estado)).length;
 
-  /* ════════════════════════════════════════════════════════
-     RENDER
-  ════════════════════════════════════════════════════════ */
   return (
     <div className="page-wrapper">
       <div className="page-header">
@@ -482,7 +548,7 @@ export default function GestionDomicilios() {
 
       <div className="page-inner">
 
-        {/* ── Stats rápidas ── */}
+        {/* ── Stats ── */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
           {[
             { label: "Total domicilios", val: totalDom,   color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7", icon: "🛵" },
@@ -542,12 +608,12 @@ export default function GestionDomicilios() {
                   <div className="filter-dropdown" style={{ minWidth: 185 }}>
                     <p className="filter-section-title">Estado</p>
                     {[
-                      { val: "todos",       label: "Todos",           dot: "#bdbdbd" },
-                      { val: "activos",     label: "Activos",         dot: "#8e24aa" },
-                      { val: "En camino",   label: "En camino",       dot: "#8e24aa" },
-                      { val: "Listo",       label: "Listo (por salir)",dot: "#43a047" },
-                      { val: "entregados",  label: "Entregados",      dot: "#009688" },
-                      { val: "sin-asignar", label: "Sin asignar",     dot: "#e53935" },
+                      { val: "todos",        label: "Todos",            dot: "#bdbdbd" },
+                      { val: "activos",      label: "Activos",          dot: "#8e24aa" },
+                      { val: "En camino",    label: "En camino",        dot: "#8e24aa" },
+                      { val: "Listo",        label: "Listo (por salir)", dot: "#43a047" },
+                      { val: "entregados",   label: "Entregados",       dot: "#009688" },
+                      { val: "sin-asignar",  label: "Sin asignar",      dot: "#e53935" },
                     ].map(f => (
                       <button key={f.val}
                         className={`filter-option${filterEstado === f.val ? " active" : ""}`}
@@ -566,15 +632,15 @@ export default function GestionDomicilios() {
                 <table className="tbl">
                   <thead>
                     <tr>
-                      <th style={{ width: 44 }}>Nº</th>
-                      <th>Pedido</th>
-                      <th>Cliente</th>
-                      <th>Dirección</th>
-                      <th>Domiciliario</th>
-                      <th>Fecha pedido</th>
-                      <th>Entrega real</th>
-                      <th>Estado</th>
-                      <th>Acciones</th>
+                      <th className="col-num">Nº</th>
+                      <th className="col-pedido">Pedido</th>
+                      <th className="col-cliente">Cliente</th>
+                      <th className="col-dir">Dirección</th>
+                      <th className="col-domi">Domiciliario</th>
+                      <th className="col-fecha">Fecha pedido</th>
+                      <th className="col-entrega">Entrega real</th>
+                      <th className="col-estado">Estado</th>
+                      <th className="col-acciones">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -588,7 +654,7 @@ export default function GestionDomicilios() {
                         </div>
                       </td></tr>
                     ) : paged.map((ped, idx) => {
-                      const emp = empleados.find(e => e.id === ped.idEmpleado);
+                      const emp    = empleados.find(e => e.id === ped.idEmpleado);
                       const activo = !["Entregado", "Cancelado"].includes(ped.estado);
                       return (
                         <tr key={ped.id} className="tbl-row">
@@ -597,20 +663,14 @@ export default function GestionDomicilios() {
                               {String((safePage - 1) * PER_PAGE + idx + 1).padStart(2, "0")}
                             </span>
                           </td>
-
-                          {/* Pedido */}
                           <td>
                             <div className="pedido-num">{ped.numero}</div>
                             <div className="pedido-fecha">{fmt(ped.total)}</div>
                           </td>
-
-                          {/* Cliente */}
                           <td>
                             <div className="client-name">{ped.cliente?.nombre || "—"}</div>
                             <div className="client-phone">{ped.cliente?.telefono || ""}</div>
                           </td>
-
-                          {/* Dirección */}
                           <td>
                             <div className="dir-main" style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {ped.direccion_entrega || "—"}
@@ -621,40 +681,30 @@ export default function GestionDomicilios() {
                               </div>
                             )}
                           </td>
-
-                          {/* Domiciliario */}
                           <td>
                             {emp
                               ? <div className="emp-name">🛵 {emp.nombre} {emp.apellidos}</div>
                               : <div className="emp-none">Sin asignar</div>
                             }
                           </td>
-
-                          {/* Fechas */}
                           <td><span className="date-badge">{fmtFecha(ped.fecha_pedido)}</span></td>
                           <td>
                             <span className={`date-badge${!ped.fecha_entrega_real ? " date-badge--none" : ""}`}>
                               {ped.fecha_entrega_real ? fmtFecha(ped.fecha_entrega_real) : "—"}
                             </span>
                           </td>
-
-                          {/* Estado */}
                           <td><EstadoBadge estado={ped.estado} /></td>
-
-                          {/* Acciones */}
                           <td>
                             <div className="actions-cell">
                               <button className="act-btn act-btn--view"
                                 title="Ver detalle"
                                 onClick={() => setModal({ type: "ver", pedido: ped })}>👁</button>
-
                               <button className="act-btn act-btn--reasignar"
                                 title="Reasignar domiciliario"
                                 onClick={() => abrirReasignar(ped)}
                                 style={{ opacity: activo ? 1 : 0.35, cursor: activo ? "pointer" : "default" }}>
                                 🛵
                               </button>
-
                               <button className="act-btn act-btn--obs"
                                 title="Observaciones"
                                 onClick={() => abrirObservaciones(ped)}
@@ -670,7 +720,6 @@ export default function GestionDomicilios() {
                 </table>
               </div>
 
-              {/* Paginación */}
               <div className="pagination-bar">
                 <span className="pagination-count">
                   {filtered.length} {filtered.length === 1 ? "domicilio" : "domicilios"} en total

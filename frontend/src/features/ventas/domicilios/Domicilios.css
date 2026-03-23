@@ -210,3 +210,26 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; color: #1a1a1a; }
 
 ::-webkit-scrollbar       { width:4px; }
 ::-webkit-scrollbar-thumb { background:#c8e6c9; border-radius:4px; }
+/* ═══════════════════════════════════════════════════════════
+   PARCHE — agregar al final de Domicilios.css
+   ═══════════════════════════════════════════════════════════ */
+
+/* Colores explícitos para los botones de acción */
+.act-btn--view      { color: #2e7d32; }
+.act-btn--reasignar { color: #6a1b9a; }
+.act-btn--obs       { color: #f9a825; }
+
+/* Tabla más compacta — menos padding en celdas */
+.tbl td { padding: 10px 10px; }
+.tbl th { padding: 11px 10px; }
+
+/* Columnas con ancho controlado */
+.tbl .col-num       { width: 44px; }
+.tbl .col-pedido    { width: 90px; }
+.tbl .col-cliente   { width: 140px; }
+.tbl .col-dir       { width: 180px; }
+.tbl .col-domi      { width: 130px; }
+.tbl .col-fecha     { width: 100px; }
+.tbl .col-entrega   { width: 100px; }
+.tbl .col-estado    { width: 120px; }
+.tbl .col-acciones  { width: 110px; text-align: center; }

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useApp, calcularTotal, diasHasta, estadoLote } from "../../../AppContext.jsx";
+import "./compras.css";
 
 const METODOS_PAGO = [
   { value: "efectivo",      label: "Efectivo",      icon: "💵" },
@@ -16,16 +17,43 @@ const emptyDetalle = () => ({
   idInsumo: "", cantidad: "", precioUnd: "", notas: "", fechaVencimiento: "",
 });
 
+/* ── Barra de pasos ──────────────────────────────────────── */
+const STEPS = ["Información general", "Insumos"];
+
+function StepsBar({ current }) {
+  return (
+    <div className="wizard-steps-bar">
+      {STEPS.map((label, i) => {
+        const idx    = i + 1;
+        const done   = idx < current;
+        const active = idx === current;
+        return (
+          <div key={label} className="wizard-step-item">
+            <div className={`wizard-step-circle${done ? " done" : active ? " active" : ""}`}>
+              {done ? "✓" : idx}
+            </div>
+            <span className={`wizard-step-label${active ? " active" : done ? " done" : ""}`}>
+              {label}
+            </span>
+            {i < STEPS.length - 1 && (
+              <div className={`wizard-step-line${done ? " done" : ""}`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ════════════════════════════════════════════════════════════
    PANEL DE LOTES — reutilizable en el modal Ver de Insumos
-   Props: idInsumo (number)
 ════════════════════════════════════════════════════════════ */
 export function LotesInsumoPanel({ idInsumo }) {
   const { getLotesDeInsumo, getProveedor, compras, getUnidad, getInsumo } = useApp();
 
-  const ins     = getInsumo(idInsumo);
-  const unidad  = ins ? getUnidad(ins.idUnidad) : null;
-  const lotesOrd = getLotesDeInsumo(idInsumo); // ya ordenados por fechaVenc (FIFO)
+  const ins      = getInsumo(idInsumo);
+  const unidad   = ins ? getUnidad(ins.idUnidad) : null;
+  const lotesOrd = getLotesDeInsumo(idInsumo);
 
   if (!lotesOrd.length) {
     return (
@@ -38,15 +66,14 @@ export function LotesInsumoPanel({ idInsumo }) {
   }
 
   const ESTADO_CONFIG = {
-    "activo":     { label: "Activo",          color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7", icon: "✅" },
-    "por-vencer": { label: "Próximo a vencer", color: "#e65100", bg: "#fff3e0", border: "#ffcc80", icon: "⚠️" },
-    "vencido":    { label: "Vencido",          color: "#c62828", bg: "#ffebee", border: "#ef9a9a", icon: "🚨" },
-    "agotado":    { label: "Agotado",          color: "#757575", bg: "#f5f5f5", border: "#e0e0e0", icon: "📭" },
+    "activo":     { label: "Activo",           color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7", icon: "✅" },
+    "por-vencer": { label: "Próximo a vencer",  color: "#e65100", bg: "#fff3e0", border: "#ffcc80", icon: "⚠️" },
+    "vencido":    { label: "Vencido",           color: "#c62828", bg: "#ffebee", border: "#ef9a9a", icon: "🚨" },
+    "agotado":    { label: "Agotado",           color: "#757575", bg: "#f5f5f5", border: "#e0e0e0", icon: "📭" },
   };
 
   return (
     <div className="lotes-panel">
-      {/* Resumen rápido */}
       <div className="lotes-resumen">
         <div className="lotes-resumen__item">
           <span className="lotes-resumen__num">{lotesOrd.length}</span>
@@ -72,7 +99,6 @@ export function LotesInsumoPanel({ idInsumo }) {
         </div>
       </div>
 
-      {/* Lista de lotes FIFO */}
       <div className="lotes-lista">
         {lotesOrd.map((lote, idx) => {
           const estado = estadoLote(lote);
@@ -86,7 +112,6 @@ export function LotesInsumoPanel({ idInsumo }) {
               className="lote-item"
               style={{ borderColor: cfg.border, background: idx === 0 && estado !== "vencido" && estado !== "agotado" ? cfg.bg : "#fff" }}
             >
-              {/* Encabezado del lote */}
               <div className="lote-item__head">
                 <div className="lote-item__id-wrap">
                   {idx === 0 && estado !== "vencido" && estado !== "agotado" && (
@@ -94,15 +119,11 @@ export function LotesInsumoPanel({ idInsumo }) {
                   )}
                   <span className="lote-item__id">{lote.id}</span>
                 </div>
-                <span
-                  className="lote-estado-chip"
-                  style={{ color: cfg.color, background: cfg.bg, borderColor: cfg.border }}
-                >
+                <span className="lote-estado-chip" style={{ color: cfg.color, background: cfg.bg, borderColor: cfg.border }}>
                   {cfg.icon} {cfg.label}
                 </span>
               </div>
 
-              {/* Cuerpo del lote */}
               <div className="lote-item__body">
                 <div className="lote-dato">
                   <span className="lote-dato__label">Cantidad restante</span>
@@ -111,7 +132,6 @@ export function LotesInsumoPanel({ idInsumo }) {
                     <span className="lote-dato__orig"> / {lote.cantidadInicial} inicial</span>
                   </span>
                 </div>
-
                 <div className="lote-dato">
                   <span className="lote-dato__label">Vence el</span>
                   <span className="lote-dato__val" style={{ color: cfg.color }}>
@@ -122,35 +142,28 @@ export function LotesInsumoPanel({ idInsumo }) {
                     }
                   </span>
                 </div>
-
                 <div className="lote-dato">
                   <span className="lote-dato__label">Ingresó el</span>
                   <span className="lote-dato__val">📦 {lote.fechaIngreso}</span>
                 </div>
-
                 {prov && (
                   <div className="lote-dato">
                     <span className="lote-dato__label">Proveedor</span>
                     <span className="lote-dato__val">🏭 {prov.responsable}</span>
                   </div>
                 )}
-
                 <div className="lote-dato">
                   <span className="lote-dato__label">Compra</span>
                   <span className="lote-dato__val lote-compra-ref">{lote.idCompra}</span>
                 </div>
               </div>
 
-              {/* Barra de consumo */}
               {lote.cantidadInicial > 0 && (
                 <div className="lote-barra-wrap">
                   <div className="lote-barra-track">
                     <div
                       className="lote-barra-fill"
-                      style={{
-                        width: `${(lote.cantidadActual / lote.cantidadInicial) * 100}%`,
-                        background: cfg.color,
-                      }}
+                      style={{ width: `${(lote.cantidadActual / lote.cantidadInicial) * 100}%`, background: cfg.color }}
                     />
                   </div>
                   <span className="lote-barra-pct">
@@ -228,6 +241,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
   );
   const [errors,  setErrors]  = useState({});
   const [saving,  setSaving]  = useState(false);
+  const [step,    setStep]    = useState(1);
 
   const proveedor = getProveedor(compra.idProveedor);
 
@@ -243,14 +257,14 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
     detalles.map(d => ({ cantidad: Number(d.cantidad) || 0, precioUnd: Number(d.precioUnd) || 0 }))
   );
 
-  /* Validación */
-  const validate = () => {
+  const validateStep = (s) => {
     const e = {};
-    if (!form.idProveedor) e.idProveedor = "Selecciona un proveedor";
-    if (!form.fecha)       e.fecha       = "Ingresa la fecha";
-    if (!form.metodoPago)  e.metodoPago  = "Selecciona el método de pago";
-
-    if (!isCompleted) {
+    if (s === 1) {
+      if (!form.idProveedor) e.idProveedor = "Selecciona un proveedor";
+      if (!form.fecha)       e.fecha       = "Ingresa la fecha";
+      if (!form.metodoPago)  e.metodoPago  = "Selecciona el método de pago";
+    }
+    if (s === 2 && !isCompleted) {
       if (detalles.length === 0) e.detalles = "Agrega al menos un insumo";
       detalles.forEach((d, i) => {
         if (!d.idInsumo)                              e[`ins_${i}`]    = "Selecciona un insumo";
@@ -259,13 +273,20 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
         if (!d.fechaVencimiento)                      e[`venc_${i}`]   = "Fecha de vencimiento requerida";
       });
     }
-
-    setErrors(e);
-    return Object.keys(e).length === 0;
+    return e;
   };
 
+  const handleNext = () => {
+    const e = validateStep(step);
+    if (Object.keys(e).length) { setErrors(e); return; }
+    setStep(s => s + 1);
+  };
+
+  const handleBack = () => setStep(s => s - 1);
+
   const handleSave = async () => {
-    if (!validate()) return;
+    const e = validateStep(2);
+    if (Object.keys(e).length) { setErrors(e); return; }
     setSaving(true);
     await new Promise(r => setTimeout(r, 400));
     const detallesLimpios = detalles.map(d => ({
@@ -282,8 +303,12 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
   /* ── Render ── */
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card modal-card--compra" onClick={e => e.stopPropagation()}>
-
+      <div
+        className="modal-card modal-card--compra"
+        onClick={e => e.stopPropagation()}
+        style={isView ? { display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 40px)" } : {}}
+      >
+        {/* Header */}
         <div className="modal-header">
           <div>
             <p className="modal-header__eyebrow">COMPRAS · {compra.id}</p>
@@ -299,10 +324,24 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
           </div>
         </div>
 
-        <div className="modal-body">
+        {/* Steps — solo en modo editar */}
+        {!isView && (
+          <div style={{ padding: "16px 24px 0" }}>
+            <StepsBar current={step} />
+          </div>
+        )}
 
-          {/* ── MODO VER ── */}
-          {isView ? (
+        {/* Body */}
+        <div
+          className="modal-body"
+          style={isView
+            ? { flex: 1, overflowY: "auto" }
+            : { overflow: "visible" }
+          }
+        >
+
+          {/* ════ MODO VER ════ */}
+          {isView && (
             <>
               <div className="ver-compra-grid">
                 <div className="ver-field">
@@ -368,18 +407,19 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                 <span className="total-bar__value">{COP(calcularTotal(compra.detalles))}</span>
               </div>
             </>
-          ) : (
-          /* ── MODO EDITAR ── */
+          )}
+
+          {/* ════ MODO EDITAR — Paso 1: Info general ════ */}
+          {!isView && step === 1 && (
             <>
               {isCompleted && (
-                <div className="stock-aviso stock-aviso--info">
-                  🔒 Esta compra ya fue <strong>completada</strong>. Solo puedes editar las notas y el método de pago — los lotes ya fueron creados y el stock ya se actualizó.
+                <div className="stock-aviso stock-aviso--info" style={{ marginBottom: 12 }}>
+                  🔒 Esta compra ya fue <strong>completada</strong>. Solo puedes editar las notas y el método de pago.
                 </div>
               )}
 
-              <p className="section-label">Información general</p>
+              <p className="section-label" style={{ marginTop: 0 }}>Información general</p>
 
-              {/* Proveedor */}
               <div className="field-wrap">
                 <label className="field-label">Proveedor <span className="required">*</span></label>
                 {isCompleted ? (
@@ -407,39 +447,34 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
               <div className="field-grid-2">
                 <div className="field-wrap">
                   <label className="field-label">Fecha <span className="required">*</span></label>
-                  {isCompleted ? (
-                    <div className="field-input field-input--disabled">📅 {form.fecha}</div>
-                  ) : (
-                    <input
-                      type="date"
-                      className={`field-input ${errors.fecha ? "error" : ""}`}
-                      value={form.fecha}
-                      onChange={e => set("fecha", e.target.value)}
-                    />
-                  )}
+                  {isCompleted
+                    ? <div className="field-input field-input--disabled">📅 {form.fecha}</div>
+                    : <input type="date" className={`field-input ${errors.fecha ? "error" : ""}`}
+                        value={form.fecha} onChange={e => set("fecha", e.target.value)} />
+                  }
                 </div>
                 <div className="field-wrap">
                   <label className="field-label">Estado</label>
-                  {isCompleted ? (
-                    <div className="field-input field-input--disabled">✅ Completada</div>
-                  ) : (
-                    <div className="estado-toggle-wrap">
-                      {["pendiente", "completada"].map(est => (
-                        <button
-                          key={est}
-                          type="button"
-                          className={`estado-toggle-btn ${form.estado === est ? `estado-toggle-btn--${est}` : ""}`}
-                          onClick={() => set("estado", est)}
-                        >
-                          {est === "pendiente" ? "⏳" : "✅"} {est.charAt(0).toUpperCase() + est.slice(1)}
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  {isCompleted
+                    ? <div className="field-input field-input--disabled">✅ Completada</div>
+                    : (
+                      <div className="estado-toggle-wrap">
+                        {["pendiente", "completada"].map(est => (
+                          <button
+                            key={est}
+                            type="button"
+                            className={`estado-toggle-btn ${form.estado === est ? `estado-toggle-btn--${est}` : ""}`}
+                            onClick={() => set("estado", est)}
+                          >
+                            {est === "pendiente" ? "⏳" : "✅"} {est.charAt(0).toUpperCase() + est.slice(1)}
+                          </button>
+                        ))}
+                      </div>
+                    )
+                  }
                 </div>
               </div>
 
-              {/* Método de pago */}
               <div className="field-wrap">
                 <label className="field-label">Método de pago <span className="required">*</span></label>
                 <div className="metodo-grid">
@@ -458,7 +493,6 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                 {errors.metodoPago && <span className="field-error">{errors.metodoPago}</span>}
               </div>
 
-              {/* Notas */}
               <div className="field-wrap">
                 <label className="field-label">Notas</label>
                 <textarea
@@ -469,13 +503,18 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                   onChange={e => set("notas", e.target.value)}
                 />
               </div>
+            </>
+          )}
 
-              {/* Detalles */}
-              <p className="section-label">
+          {/* ════ MODO EDITAR — Paso 2: Insumos ════ */}
+          {!isView && step === 2 && (
+            <>
+              <p className="section-label" style={{ marginTop: 0 }}>
                 Insumos comprados
                 {errors.detalles && <span className="field-error" style={{ marginLeft: 8 }}>{errors.detalles}</span>}
               </p>
 
+              {/* Completada: solo lectura */}
               {isCompleted ? (
                 <div className="insumos-list">
                   {detalles.map(d => {
@@ -547,8 +586,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
 
                           <div className="field-wrap">
                             <label className="field-label">Cantidad{unidad ? ` (${unidad.simbolo})` : ""} <span className="required">*</span></label>
-                            <input
-                              type="number" min="1"
+                            <input type="number" min="1"
                               className={`field-input ${errors[`cant_${i}`] ? "error" : ""}`}
                               placeholder="0" value={d.cantidad}
                               onChange={e => setDetalle(d._key, "cantidad", e.target.value)}
@@ -558,8 +596,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
 
                           <div className="field-wrap">
                             <label className="field-label">Precio unitario (COP) <span className="required">*</span></label>
-                            <input
-                              type="number" min="0"
+                            <input type="number" min="0"
                               className={`field-input ${errors[`precio_${i}`] ? "error" : ""}`}
                               placeholder="0" value={d.precioUnd}
                               onChange={e => setDetalle(d._key, "precioUnd", e.target.value)}
@@ -569,8 +606,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
 
                           <div className="field-wrap" style={{ gridColumn: "1 / -1" }}>
                             <label className="field-label">Fecha de vencimiento del lote <span className="required">*</span></label>
-                            <input
-                              type="date"
+                            <input type="date"
                               className={`field-input ${errors[`venc_${i}`] ? "error" : ""}`}
                               value={d.fechaVencimiento}
                               onChange={e => setDetalle(d._key, "fechaVencimiento", e.target.value)}
@@ -580,8 +616,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
 
                           <div className="field-wrap" style={{ gridColumn: "1 / -1" }}>
                             <label className="field-label">Notas del ítem</label>
-                            <input
-                              type="text" className="field-input"
+                            <input type="text" className="field-input"
                               placeholder="Ej: Bultos x 50kg…"
                               value={d.notas}
                               onChange={e => setDetalle(d._key, "notas", e.target.value)}
@@ -613,24 +648,32 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
 
               {!isCompleted && form.estado === "completada" && (
                 <div className="stock-aviso stock-aviso--warn">
-                  ⚠️ Al guardar como <strong>Completada</strong>, se crearán los lotes de cada insumo y el stock se actualizará automáticamente.
+                  ⚠️ Al guardar como <strong>Completada</strong>, se crearán los lotes y el stock se actualizará automáticamente.
                 </div>
               )}
             </>
           )}
         </div>
 
-        <div className="modal-footer">
-          <button className="btn-cancel" onClick={onClose}>
-            {isView ? "Cerrar" : "Cancelar"}
-          </button>
-          {!isView && (
-            <button className="btn-save" onClick={handleSave} disabled={saving}>
-              {saving ? "Guardando…" : "Guardar cambios"}
-            </button>
+        {/* Footer */}
+        <div className="modal-footer" style={!isView ? { justifyContent: "space-between" } : {}}>
+          {isView ? (
+            <button className="btn-cancel" onClick={onClose}>Cerrar</button>
+          ) : (
+            <>
+              {step > 1
+                ? <button className="btn-cancel" onClick={handleBack}>← Atrás</button>
+                : <button className="btn-cancel" onClick={onClose}>Cancelar</button>
+              }
+              {step < 2
+                ? <button className="btn-save" onClick={handleNext}>Siguiente →</button>
+                : <button className="btn-save" onClick={handleSave} disabled={saving}>
+                    {saving ? "Guardando…" : "Guardar cambios"}
+                  </button>
+              }
+            </>
           )}
         </div>
-
       </div>
     </div>
   );

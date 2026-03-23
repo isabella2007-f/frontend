@@ -35,7 +35,7 @@ export default function CrearProveedor({ onClose, onSave }) {
   const Field = ({ k, label, type = "text", ph = "", full = false }) => (
     <div className="form-group" style={full ? { gridColumn: "1 / -1" } : {}}>
       <label className="form-label">
-        {label} {["responsable","celular","correo"].includes(k) && <span className="required">*</span>}
+        {label}{["responsable", "celular", "correo"].includes(k) && <span className="required"> *</span>}
       </label>
       <input
         className={"field-input" + (errors[k] ? " field-input--error" : "")}
@@ -44,8 +44,8 @@ export default function CrearProveedor({ onClose, onSave }) {
         onChange={e => set(k, k === "celular" ? fmtTel(e.target.value) : e.target.value)}
         placeholder={ph}
         maxLength={k === "celular" ? 12 : undefined}
-        onFocus={e  => e.target.style.borderColor = "#4caf50"}
-        onBlur={e   => e.target.style.borderColor = errors[k] ? "#e53935" : "#e0e0e0"}
+        onFocus={e => e.target.style.borderColor = "#4caf50"}
+        onBlur={e  => e.target.style.borderColor = errors[k] ? "#e53935" : "#e0e0e0"}
       />
       {errors[k] && <p className="field-error">{errors[k]}</p>}
     </div>
@@ -55,7 +55,7 @@ export default function CrearProveedor({ onClose, onSave }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box modal-box--prov" onClick={e => e.stopPropagation()}>
 
-        {/* HEADER */}
+        {/* Header */}
         <div className="modal-header">
           <div>
             <p className="modal-header__eyebrow">Proveedores</p>
@@ -64,9 +64,9 @@ export default function CrearProveedor({ onClose, onSave }) {
           <button className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
 
-        {/* BODY */}
-        <div className="modal-body">
-          <p className="section-label">Datos del proveedor</p>
+        {/* Body — sin overflow, 4 campos caben perfectamente */}
+        <div className="modal-body" style={{ overflow: "visible" }}>
+          <p className="section-label" style={{ marginTop: 0 }}>Datos del proveedor</p>
           <div className="form-grid-2">
             <Field k="responsable" label="Responsable" ph="Nombre del contacto" full />
             <Field k="direccion"   label="Dirección"   ph="Ej. Cra 10 # 5-30"  full />
@@ -75,7 +75,7 @@ export default function CrearProveedor({ onClose, onSave }) {
           </div>
         </div>
 
-        {/* FOOTER */}
+        {/* Footer */}
         <div className="modal-footer">
           <button className="btn-ghost" onClick={onClose}>Cancelar</button>
           <button className="btn-save" onClick={handleSave} disabled={saving}>
@@ -83,7 +83,6 @@ export default function CrearProveedor({ onClose, onSave }) {
             {saving ? "Guardando…" : "Guardar"}
           </button>
         </div>
-
       </div>
     </div>
   );
