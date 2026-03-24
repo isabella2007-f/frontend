@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { X, CreditCard, Banknote, User, MapPin, ShoppingBag } from 'lucide-react';
 import { CartItem } from '../services/cartService';
-
+import './CheckoutModal.css';
 interface CheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;

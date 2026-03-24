@@ -1,4 +1,3 @@
-
 export interface CartItem {
   id: number;
   nombre: string;
@@ -34,12 +33,13 @@ export const addToCart = (product: any): void => {
     });
   }
   saveCart(cart);
+  window.dispatchEvent(new Event('cart-updated'));
 };
 
 export const removeFromCart = (productId: number): void => {
-  const cart = getCart();
-  const filtered = cart.filter((item) => item.id !== productId);
-  saveCart(filtered);
+  const cart = getCart().filter((item) => item.id !== productId);
+  saveCart(cart);
+  window.dispatchEvent(new Event('cart-updated'));
 };
 
 export const updateQuantity = (productId: number, quantity: number): void => {
@@ -48,11 +48,13 @@ export const updateQuantity = (productId: number, quantity: number): void => {
   if (item) {
     item.cantidad = Math.max(1, quantity);
     saveCart(cart);
+    window.dispatchEvent(new Event('cart-updated'));
   }
 };
 
 export const clearCart = (): void => {
   localStorage.removeItem(CART_KEY);
+  window.dispatchEvent(new Event('cart-updated'));
 };
 
 export const getTotal = (): number => {

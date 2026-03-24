@@ -2,14 +2,15 @@ import { useState, useEffect } from 'react';
 import { useApp } from '../../../AppContext';
 import { addToCart } from './services/cartService';
 import ProductCard from './components/ProductCard';
-import { Search, SlidersHorizontal, ShoppingBag } from 'lucide-react';
+import { Search, SlidersHorizontal, ShoppingBag, Leaf } from 'lucide-react';
+import '../../../styles/client.css';
 
 const OrdersPage = () => {
   const { productos, categoriasProductosActivas } = useApp();
 
-  const [searchTerm, setSearchTerm]           = useState('');
+  const [searchTerm,       setSearchTerm]       = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [activeProducts, setActiveProducts]   = useState([]);
+  const [activeProducts,   setActiveProducts]   = useState([]);
   const [cartUpdateToggle, setCartUpdateToggle] = useState(false);
 
   useEffect(() => {
@@ -19,19 +20,12 @@ const OrdersPage = () => {
 
     const filtered = (productos || []).filter(p => {
       const categoryId = Number(p.idCategoria);
-
-      const isFromActiveCategory = activeCatIds.has(categoryId);
-
-      const matchesSearch = (p.nombre || "")
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase());
-
-      const matchesCategory =
-        selectedCategory === 'all' || categoryId === Number(selectedCategory);
-
-      const hasStock = (p.stock || 0) > 0;
-
-      return isFromActiveCategory && matchesSearch && matchesCategory && hasStock;
+      return (
+        activeCatIds.has(categoryId) &&
+        (p.nombre || '').toLowerCase().includes(searchTerm.toLowerCase()) &&
+        (selectedCategory === 'all' || categoryId === Number(selectedCategory)) &&
+        (p.stock || 0) > 0
+      );
     });
 
     setActiveProducts(filtered);
@@ -44,89 +38,84 @@ const OrdersPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50/50 pb-20">
-      {/* Hero Header */}
-      <div className="bg-emerald-600 pt-12 pb-24 px-6 relative overflow-hidden">
-        <div className="absolute top-0 right-0 -mt-20 -mr-20 w-64 h-64 bg-emerald-500 rounded-full blur-3xl opacity-50"></div>
-        <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-64 h-64 bg-emerald-700 rounded-full blur-3xl opacity-30"></div>
+    <div className="toston-page">
 
-        <div className="relative max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div>
-              <h1 className="text-4xl font-black text-white mb-2">Realiza tu Pedido</h1>
-              <p className="text-emerald-100 text-lg font-medium max-w-xl">
-                Selecciona tus productos favoritos de plátano y recíbelos en la puerta de tu casa.
-                Fresco, delicioso y artesanal.
-              </p>
-            </div>
+      {/* ── Hero ── */}
+      <header className="page-hero">
+        <div className="page-hero__inner">
+          <div>
+            <span className="page-hero__label">
+              <Leaf size={11} /> Tostón App
+            </span>
+            <h1 className="page-hero__title">
+              Realiza tu <em>Pedido</em>
+            </h1>
+            <p className="page-hero__sub">
+              Plátano fresco, delicioso y artesanal — directo a la puerta de tu casa.
+            </p>
+          </div>
 
-            <div className="bg-white/10 backdrop-blur-md p-1 rounded-2xl flex items-center gap-2 border border-white/20">
-              <div className="bg-white text-emerald-700 px-4 py-3 rounded-xl flex items-center gap-2 shadow-lg">
-                <ShoppingBag size={20} className="stroke-[2.5px]" />
-                <span className="font-bold">
-                  Productos Disponibles: {activeProducts.length}
-                </span>
-              </div>
-            </div>
+          <div className="page-hero__badge">
+            <span className="page-hero__badge-icon">
+              <ShoppingBag size={18} color="white" />
+            </span>
+            {activeProducts.length} producto{activeProducts.length !== 1 ? 's' : ''} disponible{activeProducts.length !== 1 ? 's' : ''}
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 -mt-12 relative z-10">
+      {/* ── Content ── */}
+      <main className="page-content">
+
         {/* Toolbar */}
-        <div className="bg-white p-4 rounded-3xl shadow-xl shadow-emerald-900/5 border border-emerald-50 mb-10">
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* Search */}
-            <div className="relative flex-1">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-              <input
-                type="text"
-                placeholder="Buscar por nombre de producto..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-transparent rounded-2xl focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none font-medium text-gray-700"
-              />
-            </div>
-
-            {/* Categorías */}
-            <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0">
-              <button
-                onClick={() => setSelectedCategory('all')}
-                className={`px-6 py-4 rounded-2xl font-bold whitespace-nowrap transition-all ${
-                  selectedCategory === 'all'
-                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200'
-                    : 'bg-gray-50 text-gray-500 hover:bg-emerald-50 hover:text-emerald-600'
-                }`}
-              >
-                Todos
-              </button>
-
-              {(categoriasProductosActivas || []).map(cat => (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
-                  className={`px-6 py-4 rounded-2xl font-bold whitespace-nowrap flex items-center gap-2 transition-all ${
-                    selectedCategory === cat.id
-                      ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200'
-                      : 'bg-gray-50 text-gray-500 hover:bg-emerald-50 hover:text-emerald-600'
-                  }`}
-                >
-                  <span>{cat.icon}</span>
-                  {cat.nombre}
-                </button>
-              ))}
-            </div>
-
-            <button className="bg-emerald-50 text-emerald-600 p-4 rounded-2xl flex items-center justify-center hover:bg-emerald-100 transition-colors">
-              <SlidersHorizontal size={20} />
-            </button>
+        <div className="toolbar">
+          <div className="search-wrap">
+            <Search size={16} />
+            <input
+              className="search-input"
+              type="text"
+              placeholder="Buscar por nombre de producto..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+            />
           </div>
+
+          <div className="chips">
+            <button
+              className={`chip ${selectedCategory === 'all' ? 'chip--active' : 'chip--default'}`}
+              onClick={() => setSelectedCategory('all')}
+            >
+              Todos
+            </button>
+
+            {(categoriasProductosActivas || []).map(cat => (
+              <button
+                key={cat.id}
+                className={`chip ${selectedCategory === cat.id ? 'chip--active' : 'chip--default'}`}
+                onClick={() => setSelectedCategory(cat.id)}
+              >
+                <span>{cat.icon}</span>
+                {cat.nombre}
+              </button>
+            ))}
+          </div>
+
+          <button
+            className="btn-secondary"
+            style={{ padding: '12px 14px' }}
+            title="Filtros avanzados"
+          >
+            <SlidersHorizontal size={16} />
+          </button>
         </div>
 
-        {/* Productos */}
+        {/* Grid de productos */}
         {activeProducts.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+            gap: '24px',
+          }}>
             {activeProducts.map(product => (
               <ProductCard
                 key={product.id}
@@ -136,28 +125,23 @@ const OrdersPage = () => {
             ))}
           </div>
         ) : (
-          <div className="bg-white rounded-3xl p-20 text-center border-2 border-dashed border-emerald-100">
-            <div className="bg-emerald-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Search size={40} className="text-emerald-300" />
+          <div className="empty-state">
+            <div className="empty-state__icon">
+              <Search size={32} />
             </div>
-            <h3 className="text-2xl font-bold text-gray-800 mb-2">
-              No encontramos productos
-            </h3>
-            <p className="text-gray-500 max-w-sm mx-auto">
+            <h3 className="empty-state__title">No encontramos productos</h3>
+            <p className="empty-state__text">
               Intenta con otra búsqueda o selecciona una categoría diferente.
             </p>
             <button
-              onClick={() => {
-                setSearchTerm('');
-                setSelectedCategory('all');
-              }}
-              className="mt-8 text-emerald-600 font-bold hover:underline"
+              className="btn-primary"
+              onClick={() => { setSearchTerm(''); setSelectedCategory('all'); }}
             >
               Ver todos los productos
             </button>
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 };

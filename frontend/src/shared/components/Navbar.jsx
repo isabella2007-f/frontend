@@ -109,7 +109,9 @@ const confirmLogout = () => { logout(); navigate("/login"); };
                    {user?.rol !== 'administrador' && (
                       <Link to="/cliente/inicio" className="nav-link">Inicio</Link>
                     )}
-                    <Link to={user?.rol === 'administrador' ? "/admin" : "/cliente"} className="nav-link">Dashboard</Link>
+                    {user?.rol === 'administrador' && (
+                      <Link to="/" className="nav-link">Dashboard</Link>
+                    )}
                   </>
                 )}
               </div>

@@ -23,7 +23,7 @@ import GestionDomicilios from "../features/ventas/domicilios/Gestiondomicilios";
 
 /* ─── CLIENTE REAL ─── */
 import OrdersPage from "../features/sales/orders/OrdersPage";
-import ReturnsPage from "../features/sales/returns/ReturnsPage";
+import ReturnsPage from '../features/sales/returns/ReturnsPage';
 import DeliveryPage from "../features/sales/delivery/DeliveryPage";
 import ProfilePage from "../features/client/profile/ProfilePage";
 
