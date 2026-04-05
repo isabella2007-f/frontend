@@ -1,12 +1,10 @@
 import { useState } from "react";
-import { useApp, calcularTotal, diasHasta, estadoLote } from "../../../AppContext.jsx";
+import { useApp, calcularTotal, diasHasta, estadoLote, convertirUnidad, getVencimientoMasAntiguo } from "../../../AppContext.jsx";
 import "./compras.css";
 
 const METODOS_PAGO = [
   { value: "efectivo",      label: "Efectivo",      icon: "💵" },
   { value: "transferencia", label: "Transferencia", icon: "🏦" },
-  { value: "crédito",       label: "Crédito",       icon: "💳" },
-  { value: "cheque",        label: "Cheque",        icon: "📄" },
 ];
 
 const COP = (n) =>
@@ -182,9 +180,9 @@ export function LotesInsumoPanel({ idInsumo }) {
 /* ════════════════════════════════════════════════════════════
    MODAL ELIMINAR COMPRA
 ════════════════════════════════════════════════════════════ */
-export function EliminarCompraModal({ compra, onClose, onConfirm }) {
-  const { canDeleteCompra } = useApp();
-  const check = canDeleteCompra(compra.id);
+export function AnularCompraModal({ compra, onClose, onConfirm }) {
+  const { canAnularCompra, canDeleteCompra } = useApp();
+  const check = (canAnularCompra || canDeleteCompra)(compra.id);
   const [deleting, setDeleting] = useState(false);
 
   const run = async () => {
@@ -197,8 +195,8 @@ export function EliminarCompraModal({ compra, onClose, onConfirm }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
         <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
-          <div className="delete-icon-wrap">🗑️</div>
-          <h3 className="delete-title">Eliminar compra</h3>
+          <div className="delete-icon-wrap">🚫</div>
+          <h3 className="delete-title">Anular compra</h3>
           <p className="delete-body">Compra <strong>{compra.id}</strong></p>
           {!check.ok ? (
             <div className="stock-aviso stock-aviso--block" style={{ marginTop: 12 }}>
@@ -211,7 +209,7 @@ export function EliminarCompraModal({ compra, onClose, onConfirm }) {
         <div className="modal-footer modal-footer--center">
           <button className="btn-cancel-full" onClick={onClose}>Cancelar</button>
           <button className="btn-danger" onClick={run} disabled={!check.ok || deleting}>
-            {deleting ? "Eliminando…" : "Eliminar"}
+            {deleting ? "Anulando…" : "Anular"}
           </button>
         </div>
       </div>
@@ -223,7 +221,7 @@ export function EliminarCompraModal({ compra, onClose, onConfirm }) {
    MODAL VER / EDITAR COMPRA
 ════════════════════════════════════════════════════════════ */
 export default function EditarCompra({ compra, mode, onClose, onSave }) {
-  const { proveedores, insumosActivos, getProveedor, getInsumo, getCatInsumo, getUnidad } = useApp();
+  const { proveedores, insumosActivos, getProveedor, getInsumo, getCatInsumo, getUnidad, convertirUnidad, getVencimientoMasAntiguo } = useApp();
 
   const isView      = mode === "view";
   const isCompleted = compra.stockAplicado;
@@ -311,7 +309,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
         {/* Header */}
         <div className="modal-header">
           <div>
-            <p className="modal-header__eyebrow">COMPRAS · {compra.id}</p>
+            <p className="modal-header__eyebrow">Compras · {compra.id}</p>
             <h2 className="modal-header__title">
               {isView ? "Detalle de Compra" : "Editar Compra"}
             </h2>
@@ -364,6 +362,10 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                   <span className="ver-field__label">Total</span>
                   <span className="ver-field__value ver-field__value--total">{COP(calcularTotal(compra.detalles))}</span>
                 </div>
+                <div className="ver-field">
+                  <span className="ver-field__label">Vence primero</span>
+                  <span className="ver-field__value">{getVencimientoMasAntiguo(compra.detalles) || "—"}</span>
+                </div>
                 {compra.notas && (
                   <div className="ver-field" style={{ gridColumn: "1 / -1" }}>
                     <span className="ver-field__label">Notas</span>
@@ -375,10 +377,11 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
               <p className="section-label">Insumos comprados</p>
               <div className="insumos-list">
                 {compra.detalles.map(d => {
-                  const ins  = getInsumo(d.idInsumo);
-                  const cat  = ins ? getCatInsumo(ins.idCategoria) : null;
-                  const uni  = ins ? getUnidad(ins.idUnidad)       : null;
-                  const dias = diasHasta(d.fechaVencimiento);
+                  const ins        = getInsumo(d.idInsumo);
+                  const cat        = ins ? getCatInsumo(ins.idCategoria) : null;
+                  const uni        = ins ? getUnidad(ins.idUnidad)       : null;
+                  const dias       = diasHasta(d.fechaVencimiento);
+                  const conversion = uni && d.cantidad ? convertirUnidad(Number(d.cantidad), uni.simbolo) : null;
                   return (
                     <div key={d.id || d._key} className="insumo-item">
                       <div className="insumo-left">
@@ -396,6 +399,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                       <div className="insumo-right">
                         <span className="insumo-price">{COP(d.cantidad * d.precioUnd)}</span>
                         <span className="insumo-qty">{d.cantidad} {uni?.simbolo} × {COP(d.precioUnd)}</span>
+                        {conversion && <span className="insumo-conv">Equiv. {conversion.to}</span>}
                       </div>
                     </div>
                   );
@@ -418,7 +422,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                 </div>
               )}
 
-              <p className="section-label" style={{ marginTop: 0 }}>Información general</p>
+              <p className="section-label" style={{ marginTop: 0, textTransform: "none" }}>Información general</p>
 
               <div className="field-wrap">
                 <label className="field-label">Proveedor <span className="required">*</span></label>
@@ -454,7 +458,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                   }
                 </div>
                 <div className="field-wrap">
-                  <label className="field-label">Estado</label>
+                  <label className="field-label" style={{ textTransform: "none" }}>Estado</label>
                   {isCompleted
                     ? <div className="field-input field-input--disabled">✅ Completada</div>
                     : (
@@ -509,7 +513,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
           {/* ════ MODO EDITAR — Paso 2: Insumos ════ */}
           {!isView && step === 2 && (
             <>
-              <p className="section-label" style={{ marginTop: 0 }}>
+              <p className="section-label" style={{ marginTop: 0, textTransform: "none" }}>
                 Insumos comprados
                 {errors.detalles && <span className="field-error" style={{ marginLeft: 8 }}>{errors.detalles}</span>}
               </p>
@@ -518,10 +522,11 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
               {isCompleted ? (
                 <div className="insumos-list">
                   {detalles.map(d => {
-                    const ins  = getInsumo(Number(d.idInsumo));
-                    const cat  = ins ? getCatInsumo(ins.idCategoria) : null;
-                    const uni  = ins ? getUnidad(ins.idUnidad)       : null;
-                    const dias = diasHasta(d.fechaVencimiento);
+                    const ins        = getInsumo(Number(d.idInsumo));
+                    const cat        = ins ? getCatInsumo(ins.idCategoria) : null;
+                    const uni        = ins ? getUnidad(ins.idUnidad)       : null;
+                    const dias       = diasHasta(d.fechaVencimiento);
+                    const conversion = uni && d.cantidad ? convertirUnidad(Number(d.cantidad), uni.simbolo) : null;
                     return (
                       <div key={d._key} className="insumo-item">
                         <div className="insumo-left">
@@ -539,6 +544,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                         <div className="insumo-right">
                           <span className="insumo-price">{COP(Number(d.cantidad) * Number(d.precioUnd))}</span>
                           <span className="insumo-qty">{d.cantidad} {uni?.simbolo} × {COP(d.precioUnd)}</span>
+                          {conversion && <span className="insumo-conv">Equiv. {conversion.to}</span>}
                         </div>
                       </div>
                     );
@@ -550,6 +556,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                     const insumoSel = insumosActivos.find(ins => ins.id === Number(d.idInsumo));
                     const cat       = insumoSel ? getCatInsumo(insumoSel.idCategoria) : null;
                     const unidad    = insumoSel ? getUnidad(insumoSel.idUnidad)       : null;
+                    const conversion = unidad && d.cantidad ? convertirUnidad(Number(d.cantidad), unidad.simbolo) : null;
                     return (
                       <div key={d._key} className="detalle-row">
                         <span className="detalle-num">{String(i + 1).padStart(2, "0")}</span>
@@ -592,6 +599,11 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                               onChange={e => setDetalle(d._key, "cantidad", e.target.value)}
                             />
                             {errors[`cant_${i}`] && <span className="field-error">{errors[`cant_${i}`]}</span>}
+                            {conversion && (
+                              <span className="field-help" style={{ marginTop: 4 }}>
+                                Equivalente: {conversion.to}
+                              </span>
+                            )}
                           </div>
 
                           <div className="field-wrap">

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { G, GB, getRolStyle, EMPTY_FORM } from "./usuariosUtils.js";
+import { G, GB, getRolStyle, EMPTY_FORM, validatePassword } from "./usuariosUtils.js";
 import { Ic } from "./usuariosIcons.jsx";
 import { useApp } from "../../../AppContext.jsx";
 import "./Usuarios.css";
@@ -239,8 +239,10 @@ export default function CrearUsuario({ user, onClose, onSave }) {
       if (!form.municipio)        e.municipio    = "Campo requerido";
     }
     if (s === 3) {
-      if (!isEdit && !form.contrasena)                   e.contrasena = "Campo requerido";
-      if (!isEdit && form.contrasena !== form.confirmar) e.confirmar  = "No coinciden";
+      if (!isEdit && !form.contrasena) {
+        const passError = validatePassword(form.contrasena, form.confirmar);
+        if (passError) e.contrasena = passError;
+      }
       if (!form.rol) e.rol = "Seleccione un rol";
     }
     return e;
@@ -267,7 +269,10 @@ export default function CrearUsuario({ user, onClose, onSave }) {
 
         {/* HEADER */}
         <div className="modal-header">
-          <h2 className="modal-title">{isEdit ? "Editar Usuario" : "Agregar Usuario"}</h2>
+          <div>
+            <p className="modal-header__eyebrow">Usuarios</p>
+            <h2 className="modal-title">{isEdit ? "Editar Usuario" : "Agregar Usuario"}</h2>
+          </div>
           <button className="modal-close-btn" onClick={onClose}><Ic.Close /></button>
         </div>
 

@@ -6,7 +6,7 @@ import "./Pedidos.css";
 const fmt = (n) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
 
-const METODOS_PAGO = ["Efectivo", "Transferencia", "Tarjeta", "Nequi", "Daviplata"];
+const METODOS_PAGO = ["Efectivo", "Transferencia"];
 
 const EMPTY_FORM = {
   idCliente:         "",
@@ -237,7 +237,10 @@ export default function CrearPedido({ onClose, onSave }) {
 
         {/* Header */}
         <div className="modal-header">
-          <h2 className="modal-header__title">Nuevo pedido</h2>
+          <div>
+            <p className="modal-header__eyebrow">Pedidos</p>
+            <h2 className="modal-header__title">Nuevo pedido</h2>
+          </div>
           <button className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
 
@@ -245,7 +248,7 @@ export default function CrearPedido({ onClose, onSave }) {
         <div className="modal-body">
 
           {/* ── Cliente ── */}
-          <p className="section-label">Cliente</p>
+          <p className="section-label" style={{textTransform: "none"}}>Cliente</p>
           <div className="field-wrap">
             <label className="field-label">Cliente <span className="required">*</span></label>
             <div className="select-wrap">
@@ -276,7 +279,7 @@ export default function CrearPedido({ onClose, onSave }) {
           )}
 
           {/* ── Productos ── */}
-          <p className="section-label">Productos</p>
+          <p className="section-label" style={{textTransform: "none"}} >Productos</p>
           <BuscadorProducto
             productosSeleccionados={form.productosItems}
             onAgregar={agregarProducto}
@@ -337,7 +340,7 @@ export default function CrearPedido({ onClose, onSave }) {
           )}
 
           {/* ── Pago y entrega ── */}
-          <p className="section-label">Pago y entrega</p>
+          <p className="section-label" style={{textTransform: "none"}} >Pago y entrega</p>
           <div className="form-grid-2">
             <div className="field-wrap">
               <label className="field-label">Método de pago <span className="required">*</span></label>

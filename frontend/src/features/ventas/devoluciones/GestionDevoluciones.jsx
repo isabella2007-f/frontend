@@ -50,6 +50,8 @@ function SelectArrow() {
    MODAL VER DETALLE
    ═══════════════════════════════════════════════════════════ */
 function ModalVerDevolucion({ dev, creditoCliente, onClose }) {
+  const [tab, setTab] = useState("informacion");
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box modal-box--wide" onClick={e => e.stopPropagation()}>
@@ -65,126 +67,152 @@ function ModalVerDevolucion({ dev, creditoCliente, onClose }) {
           </div>
         </div>
 
-        <div className="modal-body">
-
-          {/* Cliente y pedido */}
-          <p className="section-label">Información general</p>
-          <div className="form-grid-2">
-            <div>
-              <label className="form-label">Cliente</label>
-              <div className="field-input--disabled">{dev.cliente?.nombre || "—"}</div>
-            </div>
-            <div>
-              <label className="form-label">Pedido original</label>
-              <div className="field-input--disabled" style={{ color: "#2e7d32", fontWeight: 700 }}>
-                {dev.numeroPedido}
-              </div>
-            </div>
-            <div>
-              <label className="form-label">Fecha solicitud</label>
-              <div className="field-input--disabled">{dev.fechaSolicitud}</div>
-            </div>
-            <div>
-              <label className="form-label">Fecha aprobación</label>
-              <div className="field-input--disabled">{dev.fechaAprobacion || "—"}</div>
-            </div>
+        {/* Tabs */}
+        <div style={{ padding: "16px 24px 0", borderBottom: "1px solid #e0e0e0" }}>
+          <div className="modal-tabs">
+            <button
+              className={`modal-tab-btn ${tab === "informacion" ? "active" : ""}`}
+              onClick={() => setTab("informacion")}
+            >
+              Información
+            </button>
+            <button
+              className={`modal-tab-btn ${tab === "productos" ? "active" : ""}`}
+              onClick={() => setTab("productos")}
+            >
+              Productos y evidencia
+            </button>
           </div>
+        </div>
 
-          {/* Motivo */}
-          <p className="section-label">Motivo</p>
-          <div className="info-box info-box--warn">
-            <span className="info-box__icon">📋</span>
-            <div className="info-box__text">
-              <span className="info-box__label">{dev.motivo}</span>
-              {dev.comentario && dev.comentario}
-            </div>
-          </div>
+        <div className="modal-body" style={{ flexShrink: 0 }}>
 
-          {/* Productos devueltos */}
-          <p className="section-label">Productos devueltos</p>
-          <div style={{ borderRadius: 10, border: "1px solid #e8f5e9", overflow: "hidden" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ background: "#f1f8f1" }}>
-                  <th style={{ padding: "8px 12px", fontSize: 11, fontWeight: 700, color: "#2e7d32", textAlign: "left" }}>Producto</th>
-                  <th style={{ padding: "8px 12px", fontSize: 11, fontWeight: 700, color: "#2e7d32", textAlign: "center" }}>Cant.</th>
-                  <th style={{ padding: "8px 12px", fontSize: 11, fontWeight: 700, color: "#2e7d32", textAlign: "right" }}>Precio unit.</th>
-                  <th style={{ padding: "8px 12px", fontSize: 11, fontWeight: 700, color: "#2e7d32", textAlign: "right" }}>Subtotal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(dev.productos || []).map((p, i) => (
-                  <tr key={i} style={{ borderTop: "1px solid #f1f8f1" }}>
-                    <td style={{ padding: "9px 12px", fontWeight: 600 }}>{p.nombre}</td>
-                    <td style={{ padding: "9px 12px", textAlign: "center", fontWeight: 700, color: "#1565c0" }}>{p.cantidad}</td>
-                    <td style={{ padding: "9px 12px", textAlign: "right", fontSize: 12, color: "#757575" }}>{fmt(p.precioUnitario)}</td>
-                    <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 700, color: "#c62828" }}>{fmt(p.subtotal)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", background: "#f9fdf9", borderTop: "1.5px solid #c8e6c9" }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: "0.5px" }}>Total a devolver</span>
-              <span style={{ fontSize: 16, fontWeight: 800, color: "#c62828" }}>{fmt(dev.totalDevuelto)}</span>
-            </div>
-          </div>
-
-          {/* Evidencia */}
-          {dev.evidencia && (
+          {tab === "informacion" && (
             <>
-              <p className="section-label">Evidencia</p>
-              {dev.evidencia.tipo?.startsWith("image/") ? (
-                <div style={{ borderRadius: 10, overflow: "hidden", border: "1.5px solid #c8e6c9" }}>
-                  <img
-                    src={dev.evidencia.base64}
-                    alt="evidencia"
-                    style={{ width: "100%", maxHeight: 240, objectFit: "cover", display: "block" }}
-                  />
-                  <div style={{ padding: "8px 12px", background: "#f9fdf9", fontSize: 12, color: "#9e9e9e" }}>
-                    📎 {dev.evidencia.nombre}
+              {/* Cliente y pedido */}
+              <p className="section-label">Información general</p>
+              <div className="form-grid-2">
+                <div>
+                  <label className="form-label">Cliente</label>
+                  <div className="field-input--disabled">{dev.cliente?.nombre || "—"}</div>
+                </div>
+                <div>
+                  <label className="form-label">Pedido original</label>
+                  <div className="field-input--disabled" style={{ color: "#2e7d32", fontWeight: 700 }}>
+                    {dev.numeroPedido}
                   </div>
                 </div>
-              ) : (
-                <div style={{
-                  display: "flex", alignItems: "center", gap: 12,
-                  padding: "12px 14px", borderRadius: 10,
-                  border: "1.5px solid #c8e6c9", background: "#f9fdf9",
-                }}>
-                  <span style={{ fontSize: 28 }}>
-                    {dev.evidencia.tipo?.startsWith("video/") ? "🎥" : "📄"}
-                  </span>
+                <div>
+                  <label className="form-label">Fecha solicitud</label>
+                  <div className="field-input--disabled">{dev.fechaSolicitud}</div>
+                </div>
+                <div>
+                  <label className="form-label">Fecha aprobación</label>
+                  <div className="field-input--disabled">{dev.fechaAprobacion || "—"}</div>
+                </div>
+              </div>
+
+              {/* Motivo */}
+              <p className="section-label">Motivo</p>
+              <div className="info-box info-box--warn">
+                <span className="info-box__icon">📋</span>
+                <div className="info-box__text">
+                  <span className="info-box__label">{dev.motivo}</span>
+                  {dev.comentario && dev.comentario}
+                </div>
+              </div>
+
+              {/* Crédito generado */}
+              {dev.estado === "Reembolsada" && (
+                <div className="credito-box">
+                  <span className="credito-box__icon">💳</span>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#1a1a1a" }}>{dev.evidencia.nombre}</div>
-                    <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 2 }}>Archivo adjunto</div>
+                    <div className="credito-box__label">Crédito aplicado</div>
+                    <div className="credito-box__val">{fmt(dev.totalDevuelto)}</div>
+                    <div className="credito-box__saldo">
+                      Saldo actual del cliente: {fmt(creditoCliente || 0)}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Rechazo */}
+              {dev.estado === "Rechazada" && dev.motivoRechazo && (
+                <div className="info-box info-box--danger">
+                  <span className="info-box__icon">🚫</span>
+                  <div className="info-box__text">
+                    <span className="info-box__label">Motivo de rechazo</span>
+                    {dev.motivoRechazo}
                   </div>
                 </div>
               )}
             </>
           )}
 
-          {/* Crédito generado */}
-          {dev.estado === "Reembolsada" && (
-            <div className="credito-box">
-              <span className="credito-box__icon">💳</span>
-              <div>
-                <div className="credito-box__label">Crédito aplicado</div>
-                <div className="credito-box__val">{fmt(dev.totalDevuelto)}</div>
-                <div className="credito-box__saldo">
-                  Saldo actual del cliente: {fmt(creditoCliente || 0)}
+          {tab === "productos" && (
+            <>
+              {/* Productos devueltos */}
+              <p className="section-label">Productos devueltos</p>
+              <div style={{ borderRadius: 10, border: "1px solid #e8f5e9", overflow: "hidden" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ background: "#f1f8f1" }}>
+                      <th style={{ padding: "8px 12px", fontSize: 11, fontWeight: 700, color: "#2e7d32", textAlign: "left" }}>Producto</th>
+                      <th style={{ padding: "8px 12px", fontSize: 11, fontWeight: 700, color: "#2e7d32", textAlign: "center" }}>Cant.</th>
+                      <th style={{ padding: "8px 12px", fontSize: 11, fontWeight: 700, color: "#2e7d32", textAlign: "right" }}>Precio unit.</th>
+                      <th style={{ padding: "8px 12px", fontSize: 11, fontWeight: 700, color: "#2e7d32", textAlign: "right" }}>Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(dev.productos || []).map((p, i) => (
+                      <tr key={i} style={{ borderTop: "1px solid #f1f8f1" }}>
+                        <td style={{ padding: "9px 12px", fontWeight: 600 }}>{p.nombre}</td>
+                        <td style={{ padding: "9px 12px", textAlign: "center", fontWeight: 700, color: "#1565c0" }}>{p.cantidad}</td>
+                        <td style={{ padding: "9px 12px", textAlign: "right", fontSize: 12, color: "#757575" }}>{fmt(p.precioUnitario)}</td>
+                        <td style={{ padding: "9px 12px", textAlign: "right", fontWeight: 700, color: "#c62828" }}>{fmt(p.subtotal)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 14px", background: "#f9fdf9", borderTop: "1.5px solid #c8e6c9" }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: "0.5px" }}>Total a devolver</span>
+                  <span style={{ fontSize: 16, fontWeight: 800, color: "#c62828" }}>{fmt(dev.totalDevuelto)}</span>
                 </div>
               </div>
-            </div>
-          )}
 
-          {/* Rechazo */}
-          {dev.estado === "Rechazada" && dev.motivoRechazo && (
-            <div className="info-box info-box--danger">
-              <span className="info-box__icon">🚫</span>
-              <div className="info-box__text">
-                <span className="info-box__label">Motivo de rechazo</span>
-                {dev.motivoRechazo}
-              </div>
-            </div>
+              {/* Evidencia */}
+              {dev.evidencia && (
+                <>
+                  <p className="section-label">Evidencia</p>
+                  {dev.evidencia.tipo?.startsWith("image/") ? (
+                    <div style={{ borderRadius: 10, overflow: "hidden", border: "1.5px solid #c8e6c9" }}>
+                      <img
+                        src={dev.evidencia.base64}
+                        alt="evidencia"
+                        style={{ width: "100%", maxHeight: 240, objectFit: "cover", display: "block" }}
+                      />
+                      <div style={{ padding: "8px 12px", background: "#f9fdf9", fontSize: 12, color: "#9e9e9e" }}>
+                        📎 {dev.evidencia.nombre}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 12,
+                      padding: "12px 14px", borderRadius: 10,
+                      border: "1.5px solid #c8e6c9", background: "#f9fdf9",
+                    }}>
+                      <span style={{ fontSize: 28 }}>
+                        {dev.evidencia.tipo?.startsWith("video/") ? "🎥" : "📄"}
+                      </span>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: "#1a1a1a" }}>{dev.evidencia.nombre}</div>
+                        <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 2 }}>Archivo adjunto</div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </>
           )}
         </div>
 

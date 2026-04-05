@@ -193,7 +193,7 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; color: #1a1a1a; }
 .modal-overlay {
   position: fixed; inset: 0; background: rgba(0,0,0,0.4);
   backdrop-filter: blur(6px); display: flex; align-items: center;
-  justify-content: center; z-index: 1000; padding: 20px;
+  justify-content: center; z-index: 2000; padding: 20px;
   animation: fadeIn 0.18s ease;
 }
 .modal-box {
@@ -337,7 +337,7 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; color: #1a1a1a; }
 
 /* ─── Toast ──────────────────────────────────────────────── */
 .toast {
-  position: fixed; bottom: 28px; right: 28px; z-index: 2000;
+  position: fixed; bottom: 28px; right: 28px; z-index: 3000;
   padding: 12px 20px; border-radius: 12px; color: #fff;
   font-weight: 600; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,0.18);
   display: flex; align-items: center; gap: 8px;

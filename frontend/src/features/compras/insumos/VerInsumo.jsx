@@ -40,7 +40,7 @@ function StockBar({ actual, minimo }) {
 
 /* ─── VerInsumo — tabs internas, sin scroll externo ─────── */
 export default function VerInsumo({ ins, onClose }) {
-  const { getCatInsumo, getUnidad, getStockRealInsumo } = useApp();
+  const { getCatInsumo, getUnidad, getStockRealInsumo, getLotesVencidos, getSalidasInsumo } = useApp();
   const [tab, setTab] = useState("info");
 
   const cat       = getCatInsumo(ins.idCategoria);
@@ -67,7 +67,7 @@ export default function VerInsumo({ ins, onClose }) {
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div className="ver-ins-avatar">{cat.icon}</div>
             <div>
-              <p className="modal-header__eyebrow">INSUMO #{String(ins.id).padStart(4, "0")}</p>
+              <p className="modal-header__eyebrow">Insumo #{String(ins.id).padStart(4, "0")}</p>
               <h2 className="modal-header__title">{ins.nombre}</h2>
             </div>
           </div>
@@ -88,6 +88,12 @@ export default function VerInsumo({ ins, onClose }) {
           >
             📦 Lotes en inventario
           </button>
+          <button
+            className={`ver-ins-tab${tab === "vencidos" ? " ver-ins-tab--active" : ""}`}
+            onClick={() => setTab("vencidos")}
+          >
+            🕒 Historial vencidos
+          </button>
         </div>
 
         {/* Body — overflow solo aquí adentro si el contenido lo requiere */}
@@ -106,7 +112,7 @@ export default function VerInsumo({ ins, onClose }) {
               )}
 
               {/* Clasificación */}
-              <p className="ver-ins-section-label">Clasificación</p>
+              <p className="ver-ins-section-label" style={{textTransform: "none"}}>Clasificación</p>
               <div className="ver-ins-grid">
                 <div className="ver-ins-field">
                   <span className="ver-ins-field__label">Categoría</span>
@@ -130,7 +136,7 @@ export default function VerInsumo({ ins, onClose }) {
               </div>
 
               {/* Stock */}
-              <p className="ver-ins-section-label">Stock</p>
+              <p className="ver-ins-section-label"  style={{textTransform: "none"}}>Stock</p>
               <div className="ver-ins-stock-cards">
                 <div className="ver-ins-stock-card ver-ins-stock-card--actual">
                   <span className="ver-ins-stock-card__num">{ins.stockActual}</span>
@@ -162,6 +168,48 @@ export default function VerInsumo({ ins, onClose }) {
           )}
 
           {tab === "lotes" && <LotesInsumoPanel idInsumo={ins.id} />}
+
+          {tab === "vencidos" && (
+            <div>
+              <p className="ver-ins-section-label" style={{ textTransform: "none" }}>Lotes vencidos</p>
+              {getLotesVencidos(ins.id).length === 0 ? (
+                <div className="empty-state" style={{ padding: "12px 14px" }}>
+                  <p className="empty-state__text">No hay lotes vencidos para este insumo.</p>
+                </div>
+              ) : (
+                <div className="lotes-lista">
+                  {getLotesVencidos(ins.id).map(lote => (
+                    <div key={lote.id} className="lote-item" style={{ borderColor: "#ef9a9a" }}>
+                      <div className="lote-item__head">
+                        <span className="lote-item__id">{lote.id}</span>
+                        <span style={{ fontWeight: 600 }}>Vence: {lote.fechaVencimiento}</span>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 8, marginTop: 8 }}>
+                        <div><strong>Cantidad actual:</strong> {lote.cantidadActual} {unidad.simbolo}</div>
+                        <div><strong>Ingreso:</strong> {lote.fechaIngreso}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="ver-ins-section-label" style={{ textTransform: "none", marginTop: 14 }}>Historial de salidas</p>
+              {getSalidasInsumo(ins.id).length === 0 ? (
+                <div className="empty-state" style={{ padding: "12px 14px" }}>
+                  <p className="empty-state__text">Aún no hay salidas registradas.</p>
+                </div>
+              ) : (
+                <div className="historial-list">
+                  {getSalidasInsumo(ins.id).map(salida => (
+                    <div key={salida.id} className="historial-item">
+                      <span>{salida.fecha} · {salida.tipo} · {salida.cantidad} {unidad.simbolo}</span>
+                      <span style={{ color: "#757575" }}>{salida.motivo}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer */}

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { TIPOS_DOC, ROLES_EMPLEADO, fmtTel, toInputDate, fromInputDate } from "./empleadosUtils.js";
 import { RolBadge, LocationSelects } from "./CrearEmpleado.jsx";
+import { validatePassword } from "../Usuarios/usuariosUtils.js";
 import "./empleados.css";
 
 /* ─── Barra de pasos (reutilizada en Editar) ─────────────── */
@@ -257,7 +258,10 @@ export default function EditarEmpleado({ empleado, onClose, onSave }) {
     }
     if (s === 4) {
       // Contraseña es opcional en edición; solo validar si ingresó algo
-      if (form.contrasena && form.contrasena !== form.confirmar) e.confirmar = "No coinciden";
+      if (form.contrasena) {
+        const passError = validatePassword(form.contrasena, form.confirmar);
+        if (passError) e.contrasena = passError;
+      }
     }
     return e;
   };
@@ -315,7 +319,7 @@ export default function EditarEmpleado({ empleado, onClose, onSave }) {
                 <input ref={fotoRef} type="file" accept="image/*" style={{ display:"none" }} onChange={handleFoto} />
               </div>
 
-              <p className="section-label" style={{ marginTop:0 }}>Identificación</p>
+              <p className="section-label" style={{ marginTop:0, textTransform: "none"}}>Identificación</p>
               <div className="form-group">
                 <label className="form-label">Tipo y Número de documento</label>
                 <div className="doc-combo">
@@ -332,7 +336,7 @@ export default function EditarEmpleado({ empleado, onClose, onSave }) {
                 {(errors.tipoDoc || errors.numDoc) && <p className="field-error">{errors.tipoDoc || errors.numDoc}</p>}
               </div>
 
-              <p className="section-label">Rol</p>
+              <p className="section-label" style={{ textTransform: "none" }}>Rol</p>
               <div className="form-group">
                 <label className="form-label">Rol del empleado</label>
                 <select className={"field-input" + (errors.idRol ? " field-input--error" : "")}
@@ -348,7 +352,7 @@ export default function EditarEmpleado({ empleado, onClose, onSave }) {
           {/* ── Paso 2: Datos personales ── */}
           {step === 2 && (
             <>
-              <p className="section-label" style={{ marginTop:0 }}>Datos personales</p>
+              <p className="section-label" style={{ marginTop:0, textTransform: "none"}}>Datos personales</p>
               <div className="form-grid-2">
                 {[
                   { k:"nombre",    label:"Nombre",    ph:"Ej. Laura" },
@@ -415,7 +419,7 @@ export default function EditarEmpleado({ empleado, onClose, onSave }) {
           {/* ── Paso 3: Ubicación ── */}
           {step === 3 && (
             <>
-              <p className="section-label" style={{ marginTop:0 }}>Ubicación</p>
+              <p className="section-label" style={{ marginTop:0, textTransform: "none"}}>Ubicación</p>
               <div className="form-group">
                 <label className="form-label">Dirección</label>
                 <input className="field-input" value={form.direccion || ""}
@@ -435,7 +439,7 @@ export default function EditarEmpleado({ empleado, onClose, onSave }) {
           {/* ── Paso 4: Contraseña (opcional en edición) ── */}
           {step === 4 && (
             <>
-              <p className="section-label" style={{ marginTop:0 }}>Cambiar contraseña</p>
+              <p className="section-label" style={{ marginTop:0, textTransform: "none"}}>Cambiar contraseña</p>
               <div className="form-grid-2">
                 <div className="form-group">
                   <label className="form-label">

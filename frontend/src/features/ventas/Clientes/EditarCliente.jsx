@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { validatePassword } from "../../configuracion/Usuarios/usuariosUtils.js";
 import "./clientes.css";
 
 const TIPOS_DOC = ["CC", "TI", "CE", "Pasaporte", "NIT", "PPT"];
@@ -311,7 +312,10 @@ function ModalEditarCliente({ cliente, onClose, onSave }) {
       if (!form.municipio)         e.municipio     = "Requerido";
     }
     if (s === 3) {
-      if (form.contrasena && form.contrasena !== form.confirmar) e.confirmar = "No coinciden";
+      if (form.contrasena) {
+        const passError = validatePassword(form.contrasena, form.confirmar);
+        if (passError) e.contrasena = passError;
+      }
     }
     return e;
   };
@@ -367,7 +371,7 @@ function ModalEditarCliente({ cliente, onClose, onSave }) {
                 <input ref={fotoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFoto} />
               </div>
 
-              <p className="section-label" style={{ marginTop: 0 }}>Identificación</p>
+              <p className="section-label" style={{ marginTop: 0, textTransform: "none" }}>Identificación</p>
               <div className="form-group">
                 <label className="form-label">Tipo y Número de documento</label>
                 <div className="doc-combo">
@@ -389,7 +393,7 @@ function ModalEditarCliente({ cliente, onClose, onSave }) {
           {/* ── Paso 2: Personal & Ubicación ── */}
           {step === 2 && (
             <>
-              <p className="section-label" style={{ marginTop: 0 }}>Datos personales</p>
+              <p className="section-label" style={{ marginTop: 0, textTransform: "none" }}>Datos personales</p>
               <div className="form-grid-2">
                 {[
                   { k: "nombre",    label: "Nombre",    ph: "Ej. Ana" },
@@ -467,7 +471,7 @@ function ModalEditarCliente({ cliente, onClose, onSave }) {
           {/* ── Paso 3: Contraseña (opcional en edición) ── */}
           {step === 3 && (
             <>
-              <p className="section-label" style={{ marginTop: 0 }}>Cambiar contraseña</p>
+              <p className="section-label" style={{ marginTop: 0, textTransform: "none" }}>Cambiar contraseña</p>
               <div className="form-grid-2">
                 <div className="form-group">
                   <label className="form-label">

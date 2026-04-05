@@ -744,17 +744,6 @@ export default function GestionPedidos() {
                       {/* Pedido */}
                       <td>
                         <div className="pedido-num">{ped.numero}</div>
-                        <div className="pedido-badges">
-                          {ped.domicilio && (
-                            <span className="badge-mini badge-mini--domicilio">🛵 Domicilio</span>
-                          )}
-                          {ped.orden_produccion && (
-                            <span className="badge-mini badge-mini--produccion">🏭 Producción</span>
-                          )}
-                          {sinStock && !ped.orden_produccion && (
-                            <span className="badge-mini badge-mini--sinstock">⚠️ Sin stock</span>
-                          )}
-                        </div>
                       </td>
 
                       {/* Cliente */}

@@ -54,15 +54,7 @@ function VerCategoria({ cat, insumosDeCategoria, onClose }) {
           <label className="form-label">Descripción</label>
           <div className="field-input field-input--disabled" style={{ minHeight: 60 }}>{cat.descripcion}</div>
         </div>
-        <div className="form-group">
-          <label className="form-label">Insumos ({insumosDeCategoria.length})</label>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {insumosDeCategoria.length > 0
-              ? insumosDeCategoria.map(i => <span key={i} className="insumo-pill">{i}</span>)
-              : <span className="insumo-pill insumo-pill--empty">Sin insumos registrados</span>
-            }
-          </div>
-        </div>
+
         <div className="form-group" style={{ marginBottom: 0 }}>
           <label className="form-label">Estado</label>
           <span className="status-pill" style={{
@@ -231,8 +223,8 @@ export default function CategoriaInsumos() {
                       <span className="cat-desc">{cat.descripcion}</span>
                     </td>
                     <td>
-                      {/* Lee insumos dinámicamente del contexto */}
-                      <InsumosPills insumos={getInsumosCat(cat.id)} />
+                      {/* Muestra solo la cantidad de insumos asignados */}
+                      <span className="cat-num">{getInsumosCat(cat.id).length} insumos</span>
                     </td>
                     <td>
                       <Toggle value={cat.estado} onChange={() => toggleCatInsumo(cat.id)} />

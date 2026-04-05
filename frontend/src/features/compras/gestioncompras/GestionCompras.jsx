@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useApp, calcularTotal } from "../../../AppContext.jsx";
 import CrearCompra from "./CrearCompra.jsx";
-import EditarCompra, { EliminarCompraModal } from "./EditarCompra.jsx";
+import EditarCompra, { AnularCompraModal } from "./EditarCompra.jsx";
 import "./compras.css";
 
 const ITEMS_PER_PAGE = 6;
@@ -12,8 +12,6 @@ const COP = (n) =>
 const METODOS_LABEL = {
   efectivo:      { label: "Efectivo",      icon: "💵" },
   transferencia: { label: "Transferencia", icon: "🏦" },
-  crédito:       { label: "Crédito",       icon: "💳" },
-  cheque:        { label: "Cheque",        icon: "📄" },
 };
 
 /* ── Toast ────────────────────────────────────────────────── */
@@ -31,7 +29,7 @@ function Toast({ toast }) {
 export default function GestionCompras() {
   const {
     compras, proveedores,
-    crearCompra, editarCompra, eliminarCompra,
+    crearCompra, editarCompra, eliminarCompra, anularCompra,
     getProveedor,
   } = useApp();
 
@@ -85,6 +83,7 @@ export default function GestionCompras() {
   /* ── Métricas rápidas ── */
   const totalPendientes  = compras.filter(c => c.estado === "pendiente").length;
   const totalCompletadas = compras.filter(c => c.estado === "completada").length;
+  const totalAnuladas    = compras.filter(c => c.estado === "anulada").length;
   const montoTotal       = compras.filter(c => c.estado === "completada")
     .reduce((acc, c) => acc + calcularTotal(c.detalles), 0);
 
@@ -101,10 +100,10 @@ export default function GestionCompras() {
     setModal(null);
   };
 
-  const handleDelete = (id) => {
-    const result = eliminarCompra(id);
+  const handleAnular = (id) => {
+    const result = anularCompra ? anularCompra(id) : eliminarCompra(id);
     if (result.ok) {
-      showToast("Compra eliminada", "error");
+      showToast("Compra anulada", "error");
     } else {
       showToast(result.razon, "error");
     }
@@ -143,6 +142,13 @@ export default function GestionCompras() {
             <div>
               <p className="metric-card__num">{totalCompletadas}</p>
               <p className="metric-card__label">Completadas</p>
+            </div>
+          </div>
+          <div className="metric-card metric-card--danger">
+            <span className="metric-card__icon">🚫</span>
+            <div>
+              <p className="metric-card__num">{totalAnuladas}</p>
+              <p className="metric-card__label">Anuladas</p>
             </div>
           </div>
           <div className="metric-card metric-card--money">
@@ -185,6 +191,7 @@ export default function GestionCompras() {
                   { val: "todos",      label: "Todos",       dot: "#bdbdbd" },
                   { val: "pendiente",  label: "Pendientes",  dot: "#f9a825" },
                   { val: "completada", label: "Completadas", dot: "#43a047" },
+                  { val: "anulada",    label: "Anuladas",    dot: "#e53935" },
                 ].map(f => (
                   <button
                     key={f.val}
@@ -302,7 +309,9 @@ export default function GestionCompras() {
                       {/* Estado */}
                       <td>
                         <span className={`estado-chip estado-chip--${c.estado}`}>
-                          {c.estado === "pendiente" ? "⏳ Pendiente" : "✅ Completada"}
+                          {c.estado === "pendiente" && "⏳ Pendiente"}
+                          {c.estado === "completada" && "✅ Completada"}
+                          {c.estado === "anulada" && "🚫 Anulada"}
                         </span>
                       </td>
 
@@ -321,9 +330,9 @@ export default function GestionCompras() {
                           >✎</button>
                           <button
                             className="act-btn act-btn--delete"
-                            title="Eliminar"
-                            onClick={() => setModal({ mode: "delete", compra: c })}
-                          >🗑️</button>
+                            title="Anular"
+                            onClick={() => setModal({ mode: "anular", compra: c })}
+                          >🚫</button>
                         </div>
                       </td>
 
@@ -372,11 +381,11 @@ export default function GestionCompras() {
           onSave={handleEdit}
         />
       )}
-      {modal?.mode === "delete" && (
-        <EliminarCompraModal
+      {modal?.mode === "anular" && (
+        <AnularCompraModal
           compra={modal.compra}
           onClose={() => setModal(null)}
-          onConfirm={handleDelete}
+          onConfirm={handleAnular}
         />
       )}
 

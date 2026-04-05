@@ -1,8 +1,9 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, CreditCard, Banknote, User, MapPin, ShoppingBag } from 'lucide-react';
 import { CartItem } from '../services/cartService';
+import { getUser } from '../../../../services/authService';
 import './CheckoutModal.css';
+
 interface CheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -18,20 +19,41 @@ interface CheckoutModalProps {
 
 const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDetails, onConfirm }) => {
   const [paymentMethod, setPaymentMethod] = useState('digital');
-  const [onBehalfOf, setOnBehalfOf] = useState(orderDetails.clientName);
+  const [onBehalfOf, setOnBehalfOf] = useState('');
+
+  // ✅ Cargar datos del usuario logueado cada vez que se abre el modal
+  useEffect(() => {
+    if (isOpen) {
+      const user = getUser();
+      setOnBehalfOf(user?.nombre || orderDetails.clientName || '');
+    }
+  }, [isOpen, orderDetails.clientName]);
 
   if (!isOpen) return null;
+
+  // ✅ Tomar dirección del usuario logueado si no viene en orderDetails
+  const user = getUser();
+  const displayAddress =
+    orderDetails.address ||
+    user?.direccion ||
+    'No registrada';
+
+  const displayName =
+    user
+      ? `${user.nombre}${user.apellidos ? ' ' + user.apellidos : ''}`
+      : orderDetails.clientName || 'Cliente';
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-emerald-950/40 backdrop-blur-md" onClick={onClose} />
-      
+
       {/* Modal */}
       <div className="relative bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+
         {/* Header */}
         <div className="bg-emerald-600 p-6 text-white relative">
-          <button 
+          <button
             onClick={onClose}
             className="absolute top-4 right-4 p-2 hover:bg-white/20 rounded-full transition-colors"
           >
@@ -49,15 +71,19 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
         </div>
 
         <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+
           {/* User Info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Nombre del cliente (solo lectura) */}
             <div className="space-y-1">
               <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Cliente</label>
               <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-xl border border-gray-100">
                 <User size={18} className="text-emerald-500" />
-                <span className="text-sm font-semibold text-gray-700">{orderDetails.clientName}</span>
+                <span className="text-sm font-semibold text-gray-700">{displayName}</span>
               </div>
             </div>
+
+            {/* A nombre de (editable) */}
             <div className="space-y-1">
               <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">A nombre de</label>
               <div className="relative">
@@ -66,21 +92,23 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                   type="text"
                   value={onBehalfOf}
                   onChange={(e) => setOnBehalfOf(e.target.value)}
+                  placeholder="Nombre para el pedido"
                   className="w-full pl-10 pr-4 py-2.5 bg-white border border-emerald-100 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
                 />
               </div>
             </div>
           </div>
 
+          {/* Dirección */}
           <div className="space-y-1">
             <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Dirección de entrega</label>
             <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-xl border border-gray-100">
               <MapPin size={18} className="text-emerald-500" />
-              <span className="text-sm font-semibold text-gray-700">{orderDetails.address}</span>
+              <span className="text-sm font-semibold text-gray-700">{displayAddress}</span>
             </div>
           </div>
 
-          {/* Items Table-like list */}
+          {/* Lista de productos */}
           <div className="space-y-1">
             <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Productos</label>
             <div className="border border-emerald-50 rounded-2xl overflow-hidden">
@@ -106,15 +134,15 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
             </div>
           </div>
 
-          {/* Payment Method */}
+          {/* Método de pago */}
           <div className="space-y-3">
             <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Método de pago</label>
             <div className="grid grid-cols-2 gap-4">
               <button
                 onClick={() => setPaymentMethod('digital')}
                 className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${
-                  paymentMethod === 'digital' 
-                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700' 
+                  paymentMethod === 'digital'
+                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
                     : 'border-gray-100 bg-white text-gray-400 hover:border-emerald-100'
                 }`}
               >
@@ -124,8 +152,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
               <button
                 onClick={() => setPaymentMethod('efectivo')}
                 className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${
-                  paymentMethod === 'efectivo' 
-                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700' 
+                  paymentMethod === 'efectivo'
+                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
                     : 'border-gray-100 bg-white text-gray-400 hover:border-emerald-100'
                 }`}
               >
@@ -136,7 +164,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
           </div>
         </div>
 
-        {/* Total & Action */}
+        {/* Total & Acción */}
         <div className="p-6 border-t border-gray-100 bg-gray-50">
           <div className="flex items-center justify-between mb-6">
             <span className="text-lg font-bold text-gray-800">Total a pagar</span>

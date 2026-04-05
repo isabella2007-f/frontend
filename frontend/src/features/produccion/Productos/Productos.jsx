@@ -5,31 +5,64 @@ import CrearProducto from "./CrearProducto.jsx";
 import EditarProducto from "./EditarProducto.jsx";
 import EditarFicha from "./ficha_tecnica/EditarFicha.jsx";
 import CrearFicha from "./ficha_tecnica/CrearFicha.jsx";
+import SalidaModal from "./SalidaModal.jsx";
 import ModalEliminarValidado from "../../../ModalEliminarValidado";
 import "./Productos.css";
 
 const ITEMS_PER_PAGE = 4;
 
-function calcEstado(stock, minimo) { return stock > 0 && stock >= minimo ? "Disponible" : "No disponible"; }
+/* ══════════════════════════════════════════════════════════
+   HELPERS
+══════════════════════════════════════════════════════════ */
+function calcEstado(stock, minimo) {
+  return stock > 0 && stock >= minimo ? "Disponible" : "No disponible";
+}
 function calcTooltip(stock, minimo) {
   if (stock === 0)    return "Sin unidades en stock";
   if (stock < minimo) return `Stock por debajo del mínimo (${minimo} uds.)`;
   return `Stock suficiente (mín. ${minimo} uds.)`;
 }
-
 const ESTADO_STYLES = {
   "Disponible":    { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7" },
   "No disponible": { bg: "#ffebee", color: "#c62828", border: "#ef9a9a" },
 };
+function hoyISO() {
+  return new Date().toISOString().split("T")[0];
+}
+function formatFecha(f) {
+  if (!f) return "—";
+  if (f.includes("/")) return f;
+  const [y, m, d] = f.split("-");
+  return `${d}/${m}/${y}`;
+}
+function estaVencido(fechaVenc) {
+  if (!fechaVenc) return false;
+  return fechaVenc < hoyISO();
+}
+function diasParaVencer(fechaVenc) {
+  if (!fechaVenc) return null;
+  return Math.ceil((new Date(fechaVenc + "T00:00:00") - new Date(hoyISO() + "T00:00:00")) / 86400000);
+}
+const TIPO_COLORS = {
+  vencido:    { color: "#e65100", bg: "#fff3e0", border: "#ffcc80", icon: "🕒" },
+  dañado:     { color: "#c62828", bg: "#ffebee", border: "#ef9a9a", icon: "💥" },
+  ajuste:     { color: "#1565c0", bg: "#e3f2fd", border: "#90caf9", icon: "⚖️" },
+  consumo:    { color: "#4a148c", bg: "#f3e5f5", border: "#ce93d8", icon: "🍽️" },
+  devolucion: { color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7", icon: "↩️" },
+};
 
+/* ══════════════════════════════════════════════════════════
+   TABLA — sub-componentes pequeños
+══════════════════════════════════════════════════════════ */
 function EstadoBadge({ stock, stockMinimo }) {
-  const minimo = stockMinimo ?? 10;
-  const estado = calcEstado(stock, minimo);
+  const minimo  = stockMinimo ?? 10;
+  const estado  = calcEstado(stock, minimo);
   const tooltip = calcTooltip(stock, minimo);
-  const s = ESTADO_STYLES[estado];
+  const s       = ESTADO_STYLES[estado];
   const [show, setShow] = useState(false);
   return (
-    <span style={{ position: "relative", display: "inline-flex" }} onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+    <span style={{ position: "relative", display: "inline-flex" }}
+      onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
       <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: s.bg, color: s.color, border: `1px solid ${s.border}`, whiteSpace: "nowrap", cursor: "default" }}>
         <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.color }} />{estado}
       </span>
@@ -45,14 +78,15 @@ function EstadoBadge({ stock, stockMinimo }) {
 
 function CatCell({ cat }) {
   const [show, setShow] = useState(false);
-  const icon = cat?.icon || "📦";
-  const nombre = cat?.nombre || "—";
   return (
-    <span style={{ position: "relative", display: "inline-flex" }} onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
-      <span style={{ width: 34, height: 34, borderRadius: 8, background: "#f1f8f1", border: "1px solid #c8e6c9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, cursor: "default" }}>{icon}</span>
+    <span style={{ position: "relative", display: "inline-flex" }}
+      onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+      <span style={{ width: 34, height: 34, borderRadius: 8, background: "#f1f8f1", border: "1px solid #c8e6c9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, cursor: "default" }}>
+        {cat?.icon || "📦"}
+      </span>
       {show && (
         <span style={{ position: "absolute", bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", background: "#1a1a1a", color: "#fff", fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 7, whiteSpace: "nowrap", zIndex: 999, pointerEvents: "none" }}>
-          {nombre}
+          {cat?.nombre || "—"}
           <span style={{ position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderTop: "5px solid #1a1a1a" }} />
         </span>
       )}
@@ -66,57 +100,335 @@ function ProductImg({ preview, nombre }) {
     : <div style={{ width: 36, height: 36, borderRadius: 8, flexShrink: 0, background: "#f1f8f1", border: "1px solid #c8e6c9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17 }}>🍌</div>;
 }
 
-function VerProducto({ product, catObj, onClose }) {
-  const minimo = product.stockMinimo ?? 10;
-  const estado = calcEstado(product.stock, minimo);
-  const s      = ESTADO_STYLES[estado];
+/* ══════════════════════════════════════════════════════════
+   LOTES PANEL — incrustado directamente
+══════════════════════════════════════════════════════════ */
+function LotesProductoPanel({ idProducto }) {
+  const { getLotesProducto, agregarLoteProducto } = useApp();
+  const lotes   = getLotesProducto ? getLotesProducto(idProducto) : [];
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm]         = useState({ id: "", fechaVenc: "", cantInicial: "", costo: "" });
+  const [errors, setErrors]     = useState({});
+
+  const set = (k, v) => { setForm(p => ({ ...p, [k]: v })); setErrors(p => ({ ...p, [k]: "" })); };
+
+  const validate = () => {
+    const e = {};
+    if (!form.id.trim())                                    e.id          = "Requerido";
+    if (!form.cantInicial || Number(form.cantInicial) <= 0) e.cantInicial = "Cantidad inválida";
+    return e;
+  };
+
+  const handleAdd = () => {
+    const e = validate();
+    if (Object.keys(e).length) { setErrors(e); return; }
+    agregarLoteProducto && agregarLoteProducto(idProducto, {
+      id:               form.id,
+      fechaVencimiento: form.fechaVenc || null,
+      cantidadInicial:  Number(form.cantInicial),
+      cantidadActual:   Number(form.cantInicial),
+      fechaIngreso:     hoyISO(),
+      costo:            form.costo ? Number(form.costo) : null,
+    });
+    setForm({ id: "", fechaVenc: "", cantInicial: "", costo: "" });
+    setShowForm(false);
+  };
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <div><p className="modal-header__eyebrow">Productos</p><h2 className="modal-header__title">Detalle del producto</h2></div>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
-        </div>
-        <div className="modal-body">
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <div className="form-group"><label className="form-label">Nombre</label><div className="field-input field-input--disabled">{product.nombre}</div></div>
-            <div className="form-group"><label className="form-label">Categoría</label><div className="field-input field-input--disabled">{catObj?.nombre || "—"}</div></div>
-            <div className="form-group"><label className="form-label">Precio de venta</label><div className="field-input field-input--disabled">${product.precio?.toLocaleString("es-CO")}</div></div>
-            <div className="form-group"><label className="form-label">Stock</label><div className="field-input field-input--disabled">{product.stock} unidades</div></div>
-            <div className="form-group"><label className="form-label">Stock mínimo</label><div className="field-input field-input--disabled">{minimo} unidades</div></div>
-            <div className="form-group">
-              <label className="form-label">Estado</label>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.color }} />{estado}
-              </span>
-              <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9e9e9e" }}>{calcTooltip(product.stock, minimo)}</p>
+    <div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <p className="ver-ins-section-label" style={{ margin: 0, textTransform: "none" }}>Lotes en inventario</p>
+        <button className="btn-save" style={{ padding: "6px 14px", fontSize: 12 }}
+          onClick={() => setShowForm(v => !v)}>
+          {showForm ? "Cancelar" : "+ Agregar lote"}
+        </button>
+      </div>
+
+      {showForm && (
+        <div className="lote-section" style={{ marginBottom: 14 }}>
+          <div className="lote-section__header"><span>📦</span><p className="lote-section__title">Nuevo lote</p></div>
+          <div className="lote-section__body" style={{ gridTemplateColumns: "1fr 1fr" }}>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <p className="lote-field__label">ID del lote *</p>
+              <input className={`field-input${errors.id ? " field-input--error" : ""}`}
+                value={form.id} onChange={e => set("id", e.target.value)} placeholder="Ej. LP-001"
+                onFocus={e => e.target.style.borderColor = "#4caf50"}
+                onBlur={e => e.target.style.borderColor = errors.id ? "#e53935" : "#e0e0e0"} />
+              {errors.id && <p className="field-error">{errors.id}</p>}
+            </div>
+            <div>
+              <p className="lote-field__label">Fecha de vencimiento</p>
+              <input type="date" className="field-input" value={form.fechaVenc}
+                onChange={e => set("fechaVenc", e.target.value)} />
+            </div>
+            <div>
+              <p className="lote-field__label">Cantidad inicial *</p>
+              <input type="number" min="1"
+                className={`field-input${errors.cantInicial ? " field-input--error" : ""}`}
+                value={form.cantInicial} onChange={e => set("cantInicial", e.target.value)} placeholder="0"
+                onFocus={e => e.target.style.borderColor = "#4caf50"}
+                onBlur={e => e.target.style.borderColor = errors.cantInicial ? "#e53935" : "#e0e0e0"} />
+              {errors.cantInicial && <p className="field-error">{errors.cantInicial}</p>}
+            </div>
+            <div>
+              <p className="lote-field__label">Costo unitario (opcional)</p>
+              <input type="number" min="0" className="field-input"
+                value={form.costo} onChange={e => set("costo", e.target.value)} placeholder="$0"
+                onFocus={e => e.target.style.borderColor = "#4caf50"}
+                onBlur={e => e.target.style.borderColor = "#e0e0e0"} />
             </div>
           </div>
-          {product.fecha && <div className="date-info"><span>📅</span><span>Creado el <strong>{product.fecha}</strong></span></div>}
-          {product.imagenPreview && <div style={{ marginTop: 14 }}><label className="form-label">Imagen</label><img src={product.imagenPreview} alt={product.nombre} style={{ width: "100%", maxHeight: 160, objectFit: "cover", borderRadius: 10, border: "1px solid #c8e6c9" }} /></div>}
+          <div style={{ padding: "0 14px 12px", display: "flex", justifyContent: "flex-end" }}>
+            <button className="btn-save" onClick={handleAdd}>Guardar lote</button>
+          </div>
         </div>
-        <div className="modal-footer"><button className="btn-ghost" onClick={onClose}>Cerrar</button></div>
+      )}
+
+      {lotes.length === 0 ? (
+        <div className="empty-state" style={{ padding: "28px 20px" }}>
+          <div className="empty-state__icon">📦</div>
+          <p className="empty-state__text">Sin lotes registrados para este producto</p>
+        </div>
+      ) : (
+        <div className="lotes-lista">
+          {lotes.map(lote => {
+            const vencido = estaVencido(lote.fechaVencimiento);
+            const dias    = diasParaVencer(lote.fechaVencimiento);
+            const pronto  = dias !== null && dias >= 0 && dias <= 7;
+            return (
+              <div key={lote.id} className="lote-item"
+                style={{ borderColor: vencido ? "#ef9a9a" : pronto ? "#ffe082" : "#c8e6c9" }}>
+                <div className="lote-item__head">
+                  <span className="lote-item__id">{lote.id}</span>
+                  <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    {vencido && (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "#c62828", background: "#ffebee", padding: "2px 8px", borderRadius: 20, border: "1px solid #ef9a9a" }}>Vencido</span>
+                    )}
+                    {pronto && !vencido && (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "#e65100", background: "#fff3e0", padding: "2px 8px", borderRadius: 20, border: "1px solid #ffcc80" }}>Vence en {dias}d</span>
+                    )}
+                    <span style={{ fontWeight: 600, fontSize: 12 }}>Vence: {formatFecha(lote.fechaVencimiento)}</span>
+                  </span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 8, fontSize: 13 }}>
+                  <div><strong>Actual:</strong> {lote.cantidadActual} uds.</div>
+                  <div><strong>Inicial:</strong> {lote.cantidadInicial} uds.</div>
+                  <div><strong>Ingreso:</strong> {formatFecha(lote.fechaIngreso)}</div>
+                  {lote.costo && <div><strong>Costo unit.:</strong> ${lote.costo?.toLocaleString("es-CO")}</div>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════
+   VER PRODUCTO — modal con tabs (todo aquí)
+══════════════════════════════════════════════════════════ */
+function VerProducto({ product, catObj, onClose }) {
+  const { getLotesProducto, getSalidasProducto, getLotesVencidosProducto } = useApp();
+  const [tab, setTab] = useState("info");
+
+  const minimo   = product.stockMinimo ?? 10;
+  const estado   = calcEstado(product.stock, minimo);
+  const s        = ESTADO_STYLES[estado];
+  const salidas  = getSalidasProducto        ? getSalidasProducto(product.id)        : [];
+  const vencidos = getLotesVencidosProducto  ? getLotesVencidosProducto(product.id)  : [];
+
+  const resumenSalidas = salidas.reduce((acc, sal) => {
+    acc[sal.tipo] = (acc[sal.tipo] || 0) + sal.cantidad;
+    return acc;
+  }, {});
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal-box"
+        style={{ maxWidth: 560, display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 40px)" }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="modal-header">
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {product.imagenPreview
+              ? <img src={product.imagenPreview} alt={product.nombre} style={{ width: 44, height: 44, borderRadius: 12, objectFit: "cover", border: "2px solid #c8e6c9" }} />
+              : <div style={{ width: 44, height: 44, borderRadius: 12, background: "#f1f8f1", border: "2px solid #c8e6c9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>📦</div>
+            }
+            <div>
+              <p className="modal-header__eyebrow">Producto</p>
+              <h2 className="modal-header__title">{product.nombre}</h2>
+            </div>
+          </div>
+          <button className="modal-close-btn" onClick={onClose}>✕</button>
+        </div>
+
+        {/* Tabs */}
+        <div className="ver-ins-tabs">
+          {[
+            { key: "info",      label: "📋 Información" },
+            { key: "lotes",     label: "📦 Lotes" },
+            { key: "historial", label: "🕒 Historial" },
+          ].map(t => (
+            <button key={t.key}
+              className={`ver-ins-tab${tab === t.key ? " ver-ins-tab--active" : ""}`}
+              onClick={() => setTab(t.key)}>{t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Body con scroll */}
+        <div className="modal-body" style={{ flex: 1, overflowY: "auto" }}>
+
+          {/* ── Información ── */}
+          {tab === "info" && (
+            <>
+              <div className="ver-ins-grid" style={{ marginBottom: 16 }}>
+                <div className="ver-ins-field">
+                  <span className="ver-ins-field__label">Nombre</span>
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>{product.nombre}</span>
+                </div>
+                <div className="ver-ins-field">
+                  <span className="ver-ins-field__label">Categoría</span>
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>{catObj?.icon} {catObj?.nombre || "—"}</span>
+                </div>
+                <div className="ver-ins-field">
+                  <span className="ver-ins-field__label">Precio de venta</span>
+                  <span style={{ fontWeight: 700, fontSize: 16, color: "#2e7d32" }}>${product.precio?.toLocaleString("es-CO")}</span>
+                </div>
+                <div className="ver-ins-field">
+                  <span className="ver-ins-field__label">Estado</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.color }} />{estado}
+                  </span>
+                </div>
+              </div>
+
+              <p className="ver-ins-section-label" style={{ textTransform: "none" }}>Stock</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 8 }}>
+                <div className="ver-ins-stock-card ver-ins-stock-card--actual">
+                  <span className="ver-ins-stock-card__num">{product.stock}</span>
+                  <span className="ver-ins-stock-card__label">Stock actual</span>
+                  <span className="ver-ins-stock-card__uni">uds.</span>
+                </div>
+                <div className="ver-ins-stock-card ver-ins-stock-card--minimo">
+                  <span className="ver-ins-stock-card__num">{minimo}</span>
+                  <span className="ver-ins-stock-card__label">Stock mínimo</span>
+                  <span className="ver-ins-stock-card__uni">uds.</span>
+                </div>
+              </div>
+              <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9e9e9e" }}>{calcTooltip(product.stock, minimo)}</p>
+              {product.fecha && (
+                <div className="date-info" style={{ marginTop: 14 }}>
+                  <span>📅</span><span>Creado el <strong>{product.fecha}</strong></span>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── Lotes ── */}
+          {tab === "lotes" && <LotesProductoPanel idProducto={product.id} />}
+
+          {/* ── Historial ── */}
+          {tab === "historial" && (
+            <>
+              {salidas.length > 0 && (
+                <>
+                  <p className="ver-ins-section-label" style={{ textTransform: "none" }}>Resumen de salidas</p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
+                    {Object.entries(resumenSalidas).map(([tipo, total]) => {
+                      const tc = TIPO_COLORS[tipo] || { color: "#757575", bg: "#f5f5f5", border: "#e0e0e0", icon: "📋" };
+                      return (
+                        <div key={tipo} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 20, background: tc.bg, border: `1px solid ${tc.border}`, fontSize: 12, fontWeight: 700, color: tc.color }}>
+                          <span>{tc.icon}</span>
+                          {tipo.charAt(0).toUpperCase() + tipo.slice(1)}: <span style={{ marginLeft: 2 }}>{total} uds.</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              <p className="ver-ins-section-label" style={{ textTransform: "none" }}>Lotes vencidos</p>
+              {vencidos.length === 0 ? (
+                <div className="empty-state" style={{ padding: "14px 20px" }}>
+                  <p className="empty-state__text">No hay lotes vencidos registrados.</p>
+                </div>
+              ) : (
+                <div className="lotes-lista" style={{ marginBottom: 18 }}>
+                  {vencidos.map(lote => (
+                    <div key={lote.id} className="lote-item" style={{ borderColor: "#ef9a9a" }}>
+                      <div className="lote-item__head">
+                        <span className="lote-item__id">{lote.id}</span>
+                        <span style={{ fontWeight: 600, fontSize: 12 }}>Venció: {formatFecha(lote.fechaVencimiento)}</span>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, marginTop: 8, fontSize: 13 }}>
+                        <div><strong>Cantidad actual:</strong> {lote.cantidadActual} uds.</div>
+                        <div><strong>Ingreso:</strong> {formatFecha(lote.fechaIngreso)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="ver-ins-section-label" style={{ textTransform: "none", marginTop: 4 }}>Historial de salidas</p>
+              {salidas.length === 0 ? (
+                <div className="empty-state" style={{ padding: "14px 20px" }}>
+                  <p className="empty-state__text">Aún no hay salidas registradas.</p>
+                </div>
+              ) : (
+                <div className="historial-list">
+                  {salidas.map(salida => {
+                    const tc = TIPO_COLORS[salida.tipo] || { color: "#757575", bg: "#f5f5f5", icon: "📋" };
+                    return (
+                      <div key={salida.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 9, border: "1px solid #f0f0f0", marginBottom: 6, background: "#fafafa" }}>
+                        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                          <span style={{ padding: "2px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, color: tc.color, background: tc.bg }}>{tc.icon} {salida.tipo}</span>
+                          <span style={{ fontSize: 13, color: "#424242" }}>{salida.motivo}</span>
+                        </div>
+                        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#c62828" }}>-{salida.cantidad} uds.</span>
+                          <span style={{ fontSize: 11, color: "#bdbdbd" }}>{salida.fecha}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn-ghost" onClick={onClose}>Cerrar</button>
+        </div>
       </div>
     </div>
   );
 }
 
+/* ══════════════════════════════════════════════════════════
+   PÁGINA PRINCIPAL
+══════════════════════════════════════════════════════════ */
 export default function GestionProductos() {
   const {
-    productos, categoriasProductos, categoriasProductosActivas,
+    productos,
     getCatProducto,
     crearProducto, editarProducto, eliminarProducto, guardarFicha,
     canDeleteProducto,
+    registrarSalidaProducto,
   } = useApp();
 
-  const [search, setSearch]         = useState("");
-  const [filterCat, setFilterCat]   = useState("Todas");
-  const [filterEst, setFilterEst]   = useState("Todos");
+  const [search,     setSearch]     = useState("");
+  const [filterCat,  setFilterCat]  = useState("Todas");
+  const [filterEst,  setFilterEst]  = useState("Todos");
   const [showFilter, setShowFilter] = useState(false);
-  const [page, setPage]             = useState(1);
-  const [modal, setModal]           = useState(null);
-  const [toast, setToast]           = useState(null);
-  const filterRef                   = useRef();
+  const [page,       setPage]       = useState(1);
+  const [modal,      setModal]      = useState(null);
+  const [toast,      setToast]      = useState(null);
+  const filterRef = useRef();
 
   useEffect(() => {
     const h = e => { if (filterRef.current && !filterRef.current.contains(e.target)) setShowFilter(false); };
@@ -124,7 +436,10 @@ export default function GestionProductos() {
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const showToast = (msg, type = "success") => { setToast({ message: msg, type }); setTimeout(() => setToast(null), 3000); };
+  const showToast = (msg, type = "success") => {
+    setToast({ message: msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const ESTADOS_FILTER = ["Todos", "Disponible", "No disponible"];
   const ESTADO_DOT     = { "Disponible": "#43a047", "No disponible": "#ef5350" };
@@ -146,14 +461,19 @@ export default function GestionProductos() {
   useEffect(() => setPage(1), [search, filterCat, filterEst]);
 
   const hasFilter = filterCat !== "Todas" || filterEst !== "Todos";
+  const catsEnUso = ["Todas", ...new Set(productos.map(p => getCatProducto(p.idCategoria).nombre).filter(Boolean))];
 
   const handleCreate    = f  => { crearProducto({ ...f, fecha: new Date().toLocaleDateString("es-CO") }); showToast("Producto creado"); setModal(null); };
   const handleEdit      = f  => { editarProducto(f); showToast("Cambios guardados"); setModal(null); };
   const handleDelete    = () => { eliminarProducto(modal.product.id); showToast("Producto eliminado", "error"); setModal(null); };
   const handleSaveFicha = f  => { guardarFicha(modal.product.id, f); showToast("Ficha técnica guardada"); setModal(null); };
 
-  // Categorías únicas presentes en productos para el filtro de la tabla
-  const catsEnUso = ["Todas", ...new Set(productos.map(p => getCatProducto(p.idCategoria).nombre).filter(Boolean))];
+  const handleSalida = async (payload) => {
+    if (!registrarSalidaProducto) { showToast("Función no disponible", "error"); setModal(null); return { ok: false }; }
+    const result = registrarSalidaProducto(payload);
+    if (result?.ok !== false) { showToast("Salida registrada y stock actualizado"); setModal(null); return { ok: true }; }
+    showToast(result.razon || "Error en la salida", "error"); setModal(null); return { ok: false };
+  };
 
   return (
     <div className="page-wrapper">
@@ -161,11 +481,14 @@ export default function GestionProductos() {
         <h1 className="page-header__title">Gestión de Productos</h1>
         <div className="page-header__line" />
       </div>
+
       <div className="page-inner">
+        {/* Toolbar */}
         <div className="toolbar">
           <div className="search-wrap">
             <span className="search-icon">🔍</span>
-            <input type="text" className="search-input" placeholder="Buscar por nombre o categoría…" value={search} onChange={e => setSearch(e.target.value)} />
+            <input type="text" className="search-input" placeholder="Buscar por nombre o categoría…"
+              value={search} onChange={e => setSearch(e.target.value)} />
           </div>
           <div ref={filterRef} style={{ position: "relative" }}>
             <button className={`filter-icon-btn${hasFilter ? " has-filter" : ""}`} onClick={() => setShowFilter(v => !v)}>▼</button>
@@ -179,9 +502,9 @@ export default function GestionProductos() {
                 ))}
                 <div style={{ height: 1, background: "#f5f5f5", margin: "4px 0" }} />
                 <div style={{ padding: "4px 14px", fontSize: 10, fontWeight: 700, color: "#9e9e9e", letterSpacing: 1.5 }}>Estado</div>
-                {ESTADOS_FILTER.map(s => (
-                  <button key={s} className={`filter-option${filterEst === s ? " active" : ""}`} onClick={() => setFilterEst(s)}>
-                    <span className="filter-dot" style={{ background: ESTADO_DOT[s] || "#bdbdbd" }} />{s}
+                {ESTADOS_FILTER.map(st => (
+                  <button key={st} className={`filter-option${filterEst === st ? " active" : ""}`} onClick={() => setFilterEst(st)}>
+                    <span className="filter-dot" style={{ background: ESTADO_DOT[st] || "#bdbdbd" }} />{st}
                   </button>
                 ))}
                 {hasFilter && (
@@ -198,10 +521,13 @@ export default function GestionProductos() {
           <button className="btn-agregar" onClick={() => setModal({ type: "crear" })}>Agregar <span style={{ fontSize: 18 }}>+</span></button>
         </div>
 
+        {/* Tabla */}
         <div className="card">
           <div style={{ overflowX: "auto" }}>
             <table className="tbl">
-              <thead><tr><th>Nº</th><th>Producto</th><th>Categoría</th><th>Precio</th><th>Stock</th><th>Estado</th><th>Acciones</th></tr></thead>
+              <thead>
+                <tr><th>Nº</th><th>Producto</th><th>Categoría</th><th>Precio</th><th>Stock</th><th>Estado</th><th>Acciones</th></tr>
+              </thead>
               <tbody>
                 {paginated.length === 0 ? (
                   <tr><td colSpan={7}><div className="empty-state"><div className="empty-state__icon">🍌</div><p className="empty-state__text">Sin resultados</p></div></td></tr>
@@ -217,10 +543,11 @@ export default function GestionProductos() {
                       <td><EstadoBadge stock={p.stock} stockMinimo={p.stockMinimo} /></td>
                       <td>
                         <div className="actions-cell">
-                          <button className="act-btn act-btn--view"   onClick={() => setModal({ type: "ver",      product: p })}>👁</button>
-                          <button className="act-btn act-btn--edit"   onClick={() => setModal({ type: "editar",   product: p })}>✎</button>
-                          <button className="act-btn act-btn--ficha"  onClick={() => setModal({ type: "ficha",    product: p })}>📋</button>
-                          <button className="act-btn act-btn--delete" onClick={() => setModal({ type: "eliminar", product: p })}>🗑️</button>
+                          <button className="act-btn act-btn--view"   title="Ver detalle"      onClick={() => setModal({ type: "ver",      product: p })}>👁</button>
+                          <button className="act-btn act-btn--edit"   title="Editar"           onClick={() => setModal({ type: "editar",   product: p })}>✎</button>
+                          <button className="act-btn act-btn--ficha"  title="Ficha técnica"    onClick={() => setModal({ type: "ficha",    product: p })}>📋</button>
+                          <button className="act-btn act-btn--salida" title="Registrar salida" onClick={() => setModal({ type: "salida",   product: p })}>🚚</button>
+                          <button className="act-btn act-btn--delete" title="Eliminar"         onClick={() => setModal({ type: "eliminar", product: p })}>🗑️</button>
                         </div>
                       </td>
                     </tr>
@@ -240,9 +567,20 @@ export default function GestionProductos() {
         </div>
       </div>
 
+      {/* ══ Modales ══ */}
       {modal?.type === "crear"    && <CrearProducto onClose={() => setModal(null)} onSave={handleCreate} />}
       {modal?.type === "editar"   && <EditarProducto product={modal.product} onClose={() => setModal(null)} onSave={handleEdit} />}
       {modal?.type === "ver"      && <VerProducto product={modal.product} catObj={getCatProducto(modal.product.idCategoria)} onClose={() => setModal(null)} />}
+      {modal?.type === "salida"   && (
+        <SalidaModal
+          entidad={modal.product}
+          tipo="producto"
+          stockActual={modal.product.stock}
+          unidadLabel="uds."
+          onClose={() => setModal(null)}
+          onConfirm={handleSalida}
+        />
+      )}
       {modal?.type === "eliminar" && (
         <ModalEliminarValidado
           titulo="Eliminar producto"
@@ -255,7 +593,7 @@ export default function GestionProductos() {
       {modal?.type === "ficha" && (
         modal.product.ficha
           ? <EditarFicha ficha={modal.product.ficha} mode="edit" onClose={() => setModal(null)} onSave={handleSaveFicha} />
-          : <CrearFicha productoNombre={modal.product.nombre} productoCategoria={getCatProducto(modal.product.idCategoria)?.nombre} onClose={() => setModal(null)} onSave={handleSaveFicha} />
+          : <CrearFicha  productoNombre={modal.product.nombre} productoCategoria={getCatProducto(modal.product.idCategoria)?.nombre} onClose={() => setModal(null)} onSave={handleSaveFicha} />
       )}
       <Toast toast={toast} />
     </div>

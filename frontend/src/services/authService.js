@@ -24,8 +24,16 @@ export const getUser = () => {
 };
 
 export const isAuthenticated = () => {
-  return !!localStorage.getItem("session");
-};
+  const session = localStorage.getItem("session");
+  if (!session) return false;
+
+  try {
+    const parsed = JSON.parse(session);
+    return parsed !== null;
+  } catch {
+    return false;
+  }
+};;
 
 export const hasRole = (role) => {
   const user = getUser();

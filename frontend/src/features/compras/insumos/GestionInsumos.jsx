@@ -4,17 +4,24 @@ import { LotesInsumoPanel } from "../../compras/gestioncompras/EditarCompra.jsx"
 import CrearInsumo from "./CrearInsumo.jsx";
 import EditarInsumo from "./EditarInsumo.jsx";
 import VerInsumo from "./VerInsumo.jsx";
+import SalidaModal from "../../produccion/Productos/SalidaModal.jsx";
 import ModalEliminarValidado from "../../../ModalEliminarValidado";
 import "./GestionInsumos.css";
 
 const ITEMS_PER_PAGE = 8;
 
+/* ══════════════════════════════════════════════════════════
+   HELPERS
+══════════════════════════════════════════════════════════ */
 function calcEstado(actual, minimo) {
   if (actual === 0)    return "agotado";
   if (actual < minimo) return "bajo";
   return "disponible";
 }
 
+/* ══════════════════════════════════════════════════════════
+   SUB-COMPONENTES
+══════════════════════════════════════════════════════════ */
 function Toggle({ value, onChange }) {
   return (
     <button onClick={() => onChange(!value)} className="toggle-btn"
@@ -55,14 +62,15 @@ function StockBar({ actual, minimo }) {
   );
 }
 
-/* ════════════════════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════════
    PÁGINA PRINCIPAL
-════════════════════════════════════════════════════════════ */
+══════════════════════════════════════════════════════════ */
 export default function GestionInsumos() {
   const {
     insumos, categoriasInsumosActivas, categoriasInsumos, unidades,
     getCatInsumo, getUnidad,
     crearInsumo, editarInsumo, toggleInsumo, eliminarInsumo,
+    registrarSalidaInsumo,
     canDeleteInsumo,
   } = useApp();
 
@@ -86,9 +94,10 @@ export default function GestionInsumos() {
     setTimeout(() => setToast(null), 3000);
   };
 
+  /* ── Filtrado ── */
   const filtered = insumos.filter(ins => {
-    const q   = search.toLowerCase();
-    const cat = getCatInsumo(ins.idCategoria);
+    const q        = search.toLowerCase();
+    const cat      = getCatInsumo(ins.idCategoria);
     const matchQ   = ins.nombre.toLowerCase().includes(q) || cat.nombre.toLowerCase().includes(q);
     const matchCat = filterCat === "todas" || ins.idCategoria === Number(filterCat);
     const est      = calcEstado(ins.stockActual, ins.stockMinimo);
@@ -103,10 +112,33 @@ export default function GestionInsumos() {
   const paginated  = filtered.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
   useEffect(() => setPage(1), [search, filterCat, filterEst]);
 
-  const handleCreate = f  => { crearInsumo(f);   showToast("Insumo creado");    setModal(null); };
-  const handleEdit   = f  => { editarInsumo(f);  showToast("Cambios guardados"); setModal(null); };
+  const hasFilter = filterCat !== "todas" || filterEst !== "todos";
+
+  /* ── Handlers ── */
+  const handleCreate = f  => { crearInsumo(f);  showToast("Insumo creado");    setModal(null); };
+  const handleEdit   = f  => { editarInsumo(f); showToast("Cambios guardados"); setModal(null); };
   const handleDelete = () => { eliminarInsumo(modal.ins.id); showToast("Insumo eliminado", "error"); setModal(null); };
 
+  const handleSalida = async (payload) => {
+    const result = registrarSalidaInsumo({
+      idInsumo: payload.id,
+      tipo:     payload.tipo,
+      cantidad: payload.cantidad,
+      motivo:   payload.motivo,
+      fecha:    payload.fecha,
+    });
+    if (result.ok) {
+      showToast("Salida registrada y stock actualizado");
+      setModal(null);
+      return { ok: true };
+    } else {
+      showToast(result.razon || "Error en la salida", "error");
+      setModal(null);
+      return { ok: false };
+    }
+  };
+
+  /* ── Stats ── */
   const statsDisp = insumos.filter(i => calcEstado(i.stockActual, i.stockMinimo) === "disponible").length;
   const statsBajo = insumos.filter(i => calcEstado(i.stockActual, i.stockMinimo) === "bajo").length;
   const statsAgot = insumos.filter(i => calcEstado(i.stockActual, i.stockMinimo) === "agotado").length;
@@ -119,8 +151,6 @@ export default function GestionInsumos() {
     { val: "activo",     label: "Activo",     dot: "#2196f3" },
     { val: "inactivo",   label: "Inactivo",   dot: "#9e9e9e" },
   ];
-
-  const hasFilter = filterCat !== "todas" || filterEst !== "todos";
 
   return (
     <div className="page-wrapper">
@@ -155,43 +185,33 @@ export default function GestionInsumos() {
         <div className="toolbar">
           <div className="search-wrap">
             <span className="search-icon">🔍</span>
-            <input
-              type="text" className="search-input"
+            <input type="text" className="search-input"
               placeholder="Buscar por nombre o categoría…"
-              value={search} onChange={e => setSearch(e.target.value)}
-            />
+              value={search} onChange={e => setSearch(e.target.value)} />
           </div>
 
           <div ref={filterRef} style={{ position: "relative" }}>
-            <button
-              className={`filter-icon-btn${hasFilter ? " has-filter" : ""}`}
-              onClick={() => setShowFilter(v => !v)}
-            >▼</button>
+            <button className={`filter-icon-btn${hasFilter ? " has-filter" : ""}`}
+              onClick={() => setShowFilter(v => !v)}>▼</button>
             {showFilter && (
               <div className="filter-dropdown" style={{ minWidth: 170 }}>
                 <p className="filter-section-title">Categoría</p>
-                <button
-                  className={`filter-option${filterCat === "todas" ? " active" : ""}`}
-                  onClick={() => setFilterCat("todas")}
-                >
+                <button className={`filter-option${filterCat === "todas" ? " active" : ""}`}
+                  onClick={() => setFilterCat("todas")}>
                   <span className="filter-dot" style={{ background: "#bdbdbd" }} />Todas
                 </button>
                 {categoriasInsumos.map(c => (
-                  <button
-                    key={c.id}
+                  <button key={c.id}
                     className={`filter-option${filterCat === c.id ? " active" : ""}`}
-                    onClick={() => setFilterCat(c.id)}
-                  >
+                    onClick={() => setFilterCat(c.id)}>
                     <span style={{ fontSize: 14 }}>{c.icon}</span>{c.nombre}
                   </button>
                 ))}
                 <p className="filter-section-title" style={{ marginTop: 6 }}>Estado</p>
                 {filterEstOptions.map(f => (
-                  <button
-                    key={f.val}
+                  <button key={f.val}
                     className={`filter-option${filterEst === f.val ? " active" : ""}`}
-                    onClick={() => { setFilterEst(f.val); setShowFilter(false); }}
-                  >
+                    onClick={() => { setFilterEst(f.val); setShowFilter(false); }}>
                     <span className="filter-dot" style={{ background: f.dot }} />{f.label}
                   </button>
                 ))}
@@ -257,12 +277,10 @@ export default function GestionInsumos() {
                       <td><Toggle value={ins.estado} onChange={() => toggleInsumo(ins.id)} /></td>
                       <td>
                         <div className="actions-cell">
-                          <button className="act-btn act-btn--view"
-                            onClick={() => setModal({ type: "ver", ins })}>👁</button>
-                          <button className="act-btn act-btn--edit"
-                            onClick={() => setModal({ type: "editar", ins })}>✎</button>
-                          <button className="act-btn act-btn--delete"
-                            onClick={() => setModal({ type: "eliminar", ins })}>🗑️</button>
+                          <button className="act-btn act-btn--view"   title="Ver detalle"      onClick={() => setModal({ type: "ver",      ins })}>👁</button>
+                          <button className="act-btn act-btn--edit"   title="Editar"           onClick={() => setModal({ type: "editar",   ins })}>✎</button>
+                          <button className="act-btn act-btn--salida" title="Registrar salida" onClick={() => setModal({ type: "salida",   ins })}>🚚</button>
+                          <button className="act-btn act-btn--delete" title="Eliminar"         onClick={() => setModal({ type: "eliminar", ins })}>🗑️</button>
                         </div>
                       </td>
                     </tr>
@@ -278,22 +296,29 @@ export default function GestionInsumos() {
             </span>
             <div className="pagination-btns">
               <button className="pg-btn-arrow"
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={safePage === 1}>‹</button>
+                onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
               <span className="pg-pill">Página {safePage} de {totalPages}</span>
               <button className="pg-btn-arrow"
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={safePage === totalPages}>›</button>
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
             </div>
           </div>
         </div>
-
       </div>
 
-      {/* Modales */}
-      {modal?.type === "crear"    && <CrearInsumo onClose={() => setModal(null)} onSave={handleCreate} categorias={categoriasInsumosActivas} unidades={unidades} />}
-      {modal?.type === "editar"   && <EditarInsumo ins={modal.ins} onClose={() => setModal(null)} onSave={handleEdit} categorias={categoriasInsumosActivas} unidades={unidades} />}
-      {modal?.type === "ver"      && <VerInsumo ins={modal.ins} onClose={() => setModal(null)} />}
+      {/* ══ Modales ══ */}
+      {modal?.type === "crear"    && <CrearInsumo    onClose={() => setModal(null)} onSave={handleCreate} categorias={categoriasInsumosActivas} unidades={unidades} />}
+      {modal?.type === "editar"   && <EditarInsumo   ins={modal.ins} onClose={() => setModal(null)} onSave={handleEdit} categorias={categoriasInsumosActivas} unidades={unidades} />}
+      {modal?.type === "ver"      && <VerInsumo      ins={modal.ins} onClose={() => setModal(null)} />}
+      {modal?.type === "salida"   && (
+        <SalidaModal
+          entidad={modal.ins}
+          tipo="insumo"
+          stockActual={modal.ins.stockActual}
+          unidadLabel={getUnidad(modal.ins.idUnidad)?.simbolo || "uds."}
+          onClose={() => setModal(null)}
+          onConfirm={handleSalida}
+        />
+      )}
       {modal?.type === "eliminar" && (
         <ModalEliminarValidado
           titulo="Eliminar insumo"

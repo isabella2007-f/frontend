@@ -32,6 +32,23 @@ export function getRolStyle(nombre) {
   return PALETA[hash % PALETA.length];
 }
 
+// ─── Validación de contraseña ──────────────────────────
+export function validatePassword(password, confirm) {
+  const errors = [];
+  if (!password) {
+    errors.push("Campo obligatorio");
+  } else {
+    if (password.length < 8) errors.push("Mínimo 8 caracteres");
+    if (!/[A-Z]/.test(password)) errors.push("Al menos una mayúscula");
+    if (!/[a-z]/.test(password)) errors.push("Al menos una minúscula");
+    if (!/\d/.test(password)) errors.push("Al menos un número");
+  }
+  if (confirm !== undefined && password !== confirm) {
+    errors.push("Las contraseñas no coinciden");
+  }
+  return errors.length ? errors.join(", ") : null;
+}
+
 // ─── INITIAL DATA ─────────────────────────────────────────
 export const INIT_USERS = [
   { id:1, nombre:"Ana",    apellidos:"García",     telefono:"321-555-0001", cedula:"1001234567", correo:"ana@tostones.com",    direccion:"Calle 10 #5-20",      municipio:"Medellín",  departamento:"Cundinamarca", contrasena:"", rol:"Admin",    estado:true,  fechaCreacion:"15/01/2024", foto:null, esAdmin:true  },

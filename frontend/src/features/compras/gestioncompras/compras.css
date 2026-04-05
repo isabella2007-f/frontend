@@ -153,12 +153,18 @@
 
 .metodo-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 8px;
+  justify-items: center;
+  max-width: 300px;
+  margin: 0 auto;
 }
 
 @media (max-width: 500px) {
-  .metodo-grid { grid-template-columns: 1fr 1fr; }
+  .metodo-grid {
+    grid-template-columns: 1fr 1fr;
+    max-width: 250px;
+  }
 }
 
 .metodo-btn {
@@ -309,7 +315,7 @@
   border-radius: 10px;
   margin-top: 4px;
 }
-.total-bar__label { font-size: 12px; font-weight: 700; color: #616161; text-transform: uppercase; letter-spacing: 0.5px; }
+.total-bar__label { font-size: 12px; font-weight: 700; color: #616161; text-transform: none; letter-spacing: 0.5px; }
 .total-bar__value { font-size: 18px; font-weight: 800; color: #1b5e20; font-family: var(--font-head); font-variant-numeric: tabular-nums; }
 
 /* ═══════════════════════════════════════════════════════════
@@ -351,7 +357,7 @@
   border-radius: 10px;
   padding: 10px 14px;
 }
-.ver-field__label { font-size: 10px; font-weight: 700; color: #bdbdbd; text-transform: uppercase; letter-spacing: 1px; }
+.ver-field__label { font-size: 10px; font-weight: 700; color: #bdbdbd; text-transform: none; letter-spacing: 1px; }
 .ver-field__value { font-size: 14px; font-weight: 600; color: #1a1a1a; }
 .ver-field__sub   { font-size: 11px; color: #9e9e9e; }
 .ver-field__value--total { font-size: 18px; font-weight: 800; color: #1b5e20; font-family: var(--font-head); }
@@ -454,7 +460,7 @@
   color: #fff;
   padding: 2px 7px;
   border-radius: 4px;
-  text-transform: uppercase;
+  text-transform: none;
 }
 
 .lote-estado-chip {
@@ -478,7 +484,7 @@
 }
 
 .lote-dato { display: flex; flex-direction: column; gap: 2px; }
-.lote-dato__label { font-size: 10px; font-weight: 700; color: #bdbdbd; text-transform: uppercase; letter-spacing: 0.8px; }
+.lote-dato__label { font-size: 10px; font-weight: 700; color: #bdbdbd; text-transform: none; letter-spacing: 0.8px; }
 .lote-dato__val   { font-size: 13px; font-weight: 600; color: #1a1a1a; }
 .lote-dato__val--big { font-size: 15px; font-weight: 800; color: #1b5e20; font-family: var(--font-head); }
 .lote-dato__uni   { font-size: 11px; font-weight: 600; color: #616161; }

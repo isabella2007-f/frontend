@@ -78,7 +78,7 @@ function ModalVerDomicilio({ pedido, emp, onClose, onReasignar, onObservaciones 
         {/* Header */}
         <div className="modal-header">
           <div>
-            <p className="modal-header__eyebrow">DOMICILIO</p>
+            <p className="modal-header__eyebrow">Domicilio</p>
             <h2 className="modal-header__title">{pedido.numero}</h2>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -264,7 +264,7 @@ function ModalReasignar({ pedido, empleados, onClose, onConfirm }) {
 
         <div className="modal-header">
           <div>
-            <p className="modal-header__eyebrow">LOGÍSTICA</p>
+            <p className="modal-header__eyebrow">Logística</p>
             <h2 className="modal-header__title">Reasignar domiciliario</h2>
           </div>
           <button className="modal-close-btn" onClick={onClose}>✕</button>
@@ -333,7 +333,7 @@ function ModalObservaciones({ pedido, onClose, onConfirm }) {
 
         <div className="modal-header">
           <div>
-            <p className="modal-header__eyebrow">DOMICILIO</p>
+            <p className="modal-header__eyebrow">Domicilio</p>
             <h2 className="modal-header__title">Observaciones</h2>
           </div>
           <button className="modal-close-btn" onClick={onClose}>✕</button>

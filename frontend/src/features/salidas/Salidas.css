@@ -1,0 +1,259 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,600;0,700;0,800;1,700;1,800&family=DM+Sans:wght@400;500;600;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; }
+
+@keyframes fadeIn       { from{opacity:0} to{opacity:1} }
+@keyframes slideUp      { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
+@keyframes slideInRight { from{transform:translateX(70px);opacity:0} to{transform:translateX(0);opacity:1} }
+
+/* ─── Page ───────────────────────────────────────────────── */
+.page-wrapper {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #e8f5e9 0%, #f5fbf5 18%, #ffffff 42%);
+  padding-bottom: 60px;
+}
+.page-header { text-align: center; padding: 40px 20px 32px; }
+.page-header__title {
+  margin: 0 0 10px; font-family: 'Nunito', sans-serif;
+  font-size: clamp(26px, 4.5vw, 38px); font-weight: 800; font-style: italic;
+  color: #2e7d32; letter-spacing: -0.3px;
+}
+.page-header__line { width: 52px; height: 3.5px; background: #2e7d32; border-radius: 2px; margin: 0 auto; }
+.page-inner { max-width: 1100px; margin: 0 auto; padding: 0 8px; }
+
+/* ─── Tabs principales ───────────────────────────────────── */
+.salidas-tabs {
+  display: flex; gap: 4px;
+  border-bottom: 2px solid #e0e0e0;
+  margin-bottom: 24px;
+}
+.salidas-tab {
+  padding: 12px 24px; border: none; background: transparent;
+  font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600;
+  color: #9e9e9e; cursor: pointer; border-bottom: 3px solid transparent;
+  margin-bottom: -2px; transition: all 0.18s; border-radius: 8px 8px 0 0;
+}
+.salidas-tab:hover { color: #424242; background: #f5f5f5; }
+.salidas-tab.active { color: #2e7d32; border-bottom-color: #2e7d32; font-weight: 700; background: #f9fdf9; }
+
+.salidas-content { animation: fadeIn 0.2s ease; }
+
+/* ─── Grid registrar ─────────────────────────────────────── */
+.salidas-registrar-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  position: relative;
+}
+@media (max-width: 750px) { .salidas-registrar-grid { grid-template-columns: 1fr; } }
+
+/* ─── Panel ──────────────────────────────────────────────── */
+.salidas-panel {
+  background: #fff; border-radius: 14px;
+  border: 1.5px solid #c8e6c9;
+  padding: 20px; box-shadow: 0 2px 12px rgba(46,125,50,0.07);
+}
+.salidas-panel__title {
+  font-family: 'Nunito', sans-serif; font-size: 15px; font-weight: 800;
+  color: #2e7d32; margin: 0 0 14px;
+}
+
+/* ─── Tipo tabs (producto/insumo) ────────────────────────── */
+.salidas-tipo-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.salidas-tipo-tab {
+  flex: 1; padding: 9px; border-radius: 9px;
+  border: 1.5px solid #e0e0e0; background: #fafafa;
+  color: #9e9e9e; font-weight: 600; font-size: 13px;
+  cursor: pointer; font-family: inherit; transition: all 0.15s;
+}
+.salidas-tipo-tab.active { border-color: #2e7d32; background: #e8f5e9; color: #2e7d32; font-weight: 700; }
+
+/* ─── Search ─────────────────────────────────────────────── */
+.salidas-search { position: relative; margin-bottom: 12px; }
+.salidas-search__icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #9e9e9e; pointer-events: none; }
+.salidas-search__input {
+  width: 100%; padding: 10px 12px 10px 36px;
+  border-radius: 9px; border: 1.5px solid #e0e0e0;
+  font-size: 13px; outline: none; font-family: inherit;
+  background: #fff; transition: border 0.18s; box-sizing: border-box;
+}
+.salidas-search__input:focus { border-color: #4caf50; }
+
+/* ─── Lista selección ────────────────────────────────────── */
+.salidas-lista {
+  max-height: 280px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.salidas-lista::-webkit-scrollbar { width: 4px; }
+.salidas-lista::-webkit-scrollbar-thumb { background: #c8e6c9; border-radius: 4px; }
+.salidas-lista__empty { text-align: center; color: #bdbdbd; font-size: 13px; padding: 20px; }
+.salidas-lista__item {
+  width: 100%; padding: 10px 12px; border-radius: 9px;
+  border: 1.5px solid #e0e0e0; background: #fafafa;
+  cursor: pointer; font-family: inherit; text-align: left;
+  transition: all 0.15s;
+}
+.salidas-lista__item:hover { border-color: #a5d6a7; background: #f1f8f1; }
+.salidas-lista__item.selected { border-color: #2e7d32; background: #e8f5e9; }
+.salidas-lista__item-name { font-weight: 700; font-size: 13px; color: #1a1a1a; }
+.salidas-lista__item-meta { display: flex; justify-content: space-between; margin-top: 3px; }
+.salidas-lista__item-cat  { font-size: 11px; color: #9e9e9e; }
+
+/* ─── Seleccionado preview ───────────────────────────────── */
+.salidas-seleccionado {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; border-radius: 10px;
+  background: #f1f8f1; border: 1.5px solid #a5d6a7;
+  margin-bottom: 4px;
+}
+.salidas-seleccionado--empty {
+  background: #fafafa; border-color: #e0e0e0;
+  justify-content: center; flex-direction: column; gap: 6px;
+  padding: 20px;
+}
+
+/* ─── Form labels e inputs ───────────────────────────────── */
+.salidas-form-label {
+  display: block; font-size: 12px; font-weight: 700;
+  color: #616161; letter-spacing: 0.8px; text-transform: uppercase; margin-bottom: 6px;
+}
+.salidas-input {
+  width: 100%; padding: 10px 40px 10px 13px; border-radius: 9px;
+  border: 1.5px solid #e0e0e0; background: #fff; color: #1a1a1a;
+  outline: none; font-family: inherit; font-size: 14px;
+  transition: border 0.18s; box-sizing: border-box;
+}
+.salidas-input:focus { border-color: #4caf50; }
+.salidas-input:disabled { background: #f5f5f5; color: #bdbdbd; cursor: not-allowed; }
+.salidas-input--error { border-color: #e53935 !important; }
+.field-error { margin: 4px 0 0; font-size: 11px; color: #e53935; }
+
+/* ─── Botón registrar ────────────────────────────────────── */
+.salidas-btn-registrar {
+  width: 100%; padding: 12px; border-radius: 10px; border: none;
+  color: #fff; font-weight: 700; font-size: 14px;
+  cursor: pointer; font-family: inherit;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+  transition: all 0.18s; margin-top: 4px;
+}
+.salidas-btn-registrar:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-1px); }
+.salidas-btn-registrar:disabled { background: #bdbdbd !important; box-shadow: none; cursor: not-allowed; transform: none; }
+
+/* ─── Toast ──────────────────────────────────────────────── */
+.salidas-toast {
+  position: fixed; bottom: 28px; right: 28px; z-index: 3000;
+  padding: 12px 20px; border-radius: 12px; color: #fff;
+  font-weight: 600; font-size: 13px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  display: flex; align-items: center; gap: 8px;
+  animation: slideInRight 0.32s cubic-bezier(0.34,1.4,0.64,1);
+  font-family: 'DM Sans', sans-serif;
+}
+
+/* ─── Stats row ──────────────────────────────────────────── */
+.salidas-stats-row {
+  display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;
+}
+.salidas-stat-card {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 14px 20px; border-radius: 12px; background: #fff;
+  border: 1.5px solid #c8e6c9; min-width: 100px;
+  box-shadow: 0 2px 8px rgba(46,125,50,0.06);
+}
+.salidas-stat-card__num   { font-family: 'Nunito', sans-serif; font-size: 24px; font-weight: 800; color: #1a1a1a; line-height: 1; }
+.salidas-stat-card__label { font-size: 11px; font-weight: 600; color: #9e9e9e; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }
+
+/* ─── Toolbar historial ──────────────────────────────────── */
+.salidas-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+.salidas-filter-btn {
+  padding: 10px 18px; border-radius: 10px; border: 1.5px solid #e0e0e0;
+  background: #fff; color: #616161; font-weight: 600; font-size: 13px;
+  cursor: pointer; font-family: inherit; transition: all 0.15s; white-space: nowrap;
+}
+.salidas-filter-btn:hover { border-color: #4caf50; color: #2e7d32; }
+
+/* ─── Filter dropdown ────────────────────────────────────── */
+.salidas-filter-dropdown {
+  position: absolute; top: calc(100% + 6px); right: 0;
+  background: #fff; border-radius: 10px;
+  border: 1px solid #e0e0e0; box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+  min-width: 180px; z-index: 100; overflow: hidden;
+  animation: slideUp 0.18s ease;
+}
+.salidas-filter-title {
+  padding: 8px 14px 4px; font-size: 10px; font-weight: 700;
+  color: #bdbdbd; letter-spacing: 1px; text-transform: uppercase;
+}
+.salidas-filter-divider { height: 1px; background: #f0f0f0; margin: 4px 0; }
+.salidas-filter-opt {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 14px; font-size: 13px; font-weight: 500;
+  color: #424242; cursor: pointer; transition: background 0.12s;
+  border: none; background: transparent; width: 100%; font-family: inherit;
+}
+.salidas-filter-opt:hover  { background: #f5f5f5; }
+.salidas-filter-opt.active { background: #f1f8f1; color: #2e7d32; font-weight: 700; }
+
+/* ─── Card / Table historial ─────────────────────────────── */
+.salidas-card {
+  background: #fff; border-radius: 14px; border: 1.5px solid #c8e6c9;
+  overflow: hidden; box-shadow: 0 2px 16px rgba(46,125,50,0.07);
+  overflow-x: auto;
+}
+.salidas-table { width: 100%; border-collapse: collapse; min-width: 700px; }
+.salidas-table thead tr { background: #2e7d32; }
+.salidas-table th { padding: 14px 16px; font-size: 13px; font-weight: 700; color: #fff; text-align: left; white-space: nowrap; }
+.salidas-table__row { border-bottom: 1px solid #f1f8f1; transition: background 0.12s; }
+.salidas-table__row:last-child { border-bottom: none; }
+.salidas-table__row:hover { background: #f9fdf9; }
+.salidas-table td { padding: 13px 16px; vertical-align: middle; }
+
+.salidas-tipo-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px; border-radius: 20px;
+  font-size: 12px; font-weight: 700; white-space: nowrap;
+}
+
+.salidas-empty {
+  padding: 60px 20px; text-align: center;
+  color: #9e9e9e; font-size: 14px;
+}
+
+/* ─── Pills filtro vencidos ──────────────────────────────── */
+.salidas-filtro-pill {
+  padding: 8px 16px; border-radius: 20px;
+  border: 1.5px solid #e0e0e0; background: #fafafa;
+  color: #9e9e9e; font-weight: 600; font-size: 13px;
+  cursor: pointer; font-family: inherit; transition: all 0.15s;
+  white-space: nowrap;
+}
+.salidas-filtro-pill:hover { border-color: #a5d6a7; color: #2e7d32; }
+.salidas-filtro-pill.active { border-color: #2e7d32; background: #e8f5e9; color: #2e7d32; font-weight: 700; }
+
+/* ─── Grid vencidos ──────────────────────────────────────── */
+.vencidos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+.vencido-card {
+  border-radius: 12px; border: 1.5px solid;
+  overflow: hidden; transition: transform 0.15s;
+}
+.vencido-card:hover { transform: translateY(-2px); }
+.vencido-card__header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  padding: 14px 14px 10px; gap: 10px;
+}
+.vencido-card__badge {
+  padding: 3px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 700; white-space: nowrap; flex-shrink: 0;
+}
+.vencido-card__body {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 8px; padding: 10px 14px 14px;
+  border-top: 1px solid rgba(0,0,0,0.06);
+  font-size: 12px;
+}
+.vencido-card__key { display: block; color: #9e9e9e; font-weight: 600; margin-bottom: 2px; }
+.vencido-card__val { font-weight: 700; color: #1a1a1a; }

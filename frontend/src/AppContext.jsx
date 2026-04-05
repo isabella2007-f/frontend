@@ -79,6 +79,8 @@ const initLotes = [
   { id: "LC-005", idInsumo: 3, idCompra: "C-001", idDetalleRef: "C-001-D4", cantidadInicial: 15, cantidadActual: 5,  fechaVencimiento: "2026-03-10", fechaIngreso: "2026-01-15" },
 ];
 
+const initSalidas = [];
+
 const initProductos = [
   { id: 1, nombre: "Muffin de plátano",      idCategoria: 2, precio: 10000, stock: 50, stockMinimo: 10, imagen: null, imagenPreview: null, fecha: "12/12/2025", ficha: null },
   { id: 2, nombre: "Palito de queso",         idCategoria: 1, precio: 5000,  stock: 20, stockMinimo: 10, imagen: null, imagenPreview: null, fecha: "12/12/2025", ficha: null },
@@ -86,6 +88,11 @@ const initProductos = [
   { id: 4, nombre: "Harina de plátano 500g",  idCategoria: 4, precio: 12000, stock: 80, stockMinimo: 20, imagen: null, imagenPreview: null, fecha: "20/02/2026", ficha: null },
   { id: 5, nombre: "Tostones orgánicos",       idCategoria: 5, precio: 7500,  stock: 15, stockMinimo: 10, imagen: null, imagenPreview: null, fecha: "28/02/2026", ficha: null },
 ];
+
+// ── Lotes de productos (independiente de los de insumos) ──
+const initLotesProductos = {};   // { [idProducto]: [ { id, fechaVencimiento, cantidadInicial, cantidadActual, fechaIngreso, costo } ] }
+// ── Salidas de productos ──
+const initSalidasProductos = {}; // { [idProducto]: [ { id, tipo, cantidad, motivo, fecha } ] }
 
 const initProveedores = [
   { id: "PROV0001", responsable: "Juan Morales",   direccion: "Cra 45 # 10-20, Medellín",     celular: "300 123 4567", correo: "juan.morales@prov.com",   ciudad: "Medellín"     },
@@ -145,8 +152,6 @@ const initUsuariosData = [
   { id: 4, nombre: "Jorge",  apellidos: "Torres Suárez", correo: "jorge.torres@email.com", cedula: "72654321",   telefono: "320 321 0987", direccion: "Calle 72 # 45-55",   departamento: "Atlántico",       municipio: "Barranquilla", rol: "Cliente",  estado: true,  foto: null, fechaCreacion: "20/02/2026" },
 ];
 
-/* ── Clientes ─────────────────────────────────────────── */
-
 const initClientes = [
   { id: uid(), tipoDoc: "CC", numDoc: "1012345678", nombre: "Ana",    apellidos: "García López",   correo: "ana.garcia@email.com",   telefono: "300 123 4567", direccion: "Calle 50 # 40-20",   departamento: "Antioquia",    municipio: "Medellín",    estado: true,  fotoPreview: null, fechaCreacion: "12/12/2025" },
   { id: uid(), tipoDoc: "CC", numDoc: "80456789",   nombre: "Carlos", apellidos: "Pérez Ruiz",     correo: "carlos.perez@email.com", telefono: "310 987 6543", direccion: "Carrera 15 # 8-30",  departamento: "Cundinamarca", municipio: "Bogotá",      estado: true,  fotoPreview: null, fechaCreacion: "15/01/2026" },
@@ -155,13 +160,9 @@ const initClientes = [
   { id: uid(), tipoDoc: "TI", numDoc: "1234567890", nombre: "María",  apellidos: "López Castillo", correo: "maria.lc@email.com",     telefono: "317 654 3210", direccion: "Diagonal 30 # 12-5", departamento: "Santander",    municipio: "Bucaramanga", estado: true,  fotoPreview: null, fechaCreacion: "28/02/2026" },
 ];
 
-/* ── Pedidos ──────────────────────────────────────────── */
-
 const initPedidos = [
   {
-    id: 1,
-    numero: "PED-001",
-    idCliente: null,
+    id: 1, numero: "PED-001", idCliente: null,
     cliente: { nombre: "Jorge Torres Suárez",  correo: "jorge.torres@email.com", telefono: "320 321 0987" },
     productosItems: [
       { idProducto: 1, nombre: "Muffin de plátano",     precio: 10000, cantidad: 3, stockActual: 50, stockOk: true },
@@ -173,13 +174,11 @@ const initPedidos = [
     orden_produccion: false, fecha_pedido: "2026-03-18",
   },
   {
-    id: 2,
-    numero: "PED-002",
-    idCliente: null,
+    id: 2, numero: "PED-002", idCliente: null,
     cliente: { nombre: "María López Castillo", correo: "maria.lc@email.com", telefono: "317 654 3210" },
     productosItems: [
-      { idProducto: 2, nombre: "Palito de queso",        precio: 5000,  cantidad: 4, stockActual: 20, stockOk: true  },
-      { idProducto: 4, nombre: "Harina de plátano 500g", precio: 12000, cantidad: 1, stockActual: 80, stockOk: true  },
+      { idProducto: 2, nombre: "Palito de queso",        precio: 5000,  cantidad: 4, stockActual: 20, stockOk: true },
+      { idProducto: 4, nombre: "Harina de plátano 500g", precio: 12000, cantidad: 1, stockActual: 80, stockOk: true },
     ],
     subtotal: 32000, descuento: 0, total: 32000,
     metodo_pago: "Transferencia", domicilio: true,
@@ -188,9 +187,7 @@ const initPedidos = [
     estado: "En producción", orden_produccion: true, fecha_pedido: "2026-03-19",
   },
   {
-    id: 3,
-    numero: "PED-003",
-    idCliente: null,
+    id: 3, numero: "PED-003", idCliente: null,
     cliente: { nombre: "Jorge Torres Suárez", correo: "jorge.torres@email.com", telefono: "320 321 0987" },
     productosItems: [
       { idProducto: 5, nombre: "Tostones orgánicos", precio: 7500, cantidad: 2, stockActual: 15, stockOk: true },
@@ -203,81 +200,36 @@ const initPedidos = [
   },
 ];
 
-/* ── Órdenes de producción ───────────────────────────── */
-
 const initOrdenes = [
   {
-    id: "OP-001",
-    idPedido: 2,
-    numeroPedido: "PED-002",
-    productos: [
-      { idProducto: 2, nombre: "Palito de queso", cantidad: 4, precio: 5000 },
-    ],
+    id: "OP-001", idPedido: 2, numeroPedido: "PED-002",
+    productos: [{ idProducto: 2, nombre: "Palito de queso", cantidad: 4, precio: 5000 }],
     insumos: [
       { idInsumo: 1, nombre: "Plátano verde",  cantidad: 2,   unidad: "kg", stockOk: true  },
       { idInsumo: 5, nombre: "Queso",          cantidad: 1,   unidad: "kg", stockOk: true  },
       { idInsumo: 8, nombre: "Aceite vegetal", cantidad: 0.5, unidad: "l",  stockOk: true  },
       { idInsumo: 7, nombre: "Sal",            cantidad: 0.1, unidad: "kg", stockOk: false },
     ],
-    idEmpleado:   2,
-    estado:       "En proceso",
-    fechaInicio:  "2026-03-19",
-    fechaEntrega: "2026-03-22",
-    fechaCierre:  null,
-    costo:        18500,
-    notas:        "Sin sal extra por favor",
+    idEmpleado: 2, estado: "En proceso",
+    fechaInicio: "2026-03-19", fechaEntrega: "2026-03-22", fechaCierre: null,
+    costo: 18500, notas: "Sin sal extra por favor",
   },
 ];
-
-/* ── Devoluciones ────────────────────────────────────── */
 
 const initDevoluciones = [
   {
-    id: "DEV-001",
-    numero: "DEV-001",
-    idPedido: 2,
-    numeroPedido: "PED-002",
-    idCliente: null,
+    id: "DEV-001", numero: "DEV-001", idPedido: 2, numeroPedido: "PED-002", idCliente: null,
     cliente: { nombre: "María López Castillo", correo: "maria.lc@email.com", telefono: "317 654 3210" },
-    motivo: "Producto en mal estado",
-    comentario: "El palito de queso llegó con moho.",
-    productos: [
-      { idProducto: 2, nombre: "Palito de queso", cantidad: 2, precioUnitario: 5000, subtotal: 10000 },
-    ],
-    totalDevuelto:   10000,
-    estado:          "Pendiente",
-    fechaSolicitud:  "2026-03-20",
-    fechaAprobacion: null,
-    fechaReembolso:  null,
-    motivoRechazo:   null,
+    motivo: "Producto en mal estado", comentario: "El palito de queso llegó con moho.",
+    productos: [{ idProducto: 2, nombre: "Palito de queso", cantidad: 2, precioUnitario: 5000, subtotal: 10000 }],
+    totalDevuelto: 10000, estado: "Pendiente",
+    fechaSolicitud: "2026-03-20", fechaAprobacion: null, fechaReembolso: null, motivoRechazo: null,
   },
 ];
 
-/* ── Descuentos ──────────────────────────────────────── */
-
 const initDescuentos = [
-  {
-    id:          "DESC-001",
-    nombre:      "Bienvenida 10%",
-    codigo:      "BIENVENIDA",
-    porcentaje:  10,
-    descripcion: "Para clientes nuevos en su primer pedido",
-    fechaInicio: "2026-01-01",
-    fechaFin:    "2026-12-31",
-    limiteUsos:  100,
-    activo:      true,
-  },
-  {
-    id:          "DESC-002",
-    nombre:      "Promo marzo",
-    codigo:      "MARZO20",
-    porcentaje:  20,
-    descripcion: "Descuento especial mes de marzo",
-    fechaInicio: "2026-03-01",
-    fechaFin:    "2026-03-31",
-    limiteUsos:  50,
-    activo:      true,
-  },
+  { id: "DESC-001", nombre: "Bienvenida 10%", codigo: "BIENVENIDA", porcentaje: 10, descripcion: "Para clientes nuevos en su primer pedido", fechaInicio: "2026-01-01", fechaFin: "2026-12-31", limiteUsos: 100, activo: true },
+  { id: "DESC-002", nombre: "Promo marzo",    codigo: "MARZO20",    porcentaje: 20, descripcion: "Descuento especial mes de marzo",         fechaInicio: "2026-03-01", fechaFin: "2026-03-31", limiteUsos: 50,  activo: true },
 ];
 
 const initAsignacionesDescuento = {};
@@ -291,35 +243,33 @@ const initCreditosClientes      = {};
 export const calcularTotal = (detalles) =>
   detalles.reduce((acc, d) => acc + (Number(d.cantidad) || 0) * (Number(d.precioUnd) || 0), 0);
 
-const nextCompraId = (compras) => {
-  const nums = compras.map(c => parseInt(c.id.replace("C-", "")) || 0);
-  return `C-${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`;
+const UNIDAD_CONVERSION = {
+  kg: { to: "g",  factor: 1000 }, g:  { to: "kg", factor: 0.001 },
+  l:  { to: "ml", factor: 1000 }, ml: { to: "l",  factor: 0.001 },
 };
 
-const nextLoteId = (lotesArr) => {
-  const nums = lotesArr.map(l => parseInt(l.id.replace("LC-", "")) || 0);
-  return `LC-${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`;
+export const convertirUnidad = (cantidad, simboloUnidad) => {
+  const valor = Number(cantidad);
+  if (!simboloUnidad || Number.isNaN(valor)) return null;
+  const cfg = UNIDAD_CONVERSION[simboloUnidad];
+  if (!cfg) return null;
+  const convertido = valor * cfg.factor;
+  return { from: `${valor} ${simboloUnidad}`, to: `${Number.isInteger(convertido) ? convertido : convertido.toFixed(3)} ${cfg.to}` };
 };
 
-const nextPedidoNumero = (pedidos) => {
-  const nums = pedidos.map(p => parseInt(p.numero.replace("PED-", "")) || 0);
-  return `PED-${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`;
+export const getVencimientoMasAntiguo = (detalles = []) => {
+  const fechas = detalles.map(d => d.fechaVencimiento).filter(Boolean).map(f => new Date(`${f}T00:00:00`)).filter(d => !Number.isNaN(d.getTime()));
+  if (!fechas.length) return null;
+  const minFecha = new Date(Math.min(...fechas.map(d => d.getTime())));
+  return `${minFecha.getFullYear()}-${String(minFecha.getMonth() + 1).padStart(2, "0")}-${String(minFecha.getDate()).padStart(2, "0")}`;
 };
 
-const nextOrdenId = (ordenes) => {
-  const nums = ordenes.map(o => parseInt(o.id.replace("OP-", "")) || 0);
-  return `OP-${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`;
-};
-
-const nextDevolucionNumero = (devoluciones) => {
-  const nums = devoluciones.map(d => parseInt(d.numero.replace("DEV-", "")) || 0);
-  return `DEV-${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`;
-};
-
-const nextDescuentoId = (arr) => {
-  const nums = arr.map(d => parseInt(d.id.replace("DESC-", "")) || 0);
-  return `DESC-${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`;
-};
+const nextCompraId       = (arr) => { const nums = arr.map(c => parseInt(c.id.replace("C-", "")) || 0);    return `C-${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`; };
+const nextLoteId         = (arr) => { const nums = arr.map(l => parseInt(l.id.replace("LC-", "")) || 0);   return `LC-${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`; };
+const nextPedidoNumero   = (arr) => { const nums = arr.map(p => parseInt(p.numero.replace("PED-", "")) || 0); return `PED-${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`; };
+const nextOrdenId        = (arr) => { const nums = arr.map(o => parseInt(o.id.replace("OP-", "")) || 0);   return `OP-${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`; };
+const nextDevolucionNum  = (arr) => { const nums = arr.map(d => parseInt(d.numero.replace("DEV-", "")) || 0); return `DEV-${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`; };
+const nextDescuentoId    = (arr) => { const nums = arr.map(d => parseInt(d.id.replace("DESC-", "")) || 0); return `DESC-${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`; };
 
 /* ══════════════════════════════════════════════════════════
    CONTEXT
@@ -328,23 +278,22 @@ const nextDescuentoId = (arr) => {
 const AppContext = createContext(null);
 
 const loadFromLS = (key, defaultValue) => {
-  try {
-    const stored = localStorage.getItem(key);
-    return stored ? JSON.parse(stored) : defaultValue;
-  } catch {
-    return defaultValue;
-  }
+  try { const stored = localStorage.getItem(key); return stored ? JSON.parse(stored) : defaultValue; }
+  catch { return defaultValue; }
 };
 
 export function AppProvider({ children }) {
 
-  /* ── Estado con persistencia ────────────────────────── */
-
+  /* ── Estado ─────────────────────────────────────────── */
   const [categoriasProductos, setCategoriasProductos] = useState(() => loadFromLS("categoriasProductos", initCategoriasProductos));
   const [categoriasInsumos,   setCategoriasInsumos]   = useState(() => loadFromLS("categoriasInsumos",   initCategoriasInsumos));
   const [insumos,             setInsumos]             = useState(() => loadFromLS("insumos",             initInsumos));
   const [lotes,               setLotes]               = useState(() => loadFromLS("lotes",               initLotes));
+  const [salidas,             setSalidas]             = useState(() => loadFromLS("salidas",             initSalidas));
   const [productos,           setProductos]           = useState(() => loadFromLS("productos",           initProductos));
+  // ── NUEVO: lotes y salidas de productos ──
+  const [lotesProductos,      setLotesProductos]      = useState(() => loadFromLS("lotesProductos",      initLotesProductos));
+  const [salidasProductos,    setSalidasProductos]    = useState(() => loadFromLS("salidasProductos",    initSalidasProductos));
   const [roles,               setRoles]               = useState(() => loadFromLS("roles",               initRolesData));
   const [usuarios,            setUsuarios]            = useState(() => loadFromLS("usuarios",            initUsuariosData));
   const [proveedores,         setProveedores]         = useState(() => loadFromLS("proveedores",         initProveedores));
@@ -359,12 +308,14 @@ export function AppProvider({ children }) {
   const [historialDescuentos, setHistorialDescuentos] = useState(() => loadFromLS("historialDescuentos", initHistorialDescuentos));
 
   /* ── Persistencia ───────────────────────────────────── */
-
   useEffect(() => { localStorage.setItem("categoriasProductos", JSON.stringify(categoriasProductos)); }, [categoriasProductos]);
   useEffect(() => { localStorage.setItem("categoriasInsumos",   JSON.stringify(categoriasInsumos)); },   [categoriasInsumos]);
   useEffect(() => { localStorage.setItem("insumos",             JSON.stringify(insumos)); },             [insumos]);
   useEffect(() => { localStorage.setItem("lotes",               JSON.stringify(lotes)); },               [lotes]);
+  useEffect(() => { localStorage.setItem("salidas",             JSON.stringify(salidas)); },             [salidas]);
   useEffect(() => { localStorage.setItem("productos",           JSON.stringify(productos)); },           [productos]);
+  useEffect(() => { localStorage.setItem("lotesProductos",      JSON.stringify(lotesProductos)); },      [lotesProductos]);
+  useEffect(() => { localStorage.setItem("salidasProductos",    JSON.stringify(salidasProductos)); },    [salidasProductos]);
   useEffect(() => { localStorage.setItem("roles",               JSON.stringify(roles)); },               [roles]);
   useEffect(() => { localStorage.setItem("usuarios",            JSON.stringify(usuarios)); },            [usuarios]);
   useEffect(() => { localStorage.setItem("proveedores",         JSON.stringify(proveedores)); },         [proveedores]);
@@ -379,7 +330,6 @@ export function AppProvider({ children }) {
   useEffect(() => { localStorage.setItem("historialDescuentos", JSON.stringify(historialDescuentos)); }, [historialDescuentos]);
 
   /* ── Derivados ──────────────────────────────────────── */
-
   const categoriasProductosActivas = categoriasProductos.filter(c => c.estado);
   const categoriasInsumosActivas   = categoriasInsumos.filter(c => c.estado);
   const insumosActivos             = insumos.filter(i => i.estado);
@@ -390,37 +340,143 @@ export function AppProvider({ children }) {
     acc[cat.id] = insumos.filter(i => i.idCategoria === cat.id && i.estado).map(i => i.nombre);
     return acc;
   }, {});
-
   const insumosPorCategoriaNombre = categoriasInsumos.reduce((acc, cat) => {
     acc[cat.nombre] = insumos.filter(i => i.idCategoria === cat.id && i.estado).map(i => i.nombre);
     return acc;
   }, {});
-
   const usuariosPorRol = roles.reduce((acc, r) => {
     acc[r.nombre] = usuarios.filter(u => u.rol === r.nombre).length;
     return acc;
   }, {});
 
-  /* ── Helpers de lotes ───────────────────────────────── */
-
+  /* ── Helpers lotes INSUMOS ──────────────────────────── */
   const getLotesDeInsumo = (idInsumo) =>
-    lotes
-      .filter(l => l.idInsumo === Number(idInsumo))
+    lotes.filter(l => l.idInsumo === Number(idInsumo)).sort((a, b) => new Date(a.fechaVencimiento) - new Date(b.fechaVencimiento));
+
+  const getLotesVencidos = (idInsumo) => {
+    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+    return lotes.filter(l => l.idInsumo === Number(idInsumo) && new Date(l.fechaVencimiento + "T00:00:00") < hoy)
       .sort((a, b) => new Date(a.fechaVencimiento) - new Date(b.fechaVencimiento));
+  };
 
   const getStockRealInsumo = (idInsumo) => {
     const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
-    return lotes
-      .filter(l =>
-        l.idInsumo === Number(idInsumo) &&
-        l.cantidadActual > 0 &&
-        new Date(l.fechaVencimiento + "T00:00:00") >= hoy
-      )
+    return lotes.filter(l => l.idInsumo === Number(idInsumo) && l.cantidadActual > 0 && new Date(l.fechaVencimiento + "T00:00:00") >= hoy)
       .reduce((acc, l) => acc + l.cantidadActual, 0);
   };
 
-  /* ── Lookups ────────────────────────────────────────── */
+  /* ── Helpers lotes PRODUCTOS ────────────────────────── */
+  const getLotesProducto = (idProducto) =>
+    (lotesProductos[idProducto] || []).sort((a, b) => {
+      if (!a.fechaVencimiento) return 1;
+      if (!b.fechaVencimiento) return -1;
+      return a.fechaVencimiento.localeCompare(b.fechaVencimiento);
+    });
 
+  const getLotesVencidosProducto = (idProducto) => {
+    const hoy = fechaHoy();
+    return (lotesProductos[idProducto] || []).filter(l => l.fechaVencimiento && l.fechaVencimiento < hoy);
+  };
+
+  const agregarLoteProducto = (idProducto, lote) => {
+    setLotesProductos(prev => ({
+      ...prev,
+      [idProducto]: [...(prev[idProducto] || []), lote],
+    }));
+    // También sube el stock del producto
+    setProductos(prev => prev.map(p => {
+      if (p.id !== idProducto) return p;
+      const nuevoStock = p.stock + lote.cantidadActual;
+      const minimo     = p.stockMinimo ?? 10;
+      return { ...p, stock: nuevoStock, estado: nuevoStock > 0 && nuevoStock >= minimo ? "Disponible" : "No disponible" };
+    }));
+  };
+
+  /* ── Salidas PRODUCTOS ──────────────────────────────── */
+  const getSalidasProducto = (idProducto) =>
+    (salidasProductos[idProducto] || []);
+
+  const registrarSalidaProducto = ({ id: idProducto, tipo, cantidad, motivo, fecha }) => {
+    const producto = productos.find(p => p.id === idProducto);
+    if (!producto)               return { ok: false, razon: "Producto no encontrado" };
+    if (cantidad > producto.stock) return { ok: false, razon: `Stock insuficiente. Disponible: ${producto.stock} uds.` };
+
+    // 1. Descontar stock del producto
+    setProductos(prev => prev.map(p => {
+      if (p.id !== idProducto) return p;
+      const nuevoStock = Math.max(0, p.stock - cantidad);
+      const minimo     = p.stockMinimo ?? 10;
+      return { ...p, stock: nuevoStock, estado: nuevoStock > 0 && nuevoStock >= minimo ? "Disponible" : "No disponible" };
+    }));
+
+    // 2. Descontar de lotes de producto (FEFO: primero el más próximo a vencer)
+    setLotesProductos(prev => {
+      const lotesActuales = [...(prev[idProducto] || [])].sort((a, b) => {
+        if (!a.fechaVencimiento) return 1;
+        if (!b.fechaVencimiento) return -1;
+        return a.fechaVencimiento.localeCompare(b.fechaVencimiento);
+      });
+      let restante = cantidad;
+      const actualizados = lotesActuales.map(lote => {
+        if (restante <= 0) return lote;
+        const descontar = Math.min(lote.cantidadActual, restante);
+        restante -= descontar;
+        return { ...lote, cantidadActual: lote.cantidadActual - descontar };
+      });
+      return { ...prev, [idProducto]: actualizados };
+    });
+
+    // 3. Registrar la salida en historial
+    const nuevaSalida = {
+      id:       `SP-${Date.now()}`,
+      tipo:     tipo || "ajuste",
+      cantidad,
+      motivo:   motivo || tipo || "Salida manual",
+      fecha:    fecha  || new Date().toLocaleDateString("es-CO"),
+    };
+    setSalidasProductos(prev => ({
+      ...prev,
+      [idProducto]: [nuevaSalida, ...(prev[idProducto] || [])],
+    }));
+
+    return { ok: true };
+  };
+
+  /* ── Salidas INSUMOS ────────────────────────────────── */
+  const getSalidasInsumo = (idInsumo) =>
+    salidas.filter(s => s.idInsumo === Number(idInsumo)).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
+  const registrarSalidaInsumo = ({ idInsumo, tipo, cantidad, motivo, usuario = "sistema", fecha = fechaHoy() }) => {
+    const cantidadNum = Number(cantidad);
+    if (!idInsumo || !cantidadNum || cantidadNum <= 0) return { ok: false, razon: "Cantidad inválida" };
+
+    let insumo = null;
+    setInsumos(prev => prev.map(i => {
+      if (i.id !== Number(idInsumo)) return i;
+      insumo = i;
+      return { ...i, stockActual: Math.max(0, i.stockActual - cantidadNum) };
+    }));
+
+    if (!insumo) return { ok: false, razon: "Insumo no encontrado" };
+
+    const result = descontarStockFIFO(idInsumo, cantidadNum);
+
+    const salida = {
+      id:       `S-${String(salidas.length + 1).padStart(3, "0")}`,
+      idInsumo: Number(idInsumo),
+      tipo:     tipo    || "ajuste",
+      cantidad: cantidadNum,
+      motivo:   motivo  || "Salida manual",
+      fecha,
+      usuario,
+      origen:   result.ok ? "ok" : "parcial",
+      faltante: result.ok ? 0 : result.faltante,
+    };
+    setSalidas(prev => [salida, ...prev]);
+    return { ok: result.ok, falta: result.faltante };
+  };
+
+  /* ── Lookups ────────────────────────────────────────── */
   const getCatProducto = id     => categoriasProductos.find(c => c.id === id) || { nombre: "—", icon: "📦" };
   const getCatInsumo   = id     => categoriasInsumos.find(c => c.id === id)   || { nombre: "—", icon: "📦" };
   const getUnidad      = id     => UNIDADES_MEDIDA.find(u => u.id === id)     || { simbolo: "—", nombre: "—" };
@@ -430,19 +486,16 @@ export function AppProvider({ children }) {
   const getCliente     = id     => clientes.find(c => c.id === id)            || null;
 
   /* ── Validaciones ───────────────────────────────────── */
-
   const canDeleteCatProducto = (catId) => {
     const enUso = productos.filter(p => p.idCategoria === catId);
     if (!enUso.length) return { ok: true };
     return { ok: false, razon: `Tiene ${enUso.length} producto${enUso.length > 1 ? "s" : ""} asociado${enUso.length > 1 ? "s" : ""}. Elimínalos o cámbiales la categoría primero.` };
   };
-
   const canDeleteCatInsumo = (catId) => {
     const enUso = insumos.filter(i => i.idCategoria === catId);
     if (!enUso.length) return { ok: true };
     return { ok: false, razon: `Tiene ${enUso.length} insumo${enUso.length > 1 ? "s" : ""} registrado${enUso.length > 1 ? "s" : ""}. Elimínalos o cámbiales la categoría primero.` };
   };
-
   const canDeleteInsumo = (insumoId) => {
     const ins = insumos.find(i => i.id === insumoId);
     if (!ins) return { ok: true };
@@ -450,7 +503,6 @@ export function AppProvider({ children }) {
     if (!fichasAfectadas.length) return { ok: true };
     return { ok: false, razon: `"${ins.nombre}" está en ${fichasAfectadas.length} ficha${fichasAfectadas.length > 1 ? "s" : ""} técnica${fichasAfectadas.length > 1 ? "s" : ""}. Retíralo de esas fichas primero.` };
   };
-
   const canDeleteProducto = (productoId) => {
     const enPedidosActivos = pedidos.filter(ped =>
       !["Entregado", "Cancelado"].includes(ped.estado) &&
@@ -462,7 +514,6 @@ export function AppProvider({ children }) {
     if (p?.ficha) return { ok: true, advertencia: "Este producto tiene una ficha técnica que también se eliminará." };
     return { ok: true };
   };
-
   const canDeleteRol = (rolId) => {
     const rol = roles.find(r => r.id === rolId);
     if (!rol) return { ok: true };
@@ -471,37 +522,28 @@ export function AppProvider({ children }) {
     if (asignados.length) return { ok: false, razon: `El rol "${rol.nombre}" tiene ${asignados.length} usuario${asignados.length > 1 ? "s" : ""} asignado${asignados.length > 1 ? "s" : ""}. Reasígnalos primero.` };
     return { ok: true };
   };
-
-  const canDeleteUsuario = (usuarioId) => {
+  const canDeleteUsuario  = (usuarioId) => {
     const user = usuarios.find(u => u.id === usuarioId);
     if (!user) return { ok: true };
     if (user.esAdmin) return { ok: false, razon: `El usuario "${user.nombre} ${user.apellidos}" es administrador principal.` };
     return { ok: true };
   };
-
-  const canDeleteCliente = (clienteId) => {
-    const enPedidos = pedidos.filter(p =>
-      p.idCliente === clienteId &&
-      !["Entregado", "Cancelado"].includes(p.estado)
-    );
-    if (enPedidos.length)
-      return { ok: false, razon: `Este cliente tiene ${enPedidos.length} pedido${enPedidos.length > 1 ? "s" : ""} activo${enPedidos.length > 1 ? "s" : ""}. Finalízalos primero.` };
+  const canDeleteCliente  = (clienteId) => {
+    const enPedidos = pedidos.filter(p => p.idCliente === clienteId && !["Entregado", "Cancelado"].includes(p.estado));
+    if (enPedidos.length) return { ok: false, razon: `Este cliente tiene ${enPedidos.length} pedido${enPedidos.length > 1 ? "s" : ""} activo${enPedidos.length > 1 ? "s" : ""}. Finalízalos primero.` };
     return { ok: true };
   };
-
   const canDeleteProveedor = (proveedorId) => {
     const qty = compras.filter(c => c.idProveedor === proveedorId).length;
     if (!qty) return { ok: true };
     return { ok: false, razon: `Este proveedor tiene ${qty} compra${qty > 1 ? "s" : ""} registrada${qty > 1 ? "s" : ""}. Elimínalas primero.` };
   };
-
   const canDeleteCompra = (compraId) => {
     const c = compras.find(x => x.id === compraId);
     if (!c) return { ok: true };
     if (c.stockAplicado) return { ok: false, razon: "No se puede eliminar una compra completada. Sus lotes ya fueron aplicados al inventario." };
     return { ok: true };
   };
-
   const canDeletePedido = (pedidoId) => {
     const ped = pedidos.find(p => p.id === pedidoId);
     if (!ped) return { ok: true };
@@ -509,113 +551,86 @@ export function AppProvider({ children }) {
     return { ok: true };
   };
 
-  /* ── CRUD — categorías productos ────────────────────── */
-
+  /* ── CRUD categorías ────────────────────────────────── */
   const crearCatProducto    = f  => setCategoriasProductos(p => [{ ...f, id: Date.now() }, ...p]);
   const editarCatProducto   = f  => setCategoriasProductos(p => p.map(c => c.id === f.id ? f : c));
   const toggleCatProducto   = id => setCategoriasProductos(p => p.map(c => c.id === id ? { ...c, estado: !c.estado } : c));
   const eliminarCatProducto = id => setCategoriasProductos(p => p.filter(c => c.id !== id));
-
-  /* ── CRUD — categorías insumos ──────────────────────── */
-
   const crearCatInsumo    = f  => setCategoriasInsumos(p => [{ ...f, id: Date.now() }, ...p]);
   const editarCatInsumo   = f  => setCategoriasInsumos(p => p.map(c => c.id === f.id ? f : c));
   const toggleCatInsumo   = id => setCategoriasInsumos(p => p.map(c => c.id === id ? { ...c, estado: !c.estado } : c));
   const eliminarCatInsumo = id => setCategoriasInsumos(p => p.filter(c => c.id !== id));
 
-  /* ── CRUD — insumos ─────────────────────────────────── */
-
+  /* ── CRUD insumos ───────────────────────────────────── */
   const crearInsumo    = f  => setInsumos(p => [{ ...f, id: Date.now() }, ...p]);
   const editarInsumo   = f  => setInsumos(p => p.map(i => i.id === f.id ? f : i));
   const toggleInsumo   = id => setInsumos(p => p.map(i => i.id === id ? { ...i, estado: !i.estado } : i));
   const eliminarInsumo = id => setInsumos(p => p.filter(i => i.id !== id));
 
-  /* ── CRUD — productos ───────────────────────────────── */
-
+  /* ── CRUD productos ─────────────────────────────────── */
   const crearProducto    = f            => setProductos(p => [{ ...f, id: Date.now() }, ...p]);
   const editarProducto   = f            => setProductos(p => p.map(x => x.id === f.id ? f : x));
   const eliminarProducto = id           => setProductos(p => p.filter(x => x.id !== id));
   const guardarFicha     = (pId, ficha) => setProductos(p => p.map(x => x.id === pId ? { ...x, ficha } : x));
 
-  /* ── CRUD — roles ───────────────────────────────────── */
-
+  /* ── CRUD roles ─────────────────────────────────────── */
   const crearRol  = (form) => setRoles(p => [{ ...form, id: Date.now(), fecha: new Date().toLocaleDateString("es-CO"), esAdmin: false }, ...p]);
   const editarRol = (form) => setRoles(p => p.map(r => r.id === form.id ? { ...r, ...form } : r));
   const toggleRol = (id) => {
-    const rol = roles.find(r => r.id === id);
-    if (!rol) return;
+    const rol = roles.find(r => r.id === id); if (!rol) return;
     const nuevoEstado = !rol.estado;
     setRoles(p => p.map(r => r.id === id ? { ...r, estado: nuevoEstado } : r));
     if (!nuevoEstado) setUsuarios(p => p.map(u => u.rol === rol.nombre && !u.esAdmin ? { ...u, estado: false } : u));
   };
   const eliminarRol = (id) => {
-    const check = canDeleteRol(id);
-    if (!check.ok) return check;
-    setRoles(p => p.filter(r => r.id !== id));
-    return { ok: true };
+    const check = canDeleteRol(id); if (!check.ok) return check;
+    setRoles(p => p.filter(r => r.id !== id)); return { ok: true };
   };
 
-  /* ── CRUD — usuarios ────────────────────────────────── */
-
+  /* ── CRUD usuarios ──────────────────────────────────── */
   const crearUsuario  = (form) => setUsuarios(p => [{ ...form, id: Date.now(), fechaCreacion: new Date().toLocaleDateString("es-CO"), esAdmin: false }, ...p]);
   const editarUsuario = (form) => setUsuarios(p => p.map(u => u.id === form.id ? { ...u, ...form } : u));
   const toggleUsuario = (id) => {
-    const user = usuarios.find(u => u.id === id);
-    if (!user) return;
+    const user = usuarios.find(u => u.id === id); if (!user) return;
     const rolObj = roles.find(r => r.nombre === user.rol);
     if (!user.estado && rolObj && !rolObj.estado) return;
     setUsuarios(p => p.map(u => u.id === id ? { ...u, estado: !u.estado } : u));
   };
   const eliminarUsuario = (id) => {
-    const check = canDeleteUsuario(id);
-    if (!check.ok) return check;
-    setUsuarios(p => p.filter(u => u.id !== id));
-    return { ok: true };
+    const check = canDeleteUsuario(id); if (!check.ok) return check;
+    setUsuarios(p => p.filter(u => u.id !== id)); return { ok: true };
   };
 
-  /* ── CRUD — clientes ────────────────────────────────── */
-
+  /* ── CRUD clientes ──────────────────────────────────── */
   const crearCliente = (form) => {
     const nuevo = { ...form, id: uid(), fechaCreacion: form.fechaCreacion || new Date().toLocaleDateString("es-CO") };
-    setClientes(p => [nuevo, ...p]);
-    return nuevo.id;
+    setClientes(p => [nuevo, ...p]); return nuevo.id;
   };
   const editarCliente  = (form) => setClientes(p => p.map(c => c.id === form.id ? { ...form } : c));
   const toggleCliente  = (id)   => setClientes(p => p.map(c => c.id === id ? { ...c, estado: !c.estado } : c));
   const eliminarCliente = (id)  => {
-    const check = canDeleteCliente(id);
-    if (!check.ok) return check;
-    setClientes(p => p.filter(c => c.id !== id));
-    return { ok: true };
+    const check = canDeleteCliente(id); if (!check.ok) return check;
+    setClientes(p => p.filter(c => c.id !== id)); return { ok: true };
   };
 
-  /* ── CRUD — proveedores ─────────────────────────────── */
-
+  /* ── CRUD proveedores ───────────────────────────────── */
   const crearProveedor    = (form) => setProveedores(p => [{ ...form, id: `PROV${String(Date.now()).slice(-4)}` }, ...p]);
   const editarProveedor   = (form) => setProveedores(p => p.map(x => x.id === form.id ? form : x));
   const eliminarProveedor = (id)   => {
-    const check = canDeleteProveedor(id);
-    if (!check.ok) return check;
-    setProveedores(p => p.filter(x => x.id !== id));
-    return { ok: true };
+    const check = canDeleteProveedor(id); if (!check.ok) return check;
+    setProveedores(p => p.filter(x => x.id !== id)); return { ok: true };
   };
 
-  /* ── CRUD — compras + lotes ─────────────────────────── */
-
+  /* ── CRUD compras + lotes ───────────────────────────── */
   const _buildLotes = (compraId, detalles, lotesActuales) => {
     const nuevos = []; let ref = [...lotesActuales];
     detalles.forEach(d => {
       const id   = nextLoteId([...ref, ...nuevos]);
-      const lote = {
-        id, idInsumo: Number(d.idInsumo), idCompra: compraId, idDetalleRef: d.id,
-        cantidadInicial: Number(d.cantidad), cantidadActual: Number(d.cantidad),
-        fechaVencimiento: d.fechaVencimiento, fechaIngreso: fechaHoy(),
-      };
+      const lote = { id, idInsumo: Number(d.idInsumo), idCompra: compraId, idDetalleRef: d.id, cantidadInicial: Number(d.cantidad), cantidadActual: Number(d.cantidad), fechaVencimiento: d.fechaVencimiento, fechaIngreso: fechaHoy() };
       nuevos.push(lote); ref.push(lote);
     });
     return nuevos;
   };
-
   const _subirStock = (detalles) => {
     setInsumos(prev => prev.map(ins => {
       const suma = detalles.filter(d => Number(d.idInsumo) === ins.id).reduce((acc, d) => acc + Number(d.cantidad), 0);
@@ -632,7 +647,6 @@ export function AppProvider({ children }) {
     if (stockAplicado) { setLotes(prev => [...prev, ..._buildLotes(id, detalles, prev)]); _subirStock(detalles); }
     return id;
   };
-
   const editarCompra = (form) => {
     setCompras(p => p.map(c => {
       if (c.id !== form.id) return c;
@@ -646,18 +660,13 @@ export function AppProvider({ children }) {
       return { ...form, stockAplicado: false };
     }));
   };
-
   const eliminarCompra = (id) => {
-    const check = canDeleteCompra(id);
-    if (!check.ok) return check;
-    setCompras(p => p.filter(c => c.id !== id));
-    return { ok: true };
+    const check = canDeleteCompra(id); if (!check.ok) return check;
+    setCompras(p => p.filter(c => c.id !== id)); return { ok: true };
   };
 
   const descontarStockFIFO = (idInsumo, cantidadNecesaria) => {
-    const lotesDisp = lotes
-      .filter(l => l.idInsumo === Number(idInsumo) && l.cantidadActual > 0)
-      .sort((a, b) => new Date(a.fechaVencimiento) - new Date(b.fechaVencimiento));
+    const lotesDisp = lotes.filter(l => l.idInsumo === Number(idInsumo) && l.cantidadActual > 0).sort((a, b) => new Date(a.fechaVencimiento) - new Date(b.fechaVencimiento));
     let restante = cantidadNecesaria; const cambios = [];
     for (const lote of lotesDisp) {
       if (restante <= 0) break;
@@ -666,84 +675,44 @@ export function AppProvider({ children }) {
       restante -= descontar;
     }
     if (restante > 0) return { ok: false, faltante: restante };
-    setLotes(prev => prev.map(l => { const cambio = cambios.find(c => c.id === l.id); return cambio ? { ...l, cantidadActual: cambio.nueva } : l; }));
+    setLotes(prev => prev.map(l => { const c = cambios.find(x => x.id === l.id); return c ? { ...l, cantidadActual: c.nueva } : l; }));
     setInsumos(prev => prev.map(ins => ins.id === Number(idInsumo) ? { ...ins, stockActual: Math.max(0, ins.stockActual - cantidadNecesaria) } : ins));
     return { ok: true, faltante: 0 };
   };
 
-  /* ── Helper interno: construir orden desde pedido ───── */
-
+  /* ── CRUD pedidos ───────────────────────────────────── */
   const _buildOrden = (pedido, { fechaEntrega, notas }, prevOrdenes, productosActuales, insumosActuales) => {
-    const id = nextOrdenId(prevOrdenes);
+    const id      = nextOrdenId(prevOrdenes);
     const sinStock = (pedido.productosItems || []).filter(p => !p.stockOk);
-
     const insumosMap = {};
     sinStock.forEach(item => {
-      const prod  = productosActuales.find(p => p.id === item.idProducto);
-      const ficha = prod?.ficha;
-      if (!ficha?.insumos?.length) return;
-      ficha.insumos.forEach(fi => {
+      const prod = productosActuales.find(p => p.id === item.idProducto);
+      if (!prod?.ficha?.insumos?.length) return;
+      prod.ficha.insumos.forEach(fi => {
         const ins = insumosActuales.find(i => i.nombre === fi.nombre || i.id === fi.idInsumo);
         if (!ins) return;
         const cantItem = (Number(fi.cantidad) || 0) * item.cantidad;
-        if (insumosMap[ins.id]) {
-          insumosMap[ins.id].cantidad += cantItem;
-        } else {
-          insumosMap[ins.id] = {
-            idInsumo: ins.id, nombre: ins.nombre, cantidad: cantItem,
-            unidad: UNIDADES_MEDIDA.find(u => u.id === ins.idUnidad)?.simbolo || "und",
-            stockOk: false,
-          };
-        }
+        if (insumosMap[ins.id]) insumosMap[ins.id].cantidad += cantItem;
+        else insumosMap[ins.id] = { idInsumo: ins.id, nombre: ins.nombre, cantidad: cantItem, unidad: UNIDADES_MEDIDA.find(u => u.id === ins.idUnidad)?.simbolo || "und", stockOk: false };
       });
     });
-
-    Object.values(insumosMap).forEach(ins => {
-      const insumoReal = insumosActuales.find(i => i.id === ins.idInsumo);
-      ins.stockOk = (insumoReal?.stockActual || 0) >= ins.cantidad;
-    });
-
-    return {
-      id,
-      idPedido:     pedido.id,
-      numeroPedido: pedido.numero,
-      productos:    sinStock.map(p => ({ idProducto: p.idProducto, nombre: p.nombre, cantidad: p.cantidad, precio: p.precio })),
-      insumos:      Object.values(insumosMap),
-      idEmpleado:   null,
-      estado:       "Pendiente",
-      fechaInicio:  fechaHoy(),
-      fechaEntrega: fechaEntrega || null,
-      fechaCierre:  null,
-      costo:        sinStock.reduce((acc, p) => acc + (p.precio || 0) * p.cantidad, 0),
-      notas:        notas || "",
-    };
+    Object.values(insumosMap).forEach(ins => { const r = insumosActuales.find(i => i.id === ins.idInsumo); ins.stockOk = (r?.stockActual || 0) >= ins.cantidad; });
+    return { id, idPedido: pedido.id, numeroPedido: pedido.numero, productos: sinStock.map(p => ({ idProducto: p.idProducto, nombre: p.nombre, cantidad: p.cantidad, precio: p.precio })), insumos: Object.values(insumosMap), idEmpleado: null, estado: "Pendiente", fechaInicio: fechaHoy(), fechaEntrega: fechaEntrega || null, fechaCierre: null, costo: sinStock.reduce((acc, p) => acc + (p.precio || 0) * p.cantidad, 0), notas: notas || "" };
   };
-
-  /* ── CRUD — pedidos ─────────────────────────────────── */
 
   const crearPedido = (payload) => {
     const numero        = nextPedidoNumero(pedidos);
     const estadoInicial = payload.orden_produccion ? "En producción" : "Pendiente";
-    const nuevo         = {
-      ...payload, id: Date.now(), numero, estado: estadoInicial,
-      orden_produccion: payload.orden_produccion || false,
-      fecha_pedido: fechaHoy(), idEmpleado: null,
-    };
+    const nuevo         = { ...payload, id: Date.now(), numero, estado: estadoInicial, orden_produccion: payload.orden_produccion || false, fecha_pedido: fechaHoy(), idEmpleado: null };
     setPedidos(prev => [nuevo, ...prev]);
     setProductos(prev => prev.map(prod => {
       const item = payload.productosItems.find(p => p.idProducto === prod.id && p.stockOk);
       if (!item) return prod;
       return { ...prod, stock: Math.max(0, prod.stock - item.cantidad) };
     }));
-    if (nuevo.orden_produccion) {
-      setOrdenes(prev => {
-        const orden = _buildOrden(nuevo, { fechaEntrega: null, notas: payload.notas || "" }, prev, productos, insumos);
-        return [orden, ...prev];
-      });
-    }
+    if (nuevo.orden_produccion) setOrdenes(prev => { const orden = _buildOrden(nuevo, { fechaEntrega: null, notas: payload.notas || "" }, prev, productos, insumos); return [orden, ...prev]; });
     return numero;
   };
-
   const editarPedido = (payload) => {
     setPedidos(prev => prev.map(p => {
       if (p.id !== payload.id) return p;
@@ -756,10 +725,8 @@ export function AppProvider({ children }) {
       return { ...p, ...payload, estado: p.estado, numero: p.numero, fecha_pedido: p.fecha_pedido, idEmpleado: p.idEmpleado };
     }));
   };
-
   const eliminarPedido = (id) => {
-    const ped = pedidos.find(p => p.id === id);
-    if (!ped) return { ok: true };
+    const ped = pedidos.find(p => p.id === id); if (!ped) return { ok: true };
     if (ped.estado === "Entregado") return { ok: false, razon: "Los pedidos entregados no se pueden eliminar." };
     if (!["Cancelado"].includes(ped.estado)) {
       setProductos(prev => prev.map(prod => {
@@ -768,10 +735,8 @@ export function AppProvider({ children }) {
         return { ...prod, stock: prod.stock + item.cantidad };
       }));
     }
-    setPedidos(prev => prev.filter(p => p.id !== id));
-    return { ok: true };
+    setPedidos(prev => prev.filter(p => p.id !== id)); return { ok: true };
   };
-
   const cambiarEstadoPedido = (id, nuevoEstado) => {
     setPedidos(prev => prev.map(p => {
       if (p.id !== id) return p;
@@ -785,136 +750,70 @@ export function AppProvider({ children }) {
       return { ...p, estado: nuevoEstado };
     }));
   };
-
-  const asignarDomiciliario = (pedidoId, empleadoId) => {
-    setPedidos(prev => prev.map(p => p.id === pedidoId ? { ...p, idEmpleado: empleadoId } : p));
-  };
-
+  const asignarDomiciliario = (pedidoId, empleadoId) => setPedidos(prev => prev.map(p => p.id === pedidoId ? { ...p, idEmpleado: empleadoId } : p));
   const generarOrdenProduccion = (pedidoId, { fechaEntrega, notas }) => {
-    const pedido = pedidos.find(p => p.id === pedidoId);
-    if (!pedido) return;
-    setPedidos(prev => prev.map(p =>
-      p.id !== pedidoId ? p : {
-        ...p, orden_produccion: true, estado: "En producción",
-        fecha_entrega_prod: fechaEntrega, notas_produccion: notas,
-      }
-    ));
-    setOrdenes(prev => {
-      const orden = _buildOrden(pedido, { fechaEntrega, notas }, prev, productos, insumos);
-      return [orden, ...prev];
-    });
+    const pedido = pedidos.find(p => p.id === pedidoId); if (!pedido) return;
+    setPedidos(prev => prev.map(p => p.id !== pedidoId ? p : { ...p, orden_produccion: true, estado: "En producción", fecha_entrega_prod: fechaEntrega, notas_produccion: notas }));
+    setOrdenes(prev => { const orden = _buildOrden(pedido, { fechaEntrega, notas }, prev, productos, insumos); return [orden, ...prev]; });
   };
 
-  /* ── CRUD — órdenes de producción ───────────────────── */
-
+  /* ── CRUD órdenes ───────────────────────────────────── */
   const cambiarEstadoOrden = (ordenId, nuevoEstado) => {
     setOrdenes(prev => prev.map(o => {
       if (o.id !== ordenId) return o;
       const fechaCierre = nuevoEstado === "Completada" ? fechaHoy() : o.fechaCierre;
       if (nuevoEstado === "Completada" && o.estado !== "Completada") {
-        setProductos(prods => prods.map(prod => {
-          const item = (o.productos || []).find(p => p.idProducto === prod.id);
-          if (!item) return prod;
-          return { ...prod, stock: prod.stock + item.cantidad };
-        }));
-        if (o.idPedido) {
-          setPedidos(prevP => prevP.map(p => p.id !== o.idPedido ? p : { ...p, estado: "Listo" }));
-        }
+        setProductos(prods => prods.map(prod => { const item = (o.productos || []).find(p => p.idProducto === prod.id); if (!item) return prod; return { ...prod, stock: prod.stock + item.cantidad }; }));
+        if (o.idPedido) setPedidos(prevP => prevP.map(p => p.id !== o.idPedido ? p : { ...p, estado: "Listo" }));
       }
       return { ...o, estado: nuevoEstado, fechaCierre };
     }));
   };
+  const asignarEmpleadoOrden = (ordenId, empleadoId) => setOrdenes(prev => prev.map(o => o.id === ordenId ? { ...o, idEmpleado: empleadoId } : o));
 
-  const asignarEmpleadoOrden = (ordenId, empleadoId) => {
-    setOrdenes(prev => prev.map(o => o.id === ordenId ? { ...o, idEmpleado: empleadoId } : o));
-  };
-
-  /* ── CRUD — devoluciones ────────────────────────────── */
-
+  /* ── CRUD devoluciones ──────────────────────────────── */
   const crearDevolucion = (payload) => {
-    const numero = nextDevolucionNumero(devoluciones);
-    const nueva  = { ...payload, id: numero, numero, estado: "Pendiente", fechaSolicitud: fechaHoy(), fechaAprobacion: null, fechaReembolso: null, motivoRechazo: null };
-    setDevoluciones(prev => [nueva, ...prev]);
+    const numero = nextDevolucionNum(devoluciones);
+    setDevoluciones(prev => [{ ...payload, id: numero, numero, estado: "Pendiente", fechaSolicitud: fechaHoy(), fechaAprobacion: null, fechaReembolso: null, motivoRechazo: null }, ...prev]);
     return numero;
   };
-
-  const aprobarDevolucion = (id) => {
-    setDevoluciones(prev => prev.map(d => d.id !== id ? d : { ...d, estado: "Aprobada", fechaAprobacion: fechaHoy() }));
-  };
-
-  const rechazarDevolucion = (id, motivoRechazo) => {
-    setDevoluciones(prev => prev.map(d => d.id !== id ? d : { ...d, estado: "Rechazada", fechaAprobacion: fechaHoy(), motivoRechazo }));
-  };
-
+  const aprobarDevolucion   = (id) => setDevoluciones(prev => prev.map(d => d.id !== id ? d : { ...d, estado: "Aprobada",    fechaAprobacion: fechaHoy() }));
+  const rechazarDevolucion  = (id, motivoRechazo) => setDevoluciones(prev => prev.map(d => d.id !== id ? d : { ...d, estado: "Rechazada",   fechaAprobacion: fechaHoy(), motivoRechazo }));
   const reembolsarDevolucion = (id) => {
-    const dev = devoluciones.find(d => d.id === id);
-    if (!dev || dev.estado !== "Aprobada") return;
+    const dev = devoluciones.find(d => d.id === id); if (!dev || dev.estado !== "Aprobada") return;
     setDevoluciones(prev => prev.map(d => d.id !== id ? d : { ...d, estado: "Reembolsada", fechaReembolso: fechaHoy() }));
-    if (dev.idCliente) {
-      setCreditosClientes(prev => ({ ...prev, [dev.idCliente]: (prev[dev.idCliente] || 0) + dev.totalDevuelto }));
-    }
+    if (dev.idCliente) setCreditosClientes(prev => ({ ...prev, [dev.idCliente]: (prev[dev.idCliente] || 0) + dev.totalDevuelto }));
   };
-
   const eliminarDevolucion = (id) => {
-    const dev = devoluciones.find(d => d.id === id);
-    if (!dev || dev.estado === "Reembolsada") return { ok: false };
-    setDevoluciones(prev => prev.filter(d => d.id !== id));
-    return { ok: true };
+    const dev = devoluciones.find(d => d.id === id); if (!dev || dev.estado === "Reembolsada") return { ok: false };
+    setDevoluciones(prev => prev.filter(d => d.id !== id)); return { ok: true };
   };
 
-  /* ── CRUD — descuentos ──────────────────────────────── */
-
-  const crearDescuento = (payload) => {
-    const id = nextDescuentoId(descuentos);
-    setDescuentos(prev => [{ ...payload, id, usosCount: 0 }, ...prev]);
-  };
-
-  const editarDescuento = (payload) => {
-    setDescuentos(prev => prev.map(d => d.id !== payload.id ? d : { ...d, ...payload }));
-  };
-
-  const toggleDescuento = (id) => {
-    setDescuentos(prev => prev.map(d => d.id !== id ? d : { ...d, activo: !d.activo }));
-  };
-
-  const eliminarDescuento = (id) => {
-    setDescuentos(prev => prev.filter(d => d.id !== id));
-    setAsignacionesDesc(prev => { const next = { ...prev }; delete next[id]; return next; });
-  };
-
-  const asignarDescuentoClientes = (idDescuento, idsClientes) => {
-    setAsignacionesDesc(prev => ({ ...prev, [idDescuento]: idsClientes }));
-  };
-
-  const getClientesDescuento = (idDescuento) => {
-    const ids = asignacionesDesc[idDescuento] || [];
-    return clientes.filter(c => ids.includes(c.id));
-  };
-
-  const aplicarCodigoDescuento = (codigo, idCliente) => {
-    const hoyStr = fechaHoy();
-    const desc   = descuentos.find(d => d.codigo === codigo.toUpperCase());
+  /* ── CRUD descuentos ────────────────────────────────── */
+  const crearDescuento   = (payload) => setDescuentos(prev => [{ ...payload, id: nextDescuentoId(descuentos), usosCount: 0 }, ...prev]);
+  const editarDescuento  = (payload) => setDescuentos(prev => prev.map(d => d.id !== payload.id ? d : { ...d, ...payload }));
+  const toggleDescuento  = (id) => setDescuentos(prev => prev.map(d => d.id !== id ? d : { ...d, activo: !d.activo }));
+  const eliminarDescuento = (id) => { setDescuentos(prev => prev.filter(d => d.id !== id)); setAsignacionesDesc(prev => { const next = { ...prev }; delete next[id]; return next; }); };
+  const asignarDescuentoClientes = (idDescuento, idsClientes) => setAsignacionesDesc(prev => ({ ...prev, [idDescuento]: idsClientes }));
+  const getClientesDescuento     = (idDescuento) => clientes.filter(c => (asignacionesDesc[idDescuento] || []).includes(c.id));
+  const aplicarCodigoDescuento   = (codigo, idCliente) => {
+    const hoyStr = fechaHoy(); const desc = descuentos.find(d => d.codigo === codigo.toUpperCase());
     if (!desc)                     return { ok: false, error: "Código no encontrado" };
     if (!desc.activo)              return { ok: false, error: "Este código está inactivo" };
     if (hoyStr < desc.fechaInicio) return { ok: false, error: "Este código aún no está vigente" };
     if (hoyStr > desc.fechaFin)    return { ok: false, error: "Este código ha vencido" };
     const usosActuales = historialDescuentos.filter(h => h.idDescuento === desc.id).length;
-    if (desc.limiteUsos && usosActuales >= desc.limiteUsos)
-      return { ok: false, error: "Este código ya alcanzó su límite de usos" };
+    if (desc.limiteUsos && usosActuales >= desc.limiteUsos) return { ok: false, error: "Este código ya alcanzó su límite de usos" };
     const asignados = asignacionesDesc[desc.id] || [];
-    if (asignados.length > 0 && idCliente && !asignados.includes(idCliente))
-      return { ok: false, error: "Este código no está disponible para este cliente" };
+    if (asignados.length > 0 && idCliente && !asignados.includes(idCliente)) return { ok: false, error: "Este código no está disponible para este cliente" };
     return { ok: true, descuento: desc };
   };
-
-  const registrarUsoDescuento = (idDescuento, { numeroPedido, cliente, montoDescuento }) => {
+  const registrarUsoDescuento = (idDescuento, { numeroPedido, cliente, montoDescuento }) =>
     setHistorialDescuentos(prev => [{ idDescuento, numeroPedido, cliente, montoDescuento, fecha: fechaHoy() }, ...prev]);
-  };
 
   /* ══════════════════════════════════════════════════════
      PROVIDER
   ══════════════════════════════════════════════════════ */
-
   return (
     <AppContext.Provider value={{
       /* Estado raw */
@@ -927,21 +826,28 @@ export function AppProvider({ children }) {
       categoriasProductosActivas, categoriasInsumosActivas,
       insumosPorCategoriaId, insumosPorCategoriaNombre,
       unidades: UNIDADES_MEDIDA,
-      rolesActivos, usuariosPorRol, insumosActivos,
-      clientesActivos,
+      rolesActivos, usuariosPorRol, insumosActivos, clientesActivos,
 
       /* Lookups */
       getCatProducto, getCatInsumo, getUnidad, getRol,
       getProveedor, getInsumo, getCliente,
-      getLotesDeInsumo, getStockRealInsumo,
+      getLotesDeInsumo, getLotesVencidos, getStockRealInsumo,
+
+      /* ── NUEVO: lotes y salidas de PRODUCTOS ── */
+      getLotesProducto,
+      getLotesVencidosProducto,
+      agregarLoteProducto,
+      getSalidasProducto,
+      registrarSalidaProducto,
+
+      /* Historial insumos */
+      getSalidasInsumo,
 
       /* Validaciones */
       canDeleteCatProducto, canDeleteCatInsumo,
       canDeleteInsumo, canDeleteProducto,
       canDeleteRol, canDeleteUsuario,
-      canDeleteCliente,
-      canDeleteProveedor, canDeleteCompra,
-      canDeletePedido,
+      canDeleteCliente, canDeleteProveedor, canDeleteCompra, canDeletePedido,
 
       /* CRUD */
       crearCatProducto, editarCatProducto, toggleCatProducto, eliminarCatProducto,
@@ -953,7 +859,7 @@ export function AppProvider({ children }) {
       crearCliente,     editarCliente,     toggleCliente,     eliminarCliente,
       crearProveedor,   editarProveedor,   eliminarProveedor,
       crearCompra,      editarCompra,      eliminarCompra,
-      descontarStockFIFO,
+      registrarSalidaInsumo, descontarStockFIFO,
       crearPedido,      editarPedido,      eliminarPedido,
       cambiarEstadoPedido, asignarDomiciliario, generarOrdenProduccion,
       cambiarEstadoOrden,  asignarEmpleadoOrden,
@@ -963,7 +869,7 @@ export function AppProvider({ children }) {
       aplicarCodigoDescuento, registrarUsoDescuento,
 
       /* Utilidades */
-      calcularTotal, diasHasta, estadoLote,
+      calcularTotal, diasHasta, estadoLote, convertirUnidad, getVencimientoMasAntiguo,
     }}>
       {children}
     </AppContext.Provider>

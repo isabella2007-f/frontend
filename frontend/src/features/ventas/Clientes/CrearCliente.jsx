@@ -190,7 +190,7 @@ export default function CrearCliente({ onClose, onSave }) {
                 <input ref={fotoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFoto} />
               </div>
 
-              <p className="section-label" style={{ marginTop: 0 }}>Identificación</p>
+              <p className="section-label" style={{ marginTop: 0,  textTransform: "none"}}>Identificación</p>
               <div className="form-group">
                 <label className="form-label">Tipo y Número de documento <span className="required">*</span></label>
                 <div className="doc-combo">

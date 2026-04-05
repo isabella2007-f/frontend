@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import "./proveedores.css";
 
 const fmtTel = raw => {
@@ -9,16 +9,35 @@ const fmtTel = raw => {
 };
 
 export default function CrearProveedor({ onClose, onSave }) {
-  const [form, setForm]     = useState({ responsable: "", direccion: "", celular: "", correo: "" });
+  const [form, setForm]     = useState({ tipo: "natural", responsable: "", documento: "", direccion: "", celular: "", correo: "" });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  const inputRefs = useRef({});
+  const activeField = useRef(null);
 
-  const set = (k, v) => { setForm(p => ({ ...p, [k]: v })); setErrors(p => ({ ...p, [k]: "" })); };
+  const set = (k, v) => {
+    activeField.current = k;
+    setForm(p => ({ ...p, [k]: v }));
+    setErrors(p => ({ ...p, [k]: "" }));
+  };
+
+  useEffect(() => {
+    const key = activeField.current;
+    if (!key) return;
+    const input = inputRefs.current[key];
+    if (input && document.activeElement !== input) {
+      input.focus();
+      const len = input.value.length;
+      input.setSelectionRange(len, len);
+    }
+  }, [form]);
 
   const validate = () => {
     const e = {};
+    if (!form.tipo) e.tipo = "Selecciona tipo";
     if (!form.responsable.trim()) e.responsable = "Requerido";
-    if (!form.celular.trim())     e.celular      = "Requerido";
+    if (!form.documento.trim())   e.documento   = "Requerido";
+    if (!form.celular.trim())     e.celular     = "Requerido";
     if (!form.correo.trim() || !/\S+@\S+\.\S+/.test(form.correo)) e.correo = "Correo inválido";
     return e;
   };
@@ -38,14 +57,21 @@ export default function CrearProveedor({ onClose, onSave }) {
         {label}{["responsable", "celular", "correo"].includes(k) && <span className="required"> *</span>}
       </label>
       <input
+        ref={el => inputRefs.current[k] = el}
         className={"field-input" + (errors[k] ? " field-input--error" : "")}
         type={type}
         value={form[k] || ""}
         onChange={e => set(k, k === "celular" ? fmtTel(e.target.value) : e.target.value)}
         placeholder={ph}
         maxLength={k === "celular" ? 12 : undefined}
-        onFocus={e => e.target.style.borderColor = "#4caf50"}
-        onBlur={e  => e.target.style.borderColor = errors[k] ? "#e53935" : "#e0e0e0"}
+        onFocus={e => {
+          activeField.current = k;
+          e.target.style.borderColor = "#4caf50";
+        }}
+        onBlur={e => {
+          if (activeField.current === k) activeField.current = null;
+          e.target.style.borderColor = errors[k] ? "#e53935" : "#e0e0e0";
+        }}
       />
       {errors[k] && <p className="field-error">{errors[k]}</p>}
     </div>
@@ -66,9 +92,22 @@ export default function CrearProveedor({ onClose, onSave }) {
 
         {/* Body — sin overflow, 4 campos caben perfectamente */}
         <div className="modal-body" style={{ overflow: "visible" }}>
-          <p className="section-label" style={{ marginTop: 0 }}>Datos del proveedor</p>
+          <p className="section-label" style={{ marginTop: 0,  textTransform: "none"}}>Datos del proveedor</p>
           <div className="form-grid-2">
-            <Field k="responsable" label="Responsable" ph="Nombre del contacto" full />
+            <div className="form-group" style={{ gridColumn: "1 / -1" }}>
+              <label className="form-label">Tipo de proveedor</label>
+              <select
+                className="field-input"
+                value={form.tipo}
+                onChange={e => set("tipo", e.target.value)}
+              >
+                <option value="natural">Persona Natural</option>
+                <option value="juridica">Persona Jurídica</option>
+              </select>
+            </div>
+
+            <Field k="responsable" label={form.tipo === "juridica" ? "Razón social" : "Responsable"} ph={form.tipo === "juridica" ? "Nombre empresa" : "Nombre del contacto"} full />
+            <Field k="documento" label={form.tipo === "juridica" ? "NIT" : "Documento"} ph={form.tipo === "juridica" ? "900..." : "CC (sin puntos)"} full />
             <Field k="direccion"   label="Dirección"   ph="Ej. Cra 10 # 5-30"  full />
             <Field k="celular"     label="Celular"     ph="300 000 0000" />
             <Field k="correo"      label="Correo"      type="email" ph="proveedor@correo.com" />

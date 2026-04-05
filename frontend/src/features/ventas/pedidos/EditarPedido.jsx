@@ -6,7 +6,7 @@ import "./Pedidos.css";
 const fmt = (n) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
 
-const METODOS_PAGO = ["Efectivo", "Transferencia", "Tarjeta", "Nequi", "Daviplata"];
+const METODOS_PAGO = ["Efectivo", "Transferencia"];
 
 /* ─── Qué campos permite editar cada estado ─────────────── */
 const PERMISOS_POR_ESTADO = {
@@ -382,7 +382,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
         {/* Header */}
         <div className="modal-header">
           <div>
-            <p className="modal-header__eyebrow">EDITAR PEDIDO</p>
+            <p className="modal-header__eyebrow">Editar pedido</p>
             <h2 className="modal-header__title">{pedido.numero}</h2>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -410,7 +410,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
           )}
 
           {/* ── Cliente ── */}
-          <p className="section-label">Cliente</p>
+          <p className="section-label" style={{ textTransform: "none" }}>Cliente</p>
           {permisos.cliente ? (
             <>
               {/* Selector de cliente */}
@@ -575,7 +575,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
           )}
 
           {/* ── Productos ── */}
-          <p className="section-label">Productos</p>
+          <p className="section-label" style={{ textTransform: "none" }}>Productos</p>
           {permisos.productos ? (
             <>
               <BuscadorProducto
@@ -655,7 +655,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
           )}
 
           {/* ── Método de pago ── */}
-          <p className="section-label">Pago y entrega</p>
+          <p className="section-label" style={{ textTransform: "none" }}>Pago y entrega</p>
           <div className="form-grid-2">
             {permisos.metodo_pago ? (
               <div className="field-wrap">
@@ -751,7 +751,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
           ) : null}
 
           {/* ── Estado del pedido ── */}
-          <p className="section-label">Estado del pedido</p>
+          <p className="section-label" style={{ textTransform: "none" }}>Estado del pedido</p>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {(() => {
               const actualIdx = ESTADOS_FLUJO.indexOf(pedido.estado);

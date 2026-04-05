@@ -27,3 +27,12 @@
 
 /* ─── Modal proveedor (un poco más ancho por la sección insumos) */
 .modal-box--prov  { max-width: 500px; }
+
+/* Reducir separación entre campos para evitar scroll innecesario */
+.modal-box--prov .form-group {
+  margin-bottom: 10px;
+}
+
+.modal-box--prov .form-group:last-child {
+  margin-bottom: 0;
+}

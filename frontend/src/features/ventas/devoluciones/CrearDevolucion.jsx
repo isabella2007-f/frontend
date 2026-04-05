@@ -111,7 +111,7 @@ export default function CrearDevolucion({ onClose, onSave }) {
         {/* Header */}
         <div className="modal-header modal-header--red">
           <div>
-            <p className="modal-header__eyebrow">DEVOLUCIONES</p>
+            <p className="modal-header__eyebrow">Devoluciones</p>
             <h2 className="modal-header__title modal-header__title--red">Registrar devolución</h2>
           </div>
           <button className="modal-close-btn" onClick={onClose}>✕</button>
@@ -120,7 +120,7 @@ export default function CrearDevolucion({ onClose, onSave }) {
         <div className="modal-body">
 
           {/* Pedido */}
-          <p className="section-label">Pedido</p>
+          <p className="section-label" style={{textTransform: "none"}} >Pedido</p>
           <div className="field-wrap" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <label className="form-label">Pedido entregado <span className="required">*</span></label>
             <div className="select-wrap">
@@ -210,7 +210,7 @@ export default function CrearDevolucion({ onClose, onSave }) {
           )}
 
           {/* Motivo */}
-          <p className="section-label">Motivo</p>
+          <p className="section-label" style={{textTransform: "none"}} >Motivo</p>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <label className="form-label">Motivo de la devolución <span className="required">*</span></label>
             <div className="select-wrap">

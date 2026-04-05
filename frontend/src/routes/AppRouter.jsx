@@ -8,7 +8,8 @@ import Dashboard from "../features/dashboard/Dashboard";
 import GestionUsuarios from "../features/configuracion/Usuarios/GestionUsuarios";
 import Empleados from "../features/configuracion/empleados/Empleados";
 import Roles from "../features/configuracion/roles/Roles";
-import AccessManagement from "../features/configuracion/control_acceso/AccessManagement";
+import GestionSalidas from "../features/salidas/GestionSalidas.jsx";
+
 
 /* ─── PRODUCCIÓN ─── */
 import CategoriaProductos from "../features/produccion/categoria_productos/Categoriaproductos";
@@ -65,7 +66,8 @@ const AppRouter = () => {
             <Route path="usuarios" element={<GestionUsuarios />} />
             <Route path="empleados" element={<Empleados />} />
             <Route path="roles" element={<Roles />} />
-            <Route path="control-acceso" element={<AccessManagement />} />
+            <Route path="salidas" element={<GestionSalidas />} />
+
 
             {/* Producción */}
             <Route path="categorias_productos" element={<CategoriaProductos />} />

@@ -20,10 +20,10 @@ const adminMenuItems = [
     section: "Configuración",
     icon: "⚙️",
     items: [
-      { label: "Roles y Permisos", icon: "🛡️", link: "/admin/roles" },
+      { label: "Roles y Privilegios", icon: "🛡️", link: "/admin/roles" },
       { label: "Gestión de Usuario", icon: "👤", link: "/admin/usuarios" },
-      { label: "Gestión de Empleados", icon: "👥", link: "/admin/empleados" },
-      { label: "Control de Acceso", icon: "🔐", link: "/admin/control-acceso" },
+      { label: "Gestión de Empleados", icon: "👷", link: "/admin/empleados" },
+      { label: "Gestión de Salidas", icon: "📤", link: "/admin/salidas" },
     ],
   },
   {

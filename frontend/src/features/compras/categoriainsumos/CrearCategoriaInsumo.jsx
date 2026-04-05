@@ -5,18 +5,12 @@ import "./CategoriaInsumos.css";
 const ICON_OPTIONS = ["🥬","🥩","🧀","🌾","🧂","🛢️","🥫","📦","🫙","🧈","🥚","🌽","🍋","🧄","🫚","🍅","🥕","🧅","🌶️","🫑"];
 
 export default function CrearCategoriaInsumo({ onClose, onSave }) {
-  const [form, setForm]         = useState({ nombre: "", descripcion: "", icon: "🥬", insumos: [""] });
+  const [form, setForm]         = useState({ nombre: "", descripcion: "", icon: "🥬" });
   const [errors, setErrors]     = useState({});
   const [saving, setSaving]     = useState(false);
   const [pickingIcon, setPickingIcon] = useState(false);
 
   const set = (k, v) => { setForm(p => ({ ...p, [k]: v })); setErrors(p => ({ ...p, [k]: "" })); };
-
-  const setInsumo = (idx, val) => setForm(p => {
-    const arr = [...p.insumos]; arr[idx] = val; return { ...p, insumos: arr };
-  });
-  const addInsumo = () => setForm(p => ({ ...p, insumos: [...p.insumos, ""] }));
-  const delInsumo = idx => setForm(p => ({ ...p, insumos: p.insumos.filter((_, i) => i !== idx) }));
 
   const validate = () => {
     const e = {};
@@ -33,7 +27,7 @@ export default function CrearCategoriaInsumo({ onClose, onSave }) {
     onSave({
       ...form,
       id: Date.now(),
-      insumos: form.insumos.map(i => i.trim()).filter(Boolean),
+      insumos: [],
       estado: true,
       fecha: new Date().toLocaleDateString("es-CO"),
     });
@@ -92,36 +86,6 @@ export default function CrearCategoriaInsumo({ onClose, onSave }) {
           {errors.descripcion && <p className="field-error">{errors.descripcion}</p>}
         </div>
 
-        {/* Insumos */}
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label className="form-label">Insumos</label>
-          <div className="insumos-editor">
-            <div className="insumos-editor__header">
-              <p className="insumos-editor__title">Lista de insumos de esta categoría</p>
-              <span style={{ fontSize: 11, color: "#9e9e9e" }}>{form.insumos.filter(Boolean).length} insumos</span>
-            </div>
-            <div className="insumos-editor__list">
-              {form.insumos.map((ins, idx) => (
-                <div key={idx} className="insumo-row">
-                  <input
-                    className="insumo-row__input"
-                    value={ins}
-                    onChange={e => setInsumo(idx, e.target.value)}
-                    placeholder={`Insumo ${idx + 1}`}
-                    onFocus={e => e.target.style.borderColor = "#4caf50"}
-                    onBlur={e => e.target.style.borderColor = "#e0e0e0"}
-                  />
-                  {form.insumos.length > 1 && (
-                    <button className="insumo-row__del" onClick={() => delInsumo(idx)} title="Eliminar">✕</button>
-                  )}
-                </div>
-              ))}
-            </div>
-            <button className="insumos-editor__add" onClick={addInsumo}>
-              <span style={{ fontSize: 15 }}>+</span> Agregar insumo
-            </button>
-          </div>
-        </div>
 
       </div>
 

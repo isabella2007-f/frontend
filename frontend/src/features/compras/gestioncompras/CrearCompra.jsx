@@ -1,3 +1,4 @@
+/*************  ✨ Windsurf Command 🌟  *************/
 import { useState } from "react";
 import { useApp, calcularTotal } from "../../../AppContext.jsx";
 import "./compras.css";
@@ -5,8 +6,6 @@ import "./compras.css";
 const METODOS_PAGO = [
   { value: "efectivo",      label: "Efectivo",      icon: "💵" },
   { value: "transferencia", label: "Transferencia", icon: "🏦" },
-  { value: "crédito",       label: "Crédito",       icon: "💳" },
-  { value: "cheque",        label: "Cheque",        icon: "📄" },
 ];
 
 const COP = (n) =>
@@ -50,7 +49,7 @@ function StepsBar({ current }) {
 }
 
 export default function CrearCompra({ onClose, onSave }) {
-  const { proveedores, insumosActivos, getCatInsumo, getUnidad } = useApp();
+  const { proveedores, insumosActivos, getCatInsumo, getUnidad, convertirUnidad } = useApp();
 
   const [form, setForm] = useState({
     idProveedor: "",
@@ -78,36 +77,24 @@ export default function CrearCompra({ onClose, onSave }) {
     detalles.map(d => ({ cantidad: Number(d.cantidad) || 0, precioUnd: Number(d.precioUnd) || 0 }))
   );
 
-  // Validación por paso
-  const validateStep = (s) => {
+  const validate = () => {
     const e = {};
-    if (s === 1) {
-      if (!form.idProveedor) e.idProveedor = "Selecciona un proveedor";
-      if (!form.fecha)       e.fecha       = "Ingresa la fecha";
-      if (!form.metodoPago)  e.metodoPago  = "Selecciona el método de pago";
-    }
-    if (s === 2) {
-      if (detalles.length === 0) e.detalles = "Agrega al menos un insumo";
-      detalles.forEach((d, i) => {
-        if (!d.idInsumo)                              e[`ins_${i}`]    = "Selecciona un insumo";
-        if (!d.cantidad || Number(d.cantidad) <= 0)   e[`cant_${i}`]   = "Cantidad inválida";
-        if (!d.precioUnd || Number(d.precioUnd) <= 0) e[`precio_${i}`] = "Precio inválido";
-        if (!d.fechaVencimiento)                      e[`venc_${i}`]   = "Ingresa la fecha de vencimiento";
-      });
-    }
+    if (!form.idProveedor) e.idProveedor = "Selecciona un proveedor";
+    if (!form.fecha)       e.fecha       = "Ingresa la fecha";
+    if (!form.metodoPago)  e.metodoPago  = "Selecciona el método de pago";
+
+    if (detalles.length === 0) e.detalles = "Agrega al menos un insumo";
+    detalles.forEach((d, i) => {
+      if (!d.idInsumo)                              e[`ins_${i}`]    = "Selecciona un insumo";
+      if (!d.cantidad || Number(d.cantidad) <= 0)   e[`cant_${i}`]   = "Cantidad inválida";
+      if (!d.precioUnd || Number(d.precioUnd) <= 0) e[`precio_${i}`] = "Precio inválido";
+      if (!d.fechaVencimiento)                      e[`venc_${i}`]   = "Ingresa la fecha de vencimiento";
+    });
     return e;
   };
 
-  const handleNext = () => {
-    const e = validateStep(step);
-    if (Object.keys(e).length) { setErrors(e); return; }
-    setStep(s => s + 1);
-  };
-
-  const handleBack = () => setStep(s => s - 1);
-
   const handleSave = async () => {
-    const e = validateStep(2);
+    const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaving(true);
     await new Promise(r => setTimeout(r, 400));
@@ -128,24 +115,29 @@ export default function CrearCompra({ onClose, onSave }) {
         {/* Header */}
         <div className="modal-header">
           <div>
-            <p className="modal-header__eyebrow">COMPRAS</p>
+            <p className="modal-header__eyebrow">Compras</p>
             <h2 className="modal-header__title">Nueva Compra</h2>
           </div>
           <button className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
 
-        {/* Steps */}
-        <div style={{ padding: "16px 24px 0" }}>
-          <StepsBar current={step} />
-        </div>
-
         {/* Body — sin overflow */}
         <div className="modal-body" style={{ overflow: "visible" }}>
 
-          {/* ── Paso 1: Información general ── */}
+          {/* Tabs */}
+          <div className="modal-tabs">
+            <button className={`modal-tab-btn ${step === 1 ? "active" : ""}`} onClick={() => setStep(1)}>
+              Información general
+            </button>
+            <button className={`modal-tab-btn ${step === 2 ? "active" : ""}`} onClick={() => setStep(2)}>
+              Insumos comprados
+            </button>
+          </div>
+
+          {/* ── Información general ── */}
           {step === 1 && (
             <>
-              <p className="section-label" style={{ marginTop: 0 }}>Información general</p>
+              <p className="section-label" style={{ marginTop: 0 , textTransform: "none"}}>Información general</p>
 
               <div className="field-wrap">
                 <label className="field-label">Proveedor <span className="required">*</span></label>
@@ -196,18 +188,18 @@ export default function CrearCompra({ onClose, onSave }) {
 
               <div className="field-wrap">
                 <label className="field-label">Método de pago <span className="required">*</span></label>
-                <div className="metodo-grid">
-                  {METODOS_PAGO.map(m => (
-                    <button
-                      key={m.value}
-                      type="button"
-                      className={`metodo-btn ${form.metodoPago === m.value ? "metodo-btn--active" : ""}`}
-                      onClick={() => set("metodoPago", m.value)}
-                    >
-                      <span>{m.icon}</span>
-                      <span>{m.label}</span>
-                    </button>
-                  ))}
+                <div className="select-wrap">
+                  <select
+                    className={`field-select ${errors.metodoPago ? "error" : ""}`}
+                    value={form.metodoPago}
+                    onChange={e => set("metodoPago", e.target.value)}
+                  >
+                    <option value="">— Seleccionar método —</option>
+                    {METODOS_PAGO.map(m => (
+                      <option key={m.value} value={m.value}>{m.icon} {m.label}</option>
+                    ))}
+                  </select>
+                  <span className="select-arrow">▾</span>
                 </div>
                 {errors.metodoPago && <span className="field-error">{errors.metodoPago}</span>}
               </div>
@@ -225,7 +217,7 @@ export default function CrearCompra({ onClose, onSave }) {
             </>
           )}
 
-          {/* ── Paso 2: Insumos ── */}
+          {/* ── Insumos comprados ── */}
           {step === 2 && (
             <>
               <p className="section-label" style={{ marginTop: 0 }}>
@@ -237,6 +229,7 @@ export default function CrearCompra({ onClose, onSave }) {
                 const insumoSel = insumosActivos.find(ins => ins.id === Number(d.idInsumo));
                 const cat       = insumoSel ? getCatInsumo(insumoSel.idCategoria) : null;
                 const unidad    = insumoSel ? getUnidad(insumoSel.idUnidad)       : null;
+                const conversion = unidad && d.cantidad ? convertirUnidad(Number(d.cantidad), unidad.simbolo) : null;
 
                 return (
                   <div key={d._key} className="detalle-row">
@@ -284,6 +277,11 @@ export default function CrearCompra({ onClose, onSave }) {
                           onChange={e => setDetalle(d._key, "cantidad", e.target.value)}
                         />
                         {errors[`cant_${i}`] && <span className="field-error">{errors[`cant_${i}`]}</span>}
+                        {conversion && (
+                          <span className="field-help" style={{ marginTop: 4 }}>
+                            Equivalente: {conversion.to}
+                          </span>
+                        )}
                       </div>
 
                       {/* Precio unitario */}
@@ -342,7 +340,7 @@ export default function CrearCompra({ onClose, onSave }) {
 
               <div className="total-bar">
                 <span className="total-bar__label">Total estimado</span>
-                <span className="total-bar__value">{COP(totalActual)}</span>
+                <span className="total-bar__value">{COP(totalActual || 0)}</span>
               </div>
 
               {form.estado === "completada" && (
@@ -354,18 +352,12 @@ export default function CrearCompra({ onClose, onSave }) {
           )}
         </div>
 
-        {/* Footer — navegación wizard */}
-        <div className="modal-footer" style={{ justifyContent: "space-between" }}>
-          {step > 1
-            ? <button className="btn-cancel" onClick={handleBack}>← Atrás</button>
-            : <button className="btn-cancel" onClick={onClose}>Cancelar</button>
-          }
-          {step < 2
-            ? <button className="btn-save" onClick={handleNext}>Siguiente →</button>
-            : <button className="btn-save" onClick={handleSave} disabled={saving}>
-                {saving ? "Guardando…" : "Guardar compra"}
-              </button>
-          }
+        {/* Footer */}
+        <div className="modal-footer">
+          <button className="btn-cancel" onClick={onClose}>Cancelar</button>
+          <button className="btn-save" onClick={handleSave} disabled={saving}>
+            {saving ? "Guardando…" : "Guardar compra"}
+          </button>
         </div>
       </div>
     </div>

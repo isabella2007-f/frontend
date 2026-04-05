@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import "./proveedores.css";
 
 const fmtTel = raw => {
@@ -26,15 +26,32 @@ const NAV_ITEMS = [
 ];
 
 export default function EditarProveedor({ proveedor, mode = "edit", compras = [], onClose, onSave }) {
-  const [form, setForm]           = useState({ ...proveedor });
+  const [form, setForm]           = useState({ tipo: "natural", documento: "", ...proveedor });
   const [errors, setErrors]       = useState({});
   const [saving, setSaving]       = useState(false);
   const [activeSection, setActiveSection] = useState("datos");
   const isView = mode === "view";
+  const inputRefs = useRef({});
+  const activeField = useRef(null);
 
   useEffect(() => { if (proveedor) setForm({ ...proveedor }); }, [proveedor]);
 
-  const set = (k, v) => { setForm(p => ({ ...p, [k]: v })); setErrors(p => ({ ...p, [k]: "" })); };
+  const set = (k, v) => {
+    activeField.current = k;
+    setForm(p => ({ ...p, [k]: v }));
+    setErrors(p => ({ ...p, [k]: "" }));
+  };
+
+  useEffect(() => {
+    const key = activeField.current;
+    if (!key) return;
+    const input = inputRefs.current[key];
+    if (input && document.activeElement !== input) {
+      input.focus();
+      const len = input.value.length;
+      input.setSelectionRange(len, len);
+    }
+  }, [form]);
 
   /* ── Últimos insumos comprados ── */
   const ultimosInsumos = (() => {
@@ -53,8 +70,10 @@ export default function EditarProveedor({ proveedor, mode = "edit", compras = []
 
   const validate = () => {
     const e = {};
+    if (!form.tipo) e.tipo = "Selecciona tipo";
     if (!form.responsable?.trim()) e.responsable = "Requerido";
-    if (!form.celular?.trim())     e.celular      = "Requerido";
+    if (!form.documento?.trim())   e.documento   = "Requerido";
+    if (!form.celular?.trim())     e.celular     = "Requerido";
     if (!form.correo?.trim() || !/\S+@\S+\.\S+/.test(form.correo)) e.correo = "Correo inválido";
     return e;
   };
@@ -76,14 +95,21 @@ export default function EditarProveedor({ proveedor, mode = "edit", compras = []
         ? <div className="field-input field-input--disabled">{form[k] || "—"}</div>
         : <>
             <input
+              ref={el => inputRefs.current[k] = el}
               className={"field-input" + (errors[k] ? " field-input--error" : "")}
               type={type}
               value={form[k] || ""}
               onChange={e => set(k, k === "celular" ? fmtTel(e.target.value) : e.target.value)}
               placeholder={ph}
               maxLength={k === "celular" ? 12 : undefined}
-              onFocus={e => e.target.style.borderColor = "#4caf50"}
-              onBlur={e  => e.target.style.borderColor = errors[k] ? "#e53935" : "#e0e0e0"}
+              onFocus={e => {
+                activeField.current = k;
+                e.target.style.borderColor = "#4caf50";
+              }}
+              onBlur={e => {
+                if (activeField.current === k) activeField.current = null;
+                e.target.style.borderColor = errors[k] ? "#e53935" : "#e0e0e0";
+              }}
             />
             {errors[k] && <p className="field-error">{errors[k]}</p>}
           </>
@@ -164,21 +190,38 @@ export default function EditarProveedor({ proveedor, mode = "edit", compras = []
             {/* ── Sección: Datos ── */}
             {activeSection === "datos" && (
               <>
-                <p className="section-label" style={{ marginTop: 0 }}>Datos del proveedor</p>
+                <p className="section-label" style={{ marginTop: 0, textTransform: "none" }}>Datos del proveedor</p>
+
+                <div className="form-group" style={{ gridColumn: "1 / -1" }}>
+                  <label className="form-label">Tipo de proveedor</label>
+                  {isView ? (
+                    <div className="field-input field-input--disabled">{form.tipo === "juridica" ? "Persona Jurídica" : "Persona Natural"}</div>
+                  ) : (
+                    <select
+                      className={"field-input" + (errors.tipo ? " field-input--error" : "")}
+                      value={form.tipo}
+                      onChange={e => set("tipo", e.target.value)}
+                    >
+                      <option value="natural">Persona Natural</option>
+                      <option value="juridica">Persona Jurídica</option>
+                    </select>
+                  )}
+                  {errors.tipo && <p className="field-error">{errors.tipo}</p>}
+                </div>
 
                 {/* Responsable y dirección: full width */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                  <Field k="responsable" label={<>Responsable {!isView && <span className="required">*</span>}</>}
-                    ph="Nombre del contacto" />
+                  <Field k="responsable" label={form.tipo === "juridica" ? "Razón social" : "Responsable"} ph={form.tipo === "juridica" ? "Nombre empresa" : "Nombre del contacto"} />
                   <Field k="direccion" label="Dirección" ph="Ej. Cra 10 # 5-30" />
                 </div>
 
-                {/* Celular y correo: 2 columnas */}
+                {/* Documento + celular + correo */}
                 <div className="form-grid-2" style={{ marginTop: 0 }}>
-                  <Field k="celular" label={<>Celular {!isView && <span className="required">*</span>}</>}
-                    ph="300 000 0000" />
-                  <Field k="correo" label={<>Correo {!isView && <span className="required">*</span>}</>}
-                    type="email" ph="proveedor@correo.com" />
+                  <Field k="documento" label={form.tipo === "juridica" ? "NIT" : "Documento"} ph={form.tipo === "juridica" ? "900..." : "CC (sin puntos)"} />
+                  <Field k="celular" label={<>Celular {!isView && <span className="required">*</span>}</>} ph="300 000 0000" />
+                </div>
+                <div className="form-grid-2" style={{ marginTop: 0 }}>
+                  <Field k="correo" label={<>Correo {!isView && <span className="required">*</span>}</>} type="email" ph="proveedor@correo.com" />
                 </div>
 
                 {/* Ciudad (solo lectura en ambos modos) */}
@@ -194,7 +237,7 @@ export default function EditarProveedor({ proveedor, mode = "edit", compras = []
             {/* ── Sección: Insumos ── */}
             {activeSection === "insumos" && (
               <>
-                <p className="section-label" style={{ marginTop: 0 }}>Últimos insumos comprados</p>
+                <p className="section-label" style={{ marginTop: 0, textTransform: "none" }}>Últimos insumos comprados</p>
                 <div className="insumos-list">
                   {ultimosInsumos.length === 0 ? (
                     <div className="insumo-item insumo-item--empty">

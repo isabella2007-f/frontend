@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { registerUser } from '../services/userService';
+import { validatePassword } from '../features/configuracion/Usuarios/usuariosUtils.js';
 import {
   User, Mail, Lock, Phone, MapPin, CreditCard,
   ChevronRight, ChevronLeft, Eye, EyeOff, Check, Leaf,
@@ -166,9 +167,8 @@ const Register = () => {
       if (!form.municipio)    e.municipio    = 'Selecciona un municipio';
     }
     if (step === 4) {
-      if (!form.password)                e.password  = 'Campo obligatorio';
-      else if (form.password.length < 6) e.password  = 'Mínimo 6 caracteres';
-      if (form.password !== form.confirmar) e.confirmar = 'Las contraseñas no coinciden';
+      const passError = validatePassword(form.password, form.confirmar);
+      if (passError) e.password = passError;
     }
     setErrors(e);
     return Object.keys(e).length === 0;

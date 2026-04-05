@@ -2,7 +2,7 @@ import { useState } from "react";
 import "./GestionInsumos.css";
 
 // ─── Barra de pasos ───────────────────────────────────────
-const STEPS = ["Identificación", "Stock y Lote"];
+const STEPS = ["Identificación", "Stock Mínimo y Lote"];
 
 function StepsBar({ current }) {
   return (
@@ -41,24 +41,6 @@ export default function EditarInsumo({ ins, onClose, onSave, categorias, unidade
   const set     = (k, v) => { setForm(p => ({ ...p, [k]: v }));             setSErrors(p => ({ ...p, [k]: "" })); };
   const setLote = (k, v) => setForm(p => ({ ...p, lote: { ...p.lote, [k]: v } }));
 
-  const stockPct = () => {
-    const a = Number(form.stockActual), m = Number(form.stockMinimo);
-    if (!m) return 0;
-    return Math.min(100, Math.round((a / (m * 2)) * 100));
-  };
-  const stockColor = () => {
-    const a = Number(form.stockActual), m = Number(form.stockMinimo);
-    if (a === 0) return "#ef5350";
-    if (a < m)   return "#ffa726";
-    return "#43a047";
-  };
-  const stockLabel = () => {
-    const a = Number(form.stockActual), m = Number(form.stockMinimo);
-    if (a === 0) return "Agotado";
-    if (a < m)   return `Stock bajo (faltan ${m - a})`;
-    return "Disponible ✓";
-  };
-
   const validateStep = (s) => {
     const e = {};
     if (s === 1) {
@@ -67,7 +49,6 @@ export default function EditarInsumo({ ins, onClose, onSave, categorias, unidade
       if (!form.idUnidad)      e.idUnidad    = "Selecciona una unidad";
     }
     if (s === 2) {
-      if (form.stockActual === "") e.stockActual = "Campo requerido";
       if (form.stockMinimo === "") e.stockMinimo = "Campo requerido";
     }
     return e;
@@ -90,7 +71,6 @@ export default function EditarInsumo({ ins, onClose, onSave, categorias, unidade
       ...form,
       idCategoria: Number(form.idCategoria),
       idUnidad:    Number(form.idUnidad),
-      stockActual: Number(form.stockActual),
       stockMinimo: Number(form.stockMinimo),
       lote: form.lote.id ? { ...form.lote, cantInicial: Number(form.lote.cantInicial) } : null,
     });
@@ -165,17 +145,6 @@ export default function EditarInsumo({ ins, onClose, onSave, categorias, unidade
             <>
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Stock actual <span>*</span></label>
-                  <input
-                    type="number" min="0"
-                    className={`field-input${errors.stockActual ? " field-input--error" : ""}`}
-                    value={form.stockActual} onChange={e => set("stockActual", e.target.value)}
-                    onFocus={e => e.target.style.borderColor = "#4caf50"}
-                    onBlur={e => e.target.style.borderColor = errors.stockActual ? "#e53935" : "#e0e0e0"}
-                  />
-                  {errors.stockActual && <p className="field-error">{errors.stockActual}</p>}
-                </div>
-                <div className="form-group">
                   <label className="form-label">Stock mínimo <span>*</span></label>
                   <input
                     type="number" min="0"
@@ -186,15 +155,6 @@ export default function EditarInsumo({ ins, onClose, onSave, categorias, unidade
                   />
                   {errors.stockMinimo && <p className="field-error">{errors.stockMinimo}</p>}
                 </div>
-              </div>
-
-              {/* Stock preview */}
-              <div className="stock-helper">
-                <p className="stock-helper__label">Vista previa de stock</p>
-                <div className="stock-helper__bar">
-                  <div className="stock-helper__fill" style={{ width: stockPct() + "%", background: stockColor() }} />
-                </div>
-                <p className="stock-helper__text" style={{ color: stockColor() }}>{stockLabel()}</p>
               </div>
 
               {/* Lote */}
