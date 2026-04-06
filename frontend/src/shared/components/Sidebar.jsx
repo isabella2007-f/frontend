@@ -22,7 +22,6 @@ const adminMenuItems = [
     items: [
       { label: "Roles y Privilegios", icon: "🛡️", link: "/admin/roles" },
       { label: "Gestión de Usuario", icon: "👤", link: "/admin/usuarios" },
-      { label: "Gestión de Empleados", icon: "👷", link: "/admin/empleados" },
       { label: "Gestión de Salidas", icon: "📤", link: "/admin/salidas" },
     ],
   },
@@ -49,7 +48,6 @@ const adminMenuItems = [
     section: "Ventas",
     icon: "💰",
     items: [
-      { label: "Clientes", icon: "👤", link: "/admin/clientes" },
       { label: "Pedidos", icon: "🛍️", link: "/admin/pedidos" },
       { label: "Domicilios", icon: "🚚", link: "/admin/domicilios" },
       { label: "Devoluciones", icon: "🔄", link: "/admin/devoluciones" },

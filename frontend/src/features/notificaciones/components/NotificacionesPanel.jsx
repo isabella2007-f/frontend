@@ -1,0 +1,244 @@
+import { useState, useRef, useEffect } from "react";
+import {
+  useNotificaciones,
+  TIPOS, TIPO_LABELS, TIPO_ICONS, TIPO_COLORS,
+} from "../context/NotificacionesContext";
+import NotificacionDetalle from "./NotificacionDetalle";
+import "./notificaciones.css";
+
+/* ── helpers ─────────────────────────────────────────────── */
+const fmtFecha = (iso) => {
+  const d = new Date(iso);
+  const hoy = new Date();
+  const diff = Math.floor((hoy - d) / 60000); // minutos
+  if (diff < 1)   return "Ahora";
+  if (diff < 60)  return `Hace ${diff} min`;
+  if (diff < 1440) return `Hace ${Math.floor(diff / 60)}h`;
+  return d.toLocaleDateString("es-CO", { day: "2-digit", month: "short" });
+};
+
+/* ══════════════════════════════════════════════════════════
+   PANEL PRINCIPAL
+══════════════════════════════════════════════════════════ */
+export default function NotificacionesPanel({ isOpen, onClose }) {
+  const {
+    notificaciones, noLeidas,
+    marcarLeida, marcarTodasLeidas, eliminarNotificacion,
+    filtrar,
+  } = useNotificaciones();
+
+  // HU_03 — filtros (CA_03_01..05)
+  const [filtroTipo,   setFiltroTipo]   = useState("");
+  const [filtroEstado, setFiltroEstado] = useState("");
+  const [busqueda,     setBusqueda]     = useState("");
+  const [detalle,      setDetalle]      = useState(null); // HU_02 — ver detalle CA_02_04
+  const panelRef = useRef(null);
+
+  // Cerrar con Escape
+  useEffect(() => {
+    const handler = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  // Cerrar al hacer clic fuera
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e) => {
+      if (panelRef.current && !panelRef.current.contains(e.target)) onClose();
+    };
+    setTimeout(() => document.addEventListener("mousedown", handler), 50);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [isOpen, onClose]);
+
+  // CA_03_03 — filtros combinados, CA_03_04 — lista se actualiza
+  const lista = filtrar({ tipo: filtroTipo, estado: filtroEstado, texto: busqueda });
+
+  // CA_03_05 — limpiar filtros
+  const limpiarFiltros = () => { setFiltroTipo(""); setFiltroEstado(""); setBusqueda(""); };
+  const hayFiltros = filtroTipo || filtroEstado || busqueda;
+
+  const handleVerDetalle = (notif) => {
+    marcarLeida(notif.id); // CA_02_05 — marcar como leída al ver
+    setDetalle(notif);
+  };
+
+  return (
+    <>
+      {/* Overlay */}
+      {isOpen && <div className="notif-overlay" onClick={onClose} />}
+
+      {/* Panel */}
+      <aside ref={panelRef} className={`notif-panel ${isOpen ? "notif-panel--open" : ""}`}>
+
+        {/* ── Header ── */}
+        <div className="notif-panel__header">
+          <div className="notif-panel__title-row">
+            <span className="notif-panel__title">🔔 Notificaciones</span>
+            {noLeidas > 0 && (
+              <span className="notif-badge-header">{noLeidas} nueva{noLeidas > 1 ? "s" : ""}</span>
+            )}
+          </div>
+          <div className="notif-panel__header-actions">
+            {noLeidas > 0 && (
+              <button className="notif-link-btn" onClick={marcarTodasLeidas}>
+                Marcar todas como leídas
+              </button>
+            )}
+            <button className="notif-close-btn" onClick={onClose} title="Cerrar">✕</button>
+          </div>
+        </div>
+
+        {/* ── Buscador ── */}
+        <div className="notif-search-wrap">
+          <span className="notif-search-icon">🔍</span>
+          <input
+            className="notif-search-input"
+            placeholder="Buscar notificación..."
+            value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
+          />
+        </div>
+
+        {/* ── HU_03 Filtros — CA_03_01 tipo, CA_03_02 estado ── */}
+        <div className="notif-filters">
+          {/* Filtro tipo — CA_03_01 */}
+          <select
+            className="notif-select"
+            value={filtroTipo}
+            onChange={e => setFiltroTipo(e.target.value)}
+          >
+            <option value="">Todos los tipos</option>
+            {Object.entries(TIPO_LABELS).map(([k, v]) => (
+              <option key={k} value={k}>{TIPO_ICONS[k]} {v}</option>
+            ))}
+          </select>
+
+          {/* Filtro estado — CA_03_02 */}
+          <select
+            className="notif-select"
+            value={filtroEstado}
+            onChange={e => setFiltroEstado(e.target.value)}
+          >
+            <option value="">Todos los estados</option>
+            <option value="no_leida">No leídas</option>
+            <option value="leida">Leídas</option>
+          </select>
+
+          {/* CA_03_05 — limpiar */}
+          {hayFiltros && (
+            <button className="notif-clear-btn" onClick={limpiarFiltros} title="Limpiar filtros">
+              ✕ Limpiar
+            </button>
+          )}
+        </div>
+
+        {/* ── HU_04 Lista — CA_04_01..05 ── */}
+        <div className="notif-list">
+          {lista.length === 0 ? (
+            <div className="notif-empty">
+              <span className="notif-empty__icon">🎉</span>
+              <p className="notif-empty__text">
+                {hayFiltros ? "Sin resultados con estos filtros" : "No hay notificaciones"}
+              </p>
+            </div>
+          ) : (
+            lista.map(n => (
+              <NotifItem
+                key={n.id}
+                notif={n}
+                onVer={handleVerDetalle}
+                onMarcarLeida={marcarLeida}
+                onEliminar={eliminarNotificacion}
+              />
+            ))
+          )}
+        </div>
+
+        {/* ── Footer con contador ── */}
+        {lista.length > 0 && (
+          <div className="notif-panel__footer">
+            <span className="notif-count-text">
+              {lista.length} notificación{lista.length > 1 ? "es" : ""}
+              {hayFiltros ? " (filtradas)" : ""}
+            </span>
+          </div>
+        )}
+      </aside>
+
+      {/* HU_02 — Detalle CA_02_01..05 */}
+      {detalle && (
+        <NotificacionDetalle
+          notif={detalle}
+          onClose={() => setDetalle(null)}
+          onMarcarLeida={marcarLeida}
+        />
+      )}
+    </>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════
+   ITEM DE NOTIFICACIÓN
+   CA_02_02 — info básica del evento
+   CA_04_01 — muestra todas
+   CA_04_02 — visualiza fecha y tipo
+   CA_04_03 — ordenadas por más recientes
+   CA_04_04 — permite cambiar estado
+   CA_04_05 — actualiza automáticamente
+══════════════════════════════════════════════════════════ */
+function NotifItem({ notif, onVer, onMarcarLeida, onEliminar }) {
+  const color = TIPO_COLORS[notif.tipo] || "#2e7d32";
+
+  return (
+    <div
+      className={`notif-item ${notif.leida ? "notif-item--leida" : "notif-item--nueva"}`}
+      style={{ "--notif-color": color }}
+    >
+      <div className="notif-item__accent" />
+
+      <div className="notif-item__body" onClick={() => onVer(notif)}>
+        <div className="notif-item__top">
+          <span className="notif-item__icon">{TIPO_ICONS[notif.tipo]}</span>
+          <span className="notif-item__tipo" style={{ color }}>
+            {TIPO_LABELS[notif.tipo]}
+          </span>
+          {/* CA_04_02 — fecha */}
+          <span className="notif-item__fecha">{fmtFecha(notif.fecha)}</span>
+          {!notif.leida && <span className="notif-item__dot" />}
+        </div>
+
+        {/* CA_02_02 — info básica */}
+        <p className="notif-item__titulo">{notif.titulo}</p>
+        <p className="notif-item__msg">{notif.mensaje}</p>
+      </div>
+
+      <div className="notif-item__actions">
+        {/* CA_04_04 / CA_05_01 — marcar leída sin eliminar */}
+        {!notif.leida && (
+          <button
+            className="notif-item__btn notif-item__btn--read"
+            onClick={e => { e.stopPropagation(); onMarcarLeida(notif.id); }}
+            title="Marcar como leída"
+          >
+            ✓
+          </button>
+        )}
+        <button
+          className="notif-item__btn notif-item__btn--view"
+          onClick={e => { e.stopPropagation(); onVer(notif); }}
+          title="Ver detalle"
+        >
+          👁
+        </button>
+        <button
+          className="notif-item__btn notif-item__btn--del"
+          onClick={e => { e.stopPropagation(); onEliminar(notif.id); }}
+          title="Eliminar"
+        >
+          🗑
+        </button>
+      </div>
+    </div>
+  );
+}

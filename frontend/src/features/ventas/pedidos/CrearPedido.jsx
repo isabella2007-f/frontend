@@ -6,7 +6,7 @@ import "./Pedidos.css";
 const fmt = (n) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
 
-const METODOS_PAGO = ["Efectivo", "Transferencia"];
+const METODOS_PAGO = ["Efectivo 💵", "Transferencia 🏦"];
 
 const EMPTY_FORM = {
   idCliente:         "",

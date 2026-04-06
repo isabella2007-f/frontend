@@ -6,7 +6,7 @@ import "./Pedidos.css";
 const fmt = (n) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
 
-const METODOS_PAGO = ["Efectivo", "Transferencia"];
+const METODOS_PAGO = ["Efectivo 💵", "Transferencia 🏦"];
 
 /* ─── Qué campos permite editar cada estado ─────────────── */
 const PERMISOS_POR_ESTADO = {
@@ -126,7 +126,7 @@ function ProductoItemFijo({ item }) {
   );
 }
 
-/* ─── BuscadorProducto (solo para estado Pendiente) ─────── */
+/* ─── BuscadorProducto ───────────────────────────────────── */
 function BuscadorProducto({ productosSeleccionados, onAgregar }) {
   const { productos, getCatProducto } = useApp();
   const [query,   setQuery]   = useState("");
@@ -197,25 +197,23 @@ function BuscadorProducto({ productosSeleccionados, onAgregar }) {
 
 /* ═══════════════════════════════════════════════════════════
    MODAL EDITAR PEDIDO
-   ═══════════════════════════════════════════════════════════ */
+═══════════════════════════════════════════════════════════ */
 export default function EditarPedido({ pedido, onClose, onSave }) {
   const { clientesActivos: clientes, editarCliente, cambiarEstadoPedido } = useApp();
 
-  /* ─── Config de estados ─── */
   const ESTADOS_FLUJO = ["Pendiente", "En producción", "Listo", "En camino", "Entregado", "Cancelado"];
   const ESTADO_CFG = {
-    "Pendiente":      { bg: "#fff8e1", color: "#f9a825", border: "#ffe082", dot: "#f9a825"  },
-    "En producción":  { bg: "#e3f2fd", color: "#1565c0", border: "#90caf9", dot: "#1976d2"  },
-    "Listo":          { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7", dot: "#43a047"  },
-    "En camino":      { bg: "#f3e5f5", color: "#6a1b9a", border: "#ce93d8", dot: "#8e24aa"  },
-    "Entregado":      { bg: "#e0f2f1", color: "#00695c", border: "#80cbc4", dot: "#009688"  },
-    "Cancelado":      { bg: "#ffebee", color: "#c62828", border: "#ef9a9a", dot: "#e53935"  },
+    "Pendiente":      { bg: "#fff8e1", color: "#f9a825", border: "#ffe082", dot: "#f9a825" },
+    "En producción":  { bg: "#e3f2fd", color: "#1565c0", border: "#90caf9", dot: "#1976d2" },
+    "Listo":          { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7", dot: "#43a047" },
+    "En camino":      { bg: "#f3e5f5", color: "#6a1b9a", border: "#ce93d8", dot: "#8e24aa" },
+    "Entregado":      { bg: "#e0f2f1", color: "#00695c", border: "#80cbc4", dot: "#009688" },
+    "Cancelado":      { bg: "#ffebee", color: "#c62828", border: "#ef9a9a", dot: "#e53935" },
   };
 
   const permisos   = PERMISOS_POR_ESTADO[pedido.estado] || {};
   const esEditable = Object.values(permisos).some(Boolean);
 
-  /* Si el estado no tiene permisos definidos → no editable */
   if (!esEditable) {
     return (
       <div className="overlay" onClick={onClose}>
@@ -240,8 +238,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
     );
   }
 
-  /* Form inicializado con datos del pedido */
-  const [form, setForm]             = useState({
+  const [form, setForm] = useState({
     idCliente:         pedido.idCliente,
     productosItems:    pedido.productosItems || [],
     metodo_pago:       pedido.metodo_pago,
@@ -251,34 +248,31 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
     descuento:         pedido.descuento || 0,
     estadoPedido:      pedido.estado,
   });
-  const [errors,         setErrors]         = useState({});
-  const [saved,          setSaved]          = useState(false);
+  const [errors,          setErrors]          = useState({});
+  const [saved,           setSaved]           = useState(false);
   const [editandoCliente, setEditandoCliente] = useState(false);
 
-  /* Datos editables del cliente — se inicializan al abrir el panel */
   const clienteActual = clientes.find(c => c.id === form.idCliente);
   const [datosCliente, setDatosCliente] = useState(null);
 
   const abrirEditorCliente = () => {
     if (!clienteActual) return;
     setDatosCliente({
-      id:          clienteActual.id,
-      nombre:      clienteActual.nombre,
-      apellidos:   clienteActual.apellidos,
-      correo:      clienteActual.correo,
-      telefono:    clienteActual.telefono,
-      direccion:   clienteActual.direccion,
-      departamento:clienteActual.departamento,
-      municipio:   clienteActual.municipio,
+      id:           clienteActual.id,
+      nombre:       clienteActual.nombre,
+      apellidos:    clienteActual.apellidos,
+      correo:       clienteActual.correo,
+      telefono:     clienteActual.telefono,
+      direccion:    clienteActual.direccion,
+      departamento: clienteActual.departamento,
+      municipio:    clienteActual.municipio,
     });
     setEditandoCliente(true);
   };
 
   const guardarDatosCliente = () => {
     if (!datosCliente) return;
-    /* Actualizar en el contexto global */
     editarCliente({ ...clienteActual, ...datosCliente });
-    /* Actualizar dirección de entrega si tiene domicilio */
     if (form.domicilio && datosCliente.direccion) {
       setForm(f => ({ ...f, direccion_entrega: datosCliente.direccion }));
     }
@@ -293,19 +287,17 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
     setErrors(e => ({ ...e, [k]: "" }));
   };
 
-  /* ─── Cálculos ─── */
   const subtotal  = form.productosItems.reduce((a, p) => a + p.precio * p.cantidad, 0);
   const descuento = Number(form.descuento) || 0;
   const total     = Math.max(0, subtotal - descuento);
   const hayProductosSinStock = form.productosItems.some(p => !p.stockOk || p.cantidad > p.stockActual);
 
-  /* ─── Validación ─── */
   const validate = () => {
     const e = {};
-    if (permisos.cliente && !form.idCliente)          e.idCliente   = "Selecciona un cliente";
-    if (permisos.productos && form.productosItems.length === 0) e.productos = "Agrega al menos un producto";
-    if (permisos.metodo_pago && !form.metodo_pago)    e.metodo_pago = "Selecciona método de pago";
-    if (form.domicilio && !form.direccion_entrega.trim()) e.direccion_entrega = "Ingresa la dirección";
+    if (permisos.cliente && !form.idCliente)                      e.idCliente         = "Selecciona un cliente";
+    if (permisos.productos && form.productosItems.length === 0)   e.productos         = "Agrega al menos un producto";
+    if (permisos.metodo_pago && !form.metodo_pago)                e.metodo_pago       = "Selecciona método de pago";
+    if (form.domicilio && !form.direccion_entrega.trim())         e.direccion_entrega = "Ingresa la dirección";
     return e;
   };
 
@@ -313,27 +305,20 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaved(true);
-
-    /* Cambiar estado si fue modificado */
     if (form.estadoPedido !== pedido.estado) {
       cambiarEstadoPedido(pedido.id, form.estadoPedido);
     }
-
     const clienteObj = clientes.find(c => c.id === form.idCliente);
     const payload = {
       id:     pedido.id,
       numero: pedido.numero,
       idCliente: form.idCliente,
       cliente: permisos.cliente && clienteObj
-        ? {
-            nombre:   `${clienteObj.nombre} ${clienteObj.apellidos}`,
-            correo:   clienteObj.correo,
-            telefono: clienteObj.telefono,
-          }
+        ? { nombre: `${clienteObj.nombre} ${clienteObj.apellidos}`, correo: clienteObj.correo, telefono: clienteObj.telefono }
         : pedido.cliente,
       productosItems:    permisos.productos ? form.productosItems : pedido.productosItems,
       metodo_pago:       permisos.metodo_pago ? form.metodo_pago : pedido.metodo_pago,
-      domicilio:         permisos.domicilio ? form.domicilio : pedido.domicilio,
+      domicilio:         permisos.domicilio  ? form.domicilio    : pedido.domicilio,
       direccion_entrega: form.direccion_entrega,
       notas:             form.notas,
       descuento:         permisos.descuento ? descuento : pedido.descuento,
@@ -341,34 +326,17 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
       total:             permisos.productos ? total     : pedido.total,
       orden_produccion:  permisos.productos ? hayProductosSinStock : pedido.orden_produccion,
     };
-
     setTimeout(() => onSave(payload), 900);
   };
 
-  /* ─── Helpers productos ─── */
-  const agregarProducto = (item) => {
+  const agregarProducto = (item) =>
     setForm(f => ({ ...f, productosItems: [...f.productosItems, item] }));
-  };
-  const cambiarProducto = (idx, item) => {
-    setForm(f => {
-      const arr = [...f.productosItems]; arr[idx] = item;
-      return { ...f, productosItems: arr };
-    });
-  };
-  const quitarProducto = (idx) => {
+  const cambiarProducto = (idx, item) =>
+    setForm(f => { const arr = [...f.productosItems]; arr[idx] = item; return { ...f, productosItems: arr }; });
+  const quitarProducto  = (idx) =>
     setForm(f => ({ ...f, productosItems: f.productosItems.filter((_, i) => i !== idx) }));
-  };
 
-  /* ─── Badge de estado del pedido ─── */
-  const ESTADO_CONFIG = {
-    "Pendiente":     { bg: "#fff8e1", color: "#f9a825", border: "#ffe082" },
-    "En producción": { bg: "#e3f2fd", color: "#1565c0", border: "#90caf9" },
-    "Listo":         { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7" },
-    "En camino":     { bg: "#f3e5f5", color: "#6a1b9a", border: "#ce93d8" },
-  };
-  const ec = ESTADO_CONFIG[pedido.estado] || {};
-
-  /* ─── Info de restricciones del estado ─── */
+  const ec = ESTADO_CFG[pedido.estado] || {};
   const restriccionesMsg = {
     "En producción": "Productos y cantidades no editables — ya están en fabricación.",
     "Listo":         "Solo se pueden modificar la dirección de entrega y las notas.",
@@ -377,16 +345,25 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
 
   return (
     <div className="overlay" onClick={onClose}>
-      <div className="modal-card" style={{ maxWidth: 640 }} onClick={e => e.stopPropagation()}>
-
-        {/* Header */}
-        <div className="modal-header">
+      <div
+        className="modal-card"
+        onClick={e => e.stopPropagation()}
+        style={{
+          maxWidth: 640,
+          /* ── Clave: flex column + altura máxima ── */
+          display: "flex",
+          flexDirection: "column",
+          maxHeight: "90vh",
+          overflow: "hidden",
+        }}
+      >
+        {/* ── Header (fijo) ── */}
+        <div className="modal-header" style={{ flexShrink: 0 }}>
           <div>
             <p className="modal-header__eyebrow">Editar pedido</p>
             <h2 className="modal-header__title">{pedido.numero}</h2>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {/* Estado badge */}
             <span style={{
               display: "inline-flex", alignItems: "center", gap: 5,
               background: ec.bg, color: ec.color, border: `1px solid ${ec.border}`,
@@ -398,10 +375,16 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
           </div>
         </div>
 
-        {/* Body */}
-        <div className="modal-body">
-
-          {/* Advertencia de restricciones si aplica */}
+        {/* ── Body (scroll interno aquí) ── */}
+        <div
+          className="modal-body"
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            overflowX: "hidden",
+            padding: "20px 24px",
+          }}
+        >
           {restriccionesMsg[pedido.estado] && (
             <div className="info-box info-box--warn">
               <span className="info-box__icon">⚠️</span>
@@ -413,7 +396,6 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
           <p className="section-label" style={{ textTransform: "none" }}>Cliente</p>
           {permisos.cliente ? (
             <>
-              {/* Selector de cliente */}
               {!editandoCliente && (
                 <>
                   <div style={{ display: "flex", gap: 8 }}>
@@ -437,7 +419,6 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
                       </select>
                       <SelectArrow />
                     </div>
-                    {/* Botón editar datos del cliente */}
                     {clienteActual && (
                       <button
                         onClick={abrirEditorCliente}
@@ -447,15 +428,12 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
                           fontSize: 13, cursor: "pointer", fontFamily: "inherit",
                           whiteSpace: "nowrap", flexShrink: 0, transition: "all 0.15s",
                         }}
-                        title="Editar datos del cliente"
                       >
                         ✎ Editar datos
                       </button>
                     )}
                   </div>
                   {errors.idCliente && <span className="field-error">{errors.idCliente}</span>}
-
-                  {/* Info rápida del cliente */}
                   {clienteActual && (
                     <div className="info-box info-box--success" style={{ marginTop: -2 }}>
                       <span className="info-box__icon">👤</span>
@@ -481,7 +459,6 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
                 </>
               )}
 
-              {/* Panel edición inline del cliente */}
               {editandoCliente && datosCliente && (
                 <div style={{
                   border: "1.5px solid #ffe082", borderRadius: 12,
@@ -496,76 +473,43 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
                       style={{ background: "none", border: "none", cursor: "pointer", color: "#9e9e9e", fontSize: 14 }}
                     >✕</button>
                   </div>
-
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                     {[
-                      { k: "nombre",    label: "Nombre",    ph: "Ej. Ana"         },
-                      { k: "apellidos", label: "Apellidos", ph: "Ej. García López"},
+                      { k: "nombre",    label: "Nombre",    ph: "Ej. Ana"          },
+                      { k: "apellidos", label: "Apellidos", ph: "Ej. García López" },
                     ].map(({ k, label, ph }) => (
                       <div key={k} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                         <label className="form-label">{label}</label>
-                        <input
-                          className="field-input"
-                          value={datosCliente[k] || ""}
-                          onChange={e => setDato(k, e.target.value)}
-                          placeholder={ph}
-                        />
+                        <input className="field-input" value={datosCliente[k] || ""} onChange={e => setDato(k, e.target.value)} placeholder={ph} />
                       </div>
                     ))}
                     <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 4 }}>
                       <label className="form-label">Correo</label>
-                      <input
-                        className="field-input"
-                        type="email"
-                        value={datosCliente.correo || ""}
-                        onChange={e => setDato("correo", e.target.value)}
-                        placeholder="correo@ejemplo.com"
-                      />
+                      <input className="field-input" type="email" value={datosCliente.correo || ""} onChange={e => setDato("correo", e.target.value)} placeholder="correo@ejemplo.com" />
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                       <label className="form-label">Teléfono</label>
-                      <input
-                        className="field-input"
-                        value={datosCliente.telefono || ""}
-                        onChange={e => setDato("telefono", e.target.value)}
-                        placeholder="300 000 0000"
-                      />
+                      <input className="field-input" value={datosCliente.telefono || ""} onChange={e => setDato("telefono", e.target.value)} placeholder="300 000 0000" />
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                       <label className="form-label">Municipio</label>
-                      <input
-                        className="field-input"
-                        value={datosCliente.municipio || ""}
-                        onChange={e => setDato("municipio", e.target.value)}
-                        placeholder="Ej. Medellín"
-                      />
+                      <input className="field-input" value={datosCliente.municipio || ""} onChange={e => setDato("municipio", e.target.value)} placeholder="Ej. Medellín" />
                     </div>
                     <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 4 }}>
                       <label className="form-label">
                         Dirección
                         {form.domicilio && (
-                          <span style={{ color: "#9e9e9e", fontWeight: 400, marginLeft: 6, textTransform: "none", letterSpacing: 0, fontSize: 10 }}>
+                          <span style={{ color: "#9e9e9e", fontWeight: 400, marginLeft: 6, fontSize: 10 }}>
                             — al guardar se actualiza la dirección de entrega
                           </span>
                         )}
                       </label>
-                      <input
-                        className="field-input"
-                        value={datosCliente.direccion || ""}
-                        onChange={e => setDato("direccion", e.target.value)}
-                        placeholder="Ej. Cra 5 #12-34, Apto 201"
-                      />
+                      <input className="field-input" value={datosCliente.direccion || ""} onChange={e => setDato("direccion", e.target.value)} placeholder="Ej. Cra 5 #12-34, Apto 201" />
                     </div>
                   </div>
-
                   <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 12 }}>
-                    <button
-                      className="btn-ghost"
-                      onClick={() => { setEditandoCliente(false); setDatosCliente(null); }}
-                    >Cancelar</button>
-                    <button className="btn-save" onClick={guardarDatosCliente}>
-                      ✓ Guardar datos
-                    </button>
+                    <button className="btn-ghost" onClick={() => { setEditandoCliente(false); setDatosCliente(null); }}>Cancelar</button>
+                    <button className="btn-save" onClick={guardarDatosCliente}>✓ Guardar datos</button>
                   </div>
                 </div>
               )}
@@ -578,22 +522,12 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
           <p className="section-label" style={{ textTransform: "none" }}>Productos</p>
           {permisos.productos ? (
             <>
-              <BuscadorProducto
-                productosSeleccionados={form.productosItems}
-                onAgregar={agregarProducto}
-              />
-              {errors.productos && (
-                <span className="field-error" style={{ marginTop: -4 }}>{errors.productos}</span>
-              )}
+              <BuscadorProducto productosSeleccionados={form.productosItems} onAgregar={agregarProducto} />
+              {errors.productos && <span className="field-error" style={{ marginTop: -4 }}>{errors.productos}</span>}
               {form.productosItems.length > 0 && (
                 <div className="productos-list">
                   {form.productosItems.map((item, idx) => (
-                    <ProductoItemEditable
-                      key={item.idProducto}
-                      item={item}
-                      onChange={v => cambiarProducto(idx, v)}
-                      onRemove={() => quitarProducto(idx)}
-                    />
+                    <ProductoItemEditable key={item.idProducto} item={item} onChange={v => cambiarProducto(idx, v)} onRemove={() => quitarProducto(idx)} />
                   ))}
                 </div>
               )}
@@ -608,7 +542,6 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
               )}
             </>
           ) : (
-            /* Solo lectura */
             <div className="productos-list">
               {pedido.productosItems.map((item) => (
                 <ProductoItemFijo key={item.idProducto} item={item} />
@@ -622,9 +555,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
               <div className="field-wrap">
                 <label className="field-label">
                   Descuento (COP)
-                  {!permisos.descuento && (
-                    <span style={{ marginLeft: 6, fontSize: 10, color: "#9e9e9e", fontWeight: 400 }}>— bloqueado</span>
-                  )}
+                  {!permisos.descuento && <span style={{ marginLeft: 6, fontSize: 10, color: "#9e9e9e", fontWeight: 400 }}>— bloqueado</span>}
                 </label>
                 <input
                   type="number" min={0}
@@ -636,36 +567,26 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
                 />
               </div>
               <div className="totales-box">
-                <div className="totales-row">
-                  <span>Subtotal</span>
-                  <span>{fmt(permisos.productos ? subtotal : pedido.subtotal)}</span>
-                </div>
+                <div className="totales-row"><span>Subtotal</span><span>{fmt(permisos.productos ? subtotal : pedido.subtotal)}</span></div>
                 {(permisos.descuento ? descuento : pedido.descuento) > 0 && (
                   <div className="totales-row totales-row--descuento">
                     <span>Descuento</span>
                     <span>− {fmt(permisos.descuento ? descuento : pedido.descuento)}</span>
                   </div>
                 )}
-                <div className="totales-row totales-row--total">
-                  <span>Total</span>
-                  <span>{fmt(permisos.productos ? total : pedido.total)}</span>
-                </div>
+                <div className="totales-row totales-row--total"><span>Total</span><span>{fmt(permisos.productos ? total : pedido.total)}</span></div>
               </div>
             </div>
           )}
 
-          {/* ── Método de pago ── */}
+          {/* ── Método de pago y entrega ── */}
           <p className="section-label" style={{ textTransform: "none" }}>Pago y entrega</p>
           <div className="form-grid-2">
             {permisos.metodo_pago ? (
               <div className="field-wrap">
                 <label className="field-label">Método de pago <span className="required">*</span></label>
                 <div className="select-wrap">
-                  <select
-                    className={`field-select${errors.metodo_pago ? " error" : ""}`}
-                    value={form.metodo_pago}
-                    onChange={e => set("metodo_pago", e.target.value)}
-                  >
+                  <select className={`field-select${errors.metodo_pago ? " error" : ""}`} value={form.metodo_pago} onChange={e => set("metodo_pago", e.target.value)}>
                     <option value="">Seleccione…</option>
                     {METODOS_PAGO.map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
@@ -677,7 +598,6 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
               <FieldReadOnly label="Método de pago" value={pedido.metodo_pago} />
             )}
 
-            {/* Tipo de entrega */}
             {permisos.domicilio ? (
               <div className="field-wrap">
                 <label className="field-label">Tipo de entrega</label>
@@ -704,10 +624,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
                 </div>
               </div>
             ) : (
-              <FieldReadOnly
-                label="Tipo de entrega"
-                value={pedido.domicilio ? "🛵 Domicilio" : "🏪 Tienda"}
-              />
+              <FieldReadOnly label="Tipo de entrega" value={pedido.domicilio ? "🛵 Domicilio" : "🏪 Tienda"} />
             )}
           </div>
 
@@ -716,8 +633,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
             permisos.direccion_entrega ? (
               <div className="field-wrap">
                 <label className="field-label">
-                  Dirección de entrega
-                  {form.domicilio && <span className="required">*</span>}
+                  Dirección de entrega {form.domicilio && <span className="required">*</span>}
                 </label>
                 <input
                   className={`field-input${errors.direccion_entrega ? " error" : ""}`}
@@ -725,9 +641,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
                   value={form.direccion_entrega}
                   onChange={e => set("direccion_entrega", e.target.value)}
                 />
-                {errors.direccion_entrega && (
-                  <span className="field-error">{errors.direccion_entrega}</span>
-                )}
+                {errors.direccion_entrega && <span className="field-error">{errors.direccion_entrega}</span>}
               </div>
             ) : (
               <FieldReadOnly label="Dirección de entrega" value={pedido.direccion_entrega} />
@@ -788,11 +702,13 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
               <span className="info-box__text">Esta acción restaurará el stock de los productos.</span>
             </div>
           )}
-
         </div>{/* /modal-body */}
 
-        {/* Footer */}
-        <div className="modal-footer">
+        {/* ── Footer (fijo) ── */}
+        <div
+          className="modal-footer"
+          style={{ flexShrink: 0, borderTop: "1px solid #f5f5f5" }}
+        >
           <button className="btn-cancel" onClick={onClose}>Cancelar</button>
           <button className="btn-save" onClick={handleSave} disabled={saved}>
             {saved ? "Guardando…" : "Guardar cambios"}

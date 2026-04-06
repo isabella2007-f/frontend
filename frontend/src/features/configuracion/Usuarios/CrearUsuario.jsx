@@ -1,10 +1,9 @@
-import { useState, useRef, useEffect } from "react";
-import { G, GB, getRolStyle, EMPTY_FORM, validatePassword } from "./usuariosUtils.js";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { GB, getRolStyle, EMPTY_FORM, TIPO_DOC, validatePassword } from "./usuariosUtils.js";
 import { Ic } from "./usuariosIcons.jsx";
 import { useApp } from "../../../AppContext.jsx";
 import "./Usuarios.css";
 
-// ─── ICONOS POR NOMBRE DE ROL (incluye los 3 base) ────────
 const ROL_ICONS_BASE = {
   Admin:    "👑",
   Empleado: "👷",
@@ -17,13 +16,11 @@ export function RolBadge({ rol }) {
   const c = getRolStyle(rol);
   const { roles } = useApp();
   const rolObj = roles.find(r => r.nombre === rol);
-  const icono  = rolObj?.iconoPreview
+  const icono = rolObj?.iconoPreview
     ? <img src={rolObj.iconoPreview} alt={rol} style={{ width: 15, height: 15, borderRadius: "50%", objectFit: "cover" }} />
     : <span style={{ fontSize: 14 }}>{rolObj?.icono ?? ROL_ICONS_BASE[rol] ?? "👤"}</span>;
-
   return (
-    <span className="rol-badge rol-badge--icon-only"
-      style={{ background: c.bg, color: c.color, borderColor: c.border }}>
+    <span className="rol-badge rol-badge--icon-only" style={{ background: c.bg, color: c.color, borderColor: c.border }}>
       {icono}
       <span className="rol-badge__tooltip">{rol}</span>
     </span>
@@ -37,17 +34,13 @@ export function Toggle({ on, onToggle, disabled }) {
       className={`toggle-btn${disabled ? " disabled" : ""}`}
       style={{
         background: on ? "#43a047" : "#c62828",
-        boxShadow: on
-          ? "0 2px 8px rgba(67,160,71,0.45)"
-          : "0 2px 8px rgba(198,40,40,0.3)",
-        cursor:  disabled ? "default" : "pointer",
+        boxShadow: on ? "0 2px 8px rgba(67,160,71,0.45)" : "0 2px 8px rgba(198,40,40,0.3)",
+        cursor: disabled ? "default" : "pointer",
         opacity: disabled ? 0.6 : 1,
       }}
     >
       <span className="toggle-thumb" style={{ left: on ? 27 : 3 }}>
-        <span className="toggle-label" style={{ color: "black" }}>
-          {on ? "ON" : "OFF"}
-        </span>
+        <span className="toggle-label" style={{ color: "black" }}>{on ? "ON" : "OFF"}</span>
       </span>
     </button>
   );
@@ -65,30 +58,42 @@ export function Avatar({ foto, size = 80, border = true }) {
   );
 }
 
-export function Field({ label, value, onChange, type = "text", placeholder = "", error, readOnly, required }) {
+export function Field({ label, value, onChange, type = "text", placeholder = "", error, readOnly, required, children }) {
   return (
     <div className="field-wrap">
       <label className="field-label">
         {label}{required && <span className="required">*</span>}
       </label>
-      <input
-        type={type} value={value} onChange={onChange}
-        placeholder={placeholder} readOnly={readOnly}
-        className={`field-input${error ? " error" : ""}${readOnly ? " readonly" : ""}`}
-        onFocus={e => { if (!readOnly) e.target.style.borderColor = GB; }}
-        onBlur={e  => { e.target.style.borderColor = error ? "#e03030" : "#e0e0e0"; }}
-      />
+      {children || (
+        <input
+          type={type}
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          readOnly={readOnly}
+          className={`field-input${error ? " error" : ""}${readOnly ? " readonly" : ""}`}
+          onFocus={e => { if (!readOnly) e.target.style.borderColor = GB; }}
+          onBlur={e  => { e.target.style.borderColor = error ? "#e03030" : "#e0e0e0"; }}
+        />
+      )}
       {error && <span className="field-error">{error}</span>}
     </div>
   );
 }
 
 // ─── SELECTOR DEPARTAMENTO / MUNICIPIO ────────────────────
-function LocationSelects({ departamento, municipio, onDepto, onMunicipio, errDepto, errMunicipio }) {
+function LocationSelects({
+  departamento, municipio,
+  onDepto, onMunicipio,
+  errDepto, errMunicipio,
+  initialDepto, initialMunicipio,
+}) {
   const [deptos,     setDeptos]     = useState([]);
   const [municipios, setMunicipios] = useState([]);
   const [loadingD,   setLoadingD]   = useState(false);
   const [loadingM,   setLoadingM]   = useState(false);
+
+  const initialLoadDone = useRef(false);
 
   useEffect(() => {
     setLoadingD(true);
@@ -100,25 +105,50 @@ function LocationSelects({ departamento, municipio, onDepto, onMunicipio, errDep
   }, []);
 
   useEffect(() => {
-    if (!departamento) { setMunicipios([]); onMunicipio(""); return; }
-    const found = deptos.find(d => d.name === departamento);
+    if (!deptos.length) return;
+    if (!initialDepto)  return;
+    if (initialLoadDone.current) return;
+
+    const found = deptos.find(d => d.name === initialDepto);
     if (!found) return;
+
+    initialLoadDone.current = true;
     setLoadingM(true);
-    onMunicipio("");
     fetch(`https://api-colombia.com/api/v1/Department/${found.id}/cities`)
       .then(r => r.json())
       .then(data => setMunicipios(data.sort((a, b) => a.name.localeCompare(b.name))))
       .catch(() => {})
       .finally(() => setLoadingM(false));
-  }, [departamento, deptos]);
+  }, [deptos, initialDepto]);
+
+  const handleDeptoChange = (newDepto) => {
+    initialLoadDone.current = true;
+    onDepto(newDepto);
+    onMunicipio("");
+
+    if (!newDepto) { setMunicipios([]); return; }
+    const found = deptos.find(d => d.name === newDepto);
+    if (!found) return;
+
+    setLoadingM(true);
+    fetch(`https://api-colombia.com/api/v1/Department/${found.id}/cities`)
+      .then(r => r.json())
+      .then(data => setMunicipios(data.sort((a, b) => a.name.localeCompare(b.name))))
+      .catch(() => {})
+      .finally(() => setLoadingM(false));
+  };
 
   return (
     <div className="field-grid-2">
       <div className="field-wrap">
         <label className="field-label">Departamento <span className="required">*</span></label>
         <div className="select-wrap">
-          <select value={departamento} onChange={e => onDepto(e.target.value)}
-            className={`field-select${errDepto ? " error" : ""}`} disabled={loadingD}>
+          <select
+            value={departamento}
+            onChange={e => handleDeptoChange(e.target.value)}
+            className={`field-select${errDepto ? " error" : ""}`}
+            disabled={loadingD}
+          >
             <option value="">{loadingD ? "Cargando…" : "Seleccione…"}</option>
             {deptos.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
           </select>
@@ -134,9 +164,12 @@ function LocationSelects({ departamento, municipio, onDepto, onMunicipio, errDep
       <div className="field-wrap">
         <label className="field-label">Municipio <span className="required">*</span></label>
         <div className="select-wrap">
-          <select value={municipio} onChange={e => onMunicipio(e.target.value)}
+          <select
+            value={municipio}
+            onChange={e => onMunicipio(e.target.value)}
             className={`field-select${errMunicipio ? " error" : ""}`}
-            disabled={!departamento || loadingM}>
+            disabled={!departamento || loadingM}
+          >
             <option value="">
               {!departamento ? "Seleccione depto…" : loadingM ? "Cargando…" : "Seleccione…"}
             </option>
@@ -188,8 +221,8 @@ function StepsBar({ current }) {
   return (
     <div className="wizard-steps-bar">
       {STEPS.map((label, i) => {
-        const idx   = i + 1;
-        const done  = idx < current;
+        const idx    = i + 1;
+        const done   = idx < current;
         const active = idx === current;
         return (
           <div key={label} className="wizard-step-item">
@@ -212,39 +245,53 @@ function StepsBar({ current }) {
 // ─── MODAL CREAR / EDITAR — WIZARD ────────────────────────
 export default function CrearUsuario({ user, onClose, onSave }) {
   const isEdit = !!user;
-
   const { roles } = useApp();
   const rolesDisponibles = roles.filter(r => r.estado);
 
-  const [form, setForm]     = useState(isEdit ? { ...user, contrasena: "", confirmar: "" } : { ...EMPTY_FORM });
+  const [form, setForm]     = useState(
+    isEdit ? { ...user, contrasena: "", confirmar: "" } : { ...EMPTY_FORM }
+  );
   const [errors, setErrors] = useState({});
-  const [saved, setSaved]   = useState(false);
-  const [step, setStep]     = useState(1);
+  const [saved,  setSaved]  = useState(false);
+  const [step,   setStep]   = useState(1);
 
-  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: "" })); };
+  const set = (k, v) => {
+    setForm(f => ({ ...f, [k]: v }));
+    setErrors(e => ({ ...e, [k]: "" }));
+  };
 
-  // Validación por paso
   const validateStep = (s) => {
     const e = {};
+
     if (s === 1) {
-      if (!form.nombre.trim())    e.nombre    = "Campo requerido";
-      if (!form.apellidos.trim()) e.apellidos = "Campo requerido";
-      if (!form.correo.trim() || !/\S+@\S+\.\S+/.test(form.correo)) e.correo = "Correo no válido";
-      if (!form.cedula.trim())    e.cedula    = "Campo requerido";
-      if (!form.telefono.trim())  e.telefono  = "Teléfono no válido";
+      if (!form.nombre.trim())    e.nombre    = "Campo obligatorio";
+      if (!form.apellidos.trim()) e.apellidos = "Campo obligatorio";
+      if (!form.correo.trim())    e.correo    = "Campo obligatorio";
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo)) e.correo = "Formato inválido";
+      if (!form.cedula.trim())    e.cedula    = "Campo obligatorio";
+      if (!form.telefono.trim())  e.telefono  = "Campo obligatorio";
     }
+
     if (s === 2) {
-      if (!form.direccion.trim()) e.direccion    = "Campo requerido";
-      if (!form.departamento)     e.departamento = "Campo requerido";
-      if (!form.municipio)        e.municipio    = "Campo requerido";
+      if (!form.direccion.trim()) e.direccion    = "Campo obligatorio";
+      if (!form.departamento)     e.departamento = "Selecciona un departamento";
+      if (!form.municipio)        e.municipio    = "Selecciona un municipio";
     }
+
     if (s === 3) {
-      if (!isEdit && !form.contrasena) {
+      if (!form.rol) e.rol = "Seleccione un rol";
+
+      if (isEdit) {
+        if (form.contrasena) {
+          const passError = validatePassword(form.contrasena, form.confirmar);
+          if (passError) e.contrasena = passError;
+        }
+      } else {
         const passError = validatePassword(form.contrasena, form.confirmar);
         if (passError) e.contrasena = passError;
       }
-      if (!form.rol) e.rol = "Seleccione un rol";
     }
+
     return e;
   };
 
@@ -260,14 +307,20 @@ export default function CrearUsuario({ user, onClose, onSave }) {
     const e = validateStep(3);
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaved(true);
-    setTimeout(() => onSave(form), 1200);
+
+    const payload = { ...form };
+    if (isEdit && !form.contrasena) {
+      delete payload.contrasena;
+      delete payload.confirmar;
+    }
+
+    setTimeout(() => onSave(payload), 1200);
   };
 
   return (
     <div className="overlay" onClick={onClose}>
       <div className="modal-card" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
 
-        {/* HEADER */}
         <div className="modal-header">
           <div>
             <p className="modal-header__eyebrow">Usuarios</p>
@@ -276,15 +329,12 @@ export default function CrearUsuario({ user, onClose, onSave }) {
           <button className="modal-close-btn" onClick={onClose}><Ic.Close /></button>
         </div>
 
-        {/* STEPS BAR */}
         <div style={{ padding: "16px 24px 0" }}>
           <StepsBar current={step} />
         </div>
 
-        {/* BODY — sin overflow, cada paso cabe en pantalla */}
-        <div className="modal-body" style={{ overflow: "visible", flex: "1 1 auto" }}>
+        <div className="modal-body" style={{ overflowY: "hidden", overflowX: "hidden", minHeight: 280 }}>
 
-          {/* ── PASO 1: Personal ── */}
           {step === 1 && (
             <>
               <div style={{ display: "flex", gap: 18, alignItems: "flex-start" }}>
@@ -297,35 +347,66 @@ export default function CrearUsuario({ user, onClose, onSave }) {
               <Field required label="Correo" placeholder="Ej: juan@correo.com"
                 value={form.correo} onChange={e => set("correo", e.target.value)} error={errors.correo} />
               <div className="field-grid-2">
+                <Field required label="Tipo Doc.">
+                  <div className="select-wrap">
+                    <select
+                      value={form.tipoDocumento}
+                      onChange={e => set("tipoDocumento", e.target.value)}
+                      className="field-select"
+                    >
+                      {TIPO_DOC.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                    <div className="select-arrow">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5">
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </div>
+                  </div>
+                </Field>
                 <Field required label="Cédula"   placeholder="Ej: 1023456789" value={form.cedula}   onChange={e => set("cedula",   e.target.value)} error={errors.cedula} />
-                <Field required label="Teléfono" placeholder="Ej: 3001234567" value={form.telefono} onChange={e => set("telefono", e.target.value)} error={errors.telefono} />
               </div>
+              <Field required label="Teléfono" placeholder="Ej: 3001234567" value={form.telefono} onChange={e => set("telefono", e.target.value)} error={errors.telefono} />
             </>
           )}
 
-          {/* ── PASO 2: Ubicación ── */}
           {step === 2 && (
             <>
               <Field required label="Dirección" placeholder="Ej: Cra 5 #12-34, Apto 201"
                 value={form.direccion} onChange={e => set("direccion", e.target.value)} error={errors.direccion} />
               <LocationSelects
-                departamento={form.departamento} municipio={form.municipio}
-                onDepto={v => set("departamento", v)} onMunicipio={v => set("municipio", v)}
-                errDepto={errors.departamento} errMunicipio={errors.municipio}
+                departamento={form.departamento}
+                municipio={form.municipio}
+                onDepto={v => set("departamento", v)}
+                onMunicipio={v => set("municipio", v)}
+                errDepto={errors.departamento}
+                errMunicipio={errors.municipio}
+                initialDepto={isEdit ? user.departamento : ""}
+                initialMunicipio={isEdit ? user.municipio : ""}
               />
             </>
           )}
 
-          {/* ── PASO 3: Acceso y Rol ── */}
           {step === 3 && (
             <>
               <div className="field-grid-2">
-                <Field required={!isEdit} label="Contraseña" type="password"
-                  placeholder={isEdit ? "(sin cambios)" : "Mínimo 8 caracteres"}
-                  value={form.contrasena} onChange={e => set("contrasena", e.target.value)} error={errors.contrasena} />
-                <Field required={!isEdit} label="Confirmar contraseña" type="password"
-                  placeholder={isEdit ? "(sin cambios)" : "Repite la contraseña"}
-                  value={form.confirmar}  onChange={e => set("confirmar",  e.target.value)} error={errors.confirmar} />
+                <Field
+                  required={!isEdit}
+                  label={isEdit ? "Nueva contraseña (opcional)" : "Contraseña"}
+                  type="password"
+                  placeholder={isEdit ? "Dejar vacío para no cambiar" : "Mínimo 8 caracteres"}
+                  value={form.contrasena}
+                  onChange={e => set("contrasena", e.target.value)}
+                  error={errors.contrasena}
+                />
+                <Field
+                  required={!isEdit}
+                  label="Confirmar contraseña"
+                  type="password"
+                  placeholder={isEdit ? "Dejar vacío para no cambiar" : "Repite la contraseña"}
+                  value={form.confirmar}
+                  onChange={e => set("confirmar", e.target.value)}
+                  error={errors.confirmar}
+                />
               </div>
 
               <div className="field-wrap">
@@ -348,7 +429,6 @@ export default function CrearUsuario({ user, onClose, onSave }) {
                 </div>
                 {errors.rol && <span className="field-error">{errors.rol}</span>}
 
-                {/* Preview del rol seleccionado */}
                 {form.rol && (() => {
                   const rolObj = rolesDisponibles.find(r => r.nombre === form.rol);
                   const style  = getRolStyle(form.rol);
@@ -373,7 +453,6 @@ export default function CrearUsuario({ user, onClose, onSave }) {
           )}
         </div>
 
-        {/* FOOTER — navegación del wizard */}
         <div className="modal-footer" style={{ justifyContent: "space-between" }}>
           {step > 1
             ? <button className="btn-ghost" onClick={handleBack}>← Atrás</button>

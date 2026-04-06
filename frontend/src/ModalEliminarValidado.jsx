@@ -46,7 +46,8 @@ export default function ModalEliminarValidado({ titulo, descripcion, validacion 
               background: "#fff8e1", border: "1px solid #ffe082",
               textAlign: "left", fontSize: 12, color: "#e65100", lineHeight: 1.6,
             }}>
-              <strong>No se puede eliminar</strong><br />{razon}
+              <strong style={{ display: "block", marginBottom: 2 }}>Restricción de seguridad</strong>
+              {razon}
             </div>
           )}
 
@@ -56,12 +57,12 @@ export default function ModalEliminarValidado({ titulo, descripcion, validacion 
               background: "#fff3e0", border: "1px solid #ffcc80",
               textAlign: "left", fontSize: 12, color: "#e65100", lineHeight: 1.6,
             }}>
-              ⚠️ {advertencia}
+              <strong>Aviso importante:</strong> {advertencia}
             </div>
           )}
 
           {ok && !advertencia && (
-            <p style={{ margin: "4px 0 0", fontSize: 12, color: "#9e9e9e" }}>Esta acción no se puede deshacer.</p>
+            <p style={{ margin: "4px 0 0", fontSize: 12, color: "#9e9e9e" }}>Esta operación es permanente y no podrá ser revertida.</p>
           )}
         </div>
 

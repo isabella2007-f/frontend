@@ -8,7 +8,7 @@ import "./Pedidos.css";
 const fmt = (n) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
 
-const PER_PAGE = 4;
+const PER_PAGE = 5;
 
 const ESTADOS_FLUJO = ["Pendiente", "En producción", "Listo", "En camino", "Entregado", "Cancelado"];
 
@@ -66,7 +66,7 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit }) {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <EstadoBadge estado={pedido.estado} />
-            <button className="modal-close-btn" onClick={onClose}>✕</button>
+            <button type="button" className="modal-close-btn" onClick={onClose}>✕</button>
           </div>
         </div>
 

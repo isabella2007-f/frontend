@@ -11,27 +11,15 @@ const ITEMS_PER_PAGE = 5;
 function Toggle({ value, onChange }) {
   return (
     <button onClick={() => onChange(!value)} className="toggle-btn"
-      style={{ background: value ? "#43a047" : "#bdbdbd", boxShadow: value ? "0 2px 8px rgba(67,160,71,0.45)" : "none" }}>
+      style={{ background: value ? "#43a047" : "#c62828", boxShadow: value ? "0 2px 8px rgba(67,160,71,0.45)" : "0 2px 8px rgba(198,40,40,0.3)" }}>
       <span className="toggle-thumb" style={{ left: value ? 27 : 3 }}>
-        <span className="toggle-label">{value ? "ON" : ""}</span>
+        <span className="toggle-label" style={{ color:"black" }}>{value ? "ON" : "OFF"}</span>
       </span>
     </button>
   );
 }
 
-function InsumosPills({ insumos = [] }) {
-  const MAX  = 3;
-  const rest = insumos.length - MAX;
-  return (
-    <div className="insumos-pills">
-      {insumos.slice(0, MAX).map(i => <span key={i} className="insumo-pill">{i}</span>)}
-      {rest > 0 && <span className="insumo-pill insumo-pill--more">+{rest} más</span>}
-      {insumos.length === 0 && <span className="insumo-pill insumo-pill--empty">Sin insumos</span>}
-    </div>
-  );
-}
-
-function VerCategoria({ cat, insumosDeCategoria, onClose }) {
+function VerCategoria({ cat, onClose }) {
   return (
     <ModalOverlay onClose={onClose}>
       <div className="modal-header">
@@ -54,7 +42,6 @@ function VerCategoria({ cat, insumosDeCategoria, onClose }) {
           <label className="form-label">Descripción</label>
           <div className="field-input field-input--disabled" style={{ minHeight: 60 }}>{cat.descripcion}</div>
         </div>
-
         <div className="form-group" style={{ marginBottom: 0 }}>
           <label className="form-label">Estado</label>
           <span className="status-pill" style={{
@@ -83,7 +70,6 @@ function VerCategoria({ cat, insumosDeCategoria, onClose }) {
 export default function CategoriaInsumos() {
   const {
     categoriasInsumos,
-    insumosPorCategoriaId,          // ← nombres de insumos activos por idCategoria
     crearCatInsumo, editarCatInsumo, toggleCatInsumo, eliminarCatInsumo,
     canDeleteCatInsumo,
   } = useApp();
@@ -109,17 +95,9 @@ export default function CategoriaInsumos() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  /* Obtiene los nombres de insumos activos de una categoría */
-  const getInsumosCat = (catId) => insumosPorCategoriaId[catId] || [];
-
   const filtered = categoriasInsumos.filter(c => {
-    const q            = search.toLowerCase();
-    const insumosNombres = getInsumosCat(c.id);
-    const matchQ = (
-      c.nombre.toLowerCase().includes(q) ||
-      c.descripcion.toLowerCase().includes(q) ||
-      insumosNombres.some(i => i.toLowerCase().includes(q))
-    );
+    const q       = search.toLowerCase();
+    const matchQ  = c.nombre.toLowerCase().includes(q) || c.descripcion.toLowerCase().includes(q);
     const matchEst = filter === "todos" || (filter === "activo" ? c.estado : !c.estado);
     return matchQ && matchEst;
   });
@@ -129,8 +107,8 @@ export default function CategoriaInsumos() {
   const paginated  = filtered.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
   useEffect(() => setPage(1), [search, filter]);
 
-  const handleCreate = f  => { crearCatInsumo({ ...f, fecha: new Date().toLocaleDateString("es-CO") }); showToast("Categoría creada");    setModal(null); };
-  const handleEdit   = f  => { editarCatInsumo(f);                                                      showToast("Cambios guardados");   setModal(null); };
+  const handleCreate = f  => { crearCatInsumo({ ...f, fecha: new Date().toLocaleDateString("es-CO") }); showToast("Categoría creada");          setModal(null); };
+  const handleEdit   = f  => { editarCatInsumo(f);                                                      showToast("Cambios guardados");         setModal(null); };
   const handleDelete = () => { eliminarCatInsumo(modal.cat.id);                                         showToast("Categoría eliminada", "error"); setModal(null); };
 
   const filterOptions = [
@@ -152,7 +130,7 @@ export default function CategoriaInsumos() {
             <span className="search-icon">🔍</span>
             <input
               type="text" className="search-input"
-              placeholder="Buscar por nombre, descripción o insumo…"
+              placeholder="Buscar por nombre o descripción…"
               value={search} onChange={e => setSearch(e.target.value)}
             />
           </div>
@@ -190,7 +168,6 @@ export default function CategoriaInsumos() {
                   <th>Nº</th>
                   <th>Categoría</th>
                   <th>Descripción</th>
-                  <th>Insumos</th>
                   <th>Estado</th>
                   <th>Fecha</th>
                   <th>Acciones</th>
@@ -199,7 +176,7 @@ export default function CategoriaInsumos() {
               <tbody>
                 {paginated.length === 0 ? (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={6}>
                       <div className="empty-state">
                         <div className="empty-state__icon">🧺</div>
                         <p className="empty-state__text">Sin resultados</p>
@@ -221,10 +198,6 @@ export default function CategoriaInsumos() {
                     </td>
                     <td style={{ maxWidth: 200 }}>
                       <span className="cat-desc">{cat.descripcion}</span>
-                    </td>
-                    <td>
-                      {/* Muestra solo la cantidad de insumos asignados */}
-                      <span className="cat-num">{getInsumosCat(cat.id).length} insumos</span>
                     </td>
                     <td>
                       <Toggle value={cat.estado} onChange={() => toggleCatInsumo(cat.id)} />
@@ -267,18 +240,12 @@ export default function CategoriaInsumos() {
 
       {modal?.type === "crear"    && <CrearCategoriaInsumo onClose={() => setModal(null)} onSave={handleCreate} />}
       {modal?.type === "editar"   && <EditarCategoriaInsumo cat={modal.cat} onClose={() => setModal(null)} onSave={handleEdit} />}
-      {modal?.type === "ver"      && (
-        <VerCategoria
-          cat={modal.cat}
-          insumosDeCategoria={getInsumosCat(modal.cat.id)}
-          onClose={() => setModal(null)}
-        />
-      )}
+      {modal?.type === "ver"      && <VerCategoria cat={modal.cat} onClose={() => setModal(null)} />}
       {modal?.type === "eliminar" && (
         <ModalEliminarValidado
-          titulo="Eliminar categoría de insumos"
-          descripcion={`¿Eliminar "${modal.cat.nombre}"?`}
-          validacion={canDeleteCatInsumo(modal.cat.id)}
+          titulo="Eliminar categoría"
+          descripcion={`¿Está seguro de que desea eliminar la categoría "${modal.category.nombre}"?`}
+          validacion={canDeleteCatInsumo(modal.category.id)}
           onClose={() => setModal(null)}
           onConfirm={handleDelete}
         />

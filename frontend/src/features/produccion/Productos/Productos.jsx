@@ -9,7 +9,7 @@ import SalidaModal from "./SalidaModal.jsx";
 import ModalEliminarValidado from "../../../ModalEliminarValidado";
 import "./Productos.css";
 
-const ITEMS_PER_PAGE = 4;
+const ITEMS_PER_PAGE = 5;
 
 /* ══════════════════════════════════════════════════════════
    HELPERS
@@ -52,27 +52,66 @@ const TIPO_COLORS = {
 };
 
 /* ══════════════════════════════════════════════════════════
-   TABLA — sub-componentes pequeños
+   SUB-COMPONENTES
 ══════════════════════════════════════════════════════════ */
-function EstadoBadge({ stock, stockMinimo }) {
-  const minimo  = stockMinimo ?? 10;
-  const estado  = calcEstado(stock, minimo);
-  const tooltip = calcTooltip(stock, minimo);
-  const s       = ESTADO_STYLES[estado];
-  const [show, setShow] = useState(false);
+
+function Toggle({ value, onChange }) {
   return (
-    <span style={{ position: "relative", display: "inline-flex" }}
-      onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: s.bg, color: s.color, border: `1px solid ${s.border}`, whiteSpace: "nowrap", cursor: "default" }}>
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.color }} />{estado}
+    <button onClick={() => onChange(!value)} className="toggle-btn"
+      style={{ background: value ? "#43a047" : "#c62828", boxShadow: value ? "0 2px 8px rgba(67,160,71,0.45)" : "0 2px 8px rgba(198,40,40,0.3)" }}>
+      <span className="toggle-thumb" style={{ left: value ? 27 : 3 }}>
+        <span className="toggle-label" style={{ color: "black" }}>{value ? "ON" : "OFF"}</span>
       </span>
-      {show && (
-        <span style={{ position: "absolute", bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", background: "#1a1a1a", color: "#fff", fontSize: 11, fontWeight: 500, padding: "5px 10px", borderRadius: 7, whiteSpace: "nowrap", zIndex: 999, pointerEvents: "none" }}>
-          {tooltip}
-          <span style={{ position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderTop: "5px solid #1a1a1a" }} />
-        </span>
+    </button>
+  );
+}
+
+/* ── StockBar — igual que GestionInsumos ─────────────────── */
+function StockBar({ actual, minimo }) {
+  const [hovered, setHovered] = useState(false);
+  const pct   = minimo > 0 ? Math.min(100, Math.round((actual / (minimo * 2)) * 100)) : 100;
+  const est   = actual === 0 ? "agotado" : actual < minimo ? "bajo" : "disponible";
+  const color = est === "agotado" ? "#ef5350" : est === "bajo" ? "#ffa726" : "#43a047";
+  const tipMap = {
+    disponible: { label: "Disponible", bg: "#e8f5e9", border: "#a5d6a7", text: "#2e7d32" },
+    bajo:       { label: "Stock bajo", bg: "#fff8e1", border: "#ffe082", text: "#f57f17" },
+    agotado:    { label: "Agotado",    bg: "#ffebee", border: "#ef9a9a", text: "#c62828" },
+  };
+  const tip = tipMap[est];
+  return (
+    <div
+      style={{ position: "relative", minWidth: 120 }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* barra */}
+      <div style={{ height: 6, borderRadius: 4, background: "#f0f0f0", overflow: "hidden", marginBottom: 4 }}>
+        <div style={{ width: pct + "%", height: "100%", background: color, borderRadius: 4, transition: "width 0.3s" }} />
+      </div>
+      {/* números */}
+      <span style={{ fontSize: 12, fontWeight: 600, color: "#424242" }}>
+        <strong style={{ color }}>{actual}</strong>
+        <span style={{ color: "#bdbdbd" }}> / mín {minimo}</span>
+      </span>
+      {/* tooltip */}
+      {hovered && (
+        <div style={{
+          position: "absolute", bottom: "calc(100% + 6px)", left: "50%",
+          transform: "translateX(-50%)", background: tip.bg,
+          border: `1px solid ${tip.border}`, color: tip.text,
+          fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 8,
+          whiteSpace: "nowrap", zIndex: 999, pointerEvents: "none",
+          display: "flex", alignItems: "center", gap: 5,
+          boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        }}>
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: color, flexShrink: 0 }} />
+          {tip.label}
+          {est === "bajo" && (
+            <span style={{ fontWeight: 400, opacity: 0.8 }}> · faltan {minimo - actual}</span>
+          )}
+        </div>
       )}
-    </span>
+    </div>
   );
 }
 
@@ -101,7 +140,7 @@ function ProductImg({ preview, nombre }) {
 }
 
 /* ══════════════════════════════════════════════════════════
-   LOTES PANEL — incrustado directamente
+   LOTES PANEL
 ══════════════════════════════════════════════════════════ */
 function LotesProductoPanel({ idProducto }) {
   const { getLotesProducto, agregarLoteProducto } = useApp();
@@ -151,9 +190,7 @@ function LotesProductoPanel({ idProducto }) {
             <div style={{ gridColumn: "1 / -1" }}>
               <p className="lote-field__label">ID del lote *</p>
               <input className={`field-input${errors.id ? " field-input--error" : ""}`}
-                value={form.id} onChange={e => set("id", e.target.value)} placeholder="Ej. LP-001"
-                onFocus={e => e.target.style.borderColor = "#4caf50"}
-                onBlur={e => e.target.style.borderColor = errors.id ? "#e53935" : "#e0e0e0"} />
+                value={form.id} onChange={e => set("id", e.target.value)} placeholder="Ej. LP-001" />
               {errors.id && <p className="field-error">{errors.id}</p>}
             </div>
             <div>
@@ -165,17 +202,13 @@ function LotesProductoPanel({ idProducto }) {
               <p className="lote-field__label">Cantidad inicial *</p>
               <input type="number" min="1"
                 className={`field-input${errors.cantInicial ? " field-input--error" : ""}`}
-                value={form.cantInicial} onChange={e => set("cantInicial", e.target.value)} placeholder="0"
-                onFocus={e => e.target.style.borderColor = "#4caf50"}
-                onBlur={e => e.target.style.borderColor = errors.cantInicial ? "#e53935" : "#e0e0e0"} />
+                value={form.cantInicial} onChange={e => set("cantInicial", e.target.value)} placeholder="0" />
               {errors.cantInicial && <p className="field-error">{errors.cantInicial}</p>}
             </div>
             <div>
               <p className="lote-field__label">Costo unitario (opcional)</p>
               <input type="number" min="0" className="field-input"
-                value={form.costo} onChange={e => set("costo", e.target.value)} placeholder="$0"
-                onFocus={e => e.target.style.borderColor = "#4caf50"}
-                onBlur={e => e.target.style.borderColor = "#e0e0e0"} />
+                value={form.costo} onChange={e => set("costo", e.target.value)} placeholder="$0" />
             </div>
           </div>
           <div style={{ padding: "0 14px 12px", display: "flex", justifyContent: "flex-end" }}>
@@ -201,12 +234,8 @@ function LotesProductoPanel({ idProducto }) {
                 <div className="lote-item__head">
                   <span className="lote-item__id">{lote.id}</span>
                   <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    {vencido && (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "#c62828", background: "#ffebee", padding: "2px 8px", borderRadius: 20, border: "1px solid #ef9a9a" }}>Vencido</span>
-                    )}
-                    {pronto && !vencido && (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "#e65100", background: "#fff3e0", padding: "2px 8px", borderRadius: 20, border: "1px solid #ffcc80" }}>Vence en {dias}d</span>
-                    )}
+                    {vencido && <span style={{ fontSize: 11, fontWeight: 700, color: "#c62828", background: "#ffebee", padding: "2px 8px", borderRadius: 20, border: "1px solid #ef9a9a" }}>Vencido</span>}
+                    {pronto && !vencido && <span style={{ fontSize: 11, fontWeight: 700, color: "#e65100", background: "#fff3e0", padding: "2px 8px", borderRadius: 20, border: "1px solid #ffcc80" }}>Vence en {dias}d</span>}
                     <span style={{ fontWeight: 600, fontSize: 12 }}>Vence: {formatFecha(lote.fechaVencimiento)}</span>
                   </span>
                 </div>
@@ -226,7 +255,7 @@ function LotesProductoPanel({ idProducto }) {
 }
 
 /* ══════════════════════════════════════════════════════════
-   VER PRODUCTO — modal con tabs (todo aquí)
+   VER PRODUCTO
 ══════════════════════════════════════════════════════════ */
 function VerProducto({ product, catObj, onClose }) {
   const { getLotesProducto, getSalidasProducto, getLotesVencidosProducto } = useApp();
@@ -235,8 +264,8 @@ function VerProducto({ product, catObj, onClose }) {
   const minimo   = product.stockMinimo ?? 10;
   const estado   = calcEstado(product.stock, minimo);
   const s        = ESTADO_STYLES[estado];
-  const salidas  = getSalidasProducto        ? getSalidasProducto(product.id)        : [];
-  const vencidos = getLotesVencidosProducto  ? getLotesVencidosProducto(product.id)  : [];
+  const salidas  = getSalidasProducto       ? getSalidasProducto(product.id)       : [];
+  const vencidos = getLotesVencidosProducto ? getLotesVencidosProducto(product.id) : [];
 
   const resumenSalidas = salidas.reduce((acc, sal) => {
     acc[sal.tipo] = (acc[sal.tipo] || 0) + sal.cantidad;
@@ -245,12 +274,7 @@ function VerProducto({ product, catObj, onClose }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div
-        className="modal-box"
-        style={{ maxWidth: 560, display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 40px)" }}
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
+      <div className="modal-box" style={{ maxWidth: 560, display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 40px)" }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             {product.imagenPreview
@@ -265,24 +289,13 @@ function VerProducto({ product, catObj, onClose }) {
           <button className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
 
-        {/* Tabs */}
         <div className="ver-ins-tabs">
-          {[
-            { key: "info",      label: "📋 Información" },
-            { key: "lotes",     label: "📦 Lotes" },
-            { key: "historial", label: "🕒 Historial" },
-          ].map(t => (
-            <button key={t.key}
-              className={`ver-ins-tab${tab === t.key ? " ver-ins-tab--active" : ""}`}
-              onClick={() => setTab(t.key)}>{t.label}
-            </button>
+          {[{ key: "info", label: "📋 Información" }, { key: "lotes", label: "📦 Lotes" }, { key: "historial", label: "🕒 Historial" }].map(t => (
+            <button key={t.key} className={`ver-ins-tab${tab === t.key ? " ver-ins-tab--active" : ""}`} onClick={() => setTab(t.key)}>{t.label}</button>
           ))}
         </div>
 
-        {/* Body con scroll */}
         <div className="modal-body" style={{ flex: 1, overflowY: "auto" }}>
-
-          {/* ── Información ── */}
           {tab === "info" && (
             <>
               <div className="ver-ins-grid" style={{ marginBottom: 16 }}>
@@ -299,10 +312,14 @@ function VerProducto({ product, catObj, onClose }) {
                   <span style={{ fontWeight: 700, fontSize: 16, color: "#2e7d32" }}>${product.precio?.toLocaleString("es-CO")}</span>
                 </div>
                 <div className="ver-ins-field">
-                  <span className="ver-ins-field__label">Estado</span>
+                  <span className="ver-ins-field__label">Estado stock</span>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
                     <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.color }} />{estado}
                   </span>
+                </div>
+                <div className="ver-ins-field">
+                  <span className="ver-ins-field__label">Activo</span>
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>{product.activo !== false ? "Sí" : "No"}</span>
                 </div>
               </div>
 
@@ -328,10 +345,8 @@ function VerProducto({ product, catObj, onClose }) {
             </>
           )}
 
-          {/* ── Lotes ── */}
           {tab === "lotes" && <LotesProductoPanel idProducto={product.id} />}
 
-          {/* ── Historial ── */}
           {tab === "historial" && (
             <>
               {salidas.length > 0 && (
@@ -342,8 +357,7 @@ function VerProducto({ product, catObj, onClose }) {
                       const tc = TIPO_COLORS[tipo] || { color: "#757575", bg: "#f5f5f5", border: "#e0e0e0", icon: "📋" };
                       return (
                         <div key={tipo} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 20, background: tc.bg, border: `1px solid ${tc.border}`, fontSize: 12, fontWeight: 700, color: tc.color }}>
-                          <span>{tc.icon}</span>
-                          {tipo.charAt(0).toUpperCase() + tipo.slice(1)}: <span style={{ marginLeft: 2 }}>{total} uds.</span>
+                          <span>{tc.icon}</span>{tipo.charAt(0).toUpperCase() + tipo.slice(1)}: <span style={{ marginLeft: 2 }}>{total} uds.</span>
                         </div>
                       );
                     })}
@@ -352,51 +366,45 @@ function VerProducto({ product, catObj, onClose }) {
               )}
 
               <p className="ver-ins-section-label" style={{ textTransform: "none" }}>Lotes vencidos</p>
-              {vencidos.length === 0 ? (
-                <div className="empty-state" style={{ padding: "14px 20px" }}>
-                  <p className="empty-state__text">No hay lotes vencidos registrados.</p>
-                </div>
-              ) : (
-                <div className="lotes-lista" style={{ marginBottom: 18 }}>
-                  {vencidos.map(lote => (
-                    <div key={lote.id} className="lote-item" style={{ borderColor: "#ef9a9a" }}>
-                      <div className="lote-item__head">
-                        <span className="lote-item__id">{lote.id}</span>
-                        <span style={{ fontWeight: 600, fontSize: 12 }}>Venció: {formatFecha(lote.fechaVencimiento)}</span>
+              {vencidos.length === 0
+                ? <div className="empty-state" style={{ padding: "14px 20px" }}><p className="empty-state__text">No hay lotes vencidos registrados.</p></div>
+                : <div className="lotes-lista" style={{ marginBottom: 18 }}>
+                    {vencidos.map(lote => (
+                      <div key={lote.id} className="lote-item" style={{ borderColor: "#ef9a9a" }}>
+                        <div className="lote-item__head">
+                          <span className="lote-item__id">{lote.id}</span>
+                          <span style={{ fontWeight: 600, fontSize: 12 }}>Venció: {formatFecha(lote.fechaVencimiento)}</span>
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, marginTop: 8, fontSize: 13 }}>
+                          <div><strong>Cantidad actual:</strong> {lote.cantidadActual} uds.</div>
+                          <div><strong>Ingreso:</strong> {formatFecha(lote.fechaIngreso)}</div>
+                        </div>
                       </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, marginTop: 8, fontSize: 13 }}>
-                        <div><strong>Cantidad actual:</strong> {lote.cantidadActual} uds.</div>
-                        <div><strong>Ingreso:</strong> {formatFecha(lote.fechaIngreso)}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+              }
 
               <p className="ver-ins-section-label" style={{ textTransform: "none", marginTop: 4 }}>Historial de salidas</p>
-              {salidas.length === 0 ? (
-                <div className="empty-state" style={{ padding: "14px 20px" }}>
-                  <p className="empty-state__text">Aún no hay salidas registradas.</p>
-                </div>
-              ) : (
-                <div className="historial-list">
-                  {salidas.map(salida => {
-                    const tc = TIPO_COLORS[salida.tipo] || { color: "#757575", bg: "#f5f5f5", icon: "📋" };
-                    return (
-                      <div key={salida.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 9, border: "1px solid #f0f0f0", marginBottom: 6, background: "#fafafa" }}>
-                        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                          <span style={{ padding: "2px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, color: tc.color, background: tc.bg }}>{tc.icon} {salida.tipo}</span>
-                          <span style={{ fontSize: 13, color: "#424242" }}>{salida.motivo}</span>
+              {salidas.length === 0
+                ? <div className="empty-state" style={{ padding: "14px 20px" }}><p className="empty-state__text">Aún no hay salidas registradas.</p></div>
+                : <div className="historial-list">
+                    {salidas.map(salida => {
+                      const tc = TIPO_COLORS[salida.tipo] || { color: "#757575", bg: "#f5f5f5", icon: "📋" };
+                      return (
+                        <div key={salida.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 9, border: "1px solid #f0f0f0", marginBottom: 6, background: "#fafafa" }}>
+                          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                            <span style={{ padding: "2px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, color: tc.color, background: tc.bg }}>{tc.icon} {salida.tipo}</span>
+                            <span style={{ fontSize: 13, color: "#424242" }}>{salida.motivo}</span>
+                          </div>
+                          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "#c62828" }}>-{salida.cantidad} uds.</span>
+                            <span style={{ fontSize: 11, color: "#bdbdbd" }}>{salida.fecha}</span>
+                          </div>
                         </div>
-                        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: "#c62828" }}>-{salida.cantidad} uds.</span>
-                          <span style={{ fontSize: 11, color: "#bdbdbd" }}>{salida.fecha}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+              }
             </>
           )}
         </div>
@@ -419,6 +427,7 @@ export default function GestionProductos() {
     crearProducto, editarProducto, eliminarProducto, guardarFicha,
     canDeleteProducto,
     registrarSalidaProducto,
+    toggleActivoProducto,
   } = useApp();
 
   const [search,     setSearch]     = useState("");
@@ -491,7 +500,7 @@ export default function GestionProductos() {
               value={search} onChange={e => setSearch(e.target.value)} />
           </div>
           <div ref={filterRef} style={{ position: "relative" }}>
-            <button className={`filter-icon-btn${hasFilter ? " has-filter" : ""}`} onClick={() => setShowFilter(v => !v)}>▼</button>
+            <button type="button" className={`filter-icon-btn${hasFilter ? " has-filter" : ""}`} onClick={() => setShowFilter(v => !v)}>▼</button>
             {showFilter && (
               <div className="filter-dropdown" style={{ minWidth: 200 }}>
                 <div style={{ padding: "8px 14px 4px", fontSize: 10, fontWeight: 700, color: "#9e9e9e", letterSpacing: 1.5 }}>Categoría</div>
@@ -526,7 +535,15 @@ export default function GestionProductos() {
           <div style={{ overflowX: "auto" }}>
             <table className="tbl">
               <thead>
-                <tr><th>Nº</th><th>Producto</th><th>Categoría</th><th>Precio</th><th>Stock</th><th>Estado</th><th>Acciones</th></tr>
+                <tr>
+                  <th>Nº</th>
+                  <th>Producto</th>
+                  <th>Categoría</th>
+                  <th>Precio</th>
+                  <th>Stock</th>        {/* ← misma cabecera, nuevo contenido */}
+                  <th>Activo</th>
+                  <th>Acciones</th>
+                </tr>
               </thead>
               <tbody>
                 {paginated.length === 0 ? (
@@ -539,8 +556,16 @@ export default function GestionProductos() {
                       <td><div className="cat-cell"><ProductImg preview={p.imagenPreview} nombre={p.nombre} /><span className="cat-name">{p.nombre}</span></div></td>
                       <td><CatCell cat={cat} /></td>
                       <td><span style={{ fontWeight: 700, color: "#2e7d32", fontSize: 14 }}>${p.precio?.toLocaleString("es-CO")}</span></td>
-                      <td><span style={{ fontWeight: 700, fontSize: 14, color: p.stock === 0 ? "#c62828" : p.stock < (p.stockMinimo ?? 10) ? "#f57f17" : "#2e7d32" }}>{p.stock}</span></td>
-                      <td><EstadoBadge stock={p.stock} stockMinimo={p.stockMinimo} /></td>
+
+                      {/* ── StockBar igual que GestionInsumos ── */}
+                      <td><StockBar actual={p.stock} minimo={p.stockMinimo ?? 10} /></td>
+
+                      <td>
+                        <Toggle
+                          value={p.activo !== false}
+                          onChange={() => toggleActivoProducto && toggleActivoProducto(p.id)}
+                        />
+                      </td>
                       <td>
                         <div className="actions-cell">
                           <button className="act-btn act-btn--view"   title="Ver detalle"      onClick={() => setModal({ type: "ver",      product: p })}>👁</button>
@@ -584,7 +609,7 @@ export default function GestionProductos() {
       {modal?.type === "eliminar" && (
         <ModalEliminarValidado
           titulo="Eliminar producto"
-          descripcion={`¿Eliminar "${modal.product.nombre}"?`}
+          descripcion={`¿Está seguro de que desea eliminar el producto "${modal.product.nombre}"?`}
           validacion={canDeleteProducto(modal.product.id)}
           onClose={() => setModal(null)}
           onConfirm={handleDelete}

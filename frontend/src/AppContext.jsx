@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 
 /* ══════════════════════════════════════════════════════════
    UTILIDADES DE FECHAS
@@ -20,8 +20,13 @@ export const estadoLote = (lote) => {
 };
 
 const uid = () => Math.random().toString(36).slice(2, 10).toUpperCase();
-
 const fechaHoy = () => new Date().toISOString().split("T")[0];
+
+export const sumarDias = (dias) => {
+  const d = new Date();
+  d.setDate(d.getDate() + Number(dias));
+  return d.toISOString().split("T")[0];
+};
 
 /* ══════════════════════════════════════════════════════════
    DATOS INICIALES
@@ -89,10 +94,8 @@ const initProductos = [
   { id: 5, nombre: "Tostones orgánicos",       idCategoria: 5, precio: 7500,  stock: 15, stockMinimo: 10, imagen: null, imagenPreview: null, fecha: "28/02/2026", ficha: null },
 ];
 
-// ── Lotes de productos (independiente de los de insumos) ──
-const initLotesProductos = {};   // { [idProducto]: [ { id, fechaVencimiento, cantidadInicial, cantidadActual, fechaIngreso, costo } ] }
-// ── Salidas de productos ──
-const initSalidasProductos = {}; // { [idProducto]: [ { id, tipo, cantidad, motivo, fecha } ] }
+const initLotesProductos      = {};
+const initSalidasProductos    = {};
 
 const initProveedores = [
   { id: "PROV0001", responsable: "Juan Morales",   direccion: "Cra 45 # 10-20, Medellín",     celular: "300 123 4567", correo: "juan.morales@prov.com",   ciudad: "Medellín"     },
@@ -100,43 +103,6 @@ const initProveedores = [
   { id: "PROV0003", responsable: "Pedro Ríos",     direccion: "Av. 6N # 12-50, Cali",         celular: "315 789 0123", correo: "pedro.rios@prov.com",     ciudad: "Cali"         },
   { id: "PROV0004", responsable: "Marcela Gómez",  direccion: "Cl. 50 # 40-30, Barranquilla", celular: "318 012 3456", correo: "marcela.gomez@prov.com",  ciudad: "Barranquilla" },
   { id: "PROV0005", responsable: "Andrés Herrera", direccion: "Cra 15 # 68-10, Bucaramanga",  celular: "321 345 6789", correo: "andres.herrera@prov.com", ciudad: "Bucaramanga"  },
-];
-
-const initCompras = [
-  {
-    id: "C-001", idProveedor: "PROV0001", fecha: "2026-03-10",
-    estado: "completada", metodoPago: "transferencia",
-    notas: "Pedido mensual de harinas y sal", stockAplicado: true,
-    detalles: [
-      { id: "C-001-D1", idInsumo: 6, cantidad: 10, precioUnd: 45000, notas: "Bultos x 50kg", fechaVencimiento: "2026-08-20" },
-      { id: "C-001-D2", idInsumo: 7, cantidad: 5,  precioUnd: 32000, notas: "Bultos x 25kg", fechaVencimiento: "2027-01-01" },
-    ],
-  },
-  {
-    id: "C-002", idProveedor: "PROV0001", fecha: "2026-03-02",
-    estado: "completada", metodoPago: "efectivo",
-    notas: "", stockAplicado: true,
-    detalles: [
-      { id: "C-002-D1", idInsumo: 7, cantidad: 3, precioUnd: 12000, notas: "", fechaVencimiento: "2027-01-01" },
-    ],
-  },
-  {
-    id: "C-003", idProveedor: "PROV0002", fecha: "2026-03-08",
-    estado: "pendiente", metodoPago: "crédito",
-    notas: "Esperar confirmación de entrega", stockAplicado: false,
-    detalles: [
-      { id: "C-003-D1", idInsumo: 8, cantidad: 8, precioUnd: 80000, notas: "Bidones x 20L", fechaVencimiento: "2026-09-15" },
-    ],
-  },
-  {
-    id: "C-004", idProveedor: "PROV0003", fecha: "2026-03-15",
-    estado: "pendiente", metodoPago: "transferencia",
-    notas: "", stockAplicado: false,
-    detalles: [
-      { id: "C-004-D1", idInsumo: 1, cantidad: 50, precioUnd: 3500,  notas: "",            fechaVencimiento: "2026-05-10" },
-      { id: "C-004-D2", idInsumo: 4, cantidad: 20, precioUnd: 25000, notas: "Refrigerado", fechaVencimiento: "2026-04-15" },
-    ],
-  },
 ];
 
 const initRolesData = [
@@ -197,6 +163,43 @@ const initPedidos = [
     direccion_entrega: "Calle 72 # 45-55, Barranquilla",
     idEmpleado: 2, notas: "", estado: "En camino",
     orden_produccion: false, fecha_pedido: "2026-03-20",
+  },
+];
+
+const initCompras = [
+  {
+    id: "C-001", idProveedor: "PROV0001", fecha: "2026-03-10",
+    estado: "completada", metodoPago: "transferencia",
+    notas: "Pedido mensual de harinas y sal", stockAplicado: true,
+    detalles: [
+      { id: "C-001-D1", idInsumo: 6, cantidad: 10, precioUnd: 45000, notas: "Bultos x 50kg", fechaVencimiento: "2026-08-20" },
+      { id: "C-001-D2", idInsumo: 7, cantidad: 5,  precioUnd: 32000, notas: "Bultos x 25kg", fechaVencimiento: "2027-01-01" },
+    ],
+  },
+  {
+    id: "C-002", idProveedor: "PROV0001", fecha: "2026-03-02",
+    estado: "completada", metodoPago: "efectivo",
+    notas: "", stockAplicado: true,
+    detalles: [
+      { id: "C-002-D1", idInsumo: 7, cantidad: 3, precioUnd: 12000, notas: "", fechaVencimiento: "2027-01-01" },
+    ],
+  },
+  {
+    id: "C-003", idProveedor: "PROV0002", fecha: "2026-03-08",
+    estado: "pendiente", metodoPago: "crédito",
+    notas: "Esperar confirmación de entrega", stockAplicado: false,
+    detalles: [
+      { id: "C-003-D1", idInsumo: 8, cantidad: 8, precioUnd: 80000, notas: "Bidones x 20L", fechaVencimiento: "2026-09-15" },
+    ],
+  },
+  {
+    id: "C-004", idProveedor: "PROV0003", fecha: "2026-03-15",
+    estado: "pendiente", metodoPago: "transferencia",
+    notas: "", stockAplicado: false,
+    detalles: [
+      { id: "C-004-D1", idInsumo: 1, cantidad: 50, precioUnd: 3500,  notas: "",            fechaVencimiento: "2026-05-10" },
+      { id: "C-004-D2", idInsumo: 4, cantidad: 20, precioUnd: 25000, notas: "Refrigerado", fechaVencimiento: "2026-04-15" },
+    ],
   },
 ];
 
@@ -272,6 +275,40 @@ const nextDevolucionNum  = (arr) => { const nums = arr.map(d => parseInt(d.numer
 const nextDescuentoId    = (arr) => { const nums = arr.map(d => parseInt(d.id.replace("DESC-", "")) || 0); return `DESC-${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`; };
 
 /* ══════════════════════════════════════════════════════════
+   NOTIFICACIONES — helpers internos
+   Se usan dentro de AppContext para disparar notifs
+   sin crear una dependencia circular con NotificacionesContext
+══════════════════════════════════════════════════════════ */
+
+// Tipos exportados para que otros componentes puedan usarlos
+export const NOTIF_TIPOS = {
+  STOCK_MINIMO:    "stock_minimo",
+  STOCK_AGOTADO:   "stock_agotado",
+  LOTE_POR_VENCER: "lote_por_vencer",
+  LOTE_VENCIDO:    "lote_vencido",
+  PEDIDO_NUEVO:    "pedido_nuevo",
+  COMPRA_PENDIENTE:"compra_pendiente",
+  DEVOLUCION:      "devolucion",
+  SISTEMA:         "sistema",
+};
+
+const notifUID = () => `N-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+const notifFecha = () => new Date().toISOString();
+
+// Función pura para construir una notificación
+const buildNotif = ({ tipo, titulo, mensaje, clave, idReferencia, refNombre }) => ({
+  id: notifUID(),
+  clave: clave || `${tipo}-${Date.now()}`,
+  tipo,
+  titulo,
+  mensaje,
+  idReferencia: idReferencia || null,
+  refNombre:    refNombre    || null,
+  fecha:        notifFecha(),
+  leida:        false,
+});
+
+/* ══════════════════════════════════════════════════════════
    CONTEXT
 ══════════════════════════════════════════════════════════ */
 
@@ -291,7 +328,6 @@ export function AppProvider({ children }) {
   const [lotes,               setLotes]               = useState(() => loadFromLS("lotes",               initLotes));
   const [salidas,             setSalidas]             = useState(() => loadFromLS("salidas",             initSalidas));
   const [productos,           setProductos]           = useState(() => loadFromLS("productos",           initProductos));
-  // ── NUEVO: lotes y salidas de productos ──
   const [lotesProductos,      setLotesProductos]      = useState(() => loadFromLS("lotesProductos",      initLotesProductos));
   const [salidasProductos,    setSalidasProductos]    = useState(() => loadFromLS("salidasProductos",    initSalidasProductos));
   const [roles,               setRoles]               = useState(() => loadFromLS("roles",               initRolesData));
@@ -306,6 +342,32 @@ export function AppProvider({ children }) {
   const [descuentos,          setDescuentos]          = useState(() => loadFromLS("descuentos",          initDescuentos));
   const [asignacionesDesc,    setAsignacionesDesc]    = useState(() => loadFromLS("asignacionesDesc",    initAsignacionesDescuento));
   const [historialDescuentos, setHistorialDescuentos] = useState(() => loadFromLS("historialDescuentos", initHistorialDescuentos));
+
+  /* ══════════════════════════════════════════════════════
+     NOTIFICACIONES — estado propio dentro de AppContext
+     Así AppContext puede agregar notifs sin depender de
+     NotificacionesContext (evita dependencia circular).
+     NotificacionesContext lee este mismo localStorage.
+  ══════════════════════════════════════════════════════ */
+  const [notificaciones, setNotificaciones] = useState(() => loadFromLS("notificaciones", []));
+  useEffect(() => { localStorage.setItem("notificaciones", JSON.stringify(notificaciones)); }, [notificaciones]);
+
+  // Ref para evitar re-renders en el callback
+  const notificacionesRef = useRef(notificaciones);
+  useEffect(() => { notificacionesRef.current = notificaciones; }, [notificaciones]);
+
+  /**
+   * agregarNotifInterna — agrega una notificación desde AppContext.
+   * Respeta CA_01_05: no genera duplicados si ya existe una con la
+   * misma clave y está sin leer.
+   */
+  const agregarNotifInterna = useCallback((datos) => {
+    setNotificaciones(prev => {
+      // CA_01_05 — no duplicar si ya existe sin leer con la misma clave
+      if (datos.clave && prev.some(n => n.clave === datos.clave && !n.leida)) return prev;
+      return [buildNotif(datos), ...prev];
+    });
+  }, []);
 
   /* ── Persistencia ───────────────────────────────────── */
   useEffect(() => { localStorage.setItem("categoriasProductos", JSON.stringify(categoriasProductos)); }, [categoriasProductos]);
@@ -379,11 +441,7 @@ export function AppProvider({ children }) {
   };
 
   const agregarLoteProducto = (idProducto, lote) => {
-    setLotesProductos(prev => ({
-      ...prev,
-      [idProducto]: [...(prev[idProducto] || []), lote],
-    }));
-    // También sube el stock del producto
+    setLotesProductos(prev => ({ ...prev, [idProducto]: [...(prev[idProducto] || []), lote] }));
     setProductos(prev => prev.map(p => {
       if (p.id !== idProducto) return p;
       const nuevoStock = p.stock + lote.cantidadActual;
@@ -393,15 +451,13 @@ export function AppProvider({ children }) {
   };
 
   /* ── Salidas PRODUCTOS ──────────────────────────────── */
-  const getSalidasProducto = (idProducto) =>
-    (salidasProductos[idProducto] || []);
+  const getSalidasProducto = (idProducto) => (salidasProductos[idProducto] || []);
 
   const registrarSalidaProducto = ({ id: idProducto, tipo, cantidad, motivo, fecha }) => {
     const producto = productos.find(p => p.id === idProducto);
-    if (!producto)               return { ok: false, razon: "Producto no encontrado" };
+    if (!producto)                 return { ok: false, razon: "Producto no encontrado" };
     if (cantidad > producto.stock) return { ok: false, razon: `Stock insuficiente. Disponible: ${producto.stock} uds.` };
 
-    // 1. Descontar stock del producto
     setProductos(prev => prev.map(p => {
       if (p.id !== idProducto) return p;
       const nuevoStock = Math.max(0, p.stock - cantidad);
@@ -409,7 +465,6 @@ export function AppProvider({ children }) {
       return { ...p, stock: nuevoStock, estado: nuevoStock > 0 && nuevoStock >= minimo ? "Disponible" : "No disponible" };
     }));
 
-    // 2. Descontar de lotes de producto (FEFO: primero el más próximo a vencer)
     setLotesProductos(prev => {
       const lotesActuales = [...(prev[idProducto] || [])].sort((a, b) => {
         if (!a.fechaVencimiento) return 1;
@@ -426,19 +481,12 @@ export function AppProvider({ children }) {
       return { ...prev, [idProducto]: actualizados };
     });
 
-    // 3. Registrar la salida en historial
     const nuevaSalida = {
-      id:       `SP-${Date.now()}`,
-      tipo:     tipo || "ajuste",
-      cantidad,
-      motivo:   motivo || tipo || "Salida manual",
-      fecha:    fecha  || new Date().toLocaleDateString("es-CO"),
+      id: `SP-${Date.now()}`, tipo: tipo || "ajuste", cantidad,
+      motivo: motivo || tipo || "Salida manual",
+      fecha:  fecha  || new Date().toLocaleDateString("es-CO"),
     };
-    setSalidasProductos(prev => ({
-      ...prev,
-      [idProducto]: [nuevaSalida, ...(prev[idProducto] || [])],
-    }));
-
+    setSalidasProductos(prev => ({ ...prev, [idProducto]: [nuevaSalida, ...(prev[idProducto] || [])] }));
     return { ok: true };
   };
 
@@ -450,26 +498,37 @@ export function AppProvider({ children }) {
     const cantidadNum = Number(cantidad);
     if (!idInsumo || !cantidadNum || cantidadNum <= 0) return { ok: false, razon: "Cantidad inválida" };
 
-    let insumo = null;
-    setInsumos(prev => prev.map(i => {
-      if (i.id !== Number(idInsumo)) return i;
-      insumo = i;
-      return { ...i, stockActual: Math.max(0, i.stockActual - cantidadNum) };
-    }));
-
+    const insumo = insumos.find(i => i.id === Number(idInsumo));
     if (!insumo) return { ok: false, razon: "Insumo no encontrado" };
+
+    // ── Notificación si queda bajo mínimo ──────────────
+    const nuevoStock = Math.max(0, insumo.stockActual - cantidadNum);
+    if (nuevoStock <= insumo.stockMinimo && nuevoStock > 0) {
+      agregarNotifInterna({
+        tipo:  NOTIF_TIPOS.STOCK_MINIMO,
+        clave: `${NOTIF_TIPOS.STOCK_MINIMO}-${insumo.id}`,
+        titulo: `Stock bajo mínimo: ${insumo.nombre}`,
+        mensaje: `Tras la salida, "${insumo.nombre}" quedó con ${nuevoStock} unidades, por debajo del mínimo de ${insumo.stockMinimo}. Se recomienda realizar una compra.`,
+        idReferencia: insumo.id, refNombre: insumo.nombre,
+      });
+    }
+    if (nuevoStock <= 0) {
+      agregarNotifInterna({
+        tipo:  NOTIF_TIPOS.STOCK_AGOTADO,
+        clave: `${NOTIF_TIPOS.STOCK_AGOTADO}-${insumo.id}`,
+        titulo: `Stock agotado: ${insumo.nombre}`,
+        mensaje: `El insumo "${insumo.nombre}" se agotó. Stock actual: 0 unidades. Se requiere una compra urgente.`,
+        idReferencia: insumo.id, refNombre: insumo.nombre,
+      });
+    }
 
     const result = descontarStockFIFO(idInsumo, cantidadNum);
 
     const salida = {
-      id:       `S-${String(salidas.length + 1).padStart(3, "0")}`,
-      idInsumo: Number(idInsumo),
-      tipo:     tipo    || "ajuste",
-      cantidad: cantidadNum,
-      motivo:   motivo  || "Salida manual",
-      fecha,
-      usuario,
-      origen:   result.ok ? "ok" : "parcial",
+      id: `S-${String(salidas.length + 1).padStart(3, "0")}`,
+      idInsumo: Number(idInsumo), tipo: tipo || "ajuste",
+      cantidad: cantidadNum, motivo: motivo || "Salida manual",
+      fecha, usuario, origen: result.ok ? "ok" : "parcial",
       faltante: result.ok ? 0 : result.faltante,
     };
     setSalidas(prev => [salida, ...prev]);
@@ -489,19 +548,19 @@ export function AppProvider({ children }) {
   const canDeleteCatProducto = (catId) => {
     const enUso = productos.filter(p => p.idCategoria === catId);
     if (!enUso.length) return { ok: true };
-    return { ok: false, razon: `Tiene ${enUso.length} producto${enUso.length > 1 ? "s" : ""} asociado${enUso.length > 1 ? "s" : ""}. Elimínalos o cámbiales la categoría primero.` };
+    return { ok: false, razon: `Esta categoría cuenta con ${enUso.length} producto${enUso.length > 1 ? "s" : ""} vinculado${enUso.length > 1 ? "s" : ""}. Es necesario reasignarlos o eliminarlos antes de proceder.` };
   };
   const canDeleteCatInsumo = (catId) => {
     const enUso = insumos.filter(i => i.idCategoria === catId);
     if (!enUso.length) return { ok: true };
-    return { ok: false, razon: `Tiene ${enUso.length} insumo${enUso.length > 1 ? "s" : ""} registrado${enUso.length > 1 ? "s" : ""}. Elimínalos o cámbiales la categoría primero.` };
+    return { ok: false, razon: `Esta categoría tiene ${enUso.length} insumo${enUso.length > 1 ? "s" : ""} registrado${enUso.length > 1 ? "s" : ""}. Debe actualizar o eliminar dichos registros previamente.` };
   };
   const canDeleteInsumo = (insumoId) => {
     const ins = insumos.find(i => i.id === insumoId);
     if (!ins) return { ok: true };
     const fichasAfectadas = productos.filter(p => p.ficha?.insumos?.some(fi => fi.nombre === ins.nombre));
     if (!fichasAfectadas.length) return { ok: true };
-    return { ok: false, razon: `"${ins.nombre}" está en ${fichasAfectadas.length} ficha${fichasAfectadas.length > 1 ? "s" : ""} técnica${fichasAfectadas.length > 1 ? "s" : ""}. Retíralo de esas fichas primero.` };
+    return { ok: false, razon: `El insumo "${ins.nombre}" forma parte de ${fichasAfectadas.length} ficha${fichasAfectadas.length > 1 ? "s" : ""} técnica${fichasAfectadas.length > 1 ? "s" : ""}. Por favor, retírelo de las fichas correspondientes.` };
   };
   const canDeleteProducto = (productoId) => {
     const enPedidosActivos = pedidos.filter(ped =>
@@ -509,45 +568,45 @@ export function AppProvider({ children }) {
       (ped.productosItems || []).some(pi => pi.idProducto === productoId)
     );
     if (enPedidosActivos.length)
-      return { ok: false, razon: `Este producto está en ${enPedidosActivos.length} pedido${enPedidosActivos.length > 1 ? "s" : ""} activo${enPedidosActivos.length > 1 ? "s" : ""}. Finalízalos primero.` };
+      return { ok: false, razon: `Este producto está incluido en ${enPedidosActivos.length} pedido${enPedidosActivos.length > 1 ? "s" : ""} en curso. Debe finalizar o cancelar los pedidos antes de eliminar el producto.` };
     const p = productos.find(x => x.id === productoId);
-    if (p?.ficha) return { ok: true, advertencia: "Este producto tiene una ficha técnica que también se eliminará." };
+    if (p?.ficha) return { ok: true, advertencia: "Este producto posee una ficha técnica vinculada que también será eliminada definitivamente." };
     return { ok: true };
   };
   const canDeleteRol = (rolId) => {
     const rol = roles.find(r => r.id === rolId);
     if (!rol) return { ok: true };
-    if (rol.esAdmin) return { ok: false, razon: `El rol "${rol.nombre}" está protegido.` };
+    if (rol.esAdmin) return { ok: false, razon: `El rol "${rol.nombre}" es un perfil del sistema y no puede ser eliminado.` };
     const asignados = usuarios.filter(u => u.rol === rol.nombre);
-    if (asignados.length) return { ok: false, razon: `El rol "${rol.nombre}" tiene ${asignados.length} usuario${asignados.length > 1 ? "s" : ""} asignado${asignados.length > 1 ? "s" : ""}. Reasígnalos primero.` };
+    if (asignados.length) return { ok: false, razon: `Existen ${asignados.length} usuario${asignados.length > 1 ? "s" : ""} con el rol "${rol.nombre}". Debe reasignar a los usuarios antes de eliminar el rol.` };
     return { ok: true };
   };
   const canDeleteUsuario  = (usuarioId) => {
     const user = usuarios.find(u => u.id === usuarioId);
     if (!user) return { ok: true };
-    if (user.esAdmin) return { ok: false, razon: `El usuario "${user.nombre} ${user.apellidos}" es administrador principal.` };
+    if (user.esAdmin) return { ok: false, razon: `El usuario "${user.nombre} ${user.apellidos}" posee privilegios de administrador principal y está protegido.` };
     return { ok: true };
   };
   const canDeleteCliente  = (clienteId) => {
     const enPedidos = pedidos.filter(p => p.idCliente === clienteId && !["Entregado", "Cancelado"].includes(p.estado));
-    if (enPedidos.length) return { ok: false, razon: `Este cliente tiene ${enPedidos.length} pedido${enPedidos.length > 1 ? "s" : ""} activo${enPedidos.length > 1 ? "s" : ""}. Finalízalos primero.` };
+    if (enPedidos.length) return { ok: false, razon: `Este cliente tiene ${enPedidos.length} pedido${enPedidos.length > 1 ? "s" : ""} activo${enPedidos.length > 1 ? "s" : ""}. Por favor, concluya las operaciones pendientes primero.` };
     return { ok: true };
   };
   const canDeleteProveedor = (proveedorId) => {
     const qty = compras.filter(c => c.idProveedor === proveedorId).length;
     if (!qty) return { ok: true };
-    return { ok: false, razon: `Este proveedor tiene ${qty} compra${qty > 1 ? "s" : ""} registrada${qty > 1 ? "s" : ""}. Elimínalas primero.` };
+    return { ok: false, razon: `Existen ${qty} registro${qty > 1 ? "s" : ""} de compra asociados a este proveedor. No se puede eliminar por integridad de datos.` };
   };
   const canDeleteCompra = (compraId) => {
     const c = compras.find(x => x.id === compraId);
     if (!c) return { ok: true };
-    if (c.stockAplicado) return { ok: false, razon: "No se puede eliminar una compra completada. Sus lotes ya fueron aplicados al inventario." };
+    if (c.stockAplicado) return { ok: false, razon: "No es posible eliminar una compra cuyo stock ya ha sido ingresado al inventario. Considere realizar un ajuste de salida si es necesario." };
     return { ok: true };
   };
   const canDeletePedido = (pedidoId) => {
     const ped = pedidos.find(p => p.id === pedidoId);
     if (!ped) return { ok: true };
-    if (ped.estado === "Entregado") return { ok: false, razon: "Los pedidos entregados no se pueden eliminar." };
+    if (ped.estado === "Entregado") return { ok: false, razon: "Los pedidos con estado 'Entregado' forman parte del historial de ventas y no pueden ser eliminados." };
     return { ok: true };
   };
 
@@ -572,6 +631,7 @@ export function AppProvider({ children }) {
   const editarProducto   = f            => setProductos(p => p.map(x => x.id === f.id ? f : x));
   const eliminarProducto = id           => setProductos(p => p.filter(x => x.id !== id));
   const guardarFicha     = (pId, ficha) => setProductos(p => p.map(x => x.id === pId ? { ...x, ficha } : x));
+  const toggleActivoProducto = (id)     => setProductos(p => p.map(x => x.id === id ? { ...x, activo: !x.activo } : x));
 
   /* ── CRUD roles ─────────────────────────────────────── */
   const crearRol  = (form) => setRoles(p => [{ ...form, id: Date.now(), fecha: new Date().toLocaleDateString("es-CO"), esAdmin: false }, ...p]);
@@ -644,9 +704,22 @@ export function AppProvider({ children }) {
     const stockAplicado = form.estado === "completada";
     const nueva         = { ...form, id, detalles, stockAplicado };
     setCompras(p => [nueva, ...p]);
-    if (stockAplicado) { setLotes(prev => [...prev, ..._buildLotes(id, detalles, prev)]); _subirStock(detalles); }
+    if (stockAplicado) {
+      setLotes(prev => [...prev, ..._buildLotes(id, detalles, prev)]);
+      _subirStock(detalles);
+    } else {
+      // ── Notif compra pendiente (HU_01 / COMPRA_PENDIENTE) ──
+      agregarNotifInterna({
+        tipo:  NOTIF_TIPOS.COMPRA_PENDIENTE,
+        clave: `${NOTIF_TIPOS.COMPRA_PENDIENTE}-${id}`,
+        titulo: `Nueva compra pendiente: ${id}`,
+        mensaje: `Se registró la compra ${id} en estado pendiente con ${detalles.length} ítem${detalles.length > 1 ? "s" : ""}. Confirma la recepción cuando llegue.`,
+        idReferencia: id, refNombre: id,
+      });
+    }
     return id;
   };
+
   const editarCompra = (form) => {
     setCompras(p => p.map(c => {
       if (c.id !== form.id) return c;
@@ -660,6 +733,7 @@ export function AppProvider({ children }) {
       return { ...form, stockAplicado: false };
     }));
   };
+
   const eliminarCompra = (id) => {
     const check = canDeleteCompra(id); if (!check.ok) return check;
     setCompras(p => p.filter(c => c.id !== id)); return { ok: true };
@@ -711,8 +785,19 @@ export function AppProvider({ children }) {
       return { ...prod, stock: Math.max(0, prod.stock - item.cantidad) };
     }));
     if (nuevo.orden_produccion) setOrdenes(prev => { const orden = _buildOrden(nuevo, { fechaEntrega: null, notas: payload.notas || "" }, prev, productos, insumos); return [orden, ...prev]; });
+
+    // ── Notif nuevo pedido ──────────────────────────────
+    agregarNotifInterna({
+      tipo:  NOTIF_TIPOS.PEDIDO_NUEVO,
+      clave: `${NOTIF_TIPOS.PEDIDO_NUEVO}-${numero}`,
+      titulo: `Nuevo pedido: ${numero}`,
+      mensaje: `Se creó el pedido ${numero} para "${payload.cliente?.nombre || "cliente"}". Total: $${(payload.total || 0).toLocaleString("es-CO")}. Estado: ${estadoInicial}.`,
+      idReferencia: numero, refNombre: numero,
+    });
+
     return numero;
   };
+
   const editarPedido = (payload) => {
     setPedidos(prev => prev.map(p => {
       if (p.id !== payload.id) return p;
@@ -725,6 +810,7 @@ export function AppProvider({ children }) {
       return { ...p, ...payload, estado: p.estado, numero: p.numero, fecha_pedido: p.fecha_pedido, idEmpleado: p.idEmpleado };
     }));
   };
+
   const eliminarPedido = (id) => {
     const ped = pedidos.find(p => p.id === id); if (!ped) return { ok: true };
     if (ped.estado === "Entregado") return { ok: false, razon: "Los pedidos entregados no se pueden eliminar." };
@@ -737,6 +823,7 @@ export function AppProvider({ children }) {
     }
     setPedidos(prev => prev.filter(p => p.id !== id)); return { ok: true };
   };
+
   const cambiarEstadoPedido = (id, nuevoEstado) => {
     setPedidos(prev => prev.map(p => {
       if (p.id !== id) return p;
@@ -747,10 +834,22 @@ export function AppProvider({ children }) {
           return { ...prod, stock: prod.stock + item.cantidad };
         }));
       }
+      // ── Notif cambio de estado relevante ───────────────
+      if (["Listo", "En camino", "Entregado"].includes(nuevoEstado)) {
+        agregarNotifInterna({
+          tipo:  NOTIF_TIPOS.SISTEMA,
+          clave: `estado-pedido-${id}-${nuevoEstado}`,
+          titulo: `Pedido ${p.numero}: ${nuevoEstado}`,
+          mensaje: `El pedido ${p.numero} de "${p.cliente?.nombre || "cliente"}" cambió a estado "${nuevoEstado}".`,
+          idReferencia: p.numero, refNombre: p.numero,
+        });
+      }
       return { ...p, estado: nuevoEstado };
     }));
   };
+
   const asignarDomiciliario = (pedidoId, empleadoId) => setPedidos(prev => prev.map(p => p.id === pedidoId ? { ...p, idEmpleado: empleadoId } : p));
+
   const generarOrdenProduccion = (pedidoId, { fechaEntrega, notas }) => {
     const pedido = pedidos.find(p => p.id === pedidoId); if (!pedido) return;
     setPedidos(prev => prev.map(p => p.id !== pedidoId ? p : { ...p, orden_produccion: true, estado: "En producción", fecha_entrega_prod: fechaEntrega, notas_produccion: notas }));
@@ -765,16 +864,32 @@ export function AppProvider({ children }) {
       if (nuevoEstado === "Completada" && o.estado !== "Completada") {
         setProductos(prods => prods.map(prod => { const item = (o.productos || []).find(p => p.idProducto === prod.id); if (!item) return prod; return { ...prod, stock: prod.stock + item.cantidad }; }));
         if (o.idPedido) setPedidos(prevP => prevP.map(p => p.id !== o.idPedido ? p : { ...p, estado: "Listo" }));
+        agregarNotifInterna({
+          tipo:  NOTIF_TIPOS.SISTEMA,
+          clave: `orden-completada-${ordenId}`,
+          titulo: `Orden de producción completada: ${ordenId}`,
+          mensaje: `La orden ${ordenId} fue marcada como completada. El stock de los productos fue actualizado.`,
+          idReferencia: ordenId, refNombre: ordenId,
+        });
       }
       return { ...o, estado: nuevoEstado, fechaCierre };
     }));
   };
+
   const asignarEmpleadoOrden = (ordenId, empleadoId) => setOrdenes(prev => prev.map(o => o.id === ordenId ? { ...o, idEmpleado: empleadoId } : o));
 
   /* ── CRUD devoluciones ──────────────────────────────── */
   const crearDevolucion = (payload) => {
     const numero = nextDevolucionNum(devoluciones);
     setDevoluciones(prev => [{ ...payload, id: numero, numero, estado: "Pendiente", fechaSolicitud: fechaHoy(), fechaAprobacion: null, fechaReembolso: null, motivoRechazo: null }, ...prev]);
+    // ── Notif devolución ──────────────────────────────
+    agregarNotifInterna({
+      tipo:  NOTIF_TIPOS.DEVOLUCION,
+      clave: `devolucion-${numero}`,
+      titulo: `Nueva devolución: ${numero}`,
+      mensaje: `Se solicitó la devolución ${numero} del pedido ${payload.numeroPedido}. Motivo: ${payload.motivo}.`,
+      idReferencia: numero, refNombre: numero,
+    });
     return numero;
   };
   const aprobarDevolucion   = (id) => setDevoluciones(prev => prev.map(d => d.id !== id ? d : { ...d, estado: "Aprobada",    fechaAprobacion: fechaHoy() }));
@@ -832,15 +947,8 @@ export function AppProvider({ children }) {
       getCatProducto, getCatInsumo, getUnidad, getRol,
       getProveedor, getInsumo, getCliente,
       getLotesDeInsumo, getLotesVencidos, getStockRealInsumo,
-
-      /* ── NUEVO: lotes y salidas de PRODUCTOS ── */
-      getLotesProducto,
-      getLotesVencidosProducto,
-      agregarLoteProducto,
-      getSalidasProducto,
-      registrarSalidaProducto,
-
-      /* Historial insumos */
+      getLotesProducto, getLotesVencidosProducto, agregarLoteProducto,
+      getSalidasProducto, registrarSalidaProducto,
       getSalidasInsumo,
 
       /* Validaciones */
@@ -853,7 +961,7 @@ export function AppProvider({ children }) {
       crearCatProducto, editarCatProducto, toggleCatProducto, eliminarCatProducto,
       crearCatInsumo,   editarCatInsumo,   toggleCatInsumo,   eliminarCatInsumo,
       crearInsumo,      editarInsumo,      toggleInsumo,      eliminarInsumo,
-      crearProducto,    editarProducto,    eliminarProducto,  guardarFicha,
+      crearProducto,    editarProducto,    eliminarProducto,  guardarFicha, toggleActivoProducto,
       crearRol,         editarRol,         toggleRol,         eliminarRol,
       crearUsuario,     editarUsuario,     toggleUsuario,     eliminarUsuario,
       crearCliente,     editarCliente,     toggleCliente,     eliminarCliente,

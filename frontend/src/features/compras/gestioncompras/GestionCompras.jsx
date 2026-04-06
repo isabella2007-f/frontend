@@ -4,7 +4,7 @@ import CrearCompra from "./CrearCompra.jsx";
 import EditarCompra, { AnularCompraModal } from "./EditarCompra.jsx";
 import "./compras.css";
 
-const ITEMS_PER_PAGE = 6;
+const ITEMS_PER_PAGE = 5;
 
 const COP = (n) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(n);
@@ -80,13 +80,6 @@ export default function GestionCompras() {
 
   const hasFilter = filterEstado !== "todos" || filterProv !== "todos";
 
-  /* ── Métricas rápidas ── */
-  const totalPendientes  = compras.filter(c => c.estado === "pendiente").length;
-  const totalCompletadas = compras.filter(c => c.estado === "completada").length;
-  const totalAnuladas    = compras.filter(c => c.estado === "anulada").length;
-  const montoTotal       = compras.filter(c => c.estado === "completada")
-    .reduce((acc, c) => acc + calcularTotal(c.detalles), 0);
-
   /* ── CRUD handlers ── */
   const handleCreate = (form) => {
     crearCompra(form);
@@ -120,45 +113,6 @@ export default function GestionCompras() {
       </div>
 
       <div className="page-inner">
-
-        {/* MÉTRICAS RÁPIDAS */}
-        <div className="compras-metrics">
-          <div className="metric-card">
-            <span className="metric-card__icon">🛒</span>
-            <div>
-              <p className="metric-card__num">{compras.length}</p>
-              <p className="metric-card__label">Total compras</p>
-            </div>
-          </div>
-          <div className="metric-card metric-card--warn">
-            <span className="metric-card__icon">⏳</span>
-            <div>
-              <p className="metric-card__num">{totalPendientes}</p>
-              <p className="metric-card__label">Pendientes</p>
-            </div>
-          </div>
-          <div className="metric-card metric-card--ok">
-            <span className="metric-card__icon">✅</span>
-            <div>
-              <p className="metric-card__num">{totalCompletadas}</p>
-              <p className="metric-card__label">Completadas</p>
-            </div>
-          </div>
-          <div className="metric-card metric-card--danger">
-            <span className="metric-card__icon">🚫</span>
-            <div>
-              <p className="metric-card__num">{totalAnuladas}</p>
-              <p className="metric-card__label">Anuladas</p>
-            </div>
-          </div>
-          <div className="metric-card metric-card--money">
-            <span className="metric-card__icon">💰</span>
-            <div>
-              <p className="metric-card__num metric-card__num--sm">{COP(montoTotal)}</p>
-              <p className="metric-card__label">Invertido (completadas)</p>
-            </div>
-          </div>
-        </div>
 
         {/* TOOLBAR */}
         <div className="toolbar">

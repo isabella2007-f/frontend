@@ -5,18 +5,13 @@ import CrearUsuario from "./CrearUsuario.jsx";
 import { ModalVerUsuario, ModalEliminarUsuario } from "./EditarUsuario.jsx";
 import "./Usuarios.css";
 
-const PER_PAGE = 4;
+const PER_PAGE = 5;
 
-/* ── ToggleConTooltip — muestra razón al hacer hover cuando está bloqueado ── */
 function ToggleConTooltip({ on, onToggle, disabled, razon }) {
   return (
     <div style={{ position: "relative", display: "inline-flex" }} className="toggle-tooltip-wrap">
       <Toggle on={on} onToggle={onToggle} disabled={disabled} />
-      {disabled && razon && (
-        <div className="toggle-tooltip">
-          {razon}
-        </div>
-      )}
+      {disabled && razon && <div className="toggle-tooltip">{razon}</div>}
     </div>
   );
 }
@@ -38,21 +33,37 @@ export default function GestionUsuarios() {
     canDeleteUsuario,
   } = useApp();
 
-  // Roles excluidos de la tabla de usuarios internos
   const ROLES_EXCLUIDOS = ["Cliente"];
   const usuariosTabla = usuarios.filter(u => !ROLES_EXCLUIDOS.includes(u.rol));
 
-  const [search, setSearch]         = useState("");
-  const [filter, setFilter]         = useState("todos");
-  const [filterRol, setFilterRol]   = useState("todos");
+  const [search,     setSearch]     = useState("");
+  const [filter,     setFilter]     = useState("todos");
+  const [filterRol,  setFilterRol]  = useState("todos");
   const [showFilter, setShowFilter] = useState(false);
-  const [page, setPage]             = useState(1);
-  const [modal, setModal]           = useState(null);
-  const [toast, setToast]           = useState(null);
-  const filterRef                   = useRef();
+  const [page,       setPage]       = useState(1);
+  const [modal,      setModal]      = useState(null);
+  const [toast,      setToast]      = useState(null);
+  const filterRef = useRef();
+
+  // FIX "busca correo solo": cuando hay modal abierto, bloqueamos
+  // los eventos de teclado para que no lleguen al input de búsqueda.
+  useEffect(() => {
+    if (!modal) return;
+    const block = e => e.stopPropagation();
+    document.addEventListener("keydown", block, true);
+    document.addEventListener("keyup",   block, true);
+    document.addEventListener("keypress",block, true);
+    return () => {
+      document.removeEventListener("keydown", block, true);
+      document.removeEventListener("keyup",   block, true);
+      document.removeEventListener("keypress",block, true);
+    };
+  }, [modal]);
 
   useEffect(() => {
-    const h = e => { if (filterRef.current && !filterRef.current.contains(e.target)) setShowFilter(false); };
+    const h = e => {
+      if (filterRef.current && !filterRef.current.contains(e.target)) setShowFilter(false);
+    };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
@@ -66,7 +77,7 @@ export default function GestionUsuarios() {
     const q      = search.toLowerCase();
     const matchQ = [u.nombre, u.apellidos, u.correo, u.rol, u.cedula, u.municipio]
       .filter(Boolean).some(v => v.toLowerCase().includes(q));
-    const matchE   = filter    === "todos" || (filter    === "activo" ? u.estado : !u.estado);
+    const matchE   = filter    === "todos" || (filter === "activo" ? u.estado : !u.estado);
     const matchRol = filterRol === "todos" || u.rol === filterRol;
     return matchQ && matchE && matchRol;
   });
@@ -75,11 +86,10 @@ export default function GestionUsuarios() {
   const safePage   = Math.min(page, totalPages);
   const paged      = filtered.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE);
 
-  useEffect(() => setPage(1), [search, filter, filterRol]);
+  useEffect(() => { setPage(1); }, [search, filter, filterRol]);
 
-  /* CRUD handlers */
   const handleSave = (form) => {
-    if (modal.user) {
+    if (modal?.user) {
       editarUsuario({ ...modal.user, ...form });
       showToast("Usuario actualizado");
     } else {
@@ -113,22 +123,28 @@ export default function GestionUsuarios() {
         <div className="toolbar">
           <div className="search-wrap">
             <span className="search-icon">🔍</span>
-            <input type="text" className="search-input"
+            <input
+              type="text"
+              className="search-input"
               placeholder="Buscar por nombre, correo, rol o documento…"
-              value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} />
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
           </div>
 
           <div ref={filterRef} style={{ position: "relative" }}>
-            <button className={"filter-icon-btn" + (hasFilter ? " has-filter" : "")}
-              onClick={() => setShowFilter(v => !v)}>▼</button>
+            <button
+              className={"filter-icon-btn" + (hasFilter ? " has-filter" : "")}
+              onClick={() => setShowFilter(v => !v)}
+            >▼</button>
 
             {showFilter && (
               <div className="filter-dropdown" style={{ minWidth: 170 }}>
                 <p className="filter-section-title">Estado</p>
                 {[
-                  { val: "todos",    label: "Todos",    dot: "#bdbdbd" },
-                  { val: "activo",   label: "Activos",  dot: "#43a047" },
-                  { val: "inactivo", label: "Inactivos",dot: "#ef5350" },
+                  { val: "todos",    label: "Todos",     dot: "#bdbdbd" },
+                  { val: "activo",   label: "Activos",   dot: "#43a047" },
+                  { val: "inactivo", label: "Inactivos", dot: "#ef5350" },
                 ].map(f => (
                   <button key={f.val}
                     className={"filter-option" + (filter === f.val ? " active" : "")}
@@ -138,11 +154,11 @@ export default function GestionUsuarios() {
                 ))}
                 <div style={{ height: 1, background: "#f0f0f0", margin: "4px 0" }} />
                 <p className="filter-section-title">Rol</p>
-                <button className={"filter-option" + (filterRol === "todos" ? " active" : "")}
+                <button
+                  className={"filter-option" + (filterRol === "todos" ? " active" : "")}
                   onClick={() => { setFilterRol("todos"); setPage(1); setShowFilter(false); }}>
                   <span className="filter-dot" style={{ background: "#bdbdbd" }} />Todos
                 </button>
-                {/* Roles dinámicos desde el contexto */}
                 {rolesActivos.map(r => (
                   <button key={r}
                     className={"filter-option" + (filterRol === r ? " active" : "")}
@@ -176,7 +192,7 @@ export default function GestionUsuarios() {
               </thead>
               <tbody>
                 {paged.length === 0 ? (
-                  <tr><td colSpan={9}>
+                  <tr><td colSpan={8}>
                     <div className="empty-state">
                       <div className="empty-state__icon">👤</div>
                       <p className="empty-state__text">
@@ -269,11 +285,12 @@ export default function GestionUsuarios() {
         </div>
       </div>
 
-      {modal?.type === "ver"    && <ModalVerUsuario      user={modal.user} onClose={() => setModal(null)} />}
-      {modal?.type === "form"   && (
+      {modal?.type === "ver" && (
+        <ModalVerUsuario user={modal.user} onClose={() => setModal(null)} />
+      )}
+      {modal?.type === "form" && (
         <CrearUsuario
           user={modal.user}
-          rolesDisponibles={rolesActivos}
           onClose={() => setModal(null)}
           onSave={handleSave}
         />

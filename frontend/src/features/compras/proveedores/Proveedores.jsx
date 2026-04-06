@@ -1,55 +1,11 @@
 import { useState, useRef, useEffect } from "react";
+import { useApp } from "../../../AppContext.jsx";
 import "./proveedores.css";
 import CrearProveedor   from "./CrearProveedor";
 import EditarProveedor  from "./EditarProveedor";
+import ModalEliminarValidado from "../../../ModalEliminarValidado";
 
-/* ── helpers ──────────────────────────────────────────────── */
-const uid = () => Math.random().toString(36).slice(2, 10).toUpperCase();
-const ITEMS_PER_PAGE = 6;
-
-/* ── Datos de ejemplo ─────────────────────────────────────── */
-const initialProveedores = [
-  { id: uid(), responsable: "Juan Morales",    direccion: "Cra 45 # 10-20, Medellín",      celular: "300 123 4567", correo: "juan.morales@prov.com",   ciudad: "Medellín"    },
-  { id: uid(), responsable: "Sandra López",    direccion: "Calle 80 # 23-15, Bogotá",      celular: "312 456 7890", correo: "sandra.lopez@prov.com",   ciudad: "Bogotá"      },
-  { id: uid(), responsable: "Pedro Ríos",      direccion: "Av. 6N # 12-50, Cali",          celular: "315 789 0123", correo: "pedro.rios@prov.com",     ciudad: "Cali"        },
-  { id: uid(), responsable: "Marcela Gómez",   direccion: "Cl. 50 # 40-30, Barranquilla",  celular: "318 012 3456", correo: "marcela.gomez@prov.com",  ciudad: "Barranquilla"},
-  { id: uid(), responsable: "Andrés Herrera",  direccion: "Cra 15 # 68-10, Bucaramanga",   celular: "321 345 6789", correo: "andres.herrera@prov.com", ciudad: "Bucaramanga" },
-];
-
-/* Compras de ejemplo vinculadas a proveedores */
-const initialCompras = [
-  {
-    ID_Compra: 1,
-    ID_Proveedor: initialProveedores[0].id,
-    Fecha_Compra: "10/03/2026",
-    Estado: "completada",
-    Total_Pagar: 850000,
-    detalles: [
-      { ID_Detalle_Compra: 1, ID_Insumo: 5, nombreInsumo: "Harina de trigo",    Cantidad: 10, Notas: "Bultos x 50kg", Precio_Und: 45000 },
-      { ID_Detalle_Compra: 2, ID_Insumo: 8, nombreInsumo: "Azúcar refinada",    Cantidad: 5,  Notas: "Bultos x 25kg", Precio_Und: 32000 },
-    ],
-  },
-  {
-    ID_Compra: 2,
-    ID_Proveedor: initialProveedores[0].id,
-    Fecha_Compra: "02/03/2026",
-    Estado: "completada",
-    Total_Pagar: 210000,
-    detalles: [
-      { ID_Detalle_Compra: 3, ID_Insumo: 12, nombreInsumo: "Sal marina",        Cantidad: 3,  Notas: "",              Precio_Und: 12000 },
-    ],
-  },
-  {
-    ID_Compra: 3,
-    ID_Proveedor: initialProveedores[1].id,
-    Fecha_Compra: "08/03/2026",
-    Estado: "completada",
-    Total_Pagar: 640000,
-    detalles: [
-      { ID_Detalle_Compra: 4, ID_Insumo: 3,  nombreInsumo: "Aceite de girasol", Cantidad: 8,  Notas: "Bidones x 20L", Precio_Und: 80000 },
-    ],
-  },
-];
+const ITEMS_PER_PAGE = 5;
 
 /* ── Toast ────────────────────────────────────────────────── */
 function Toast({ toast }) {
@@ -62,34 +18,17 @@ function Toast({ toast }) {
   );
 }
 
-/* ── Modal Eliminar ───────────────────────────────────────── */
-function EliminarModal({ proveedor, onClose, onConfirm }) {
-  const [deleting, setDeleting] = useState(false);
-  const run = async () => { setDeleting(true); await new Promise(r => setTimeout(r, 500)); onConfirm(); };
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
-        <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
-          <div className="delete-icon-wrap">🗑️</div>
-          <h3 className="delete-title">Eliminar proveedor</h3>
-          <p className="delete-body">¿Eliminar a <strong>"{proveedor.responsable}"</strong>?</p>
-          <p className="delete-warn">Esta acción no se puede deshacer.</p>
-        </div>
-        <div className="modal-footer modal-footer--center">
-          <button className="btn-cancel-full" onClick={onClose}>Cancelar</button>
-          <button className="btn-danger" onClick={run} disabled={deleting}>
-            {deleting ? "Eliminando…" : "Eliminar"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ── Página principal ─────────────────────────────────────── */
 export default function GestionProveedores() {
-  const [proveedores, setProveedores] = useState(initialProveedores);
-  const [compras]                     = useState(initialCompras);
+  const { 
+    proveedores, 
+    compras, 
+    crearProveedor, 
+    editarProveedor, 
+    eliminarProveedor,
+    canDeleteProveedor 
+  } = useApp();
+
   const [search, setSearch]           = useState("");
   const [filterCiudad, setFilterCiudad] = useState("todas");
   const [showFilter, setShowFilter]   = useState(false);
@@ -137,17 +76,17 @@ export default function GestionProveedores() {
 
   /* ── CRUD ── */
   const handleCreate = data => {
-    setProveedores(p => [{ ...data, id: uid() }, ...p]);
+    crearProveedor(data);
     showToast("Proveedor creado");
     setModal(null);
   };
   const handleEdit = data => {
-    setProveedores(p => p.map(x => x.id === data.id ? data : x));
+    editarProveedor(data);
     showToast("Cambios guardados");
     setModal(null);
   };
   const handleDelete = () => {
-    setProveedores(p => p.filter(x => x.id !== modal.proveedor.id));
+    eliminarProveedor(modal.proveedor.id);
     showToast("Proveedor eliminado", "error");
     setModal(null);
   };
@@ -338,8 +277,10 @@ export default function GestionProveedores() {
         />
       )}
       {modal?.mode === "delete" && (
-        <EliminarModal
-          proveedor={modal.proveedor}
+        <ModalEliminarValidado
+          titulo="Eliminar proveedor"
+          descripcion={`¿Está seguro de que desea eliminar al proveedor "${modal.proveedor.responsable}"?`}
+          validacion={canDeleteProveedor(modal.proveedor.id)}
           onClose={() => setModal(null)}
           onConfirm={handleDelete}
         />

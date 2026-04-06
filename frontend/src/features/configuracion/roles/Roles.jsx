@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useApp } from "../../../AppContext.jsx";
 import CrearRol from "./CrearRol.jsx";
 import EditarRol from "./EditarRol.jsx";
+import ModalEliminarValidado from "../../../ModalEliminarValidado";
 import "./Roles.css";
 
 const ITEMS_PER_PAGE = 4;
@@ -62,52 +63,6 @@ function AdvertenciaModal({ titulo, mensaje, onClose, onConfirm, confirmLabel = 
               {loading ? "Procesando…" : confirmLabel}
             </button>
           )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* Modal eliminar — muestra bloqueo o confirmación según validación */
-function EliminarModal({ rol, razon, onClose, onConfirm }) {
-  const [deleting, setDeleting] = useState(false);
-  const run = async () => {
-    setDeleting(true);
-    await new Promise(r => setTimeout(r, 500));
-    onConfirm();
-  };
-
-  if (razon) {
-    return (
-      <div className="modal-overlay" onClick={onClose}>
-        <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
-          <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
-            <div className="delete-icon-wrap">⚠️</div>
-            <h3 className="delete-title">No se puede eliminar</h3>
-            <p className="delete-body">{razon}</p>
-          </div>
-          <div className="modal-footer" style={{ justifyContent: "center" }}>
-            <button className="btn-ghost" onClick={onClose}>Entendido</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
-        <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
-          <div className="delete-icon-wrap">🗑️</div>
-          <h3 className="delete-title">Eliminar rol</h3>
-          <p className="delete-body">¿Eliminar <strong>"{rol.nombre}"</strong>?</p>
-          <p className="delete-warn">Esta acción no se puede deshacer.</p>
-        </div>
-        <div className="modal-footer modal-footer--center">
-          <button className="btn-cancel-full" onClick={onClose}>Cancelar</button>
-          <button className="btn-danger" onClick={run} disabled={deleting}>
-            {deleting ? "Eliminando…" : "Eliminar"}
-          </button>
         </div>
       </div>
     </div>
@@ -293,9 +248,8 @@ export default function GestionRoles() {
                     </td>
                     <td>
                       <div className="rol-icon-wrap" style={{ cursor: "default" }}>
-                        {rol.iconoPreview
-                          ? <img src={rol.iconoPreview} alt={rol.nombre} />
-                          : <span style={{ fontSize: 20 }}>{rol.icono}</span>}
+                        {rol.iconoPreview && <img src={rol.iconoPreview} alt={rol.nombre} />}
+                        {!rol.iconoPreview && <span style={{ fontSize: 20 }}>{rol.icono}</span>}
                       </div>
                     </td>
                     <td>
@@ -398,9 +352,10 @@ export default function GestionRoles() {
       {modal?.mode === "edit"   && <EditarRol rol={modal.rol} mode="edit" onClose={() => setModal(null)} onSave={handleSave} />}
       {modal?.mode === "view"   && <EditarRol rol={modal.rol} mode="view" onClose={() => setModal(null)} />}
       {modal?.mode === "delete" && (
-        <EliminarModal
-          rol={modal.rol}
-          razon={modal.razon}
+        <ModalEliminarValidado
+          titulo="Eliminar rol"
+          descripcion={`¿Está seguro de que desea eliminar el rol "${modal.rol.nombre}"?`}
+          validacion={canDeleteRol(modal.rol.id)}
           onClose={() => setModal(null)}
           onConfirm={handleDeleteConfirm}
         />

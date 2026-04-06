@@ -31,9 +31,10 @@
 }
 .metric-card:hover { transform: translateY(-2px); }
 
-.metric-card--warn  { border-color: #ffe082; background: #fffde7; }
-.metric-card--ok    { border-color: #a5d6a7; background: #f1f8f1; }
-.metric-card--money { border-color: #80cbc4; background: #e0f2f1; }
+.metric-card--warn   { border-color: #ffe082; background: #fffde7; }
+.metric-card--ok     { border-color: #a5d6a7; background: #f1f8f1; }
+.metric-card--money  { border-color: #80cbc4; background: #e0f2f1; }
+.metric-card--danger { border-color: #ef9a9a; background: #ffebee; }
 
 .metric-card__icon  { font-size: 26px; flex-shrink: 0; }
 .metric-card__num   { font-size: 22px; font-weight: 800; color: #1a1a1a; margin: 0; line-height: 1.1; font-family: var(--font-head); }
@@ -44,7 +45,6 @@
    TABLA — CELDAS ESPECÍFICAS
 ═══════════════════════════════════════════════════════════ */
 
-/* ID de compra */
 .compra-id-badge {
   font-size: 12px;
   font-weight: 800;
@@ -58,7 +58,6 @@
   white-space: nowrap;
 }
 
-/* Método de pago */
 .metodo-badge {
   display: inline-flex;
   align-items: center;
@@ -73,7 +72,6 @@
   white-space: nowrap;
 }
 
-/* Total en tabla */
 .total-cell {
   font-size: 14px;
   font-weight: 700;
@@ -99,13 +97,19 @@
 }
 .estado-chip--pendiente  { background: #fffde7; color: #f57f17; border-color: #ffe082; }
 .estado-chip--completada { background: #e8f5e9; color: #2e7d32; border-color: #a5d6a7; }
+.estado-chip--anulada    { background: #ffebee; color: #c62828; border-color: #ef9a9a; }
 
 /* ═══════════════════════════════════════════════════════════
-   MODAL COMPRA — ANCHO
+   MODAL COMPRA
+   - Flex column, altura máxima controlada, sin scroll externo
 ═══════════════════════════════════════════════════════════ */
 
 .modal-card--compra {
   max-width: 600px;
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  overflow: hidden;  /* el scroll va DENTRO del modal-body, no aquí */
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -161,10 +165,7 @@
 }
 
 @media (max-width: 500px) {
-  .metodo-grid {
-    grid-template-columns: 1fr 1fr;
-    max-width: 250px;
-  }
+  .metodo-grid { grid-template-columns: 1fr 1fr; max-width: 250px; }
 }
 
 .metodo-btn {
@@ -259,7 +260,6 @@
 }
 .detalle-subtotal strong { color: #2e7d32; }
 
-/* Botón agregar línea */
 .btn-add-detalle {
   width: 100%;
   padding: 10px;
@@ -363,6 +363,38 @@
 .ver-field__value--total { font-size: 18px; font-weight: 800; color: #1b5e20; font-family: var(--font-head); }
 
 /* ═══════════════════════════════════════════════════════════
+   VENCIMIENTO POR DÍAS
+═══════════════════════════════════════════════════════════ */
+
+.venc-toggle {
+  display: flex;
+  background: #f1f8f1;
+  border: 1px solid #c8e6c9;
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.venc-toggle-btn {
+  border: none;
+  background: transparent;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #9e9e9e;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.venc-toggle-btn.active {
+  background: #fff;
+  color: #2e7d32;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+/* ═══════════════════════════════════════════════════════════
    TEXTAREA
 ═══════════════════════════════════════════════════════════ */
 
@@ -373,39 +405,36 @@
 }
 
 /* ═══════════════════════════════════════════════════════════
-   REUTILIZAR estilos de proveedores (prov-cell, insumo-*)
-   ya están definidos en proveedores.css — solo los que 
-   faltan aquí si se usa sin ese archivo:
+   CELDAS DE PROVEEDOR E INSUMO
 ═══════════════════════════════════════════════════════════ */
 
-.prov-cell  { display: flex; align-items: center; gap: 10px; min-width: 140px; }
-.prov-avatar{ width: 36px; height: 36px; border-radius: 10px; background: #e8f5e9; border: 2px solid #c8e6c9; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
-.prov-name  { font-weight: 700; color: #1a1a1a; font-size: 13px; line-height: 1.3; }
-.prov-id    { font-size: 11px; color: #9e9e9e; margin-top: 1px; }
+.prov-cell   { display: flex; align-items: center; gap: 10px; min-width: 140px; }
+.prov-avatar { width: 36px; height: 36px; border-radius: 10px; background: #e8f5e9; border: 2px solid #c8e6c9; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+.prov-name   { font-weight: 700; color: #1a1a1a; font-size: 13px; line-height: 1.3; }
+.prov-id     { font-size: 11px; color: #9e9e9e; margin-top: 1px; }
 
-.insumos-list      { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
-.insumo-item       { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; background: #f9fdf9; border: 1px solid #c8e6c9; border-radius: 10px; }
-.insumo-left       { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.insumo-icon       { font-size: 16px; flex-shrink: 0; }
-.insumo-name       { font-size: 13px; font-weight: 700; color: #1a1a1a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
-.insumo-notes      { font-size: 11px; color: #9e9e9e; margin-top: 1px; }
-.insumo-right      { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
-.insumo-price      { font-size: 13px; font-weight: 700; color: #2e7d32; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.insumo-qty        { font-size: 11px; color: #9e9e9e; white-space: nowrap; }
+.insumos-list  { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.insumo-item   { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; background: #f9fdf9; border: 1px solid #c8e6c9; border-radius: 10px; }
+.insumo-left   { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.insumo-icon   { font-size: 16px; flex-shrink: 0; }
+.insumo-name   { font-size: 13px; font-weight: 700; color: #1a1a1a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+.insumo-notes  { font-size: 11px; color: #9e9e9e; margin-top: 1px; }
+.insumo-right  { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+.insumo-price  { font-size: 13px; font-weight: 700; color: #2e7d32; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.insumo-qty    { font-size: 11px; color: #9e9e9e; white-space: nowrap; }
 
 /* ═══════════════════════════════════════════════════════════
    VENCIMIENTO EN DETALLE DE COMPRA
 ═══════════════════════════════════════════════════════════ */
 
-.insumo-venc      { font-size: 11px; color: #9e9e9e; margin-top: 2px; }
-.venc-warn        { color: #e65100; font-weight: 700; }
-.venc-danger      { color: #c62828; font-weight: 700; }
+.insumo-venc  { font-size: 11px; color: #9e9e9e; margin-top: 2px; }
+.venc-warn    { color: #e65100; font-weight: 700; }
+.venc-danger  { color: #c62828; font-weight: 700; }
 
 /* ═══════════════════════════════════════════════════════════
-   PANEL DE LOTES (LotesInsumoPanel — usado en Ver Insumo)
+   PANEL DE LOTES
 ═══════════════════════════════════════════════════════════ */
 
-/* Resumen rápido */
 .lotes-resumen {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -430,7 +459,6 @@
 .lotes-resumen__num   { font-size: 20px; font-weight: 800; color: #1a1a1a; font-family: var(--font-head); line-height: 1; }
 .lotes-resumen__label { font-size: 10px; color: #9e9e9e; font-weight: 600; text-align: center; }
 
-/* Lista de lotes */
 .lotes-lista { display: flex; flex-direction: column; gap: 10px; }
 
 .lote-item {
@@ -442,7 +470,6 @@
 }
 .lote-item:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
 
-/* Encabezado del lote */
 .lote-item__head {
   display: flex;
   align-items: center;
@@ -472,7 +499,6 @@
   white-space: nowrap;
 }
 
-/* Cuerpo del lote */
 .lote-item__body {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -483,15 +509,15 @@
   .lote-item__body { grid-template-columns: 1fr; }
 }
 
-.lote-dato { display: flex; flex-direction: column; gap: 2px; }
-.lote-dato__label { font-size: 10px; font-weight: 700; color: #bdbdbd; text-transform: none; letter-spacing: 0.8px; }
-.lote-dato__val   { font-size: 13px; font-weight: 600; color: #1a1a1a; }
-.lote-dato__val--big { font-size: 15px; font-weight: 800; color: #1b5e20; font-family: var(--font-head); }
-.lote-dato__uni   { font-size: 11px; font-weight: 600; color: #616161; }
-.lote-dato__orig  { font-size: 11px; color: #9e9e9e; font-weight: 400; }
+.lote-dato            { display: flex; flex-direction: column; gap: 2px; }
+.lote-dato__label     { font-size: 10px; font-weight: 700; color: #bdbdbd; text-transform: none; letter-spacing: 0.8px; }
+.lote-dato__val       { font-size: 13px; font-weight: 600; color: #1a1a1a; }
+.lote-dato__val--big  { font-size: 15px; font-weight: 800; color: #1b5e20; font-family: var(--font-head); }
+.lote-dato__uni       { font-size: 11px; font-weight: 600; color: #616161; }
+.lote-dato__orig      { font-size: 11px; color: #9e9e9e; font-weight: 400; }
 
-.lote-dias         { font-size: 11px; font-weight: 600; }
-.lote-dias--vencido { color: #c62828; }
+.lote-dias            { font-size: 11px; font-weight: 600; }
+.lote-dias--vencido   { color: #c62828; }
 
 .lote-compra-ref {
   font-size: 11px;
@@ -504,82 +530,37 @@
   display: inline-block;
 }
 
-/* Barra de consumo */
 .lote-barra-wrap  { display: flex; align-items: center; gap: 8px; }
 .lote-barra-track { flex: 1; height: 6px; background: #eeeeee; border-radius: 3px; overflow: hidden; }
 .lote-barra-fill  { height: 100%; border-radius: 3px; transition: width 0.3s; }
 .lote-barra-pct   { font-size: 10px; font-weight: 700; color: #9e9e9e; white-space: nowrap; flex-shrink: 0; }
 
-/* Empty state de lotes */
-.lotes-empty {
-  text-align: center;
-  padding: 28px 20px;
-  background: #fafafa;
-  border: 1.5px dashed #e0e0e0;
-  border-radius: 12px;
-}
-.lotes-empty span     { font-size: 32px; opacity: 0.4; }
-.lotes-empty p        { margin: 8px 0 0; font-size: 13px; color: #757575; font-weight: 600; }
-.lotes-empty__sub     { font-size: 11px !important; color: #bdbdbd !important; font-weight: 400 !important; margin-top: 4px !important; }
+.lotes-empty { text-align: center; padding: 28px 20px; background: #fafafa; border: 1.5px dashed #e0e0e0; border-radius: 12px; }
+.lotes-empty span      { font-size: 32px; opacity: 0.4; }
+.lotes-empty p         { margin: 8px 0 0; font-size: 13px; color: #757575; font-weight: 600; }
+.lotes-empty__sub      { font-size: 11px !important; color: #bdbdbd !important; font-weight: 400 !important; margin-top: 4px !important; }
 
 /* ═══════════════════════════════════════════════════════════
-   WIZARD — BARRA DE PASOS (agregar al final de compras.css)
-   ═══════════════════════════════════════════════════════════ */
+   WIZARD — BARRA DE PASOS (legacy, mantenida por compatibilidad)
+═══════════════════════════════════════════════════════════ */
 
-.wizard-steps-bar {
-  display: flex;
-  align-items: center;
-  margin-bottom: 4px;
-}
-
-.wizard-step-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-}
+.wizard-steps-bar { display: flex; align-items: center; margin-bottom: 4px; }
+.wizard-step-item { display: flex; align-items: center; gap: 8px; flex: 1; }
 .wizard-step-item:last-child { flex: none; }
 
 .wizard-step-circle {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 1.5px solid #e0e0e0;
-  background: #fff;
-  color: #bdbdbd;
-  font-size: 12px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: all 0.2s;
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 1.5px solid #e0e0e0; background: #fff; color: #bdbdbd;
+  font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: all 0.2s;
 }
-.wizard-step-circle.active {
-  border-color: #2e7d32;
-  color: #2e7d32;
-  background: #e8f5e9;
-}
-.wizard-step-circle.done {
-  border-color: #2e7d32;
-  background: #2e7d32;
-  color: #fff;
-}
+.wizard-step-circle.active { border-color: #2e7d32; color: #2e7d32; background: #e8f5e9; }
+.wizard-step-circle.done   { border-color: #2e7d32; background: #2e7d32; color: #fff; }
 
-.wizard-step-label {
-  font-size: 12px;
-  color: #bdbdbd;
-  font-weight: 500;
-  white-space: nowrap;
-}
+.wizard-step-label       { font-size: 12px; color: #bdbdbd; font-weight: 500; white-space: nowrap; }
 .wizard-step-label.active { color: #2e7d32; font-weight: 700; }
 .wizard-step-label.done   { color: #9e9e9e; }
 
-.wizard-step-line {
-  flex: 1;
-  height: 1.5px;
-  background: #e0e0e0;
-  margin: 0 8px;
-  transition: background 0.2s;
-}
+.wizard-step-line      { flex: 1; height: 1.5px; background: #e0e0e0; margin: 0 8px; transition: background 0.2s; }
 .wizard-step-line.done { background: #2e7d32; }

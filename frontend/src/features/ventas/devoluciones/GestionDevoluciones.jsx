@@ -6,7 +6,7 @@ import "./Devoluciones.css";
 const fmt = (n) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
 
-const PER_PAGE = 4;
+const PER_PAGE = 5;
 
 const ESTADO_CONFIG = {
   "Pendiente":   { bg: "#fff8e1", color: "#f9a825", border: "#ffe082", dot: "#f9a825"  },

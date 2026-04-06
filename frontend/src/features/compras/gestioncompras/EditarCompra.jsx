@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useApp, calcularTotal, diasHasta, estadoLote, convertirUnidad, getVencimientoMasAntiguo } from "../../../AppContext.jsx";
+import { useApp, calcularTotal, diasHasta, estadoLote, convertirUnidad, getVencimientoMasAntiguo, sumarDias } from "../../../AppContext.jsx";
 import "./compras.css";
 
 const METODOS_PAGO = [
@@ -11,30 +11,67 @@ const COP = (n) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(n);
 
 const emptyDetalle = () => ({
-  _key: Date.now() + Math.random(),
-  idInsumo: "", cantidad: "", precioUnd: "", notas: "", fechaVencimiento: "",
+  _key:             Date.now() + Math.random(),
+  idInsumo:         "",
+  cantidad:         "",
+  precioUnd:        "",
+  notas:            "",
+  vencimientoTipo:  "dias",
+  vencimientoValor: "30",
+  fechaVencimiento: "",
 });
 
-/* ── Barra de pasos ──────────────────────────────────────── */
-const STEPS = ["Información general", "Insumos"];
+/* ── Barra de pasos (igual que CrearCompra) ── */
+const STEPS = [
+  { idx: 1, label: "Información general" },
+  { idx: 2, label: "Insumos comprados"   },
+];
 
 function StepsBar({ current }) {
   return (
-    <div className="wizard-steps-bar">
-      {STEPS.map((label, i) => {
-        const idx    = i + 1;
-        const done   = idx < current;
-        const active = idx === current;
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      padding: "16px 24px 0",
+      flexShrink: 0,
+    }}>
+      {STEPS.map((s, i) => {
+        const done   = current > s.idx;
+        const active = current === s.idx;
         return (
-          <div key={label} className="wizard-step-item">
-            <div className={`wizard-step-circle${done ? " done" : active ? " active" : ""}`}>
-              {done ? "✓" : idx}
+          <div
+            key={s.idx}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              flex: i < STEPS.length - 1 ? 1 : "none",
+            }}
+          >
+            <div style={{
+              width: 28, height: 28, borderRadius: "50%",
+              border: `2px solid ${active || done ? "#2e7d32" : "#d0d0d0"}`,
+              background: done ? "#2e7d32" : "#fff",
+              color: active ? "#2e7d32" : done ? "#fff" : "#bdbdbd",
+              fontSize: 12, fontWeight: 700,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              flexShrink: 0, transition: "all 0.2s",
+            }}>
+              {done ? "✓" : s.idx}
             </div>
-            <span className={`wizard-step-label${active ? " active" : done ? " done" : ""}`}>
-              {label}
+            <span style={{
+              marginLeft: 8, fontSize: 13,
+              fontWeight: active ? 700 : 500,
+              color: active ? "#2e7d32" : done ? "#9e9e9e" : "#bdbdbd",
+              whiteSpace: "nowrap", transition: "color 0.2s",
+            }}>
+              {s.label}
             </span>
             {i < STEPS.length - 1 && (
-              <div className={`wizard-step-line${done ? " done" : ""}`} />
+              <div style={{
+                flex: 1, height: 1.5,
+                background: done ? "#2e7d32" : "#e0e0e0",
+                margin: "0 12px", transition: "background 0.2s",
+              }} />
             )}
           </div>
         );
@@ -44,7 +81,7 @@ function StepsBar({ current }) {
 }
 
 /* ════════════════════════════════════════════════════════════
-   PANEL DE LOTES — reutilizable en el modal Ver de Insumos
+   PANEL DE LOTES
 ════════════════════════════════════════════════════════════ */
 export function LotesInsumoPanel({ idInsumo }) {
   const { getLotesDeInsumo, getProveedor, compras, getUnidad, getInsumo } = useApp();
@@ -121,7 +158,6 @@ export function LotesInsumoPanel({ idInsumo }) {
                   {cfg.icon} {cfg.label}
                 </span>
               </div>
-
               <div className="lote-item__body">
                 <div className="lote-dato">
                   <span className="lote-dato__label">Cantidad restante</span>
@@ -155,7 +191,6 @@ export function LotesInsumoPanel({ idInsumo }) {
                   <span className="lote-dato__val lote-compra-ref">{lote.idCompra}</span>
                 </div>
               </div>
-
               {lote.cantidadInicial > 0 && (
                 <div className="lote-barra-wrap">
                   <div className="lote-barra-track">
@@ -178,7 +213,7 @@ export function LotesInsumoPanel({ idInsumo }) {
 }
 
 /* ════════════════════════════════════════════════════════════
-   MODAL ELIMINAR COMPRA
+   MODAL ANULAR COMPRA
 ════════════════════════════════════════════════════════════ */
 export function AnularCompraModal({ compra, onClose, onConfirm }) {
   const { canAnularCompra, canDeleteCompra } = useApp();
@@ -221,7 +256,7 @@ export function AnularCompraModal({ compra, onClose, onConfirm }) {
    MODAL VER / EDITAR COMPRA
 ════════════════════════════════════════════════════════════ */
 export default function EditarCompra({ compra, mode, onClose, onSave }) {
-  const { proveedores, insumosActivos, getProveedor, getInsumo, getCatInsumo, getUnidad, convertirUnidad, getVencimientoMasAntiguo } = useApp();
+  const { proveedores, insumosActivos, getProveedor, getInsumo, getCatInsumo, getUnidad } = useApp();
 
   const isView      = mode === "view";
   const isCompleted = compra.stockAplicado;
@@ -255,35 +290,32 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
     detalles.map(d => ({ cantidad: Number(d.cantidad) || 0, precioUnd: Number(d.precioUnd) || 0 }))
   );
 
-  const validateStep = (s) => {
+  const handleNext = () => {
     const e = {};
-    if (s === 1) {
-      if (!form.idProveedor) e.idProveedor = "Selecciona un proveedor";
-      if (!form.fecha)       e.fecha       = "Ingresa la fecha";
-      if (!form.metodoPago)  e.metodoPago  = "Selecciona el método de pago";
-    }
-    if (s === 2 && !isCompleted) {
+    if (!form.idProveedor) e.idProveedor = "Selecciona un proveedor";
+    if (!form.fecha)       e.fecha       = "Ingresa la fecha";
+    if (!form.metodoPago)  e.metodoPago  = "Selecciona el método de pago";
+    if (Object.keys(e).length) { setErrors(e); return; }
+    setErrors({});
+    setStep(2);
+  };
+
+  const handleSave = async () => {
+    const e = {};
+    if (!isCompleted) {
       if (detalles.length === 0) e.detalles = "Agrega al menos un insumo";
       detalles.forEach((d, i) => {
         if (!d.idInsumo)                              e[`ins_${i}`]    = "Selecciona un insumo";
         if (!d.cantidad || Number(d.cantidad) <= 0)   e[`cant_${i}`]   = "Cantidad inválida";
         if (!d.precioUnd || Number(d.precioUnd) <= 0) e[`precio_${i}`] = "Precio inválido";
-        if (!d.fechaVencimiento)                      e[`venc_${i}`]   = "Fecha de vencimiento requerida";
+        
+        if (d.vencimientoTipo === "fecha" && !d.fechaVencimiento) {
+          e[`venc_${i}`] = "Fecha requerida";
+        } else if (d.vencimientoTipo === "dias" && (!d.vencimientoValor || Number(d.vencimientoValor) <= 0)) {
+          e[`venc_${i}`] = "Días requeridos";
+        }
       });
     }
-    return e;
-  };
-
-  const handleNext = () => {
-    const e = validateStep(step);
-    if (Object.keys(e).length) { setErrors(e); return; }
-    setStep(s => s + 1);
-  };
-
-  const handleBack = () => setStep(s => s - 1);
-
-  const handleSave = async () => {
-    const e = validateStep(2);
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaving(true);
     await new Promise(r => setTimeout(r, 400));
@@ -293,7 +325,9 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
       cantidad:         Number(d.cantidad),
       precioUnd:        Number(d.precioUnd),
       notas:            d.notas?.trim() || "",
-      fechaVencimiento: d.fechaVencimiento,
+      fechaVencimiento: d.vencimientoTipo === "dias" 
+        ? sumarDias(d.vencimientoValor) 
+        : d.fechaVencimiento,
     }));
     onSave({ ...compra, ...form, detalles: detallesLimpios });
   };
@@ -304,10 +338,10 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
       <div
         className="modal-card modal-card--compra"
         onClick={e => e.stopPropagation()}
-        style={isView ? { display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 40px)" } : {}}
+        style={{ display: "flex", flexDirection: "column", maxHeight: "90vh", overflow: "hidden" }}
       >
-        {/* Header */}
-        <div className="modal-header">
+        {/* ── Header ── */}
+        <div className="modal-header" style={{ flexShrink: 0 }}>
           <div>
             <p className="modal-header__eyebrow">Compras · {compra.id}</p>
             <h2 className="modal-header__title">
@@ -318,24 +352,20 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
             <span className={`estado-chip estado-chip--${compra.estado}`}>
               {compra.estado === "pendiente" ? "⏳ Pendiente" : "✅ Completada"}
             </span>
-            <button className="modal-close-btn" onClick={onClose}>✕</button>
+            <button type="button" className="modal-close-btn" onClick={onClose}>✕</button>
           </div>
         </div>
 
-        {/* Steps — solo en modo editar */}
-        {!isView && (
-          <div style={{ padding: "16px 24px 0" }}>
-            <StepsBar current={step} />
-          </div>
-        )}
+        {/* ── Barra de pasos (solo en editar) ── */}
+        {!isView && <StepsBar current={step} />}
 
-        {/* Body */}
+        {/* Divisor */}
+        <div style={{ height: 1, background: "#f0f0f0", margin: "14px 0 0", flexShrink: 0 }} />
+
+        {/* ── Body scrolleable ── */}
         <div
           className="modal-body"
-          style={isView
-            ? { flex: 1, overflowY: "auto" }
-            : { overflow: "visible" }
-          }
+          style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "20px 24px" }}
         >
 
           {/* ════ MODO VER ════ */}
@@ -390,7 +420,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                           <div className="insumo-name">{ins?.nombre || `Insumo #${d.idInsumo}`}</div>
                           {d.notas && <div className="insumo-notes">{d.notas}</div>}
                           <div className="insumo-venc">
-                            🗓 Vence: {d.fechaVencimiento}
+                            🗗 Vence: {d.fechaVencimiento}
                             {dias <= 7 && dias >= 0 && <span className="venc-warn"> ⚠️ {dias === 0 ? "hoy" : `en ${dias}d`}</span>}
                             {dias < 0  && <span className="venc-danger"> 🚨 vencido</span>}
                           </div>
@@ -413,7 +443,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
             </>
           )}
 
-          {/* ════ MODO EDITAR — Paso 1: Info general ════ */}
+          {/* ════ MODO EDITAR — Paso 1 ════ */}
           {!isView && step === 1 && (
             <>
               {isCompleted && (
@@ -421,8 +451,6 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                   🔒 Esta compra ya fue <strong>completada</strong>. Solo puedes editar las notas y el método de pago.
                 </div>
               )}
-
-              <p className="section-label" style={{ marginTop: 0, textTransform: "none" }}>Información general</p>
 
               <div className="field-wrap">
                 <label className="field-label">Proveedor <span className="required">*</span></label>
@@ -456,9 +484,10 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                     : <input type="date" className={`field-input ${errors.fecha ? "error" : ""}`}
                         value={form.fecha} onChange={e => set("fecha", e.target.value)} />
                   }
+                  {errors.fecha && <span className="field-error">{errors.fecha}</span>}
                 </div>
                 <div className="field-wrap">
-                  <label className="field-label" style={{ textTransform: "none" }}>Estado</label>
+                  <label className="field-label">Estado</label>
                   {isCompleted
                     ? <div className="field-input field-input--disabled">✅ Completada</div>
                     : (
@@ -481,18 +510,18 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
 
               <div className="field-wrap">
                 <label className="field-label">Método de pago <span className="required">*</span></label>
-                <div className="metodo-grid">
-                  {METODOS_PAGO.map(m => (
-                    <button
-                      key={m.value}
-                      type="button"
-                      className={`metodo-btn ${form.metodoPago === m.value ? "metodo-btn--active" : ""}`}
-                      onClick={() => set("metodoPago", m.value)}
-                    >
-                      <span>{m.icon}</span>
-                      <span>{m.label}</span>
-                    </button>
-                  ))}
+                <div className="select-wrap">
+                  <select
+                    className={`field-select ${errors.metodoPago ? "error" : ""}`}
+                    value={form.metodoPago}
+                    onChange={e => set("metodoPago", e.target.value)}
+                  >
+                    <option value="">— Seleccionar método —</option>
+                    {METODOS_PAGO.map(m => (
+                      <option key={m.value} value={m.value}>{m.icon} {m.label}</option>
+                    ))}
+                  </select>
+                  <span className="select-arrow">▾</span>
                 </div>
                 {errors.metodoPago && <span className="field-error">{errors.metodoPago}</span>}
               </div>
@@ -510,13 +539,15 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
             </>
           )}
 
-          {/* ════ MODO EDITAR — Paso 2: Insumos ════ */}
+          {/* ════ MODO EDITAR — Paso 2 ════ */}
           {!isView && step === 2 && (
             <>
-              <p className="section-label" style={{ marginTop: 0, textTransform: "none" }}>
-                Insumos comprados
-                {errors.detalles && <span className="field-error" style={{ marginLeft: 8 }}>{errors.detalles}</span>}
-              </p>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#616161" }}>
+                  Insumos comprados
+                </p>
+                {errors.detalles && <span className="field-error">{errors.detalles}</span>}
+              </div>
 
               {/* Completada: solo lectura */}
               {isCompleted ? (
@@ -553,9 +584,9 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
               ) : (
                 <>
                   {detalles.map((d, i) => {
-                    const insumoSel = insumosActivos.find(ins => ins.id === Number(d.idInsumo));
-                    const cat       = insumoSel ? getCatInsumo(insumoSel.idCategoria) : null;
-                    const unidad    = insumoSel ? getUnidad(insumoSel.idUnidad)       : null;
+                    const insumoSel  = insumosActivos.find(ins => ins.id === Number(d.idInsumo));
+                    const cat        = insumoSel ? getCatInsumo(insumoSel.idCategoria) : null;
+                    const unidad     = insumoSel ? getUnidad(insumoSel.idUnidad)       : null;
                     const conversion = unidad && d.cantidad ? convertirUnidad(Number(d.cantidad), unidad.simbolo) : null;
                     return (
                       <div key={d._key} className="detalle-row">
@@ -600,9 +631,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                             />
                             {errors[`cant_${i}`] && <span className="field-error">{errors[`cant_${i}`]}</span>}
                             {conversion && (
-                              <span className="field-help" style={{ marginTop: 4 }}>
-                                Equivalente: {conversion.to}
-                              </span>
+                              <span className="field-help" style={{ marginTop: 4 }}>Equivalente: {conversion.to}</span>
                             )}
                           </div>
 
@@ -616,14 +645,44 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                             {errors[`precio_${i}`] && <span className="field-error">{errors[`precio_${i}`]}</span>}
                           </div>
 
+                          {/* ── Vencimiento dinámico ── */}
                           <div className="field-wrap" style={{ gridColumn: "1 / -1" }}>
-                            <label className="field-label">Fecha de vencimiento del lote <span className="required">*</span></label>
-                            <input type="date"
-                              className={`field-input ${errors[`venc_${i}`] ? "error" : ""}`}
-                              value={d.fechaVencimiento}
-                              onChange={e => setDetalle(d._key, "fechaVencimiento", e.target.value)}
-                            />
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                              <label className="field-label" style={{ margin: 0 }}>Vencimiento <span className="required">*</span></label>
+                              <div className="venc-toggle">
+                                <button type="button"
+                                  className={`venc-toggle-btn ${d.vencimientoTipo === "dias" ? "active" : ""}`}
+                                  onClick={() => setDetalle(d._key, "vencimientoTipo", "dias")}
+                                >Días</button>
+                                <button type="button"
+                                  className={`venc-toggle-btn ${d.vencimientoTipo === "fecha" ? "active" : ""}`}
+                                  onClick={() => setDetalle(d._key, "vencimientoTipo", "fecha")}
+                                >Fecha</button>
+                              </div>
+                            </div>
+
+                            {d.vencimientoTipo === "dias" ? (
+                              <div style={{ position: "relative" }}>
+                                <input type="number" min="1"
+                                  className={`field-input ${errors[`venc_${i}`] ? "error" : ""}`}
+                                  placeholder="Ej: 30" value={d.vencimientoValor}
+                                  onChange={e => setDetalle(d._key, "vencimientoValor", e.target.value)}
+                                />
+                                <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: "#9e9e9e", pointerEvents: "none" }}>días útiles</span>
+                              </div>
+                            ) : (
+                              <input type="date"
+                                className={`field-input ${errors[`venc_${i}`] ? "error" : ""}`}
+                                value={d.fechaVencimiento}
+                                onChange={e => setDetalle(d._key, "fechaVencimiento", e.target.value)}
+                              />
+                            )}
                             {errors[`venc_${i}`] && <span className="field-error">{errors[`venc_${i}`]}</span>}
+                            {d.vencimientoTipo === "dias" && d.vencimientoValor > 0 && (
+                              <span className="field-help" style={{ marginTop: 4, color: "#2e7d32" }}>
+                                Vencerá el: <strong>{new Date(sumarDias(d.vencimientoValor) + "T00:00:00").toLocaleDateString("es-CO")}</strong>
+                              </span>
+                            )}
                           </div>
 
                           <div className="field-wrap" style={{ gridColumn: "1 / -1" }}>
@@ -642,12 +701,13 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                           )}
                         </div>
                         {detalles.length > 1 && (
-                          <button className="detalle-remove-btn" type="button" onClick={() => removeDetalle(d._key)}>✕</button>
+                          <button type="button" className="detalle-remove-btn" onClick={() => removeDetalle(d._key)}>✕</button>
                         )}
                       </div>
                     );
                   })}
-                  <button className="btn-add-detalle" type="button" onClick={addDetalle}>
+
+                  <button type="button" className="btn-add-detalle" onClick={addDetalle}>
                     + Agregar insumo
                   </button>
                 </>
@@ -659,7 +719,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
               </div>
 
               {!isCompleted && form.estado === "completada" && (
-                <div className="stock-aviso stock-aviso--warn">
+                <div className="stock-aviso stock-aviso--warn" style={{ marginTop: 10 }}>
                   ⚠️ Al guardar como <strong>Completada</strong>, se crearán los lotes y el stock se actualizará automáticamente.
                 </div>
               )}
@@ -667,21 +727,30 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
           )}
         </div>
 
-        {/* Footer */}
-        <div className="modal-footer" style={!isView ? { justifyContent: "space-between" } : {}}>
+        {/* ── Footer ── */}
+        <div style={{
+          flexShrink: 0,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "14px 24px 20px",
+          borderTop: "1px solid #f5f5f5",
+        }}>
           {isView ? (
-            <button className="btn-cancel" onClick={onClose}>Cerrar</button>
+            <button type="button" className="btn-cancel" onClick={onClose}>Cerrar</button>
           ) : (
             <>
-              {step > 1
-                ? <button className="btn-cancel" onClick={handleBack}>← Atrás</button>
-                : <button className="btn-cancel" onClick={onClose}>Cancelar</button>
+              {step === 2
+                ? <button type="button" className="btn-ghost" onClick={() => setStep(1)}>← Volver</button>
+                : <button type="button" className="btn-ghost" onClick={onClose}>Cancelar</button>
               }
-              {step < 2
-                ? <button className="btn-save" onClick={handleNext}>Siguiente →</button>
-                : <button className="btn-save" onClick={handleSave} disabled={saving}>
-                    {saving ? "Guardando…" : "Guardar cambios"}
+              {step === 1
+                ? <button type="button" className="btn-save" onClick={handleNext}>Siguiente →</button>
+                : (
+                  <button type="button" className="btn-save" onClick={handleSave} disabled={saving}>
+                    {saving ? <><span className="spinner">◌</span> Guardando…</> : "Guardar cambios"}
                   </button>
+                )
               }
             </>
           )}

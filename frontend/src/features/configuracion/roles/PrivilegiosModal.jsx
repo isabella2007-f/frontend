@@ -5,17 +5,12 @@
  * Nivel 2 (tabs inferiores):  Módulos del grupo activo (máx. 5, siempre caben)
  * Panel central:              Tarjetas de acciones del módulo seleccionado
  *
- * Importar y usar igual que antes:
- *   <PrivilegiosModal
- *     privilegios={...}
- *     esAdmin={bool}
- *     isView={bool}          ← opcional, omitir en CrearRol
- *     onChange={fn}
- *     onClose={fn}
- *   />
+ * FIX: Usa createPortal para renderizar directamente en document.body
+ * y evitar quedar atrapado en el stacking context del modal padre.
  */
 
 import { useState } from "react";
+import { createPortal } from "react-dom";
 
 const GRUPOS_MODULOS = [
   {
@@ -34,7 +29,7 @@ const GRUPOS_MODULOS = [
       { key: "CategoriaInsumos", label: "Cat. Insumos",  icon: "📂" },
       { key: "Insumos",          label: "Insumos",        icon: "🧪" },
       { key: "Proveedores",      label: "Proveedores",    icon: "🚚" },
-      { key: "Compras",   label: "Compras", icon: "📋" },
+      { key: "Compras",          label: "Compras",        icon: "📋" },
     ],
   },
   {
@@ -97,7 +92,7 @@ const S = {
     position: "fixed", inset: 0,
     background: "rgba(0,0,0,0.45)",
     display: "flex", alignItems: "center", justifyContent: "center",
-    zIndex: 1100,
+    zIndex: 3000, // mayor que el modal padre (2000)
   },
   box: {
     background: "#fff",
@@ -106,7 +101,6 @@ const S = {
     display: "flex",
     flexDirection: "column",
     width: "min(700px, 96vw)",
-    /* altura fija: evita cualquier scroll externo */
     maxHeight: "90vh",
     overflow: "hidden",
   },
@@ -116,7 +110,6 @@ const S = {
     borderBottom: "1px solid #f0f0f0",
     flexShrink: 0,
   },
-  /* ── Nivel 1: fila de grupos ── */
   gruposBar: {
     display: "flex",
     gap: 6,
@@ -136,7 +129,6 @@ const S = {
     transition: "all 0.15s",
     whiteSpace: "nowrap",
   }),
-  /* ── Nivel 2: fila de módulos ── */
   modulosBar: {
     display: "flex",
     gap: 4,
@@ -157,14 +149,13 @@ const S = {
     transition: "all 0.12s",
     whiteSpace: "nowrap",
   }),
-  /* ── Panel de acciones ── */
   panelBody: {
     flex: 1,
     padding: "16px 20px",
     display: "flex",
     flexDirection: "column",
     gap: 14,
-    overflow: "hidden", /* nunca scroll */
+    overflow: "hidden",
   },
   accionesGrid: {
     display: "grid",
@@ -211,7 +202,6 @@ export default function PrivilegiosModal({
   const [grupo, setGrupo]   = useState(GRUPOS_MODULOS[0].grupo);
   const [modKey, setModKey] = useState(GRUPOS_MODULOS[0].modulos[0].key);
 
-  /* Al cambiar grupo, seleccionar automáticamente el primer módulo */
   const handleGrupo = (g) => {
     setGrupo(g);
     const primerMod = GRUPOS_MODULOS.find(gr => gr.grupo === g)?.modulos[0];
@@ -234,7 +224,6 @@ export default function PrivilegiosModal({
     }
   };
 
-  /* Datos del módulo activo */
   const grupoActual    = GRUPOS_MODULOS.find(g => g.grupo === grupo);
   const modMeta        = MODULOS.find(m => m.key === modKey);
   const modItems       = local.filter(p => p.modulo === modKey);
@@ -244,11 +233,9 @@ export default function PrivilegiosModal({
     ? modItems.some(p => p.accion === "ver" && p.estado)
     : modActivos === accionesMod.length;
 
-  /* Totales globales */
   const totalActivos = local.filter(p => p.estado).length;
   const advertencia  = !isView && !esAdmin && tieneTodosLosPrivilegios(local);
 
-  /* Badge de activos por grupo (para el chip) */
   const activosPorGrupo = (g) => {
     const modulos = GRUPOS_MODULOS.find(gr => gr.grupo === g)?.modulos || [];
     return local.filter(p =>
@@ -256,14 +243,15 @@ export default function PrivilegiosModal({
     ).length;
   };
 
-  /* Badge de activos por módulo en nivel 2 */
   const activosPorModulo = (mKey) => {
     const items = local.filter(p => p.modulo === mKey &&
       (mKey === "Dashboard" ? p.accion === "ver" : true));
     return { activos: items.filter(p => p.estado).length, total: items.length };
   };
 
-  return (
+  // ─── FIX: createPortal monta el modal en document.body,
+  //     escapando el stacking context del modal padre (z-index: 2000).
+  return createPortal(
     <div style={S.overlay} onClick={onClose}>
       <div style={S.box} onClick={e => e.stopPropagation()}>
 
@@ -490,6 +478,7 @@ export default function PrivilegiosModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body  // ← Portal: monta fuera del stacking context del modal padre
   );
 }

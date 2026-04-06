@@ -43,7 +43,7 @@
 }
 
 .search-input {
-  width: 100%;
+  width: 50%;
   padding: 9px 12px 9px 34px;
   border-radius: 10px;
   border: 1.5px solid #e8f0eb;
@@ -60,7 +60,8 @@
 
 .search-icon {
   position: absolute;
-  left: 28px;
+  margin-left: 12px;
+  margin-top: 3px;
   top: 50%;
   transform: translateY(-50%);
   font-size: 14px;

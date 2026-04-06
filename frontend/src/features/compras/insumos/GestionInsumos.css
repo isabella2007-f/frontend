@@ -331,7 +331,7 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; color: #1a1a1a; }
   margin-bottom: 20px;
 }
 
-..ver-ins-field {
+.ver-ins-field {
   display: flex;
   flex-direction: column;
   gap: 6px;

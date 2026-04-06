@@ -253,9 +253,9 @@ export function ModalEliminarUsuario({ user, razon, onClose, onConfirm }) {
       <div className="modal-overlay" onClick={onClose}>
         <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
           <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
-            <div className="delete-icon-wrap">⚠️</div>
-            <h3 className="delete-title">No se puede eliminar</h3>
-            <p className="delete-body">{razon}</p>
+            <div className="delete-icon-wrap" style={{ background: "#fff8e1", border: "1px solid #ffe082", color: "#e65100" }}>⚠️</div>
+            <h3 className="delete-title">Restricción de seguridad</h3>
+            <p className="delete-body" style={{ color: "#e65100", fontWeight: 500 }}>{razon}</p>
           </div>
           <div className="modal-footer" style={{ justifyContent: "center" }}>
             <button className="btn-ghost" onClick={onClose}>Entendido</button>
@@ -272,13 +272,13 @@ export function ModalEliminarUsuario({ user, razon, onClose, onConfirm }) {
           <div className="delete-icon-wrap">🗑️</div>
           <h3 className="delete-title">Eliminar usuario</h3>
           <p className="delete-body">
-            ¿Eliminar a <strong>"{user.nombre} {user.apellidos}"</strong>?
+            ¿Está seguro de que desea eliminar permanentemente al usuario <strong>"{user.nombre} {user.apellidos}"</strong>?
           </p>
-          <p className="delete-warn">Esta acción no se puede deshacer.</p>
+          <p className="delete-warn">Esta operación es definitiva y no podrá ser revertida.</p>
           <div className="modal-footer modal-footer--center">
             <button className="btn-cancel-full" onClick={onClose}>Cancelar</button>
             <button className="btn-danger" onClick={handleEliminar} disabled={done}>
-              {done ? "Eliminando…" : "Eliminar"}
+              {done ? "Eliminando…" : "Confirmar eliminación"}
             </button>
           </div>
         </div>

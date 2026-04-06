@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { registerUser } from '../services/userService';
-import { validatePassword } from '../features/configuracion/Usuarios/usuariosUtils.js';
+import { TIPO_DOC, validatePassword } from '../features/configuracion/Usuarios/usuariosUtils.js';
 import {
   User, Mail, Lock, Phone, MapPin, CreditCard,
-  ChevronRight, ChevronLeft, Eye, EyeOff, Check, Leaf,
+  ChevronRight, ChevronLeft, Eye, EyeOff, Check, Leaf, Camera, XCircle
 } from 'lucide-react';
 import './Auth.css';
 
@@ -15,8 +15,6 @@ const STEPS = [
   { id: 3, label: 'Ubicación', icon: MapPin     },
   { id: 4, label: 'Seguridad', icon: Lock       },
 ];
-
-const TIPO_DOC = ['CC', 'CE', 'TI', 'NIT', 'PPT', 'Pasaporte'];
 
 // ── Estilos base reutilizables ───────────────────────
 const inputBase = {
@@ -62,6 +60,48 @@ const InputField = ({ type = 'text', placeholder, value, onChange, style = {} })
     onFocus={focusOn} onBlur={focusOff}
   />
 );
+
+// ── Photo Uploader Reusable ──────────────────────────
+const PhotoUploader = ({ foto, onFoto }) => {
+  const fileRef = useRef();
+  const handleFile = e => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => onFoto(ev.target.result);
+    reader.readAsDataURL(file);
+  };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+      <div style={{ position: 'relative', width: 80, height: 80 }}>
+        {foto ? (
+          <img src={foto} alt="avatar" style={{ width: 80, height: 80, borderRadius: '50%', objectFit: 'cover', border: '2px solid #2a9d47' }} />
+        ) : (
+          <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', border: '2px dashed #d1d5db' }}>
+            <User size={32} />
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => fileRef.current.click()}
+          style={{ position: 'absolute', bottom: 0, right: 0, background: '#2a9d47', color: 'white', border: 'none', borderRadius: '50%', width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
+        >
+          <Camera size={14} />
+        </button>
+        <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
+      </div>
+      <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', fontFamily: "'DM Sans', sans-serif" }}>Foto de perfil</span>
+      {foto && (
+        <button
+          type="button"
+          onClick={() => onFoto(null)}
+          style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: '#dc2626', fontSize: 11, fontWeight: 600, cursor: 'pointer', padding: 0 }}
+        >
+          <XCircle size={12} /> Quitar
+        </button>
+      )}
+    </div>
+  );
+};
 
 // ── API Colombia — Departamento / Municipio ──────────
 const LocationSelects = ({ departamento, municipio, onDepto, onMunicipio, errDepto, errMunicipio }) => {
@@ -134,6 +174,7 @@ const Register = () => {
   const [showConf, setShowConf] = useState(false);
 
   const [form, setForm] = useState({
+    foto: null,
     nombre: '', apellidos: '', tipoDocumento: 'CC', cedula: '',
     correo: '', telefono: '',
     direccion: '', municipio: '', departamento: '',
@@ -163,8 +204,9 @@ const Register = () => {
       if (!form.telefono.trim()) e.telefono = 'Campo obligatorio';
     }
     if (step === 3) {
-      if (!form.departamento) e.departamento = 'Selecciona un departamento';
-      if (!form.municipio)    e.municipio    = 'Selecciona un municipio';
+      if (!form.direccion.trim()) e.direccion = 'Campo obligatorio';
+      if (!form.departamento)     e.departamento = 'Selecciona un departamento';
+      if (!form.municipio)        e.municipio    = 'Selecciona un municipio';
     }
     if (step === 4) {
       const passError = validatePassword(form.password, form.confirmar);
@@ -182,12 +224,14 @@ const Register = () => {
     if (!validate()) return;
     setLoading(true);
     try {
-      registerUser({
+      await registerUser({
+        foto: form.foto,
         nombre: form.nombre, apellidos: form.apellidos,
         tipoDocumento: form.tipoDocumento, cedula: form.cedula,
         correo: form.correo, telefono: form.telefono,
         direccion: form.direccion, municipio: form.municipio,
         departamento: form.departamento, password: form.password,
+        rol: 'Cliente' // Por defecto al registrarse
       });
       navigate('/login', { state: { registered: true } });
     } catch (err) {
@@ -271,6 +315,7 @@ const Register = () => {
             {/* ── PASO 1: Identidad ── */}
             {step === 1 && (
               <div>
+                <PhotoUploader foto={form.foto} onFoto={v => setVal('foto', v)} />
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <Field label="Nombre(s)" icon={User} error={errors.nombre}>
                     <InputField placeholder="Carlos" value={form.nombre} onChange={set('nombre')} />
@@ -311,7 +356,7 @@ const Register = () => {
             {/* ── PASO 3: Ubicación ── */}
             {step === 3 && (
               <div>
-                <Field label="Dirección" icon={MapPin}>
+                <Field label="Dirección" icon={MapPin} error={errors.direccion}>
                   <InputField placeholder="Calle 45 # 32-10" value={form.direccion} onChange={set('direccion')} />
                 </Field>
                 <LocationSelects
@@ -332,7 +377,7 @@ const Register = () => {
                   <div style={{ position: 'relative' }}>
                     <InputField
                       type={showPass ? 'text' : 'password'}
-                      placeholder="Mínimo 6 caracteres"
+                      placeholder="Mínimo 8 caracteres"
                       value={form.password} onChange={set('password')}
                       style={{ paddingRight: 44 }}
                     />

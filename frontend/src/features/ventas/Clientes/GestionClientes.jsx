@@ -2,6 +2,7 @@ import { useRef, useEffect, useState } from "react";
 import { useApp } from "../../../AppContext.jsx";
 import CrearCliente from "./CrearCliente.jsx";
 import { ModalVerCliente, ModalEditarCliente } from "./EditarCliente.jsx";
+import ModalEliminarValidado from "../../../ModalEliminarValidado";
 import "./clientes.css";
 
 const ITEMS_PER_PAGE = 4;
@@ -24,45 +25,6 @@ function Toast({ toast }) {
     <div className="toast" style={{ background: toast.type === "success" ? "#2e7d32" : "#c62828" }}>
       <span style={{ fontSize: 15 }}>{toast.type === "success" ? "✓" : "✕"}</span>
       {toast.message}
-    </div>
-  );
-}
-
-function EliminarModal({ cliente, razon, onClose, onConfirm }) {
-  const [deleting, setDeleting] = useState(false);
-
-  if (razon) {
-    return (
-      <div className="modal-overlay" onClick={onClose}>
-        <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
-          <div style={{ padding: "28px 24px", textAlign: "center" }}>
-            <div className="delete-icon-wrap">⚠️</div>
-            <h3 className="delete-title">No se puede eliminar</h3>
-            <p className="delete-body">{razon}</p>
-          </div>
-          <div className="modal-footer" style={{ justifyContent: "center" }}>
-            <button className="btn-ghost" onClick={onClose}>Entendido</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const run = async () => { setDeleting(true); await new Promise(r => setTimeout(r, 500)); onConfirm(); };
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
-        <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
-          <div className="delete-icon-wrap">🗑️</div>
-          <h3 className="delete-title">Eliminar cliente</h3>
-          <p className="delete-body">¿Eliminar a <strong>"{cliente.nombre} {cliente.apellidos}"</strong>?</p>
-          <p className="delete-warn">Esta acción no se puede deshacer.</p>
-        </div>
-        <div className="modal-footer modal-footer--center">
-          <button className="btn-cancel-full" onClick={onClose}>Cancelar</button>
-          <button className="btn-danger" onClick={run} disabled={deleting}>{deleting ? "Eliminando…" : "Eliminar"}</button>
-        </div>
-      </div>
     </div>
   );
 }
@@ -214,7 +176,15 @@ export default function GestionClientes() {
       {modal?.mode === "new"    && <CrearCliente onClose={() => setModal(null)} onSave={handleCreate} />}
       {modal?.mode === "edit"   && <ModalEditarCliente cliente={modal.cliente} onClose={() => setModal(null)} onSave={handleEdit} />}
       {modal?.mode === "view"   && <ModalVerCliente    cliente={modal.cliente} onClose={() => setModal(null)} />}
-      {modal?.mode === "delete" && <EliminarModal cliente={modal.cliente} razon={modal.razon} onClose={() => setModal(null)} onConfirm={handleDelete} />}
+      {modal?.mode === "delete" && (
+        <ModalEliminarValidado
+          titulo="Eliminar cliente"
+          descripcion={`¿Está seguro de que desea eliminar permanentemente al cliente "${modal.cliente.nombre} ${modal.cliente.apellidos}"?`}
+          validacion={canDeleteCliente(modal.cliente.id)}
+          onClose={() => setModal(null)}
+          onConfirm={handleDelete}
+        />
+      )}
 
       <Toast toast={toast} />
     </div>

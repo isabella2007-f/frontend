@@ -61,6 +61,8 @@ export const INIT_USERS = [
 export const EMPTY_FORM = {
   nombre:       "",
   apellidos:    "",
+  tipoDocumento: "CC",
+  cedula:       "",
   correo:       "",
   direccion:    "",
   municipio:    "",
@@ -77,3 +79,5 @@ export const EMPTY_FORM = {
 export const EMPTY_FILTERS = { roles: [], estado: "", desde: "", hasta: "" };
 
 export const PER_PAGE = 5;
+
+export const TIPO_DOC = ['CC', 'CE', 'TI', 'NIT', 'PPT', 'Pasaporte'];

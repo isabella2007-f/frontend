@@ -6,7 +6,7 @@ import EditarCategoria from "./EditarCategoria.jsx";
 import ModalEliminarValidado from "../../../ModalEliminarValidado";
 import "./Categoriaproductos.css";
 
-const ITEMS_PER_PAGE = 4;
+const ITEMS_PER_PAGE = 5;
 
 function Toggle({ value, onChange }) {
   return (
@@ -169,7 +169,7 @@ export default function CategoriaProductos() {
       {modal?.type === "eliminar" && (
         <ModalEliminarValidado
           titulo="Eliminar categoría"
-          descripcion={`¿Eliminar "${modal.category.nombre}"?`}
+          descripcion={`¿Está seguro de que desea eliminar la categoría "${modal.category.nombre}"?`}
           validacion={canDeleteCatProducto(modal.category.id)}
           onClose={() => setModal(null)}
           onConfirm={handleDelete}

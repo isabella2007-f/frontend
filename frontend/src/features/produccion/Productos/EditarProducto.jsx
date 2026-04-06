@@ -31,6 +31,18 @@ function StepsBar({ current }) {
   );
 }
 
+// Toggle idéntico al de GestionInsumos
+function Toggle({ value, onChange }) {
+  return (
+    <button type="button" onClick={() => onChange(!value)} className="toggle-btn"
+      style={{ background: value ? "#43a047" : "#bdbdbd", boxShadow: value ? "0 2px 8px rgba(67,160,71,0.4)" : "none" }}>
+      <span className="toggle-thumb" style={{ left: value ? 27 : 3 }}>
+        <span className="toggle-label">{value ? "ON" : ""}</span>
+      </span>
+    </button>
+  );
+}
+
 export default function EditarProducto({ product, onClose, onSave }) {
   const { categoriasProductosActivas } = useApp();
 
@@ -41,6 +53,7 @@ export default function EditarProducto({ product, onClose, onSave }) {
     stockMinimo:   String(product.stockMinimo ?? "10"),
     imagenPreview: product.imagenPreview ?? null,
     imagen:        product.imagen ?? null,
+    activo:        product.activo !== false, // true por defecto
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -110,12 +123,10 @@ export default function EditarProducto({ product, onClose, onSave }) {
         <button className="modal-close-btn" onClick={onClose}>✕</button>
       </div>
 
-      {/* Steps */}
       <div style={{ padding: "16px 24px 0" }}>
         <StepsBar current={step} />
       </div>
 
-      {/* Body — sin overflow */}
       <div className="modal-body" style={{ overflow: "visible" }}>
 
         {/* ── Paso 1: Información ── */}
@@ -149,6 +160,17 @@ export default function EditarProducto({ product, onClose, onSave }) {
               </select>
               {errors.idCategoria && <p className="field-error">{errors.idCategoria}</p>}
             </div>
+
+            {/* Toggle activo */}
+            <div className="form-group">
+              <label className="form-label">Activo</label>
+              <div className="estado-row">
+                <Toggle value={form.activo} onChange={v => set("activo", v)} />
+                <span className="estado-label" style={{ color: form.activo ? "#2e7d32" : "#9e9e9e" }}>
+                  {form.activo ? "Activo" : "Inactivo"}
+                </span>
+              </div>
+            </div>
           </>
         )}
 
@@ -156,7 +178,6 @@ export default function EditarProducto({ product, onClose, onSave }) {
         {step === 2 && (
           <>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              {/* Precio */}
               <div className="form-group">
                 <label className="form-label">Precio de venta</label>
                 <div style={{ position: "relative" }}>
@@ -173,7 +194,6 @@ export default function EditarProducto({ product, onClose, onSave }) {
                 {errors.precio && <p className="field-error">{errors.precio}</p>}
               </div>
 
-              {/* Stock */}
               <div className="form-group">
                 <label className="form-label">Stock</label>
                 <input
@@ -187,7 +207,6 @@ export default function EditarProducto({ product, onClose, onSave }) {
               </div>
             </div>
 
-            {/* Stock mínimo */}
             <div className="form-group">
               <label className="form-label">
                 Stock mínimo{" "}
@@ -205,7 +224,6 @@ export default function EditarProducto({ product, onClose, onSave }) {
               {errors.stockMinimo && <p className="field-error">{errors.stockMinimo}</p>}
             </div>
 
-            {/* Imagen */}
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label">Imagen del producto</label>
               <div
@@ -228,7 +246,6 @@ export default function EditarProducto({ product, onClose, onSave }) {
         )}
       </div>
 
-      {/* Footer — navegación wizard */}
       <div className="modal-footer" style={{ justifyContent: "space-between" }}>
         {step > 1
           ? <button className="btn-ghost" onClick={handleBack}>← Atrás</button>

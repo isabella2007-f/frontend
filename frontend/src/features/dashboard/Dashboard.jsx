@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, CartesianGrid, Legend } from "recharts";
 import "./dashboard.css";
 
@@ -34,14 +34,14 @@ const PEDIDOS_SEMANA = [
 ];
 
 const TIEMPO_HOY = [
-  { t: "8am", actual: 12, anterior: 8,  meta: 20 },
-  { t: "9am", actual: 28, anterior: 15, meta: 25 },
-  { t: "10am",actual: 19, anterior: 22, meta: 25 },
-  { t: "11am",actual: 35, anterior: 28, meta: 30 },
-  { t: "12pm",actual: 47, anterior: 31, meta: 35 },
-  { t: "1pm", actual: 31, anterior: 26, meta: 35 },
-  { t: "2pm", actual: 22, anterior: 18, meta: 30 },
-  { t: "3pm", actual: 38, anterior: 29, meta: 30 },
+  { t: "8am",  actual: 12, anterior: 8,  meta: 20 },
+  { t: "9am",  actual: 28, anterior: 15, meta: 25 },
+  { t: "10am", actual: 19, anterior: 22, meta: 25 },
+  { t: "11am", actual: 35, anterior: 28, meta: 30 },
+  { t: "12pm", actual: 47, anterior: 31, meta: 35 },
+  { t: "1pm",  actual: 31, anterior: 26, meta: 35 },
+  { t: "2pm",  actual: 22, anterior: 18, meta: 30 },
+  { t: "3pm",  actual: 38, anterior: 29, meta: 30 },
 ];
 const TIEMPO_SEMANA = [
   { t: "Lun", actual: 120, anterior: 95,  meta: 150 },
@@ -53,39 +53,35 @@ const TIEMPO_SEMANA = [
   { t: "Dom", actual: 180, anterior: 150, meta: 200 },
 ];
 
-/* ── KPI data by period ──────────────────────────────────── */
 const KPI = {
   hoy: {
-    ventas:   { valor: "$485.000", delta: "+12%", positive: true },
-    pedidos:  { valor: "100",      delta: "+8%",  positive: true },
-    clientes: { valor: "38",       delta: "+5%",  positive: true },
-    ticket:   { valor: "$4.850",   delta: "-2%",  positive: false },
+    ventas:   { valor: "$485.000",    delta: "+12%", positive: true  },
+    pedidos:  { valor: "100",         delta: "+8%",  positive: true  },
+    clientes: { valor: "38",          delta: "+5%",  positive: true  },
+    ticket:   { valor: "$4.850",      delta: "-2%",  positive: false },
   },
   semana: {
-    ventas:   { valor: "$3.210.000", delta: "+18%", positive: true },
-    pedidos:  { valor: "730",        delta: "+11%", positive: true },
-    clientes: { valor: "142",        delta: "+9%",  positive: true },
-    ticket:   { valor: "$4.397",     delta: "+3%",  positive: true },
+    ventas:   { valor: "$3.210.000",  delta: "+18%", positive: true  },
+    pedidos:  { valor: "730",         delta: "+11%", positive: true  },
+    clientes: { valor: "142",         delta: "+9%",  positive: true  },
+    ticket:   { valor: "$4.397",      delta: "+3%",  positive: true  },
   },
   mes: {
-    ventas:   { valor: "$12.450.000", delta: "+24%", positive: true },
-    pedidos:  { valor: "2.840",       delta: "+19%", positive: true },
-    clientes: { valor: "510",         delta: "+14%", positive: true },
-    ticket:   { valor: "$4.384",      delta: "+2%",  positive: true },
+    ventas:   { valor: "$12.450.000", delta: "+24%", positive: true  },
+    pedidos:  { valor: "2.840",       delta: "+19%", positive: true  },
+    clientes: { valor: "510",         delta: "+14%", positive: true  },
+    ticket:   { valor: "$4.384",      delta: "+2%",  positive: true  },
   },
 };
 
-const PERIODOS = ["hoy", "semana", "mes"];
+const PERIODOS      = ["hoy", "semana", "mes"];
 const PERIODO_LABEL = { hoy: "Hoy", semana: "Esta semana", mes: "Este mes" };
 
 /* ── Custom Tooltip ─────────────────────────────────────── */
 function CustomTooltip({ active, payload, label, prefix = "$" }) {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{
-      background: "#fff", border: "1px solid #e0e0e0", borderRadius: 10,
-      padding: "8px 14px", boxShadow: "0 4px 16px rgba(0,0,0,0.1)", fontSize: 13,
-    }}>
+    <div style={{ background: "#fff", border: "1px solid #e0e0e0", borderRadius: 10, padding: "8px 14px", boxShadow: "0 4px 16px rgba(0,0,0,0.1)", fontSize: 13 }}>
       <p style={{ margin: "0 0 4px", fontWeight: 700, color: "#424242" }}>{label}</p>
       {payload.map((p, i) => (
         <p key={i} style={{ margin: "2px 0", color: p.color, fontWeight: 600 }}>
@@ -124,15 +120,32 @@ function KpiCard({ icon, label, valor, delta, positive, color }) {
   );
 }
 
-/* ── Chart Card ─────────────────────────────────────────── */
-function ChartCard({ title, period, onPeriod, children }) {
+/* ── Chart Card desplegable ─────────────────────────────── */
+function ChartCard({ title, period, onPeriod, children, defaultOpen = true, className = "" }) {
+  const [open, setOpen] = useState(defaultOpen);
+
   return (
-    <div className="chart-card">
-      <div className="chart-card__header">
+    <div className={`chart-card${open ? " chart-card--open" : ""} ${className}`.trim()}>
+      <div className="chart-card__header" onClick={() => setOpen(v => !v)}>
         <h3 className="chart-card__title">{title}</h3>
-        <PeriodSelect value={period} onChange={onPeriod} />
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {/* Evitar que el click del select cierre el card */}
+          {onPeriod && (
+            <div onClick={e => e.stopPropagation()}>
+              <PeriodSelect value={period} onChange={onPeriod} />
+            </div>
+          )}
+          <div className="chart-card__chevron">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M2 4l4 4 4-4" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+        </div>
       </div>
-      {children}
+
+      <div className="chart-card__body">
+        {children}
+      </div>
     </div>
   );
 }
@@ -147,17 +160,15 @@ export default function Dashboard() {
 
   useEffect(() => { setTimeout(() => setAnimated(true), 100); }, []);
 
-  const ventasData  = pVentas  === "hoy" ? VENTAS_HOY  : pVentas  === "semana" ? VENTAS_SEMANA  : VENTAS_MES;
-  const pedidosData = pPedidos === "hoy" ? PEDIDOS_HOY : PEDIDOS_SEMANA;
-  const tiempoData  = pTiempo  === "hoy" ? TIEMPO_HOY  : TIEMPO_SEMANA;
-  const kpi         = KPI[pKpi];
-
+  const ventasData   = pVentas  === "hoy" ? VENTAS_HOY  : pVentas  === "semana" ? VENTAS_SEMANA  : VENTAS_MES;
+  const pedidosData  = pPedidos === "hoy" ? PEDIDOS_HOY : PEDIDOS_SEMANA;
+  const tiempoData   = pTiempo  === "hoy" ? TIEMPO_HOY  : TIEMPO_SEMANA;
+  const kpi          = KPI[pKpi];
   const totalPedidos = pedidosData.reduce((s, p) => s + p.value, 0);
 
   return (
     <div className={"dash-wrapper" + (animated ? " dash-wrapper--in" : "")}>
 
-      {/* Header */}
       <div className="dash-header">
         <h1 className="dash-title">DashBoard</h1>
         <div className="dash-title-line" />
@@ -165,24 +176,14 @@ export default function Dashboard() {
 
       <div className="dash-inner">
 
-        {/* KPI strip */}
-        <div className="kpi-strip">
-          <div className="kpi-strip__top">
-            <span className="kpi-strip__label">Resumen general</span>
-            <PeriodSelect value={pKpi} onChange={setPKpi} />
-          </div>
-          <div className="kpi-grid">
-            <KpiCard icon="💰" label="Total ventas"   valor={kpi.ventas.valor}   delta={kpi.ventas.delta}   positive={kpi.ventas.positive}   color="#2e7d32" />
-            <KpiCard icon="📦" label="Pedidos"        valor={kpi.pedidos.valor}  delta={kpi.pedidos.delta}  positive={kpi.pedidos.positive}  color="#fb8c00" />
-            <KpiCard icon="👤" label="Clientes"       valor={kpi.clientes.valor} delta={kpi.clientes.delta} positive={kpi.clientes.positive} color="#5c6bc0" />
-            <KpiCard icon="🎫" label="Ticket promedio"valor={kpi.ticket.valor}   delta={kpi.ticket.delta}   positive={kpi.ticket.positive}   color="#26c6da" />
-          </div>
+        {/* KPI strip — también desplegable */}
+        <div className={`kpi-strip${true ? " kpi-strip--open" : ""}`} style={{ marginBottom: 20 }}>
+          <KpiStripInner kpi={kpi} pKpi={pKpi} setPKpi={setPKpi} />
         </div>
 
         {/* Charts row 1 */}
-        <div className="charts-row">
+        <div className="charts-row" style={{ animationDelay: "0.1s" }}>
 
-          {/* Total ventas — Bar */}
           <ChartCard title="Total ventas" period={pVentas} onPeriod={setPVentas}>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={ventasData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
@@ -194,18 +195,15 @@ export default function Dashboard() {
             </ResponsiveContainer>
           </ChartCard>
 
-          {/* Pedidos vs Producto — Pie */}
           <ChartCard title="Pedidos vs Producto" period={pPedidos} onPeriod={setPPedidos}>
             <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
               <ResponsiveContainer width="55%" height={200}>
                 <PieChart>
                   <Pie data={pedidosData} cx="50%" cy="50%" innerRadius={50} outerRadius={85}
                     dataKey="value" paddingAngle={3} strokeWidth={0}>
-                    {pedidosData.map((entry, i) => (
-                      <Cell key={i} fill={entry.color} />
-                    ))}
+                    {pedidosData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                   </Pie>
-                  <Tooltip formatter={(v) => [`${v} pedidos (${Math.round(v/totalPedidos*100)}%)`, ""]} />
+                  <Tooltip formatter={(v) => [`${v} pedidos (${Math.round(v / totalPedidos * 100)}%)`, ""]} />
                 </PieChart>
               </ResponsiveContainer>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
@@ -226,11 +224,8 @@ export default function Dashboard() {
         {/* Charts row 2 */}
         <div className="charts-row charts-row--bottom">
 
-          {/* Total ventas $ — single stat */}
-          <div className="chart-card chart-card--stat">
-            <div className="chart-card__header">
-              <h3 className="chart-card__title">Total ventas</h3>
-            </div>
+          {/* Stat card desplegable */}
+          <ChartCard title="Total ventas" className="chart-card--stat">
             <div className="stat-big">
               <div className="stat-amount">{kpi.ventas.valor}</div>
               <div className={"stat-change" + (kpi.ventas.positive ? " stat-change--up" : " stat-change--down")}>
@@ -246,9 +241,8 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
-          </div>
+          </ChartCard>
 
-          {/* Ventas en el tiempo — Line */}
           <ChartCard title="Ventas en el Tiempo" period={pTiempo} onPeriod={setPTiempo}>
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={tiempoData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
@@ -265,6 +259,36 @@ export default function Dashboard() {
           </ChartCard>
         </div>
 
+      </div>
+    </div>
+  );
+}
+
+/* ── KPI strip inner (separado para evitar re-render del strip) */
+function KpiStripInner({ kpi, pKpi, setPKpi }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className={`kpi-strip-inner${open ? " kpi-strip-inner--open" : ""}`}>
+      <div className="kpi-strip__top" onClick={() => setOpen(v => !v)} style={{ cursor: "pointer" }}>
+        <span className="kpi-strip__label">Resumen general</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div onClick={e => e.stopPropagation()}>
+            <PeriodSelect value={pKpi} onChange={setPKpi} />
+          </div>
+          <div className="chart-card__chevron" style={{ width: 28, height: 28 }}>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M2 4l4 4 4-4" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+        </div>
+      </div>
+      <div className="kpi-strip__body">
+        <div className="kpi-grid">
+          <KpiCard icon="💰" label="Total ventas"    valor={kpi.ventas.valor}   delta={kpi.ventas.delta}   positive={kpi.ventas.positive}   color="#2e7d32" />
+          <KpiCard icon="📦" label="Pedidos"         valor={kpi.pedidos.valor}  delta={kpi.pedidos.delta}  positive={kpi.pedidos.positive}  color="#fb8c00" />
+          <KpiCard icon="👤" label="Clientes"        valor={kpi.clientes.valor} delta={kpi.clientes.delta} positive={kpi.clientes.positive} color="#5c6bc0" />
+          <KpiCard icon="🎫" label="Ticket promedio" valor={kpi.ticket.valor}   delta={kpi.ticket.delta}   positive={kpi.ticket.positive}   color="#26c6da" />
+        </div>
       </div>
     </div>
   );

@@ -8,7 +8,7 @@ import SalidaModal from "../../produccion/Productos/SalidaModal.jsx";
 import ModalEliminarValidado from "../../../ModalEliminarValidado";
 import "./GestionInsumos.css";
 
-const ITEMS_PER_PAGE = 8;
+const ITEMS_PER_PAGE = 5;
 
 /* ══════════════════════════════════════════════════════════
    HELPERS
@@ -25,9 +25,9 @@ function calcEstado(actual, minimo) {
 function Toggle({ value, onChange }) {
   return (
     <button onClick={() => onChange(!value)} className="toggle-btn"
-      style={{ background: value ? "#43a047" : "#bdbdbd", boxShadow: value ? "0 2px 8px rgba(67,160,71,0.4)" : "none" }}>
+      style={{ background: value ? "#43a047" : "#c62828", boxShadow: value ? "0 2px 8px rgba(67,160,71,0.45)" : "0 2px 8px rgba(198,40,40,0.3)" }}>
       <span className="toggle-thumb" style={{ left: value ? 27 : 3 }}>
-        <span className="toggle-label">{value ? "ON" : ""}</span>
+        <span className="toggle-label" style={{ color:"black" }}>{value ? "ON" : "OFF"}</span>
       </span>
     </button>
   );
@@ -59,6 +59,24 @@ function StockBar({ actual, minimo }) {
         </div>
       )}
     </div>
+  );
+}
+
+function CatCell({ cat }) {
+  const [show, setShow] = useState(false);
+  return (
+    <span style={{ position: "relative", display: "inline-flex" }}
+      onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+      <span style={{ width: 34, height: 34, borderRadius: 8, background: "#f1f8f1", border: "1px solid #c8e6c9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, cursor: "default" }}>
+        {cat?.icon || "🧺"}
+      </span>
+      {show && (
+        <span style={{ position: "absolute", bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", background: "#1a1a1a", color: "#fff", fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 7, whiteSpace: "nowrap", zIndex: 999, pointerEvents: "none" }}>
+          {cat?.nombre || "—"}
+          <span style={{ position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderTop: "5px solid #1a1a1a" }} />
+        </span>
+      )}
+    </span>
   );
 }
 
@@ -138,11 +156,6 @@ export default function GestionInsumos() {
     }
   };
 
-  /* ── Stats ── */
-  const statsDisp = insumos.filter(i => calcEstado(i.stockActual, i.stockMinimo) === "disponible").length;
-  const statsBajo = insumos.filter(i => calcEstado(i.stockActual, i.stockMinimo) === "bajo").length;
-  const statsAgot = insumos.filter(i => calcEstado(i.stockActual, i.stockMinimo) === "agotado").length;
-
   const filterEstOptions = [
     { val: "todos",      label: "Todos",      dot: "#bdbdbd" },
     { val: "disponible", label: "Disponible", dot: "#43a047" },
@@ -160,26 +173,6 @@ export default function GestionInsumos() {
       </div>
 
       <div className="page-inner">
-
-        {/* Stats */}
-        <div className="stats-row">
-          <div className="stat-card">
-            <div className="stat-card__icon" style={{ background: "#e8f5e9" }}>🧺</div>
-            <div><div className="stat-card__num">{insumos.length}</div><div className="stat-card__label">Total insumos</div></div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-card__icon" style={{ background: "#e8f5e9" }}>✅</div>
-            <div><div className="stat-card__num" style={{ color: "#2e7d32" }}>{statsDisp}</div><div className="stat-card__label">Disponibles</div></div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-card__icon" style={{ background: "#fff8e1" }}>⚠️</div>
-            <div><div className="stat-card__num" style={{ color: "#f57f17" }}>{statsBajo}</div><div className="stat-card__label">Stock bajo</div></div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-card__icon" style={{ background: "#ffebee" }}>🚫</div>
-            <div><div className="stat-card__num" style={{ color: "#c62828" }}>{statsAgot}</div><div className="stat-card__label">Agotados</div></div>
-          </div>
-        </div>
 
         {/* Toolbar */}
         <div className="toolbar">
@@ -267,11 +260,7 @@ export default function GestionInsumos() {
                           <span className="insumo-id">#{String(ins.id).padStart(4, "0")}</span>
                         </div>
                       </td>
-                      <td>
-                        <span className="cat-chip">
-                          <span className="cat-chip__icon">{cat.icon}</span>{cat.nombre}
-                        </span>
-                      </td>
+                      <td><CatCell cat={cat} /></td>
                       <td><span className="unidad-badge">{unidad.simbolo}</span></td>
                       <td><StockBar actual={ins.stockActual} minimo={ins.stockMinimo} /></td>
                       <td><Toggle value={ins.estado} onChange={() => toggleInsumo(ins.id)} /></td>
@@ -322,8 +311,8 @@ export default function GestionInsumos() {
       {modal?.type === "eliminar" && (
         <ModalEliminarValidado
           titulo="Eliminar insumo"
-          descripcion={`¿Eliminar "${modal.ins.nombre}"?`}
-          validacion={canDeleteInsumo(modal.ins.id)}
+          descripcion={`¿Está seguro de que desea eliminar el insumo "${modal.insumo.nombre}"?`}
+          validacion={canDeleteInsumo(modal.insumo.id)}
           onClose={() => setModal(null)}
           onConfirm={handleDelete}
         />

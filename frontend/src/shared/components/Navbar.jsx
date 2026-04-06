@@ -1,12 +1,17 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { getUser, logout } from "../../services/authService";
-import { Menu, X, ShoppingCart } from "lucide-react";
+import { Menu, X, ShoppingCart, Bell } from "lucide-react";
 import "./Navbar.css";
 import { getCartCount, getCart, getTotal } from "../../features/sales/orders/services/cartService";
 import CartAside from "../../features/sales/orders/components/CartAside";
 import CheckoutModal from "../../features/sales/orders/components/CheckoutModal";
 import LogoutModal from "./LogoutModal";
+// ── NOTIFICACIONES ──────────────────────────────────────────
+import { useNotificaciones } from "../../features/notificaciones/context/NotificacionesContext";
+import NotificacionesPanel from "../../features/notificaciones/components/NotificacionesPanel";
+import AlertaBanner from "../../features/notificaciones/components/AlertaBanner";
+import "../../features/notificaciones/components/notificaciones.css";
 
 export default function Navbar({ isLanding = false, onToggleSidebar }) {
   const [menuOpen,         setMenuOpen]         = useState(false);
@@ -17,52 +22,44 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
   const [orderDetails,     setOrderDetails]     = useState(null);
   const [cartUpdateToggle, setCartUpdateToggle] = useState(false);
   const [showLogoutModal,  setShowLogoutModal]  = useState(false);
+  // ── Panel notificaciones ──
+  const [notifOpen,        setNotifOpen]        = useState(false);
   const navigate = useNavigate();
+
+  // ── Notificaciones context ──
+  const { noLeidas } = useNotificaciones();
 
   useEffect(() => {
     setUser(getUser());
     updateCartCount();
-
     const handleCartUpdate = () => {
       updateCartCount();
       setCartUpdateToggle(prev => !prev);
     };
-
     window.addEventListener('cart-updated', handleCartUpdate);
     return () => window.removeEventListener('cart-updated', handleCartUpdate);
   }, []);
 
-  const updateCartCount = () => {
-    setCartCount(getCartCount());
-  };
+  const updateCartCount = () => setCartCount(getCartCount());
 
   const handleLogout = () => setShowLogoutModal(true);
   const confirmLogout = () => { logout(); navigate("/login"); };
 
-const handleCheckout = (details) => {
-  const currentUser = getUser();
-
-  if (!currentUser) {
-    navigate("/login");
-    return;
-  }
-
-  setOrderDetails({
-    ...details,
-    clientName: currentUser.nombre || 'Cliente',
-    address: details.address || currentUser.direccion || '',
-    items: getCart(),
-    total: getTotal(),
-  });
-
-  setIsCartOpen(false);
-  setIsCheckoutOpen(true);
-};
-
-  // ✅ Cuando el carrito detecta que no hay sesión, redirige al login
-  const handleLoginRequired = () => {
-    navigate("/login");
+  const handleCheckout = (details) => {
+    const currentUser = getUser();
+    if (!currentUser) { navigate("/login"); return; }
+    setOrderDetails({
+      ...details,
+      clientName: currentUser.nombre || 'Cliente',
+      address: details.address || currentUser.direccion || '',
+      items: getCart(),
+      total: getTotal(),
+    });
+    setIsCartOpen(false);
+    setIsCheckoutOpen(true);
   };
+
+  const handleLoginRequired = () => navigate("/login");
 
   const handleConfirmOrder = (paymentMethod, onBehalfOf) => {
     console.log("Orden confirmada:", { ...orderDetails, paymentMethod, onBehalfOf });
@@ -74,12 +71,12 @@ const handleCheckout = (details) => {
   };
 
   const scrollToSection = (id) => {
-    const element = document.getElementById(id);
-    if (element) {
-      element.scrollIntoView({ behavior: 'smooth' });
-    }
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
     setMenuOpen(false);
   };
+
+  // La campanita sólo se muestra a usuarios autenticados (no landing, no cliente)
+  const mostrarCampana = !isLanding && user && user.rol !== "cliente";
 
   return (
     <>
@@ -128,17 +125,28 @@ const handleCheckout = (details) => {
               </div>
             </div>
 
-            {/* Carrito — visible para clientes logueados Y para no logueados en vista cliente */}
-            {(user?.rol === "cliente" || (!user && !isLanding)) && (
+            {/* ── 🔔 CAMPANITA DE NOTIFICACIONES ── */}
+            {mostrarCampana && (
               <button
-                className="cart-btn"
-                onClick={() => setIsCartOpen(true)}
-                title="Ver carrito"
+                className="bell-btn"
+                onClick={() => setNotifOpen(true)}
+                title="Notificaciones"
+                aria-label={`${noLeidas} notificaciones sin leer`}
               >
-                <ShoppingCart size={22} />
-                {cartCount > 0 && (
-                  <span className="cart-badge">{cartCount}</span>
+                <Bell size={22} />
+                {noLeidas > 0 && (
+                  <span className="bell-badge">
+                    {noLeidas > 99 ? "99+" : noLeidas}
+                  </span>
                 )}
+              </button>
+            )}
+
+            {/* Carrito */}
+            {(user?.rol === "cliente" || (!user && !isLanding)) && (
+              <button className="cart-btn" onClick={() => setIsCartOpen(true)} title="Ver carrito">
+                <ShoppingCart size={22} />
+                {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
               </button>
             )}
 
@@ -177,7 +185,19 @@ const handleCheckout = (details) => {
         )}
       </nav>
 
-      {/* ✅ CartAside con onLoginRequired */}
+      {/* ── Panel de notificaciones ── */}
+      {mostrarCampana && (
+        <>
+          <NotificacionesPanel
+            isOpen={notifOpen}
+            onClose={() => setNotifOpen(false)}
+          />
+          {/* Banner de alertas críticas al entrar */}
+          <AlertaBanner onVerTodas={() => { setNotifOpen(true); }} />
+        </>
+      )}
+
+      {/* Cart */}
       <CartAside
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}

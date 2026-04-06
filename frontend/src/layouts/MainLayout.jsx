@@ -8,7 +8,6 @@ const MainLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
 
-  // Cerrar sidebar al cambiar de ruta en mobile
   useEffect(() => {
     if (window.innerWidth <= 768) {
       setSidebarOpen(false);
@@ -16,25 +15,24 @@ const MainLayout = () => {
   }, [location]);
 
   return (
-    <div className="app-layout">
-      <Navbar onToggleSidebar={() => setSidebarOpen(v => !v)} />
+      <div className="app-layout">
+        <Navbar onToggleSidebar={() => setSidebarOpen(v => !v)} />
 
-      {/* Overlay mobile — clic cierra el sidebar */}
-      {sidebarOpen && (
-        <div
-          className="sidebar-overlay"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+        {sidebarOpen && (
+          <div
+            className="sidebar-overlay"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
 
-      <div className="app-body">
-        <Sidebar isOpen={sidebarOpen} />
+        <div className="app-body">
+          <Sidebar isOpen={sidebarOpen} />
 
-        <main className="main-content">
-          <Outlet />
-        </main>
+          <main className="main-content">
+            <Outlet />
+          </main>
+        </div>
       </div>
-    </div>
   );
 };
 
