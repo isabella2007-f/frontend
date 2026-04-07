@@ -19,46 +19,58 @@ function Toggle({ value, onChange }) {
   );
 }
 
+function StatusPill({ active }) {
+  return (
+    <span className="status-pill" style={{ background: active ? "#e8f5e9" : "#f5f5f5", color: active ? "#2e7d32" : "#9e9e9e", border: `1px solid ${active ? "#a5d6a7" : "#e0e0e0"}` }}>
+      <span className="status-dot" style={{ background: active ? "#43a047" : "#bdbdbd" }} />
+      {active ? "Activo" : "Inactivo"}
+    </span>
+  );
+}
+
 function VerCategoria({ cat, onClose }) {
   return (
     <ModalOverlay onClose={onClose}>
       <div className="modal-header">
         <div>
-          <p className="modal-header__eyebrow">Categoría de insumos</p>
-          <h2 className="modal-header__title">Detalle</h2>
+          <p className="modal-header__eyebrow">Categorías de Insumo</p>
+          <h2 className="modal-header__title">Detalle de Categoría</h2>
         </div>
         <button className="modal-close-btn" onClick={onClose}>✕</button>
       </div>
       <div className="modal-body">
-        <div className="form-group">
-          <label className="form-label">Ícono</label>
-          <span style={{ fontSize: 32 }}>{cat.icon}</span>
+        <div style={{ display: "grid", gridTemplateColumns: "80px 1fr", gap: 20, marginBottom: 16 }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Ícono</label>
+            <div style={{ width: "100%", height: 46, borderRadius: 10, background: "#f1f8f1", border: "1px solid #c8e6c9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>
+              {cat.icon}
+            </div>
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Nombre</label>
+            <div className="field-input field-input--disabled">{cat.nombre}</div>
+          </div>
         </div>
-        <div className="form-group">
-          <label className="form-label">Nombre</label>
-          <div className="field-input field-input--disabled">{cat.nombre}</div>
-        </div>
+
         <div className="form-group">
           <label className="form-label">Descripción</label>
-          <div className="field-input field-input--disabled" style={{ minHeight: 60 }}>{cat.descripcion}</div>
-        </div>
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label className="form-label">Estado</label>
-          <span className="status-pill" style={{
-            background: cat.estado ? "#e8f5e9" : "#f5f5f5",
-            color: cat.estado ? "#2e7d32" : "#9e9e9e",
-            border: `1px solid ${cat.estado ? "#a5d6a7" : "#e0e0e0"}`
-          }}>
-            <span className="status-dot" style={{ background: cat.estado ? "#43a047" : "#bdbdbd" }} />
-            {cat.estado ? "Activo" : "Inactivo"}
-          </span>
-        </div>
-        {cat.fecha && (
-          <div className="date-info">
-            <span>📅</span>
-            <span>Creada el <strong>{cat.fecha}</strong></span>
+          <div className="field-input field-input--disabled" style={{ minHeight: 60, lineHeight: 1.4, fontSize: 13 }}>
+            {cat.descripcion || "Sin descripción registrada."}
           </div>
-        )}
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8 }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Estado actual</label>
+            <StatusPill active={cat.estado} />
+          </div>
+          {cat.fecha && (
+            <div style={{ textAlign: "right", fontSize: 11, color: "#9e9e9e" }}>
+              <p style={{ margin: 0 }}>Fecha de creación</p>
+              <strong style={{ color: "#616161" }}>{cat.fecha}</strong>
+            </div>
+          )}
+        </div>
       </div>
       <div className="modal-footer">
         <button className="btn-ghost" onClick={onClose}>Cerrar</button>
@@ -244,8 +256,8 @@ export default function CategoriaInsumos() {
       {modal?.type === "eliminar" && (
         <ModalEliminarValidado
           titulo="Eliminar categoría"
-          descripcion={`¿Está seguro de que desea eliminar la categoría "${modal.category.nombre}"?`}
-          validacion={canDeleteCatInsumo(modal.category.id)}
+          descripcion={`¿Está seguro de que desea eliminar la categoría "${modal.cat.nombre}"?`}
+          validacion={canDeleteCatInsumo(modal.cat.id)}
           onClose={() => setModal(null)}
           onConfirm={handleDelete}
         />

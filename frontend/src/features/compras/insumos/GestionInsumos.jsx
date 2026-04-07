@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useApp } from "../../../AppContext.jsx";
-import { LotesInsumoPanel } from "../../compras/gestioncompras/EditarCompra.jsx";
 import CrearInsumo from "./CrearInsumo.jsx";
 import EditarInsumo from "./EditarInsumo.jsx";
 import VerInsumo from "./VerInsumo.jsx";
@@ -86,7 +85,7 @@ function CatCell({ cat }) {
 export default function GestionInsumos() {
   const {
     insumos, categoriasInsumosActivas, categoriasInsumos, unidades,
-    getCatInsumo, getUnidad,
+    getCatInsumo, getUnidad, getLotesDeInsumo,
     crearInsumo, editarInsumo, toggleInsumo, eliminarInsumo,
     registrarSalidaInsumo,
     canDeleteInsumo,
@@ -156,6 +155,12 @@ export default function GestionInsumos() {
     }
   };
 
+  const getProximoVencimiento = (idInsumo) => {
+    const lotesValidos = getLotesDeInsumo(idInsumo).filter(l => l.cantidadActual > 0);
+    if (lotesValidos.length === 0) return "—";
+    return lotesValidos[0].fechaVencimiento;
+  };
+
   const filterEstOptions = [
     { val: "todos",      label: "Todos",      dot: "#bdbdbd" },
     { val: "disponible", label: "Disponible", dot: "#43a047" },
@@ -187,27 +192,35 @@ export default function GestionInsumos() {
             <button className={`filter-icon-btn${hasFilter ? " has-filter" : ""}`}
               onClick={() => setShowFilter(v => !v)}>▼</button>
             {showFilter && (
-              <div className="filter-dropdown" style={{ minWidth: 170 }}>
-                <p className="filter-section-title">Categoría</p>
-                <button className={`filter-option${filterCat === "todas" ? " active" : ""}`}
-                  onClick={() => setFilterCat("todas")}>
-                  <span className="filter-dot" style={{ background: "#bdbdbd" }} />Todas
-                </button>
-                {categoriasInsumos.map(c => (
-                  <button key={c.id}
-                    className={`filter-option${filterCat === c.id ? " active" : ""}`}
-                    onClick={() => setFilterCat(c.id)}>
-                    <span style={{ fontSize: 14 }}>{c.icon}</span>{c.nombre}
-                  </button>
-                ))}
-                <p className="filter-section-title" style={{ marginTop: 6 }}>Estado</p>
-                {filterEstOptions.map(f => (
-                  <button key={f.val}
-                    className={`filter-option${filterEst === f.val ? " active" : ""}`}
-                    onClick={() => { setFilterEst(f.val); setShowFilter(false); }}>
-                    <span className="filter-dot" style={{ background: f.dot }} />{f.label}
-                  </button>
-                ))}
+              <div className="filter-dropdown filter-dropdown--wide">
+                <div className="filter-dropdown__section">
+                  <p className="filter-section-title">Categoría</p>
+                  <div className="filter-grid">
+                    <button className={`filter-option${filterCat === "todas" ? " active" : ""}`}
+                      onClick={() => setFilterCat("todas")}>
+                      <span className="filter-dot" style={{ background: "#bdbdbd" }} />Todas
+                    </button>
+                    {categoriasInsumos.map(c => (
+                      <button key={c.id}
+                        className={`filter-option${filterCat === c.id ? " active" : ""}`}
+                        onClick={() => setFilterCat(c.id)}>
+                        <span style={{ fontSize: 14 }}>{c.icon}</span>{c.nombre}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="filter-dropdown__section" style={{ marginTop: 12 }}>
+                  <p className="filter-section-title">Estado</p>
+                  <div className="filter-grid">
+                    {filterEstOptions.map(f => (
+                      <button key={f.val}
+                        className={`filter-option${filterEst === f.val ? " active" : ""}`}
+                        onClick={() => { setFilterEst(f.val); setShowFilter(false); }}>
+                        <span className="filter-dot" style={{ background: f.dot }} />{f.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -226,8 +239,8 @@ export default function GestionInsumos() {
                   <th>Nº</th>
                   <th>Insumo</th>
                   <th>Categoría</th>
-                  <th>Unidad</th>
                   <th>Stock</th>
+                  <th>Próx. Venc.</th>
                   <th>Activo</th>
                   <th>Acciones</th>
                 </tr>
@@ -247,6 +260,7 @@ export default function GestionInsumos() {
                 ) : paginated.map((ins, idx) => {
                   const cat    = getCatInsumo(ins.idCategoria);
                   const unidad = getUnidad(ins.idUnidad);
+                  const proxVenc = getProximoVencimiento(ins.id);
                   return (
                     <tr key={ins.id} className="tbl-row">
                       <td>
@@ -257,12 +271,16 @@ export default function GestionInsumos() {
                       <td>
                         <div className="insumo-name-cell">
                           <span className="insumo-name">{ins.nombre}</span>
-                          <span className="insumo-id">#{String(ins.id).padStart(4, "0")}</span>
+                          <span className="insumo-id">#{String(ins.id).padStart(4, "0")} ({unidad.simbolo})</span>
                         </div>
                       </td>
                       <td><CatCell cat={cat} /></td>
-                      <td><span className="unidad-badge">{unidad.simbolo}</span></td>
                       <td><StockBar actual={ins.stockActual} minimo={ins.stockMinimo} /></td>
+                      <td>
+                        <span style={{ fontSize: 13, color: proxVenc === "—" ? "#bdbdbd" : "#555", fontWeight: 500 }}>
+                          {proxVenc}
+                        </span>
+                      </td>
                       <td><Toggle value={ins.estado} onChange={() => toggleInsumo(ins.id)} /></td>
                       <td>
                         <div className="actions-cell">
@@ -300,10 +318,10 @@ export default function GestionInsumos() {
       {modal?.type === "ver"      && <VerInsumo      ins={modal.ins} onClose={() => setModal(null)} />}
       {modal?.type === "salida"   && (
         <SalidaModal
-          entidad={modal.ins}
+          entidad={modal?.ins}
           tipo="insumo"
-          stockActual={modal.ins.stockActual}
-          unidadLabel={getUnidad(modal.ins.idUnidad)?.simbolo || "uds."}
+          stockActual={modal?.ins?.stockActual}
+          unidadLabel={getUnidad(modal?.ins?.idUnidad)?.simbolo || "uds."}
           onClose={() => setModal(null)}
           onConfirm={handleSalida}
         />
@@ -311,8 +329,8 @@ export default function GestionInsumos() {
       {modal?.type === "eliminar" && (
         <ModalEliminarValidado
           titulo="Eliminar insumo"
-          descripcion={`¿Está seguro de que desea eliminar el insumo "${modal.insumo.nombre}"?`}
-          validacion={canDeleteInsumo(modal.insumo.id)}
+          descripcion={`¿Está seguro de que desea eliminar el insumo "${modal?.ins?.nombre}"?`}
+          validacion={canDeleteInsumo(modal?.ins?.id)}
           onClose={() => setModal(null)}
           onConfirm={handleDelete}
         />

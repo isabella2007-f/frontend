@@ -4,7 +4,7 @@ import { ModalOverlay } from "./ui.jsx";
 import "./Productos.css";
 
 // ─── Barra de pasos ───────────────────────────────────────
-const STEPS = ["Información", "Precio, stock e imagen"];
+const STEPS = ["Información", "Precio, stock e imágenes"];
 
 function StepsBar({ current }) {
   return (
@@ -48,12 +48,12 @@ export default function EditarProducto({ product, onClose, onSave }) {
 
   const [form, setForm] = useState({
     ...product,
-    precio:        String(product.precio ?? ""),
-    stock:         String(product.stock ?? ""),
-    stockMinimo:   String(product.stockMinimo ?? "10"),
-    imagenPreview: product.imagenPreview ?? null,
-    imagen:        product.imagen ?? null,
-    activo:        product.activo !== false, // true por defecto
+    precio:          String(product.precio ?? ""),
+    stock:           String(product.stock ?? "0"),
+    stockMinimo:     String(product.stockMinimo ?? "10"),
+    imagenesPreview: product.imagenesPreview ?? (product.imagenPreview ? [product.imagenPreview] : []),
+    imagenes:        product.imagenes ?? (product.imagen ? [product.imagen] : []),
+    activo:          product.activo !== false,
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -62,13 +62,29 @@ export default function EditarProducto({ product, onClose, onSave }) {
 
   const set = (k, v) => { setForm(p => ({ ...p, [k]: v })); setErrors(p => ({ ...p, [k]: "" })); };
 
-  const handleImg = e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => set("imagenPreview", ev.target.result);
-    reader.readAsDataURL(file);
-    set("imagen", file.name);
+  const handleImgs = e => {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        setForm(p => ({
+          ...p,
+          imagenesPreview: [...p.imagenesPreview, ev.target.result],
+          imagenes: [...p.imagenes, file.name]
+        }));
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeImg = (idx) => {
+    setForm(p => ({
+      ...p,
+      imagenesPreview: p.imagenesPreview.filter((_, i) => i !== idx),
+      imagenes: p.imagenes.filter((_, i) => i !== idx)
+    }));
   };
 
   const validateStep = (s) => {
@@ -80,8 +96,6 @@ export default function EditarProducto({ product, onClose, onSave }) {
     if (s === 2) {
       if (!form.precio || isNaN(form.precio) || Number(form.precio) <= 0)
         e.precio = "Precio válido requerido";
-      if (form.stock === "" || isNaN(form.stock) || Number(form.stock) < 0)
-        e.stock = "Stock válido requerido";
       if (form.stockMinimo === "" || isNaN(form.stockMinimo) || Number(form.stockMinimo) < 0)
         e.stockMinimo = "Valor válido requerido";
     }
@@ -174,7 +188,7 @@ export default function EditarProducto({ product, onClose, onSave }) {
           </>
         )}
 
-        {/* ── Paso 2: Precio, stock e imagen ── */}
+        {/* ── Paso 2: Precio, stock e imágenes ── */}
         {step === 2 && (
           <>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -195,15 +209,13 @@ export default function EditarProducto({ product, onClose, onSave }) {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Stock</label>
+                <label className="form-label">Stock actual</label>
                 <input
-                  className={`field-input${errors.stock ? " field-input--error" : ""}`}
-                  type="number" min="0" value={form.stock}
-                  onChange={e => set("stock", e.target.value)} placeholder="0"
-                  onFocus={e => e.target.style.borderColor = "#4caf50"}
-                  onBlur={e => e.target.style.borderColor = errors.stock ? "#e53935" : "#e0e0e0"}
+                  className="field-input"
+                  type="number" disabled value={form.stock}
+                  style={{ background: "#f5f5f5", cursor: "not-allowed" }}
                 />
-                {errors.stock && <p className="field-error">{errors.stock}</p>}
+                <p style={{ fontSize: 10, color: "#9e9e9e", marginTop: 4 }}>Actualizado por producción</p>
               </div>
             </div>
 
@@ -224,23 +236,34 @@ export default function EditarProducto({ product, onClose, onSave }) {
               {errors.stockMinimo && <p className="field-error">{errors.stockMinimo}</p>}
             </div>
 
+            {/* Imágenes */}
             <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Imagen del producto</label>
-              <div
-                onClick={() => fileRef.current.click()}
-                className="img-upload-zone"
-                onMouseEnter={e => e.currentTarget.style.borderColor = "#4caf50"}
-                onMouseLeave={e => e.currentTarget.style.borderColor = "#c8e6c9"}
-              >
-                {form.imagenPreview
-                  ? <img src={form.imagenPreview} alt="preview" />
-                  : <div style={{ textAlign: "center", color: "#9e9e9e" }}>
-                      <div style={{ fontSize: 28, marginBottom: 4 }}>🖼️</div>
-                      <span style={{ fontSize: 12 }}>Clic para cambiar imagen</span>
-                    </div>
-                }
+              <label className="form-label">Imágenes del producto</label>
+              
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
+                {form.imagenesPreview.map((url, idx) => (
+                  <div key={idx} style={{ position: "relative", width: 80, height: 80, borderRadius: 10, overflow: "hidden", border: "1px solid #c8e6c9" }}>
+                    <img src={url} alt="preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    <button 
+                      onClick={() => removeImg(idx)}
+                      style={{ position: "absolute", top: 2, right: 2, background: "rgba(255,255,255,0.8)", border: "none", borderRadius: "50%", width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, cursor: "pointer", color: "#c62828" }}
+                    >✕</button>
+                  </div>
+                ))}
+                
+                <div
+                  onClick={() => fileRef.current.click()}
+                  className="img-upload-zone"
+                  style={{ width: 80, height: 80, margin: 0, padding: 0 }}
+                >
+                  <div style={{ textAlign: "center", color: "#9e9e9e" }}>
+                    <div style={{ fontSize: 20 }}>➕</div>
+                    <span style={{ fontSize: 9 }}>Subir</span>
+                  </div>
+                </div>
               </div>
-              <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleImg} />
+
+              <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={handleImgs} />
             </div>
           </>
         )}

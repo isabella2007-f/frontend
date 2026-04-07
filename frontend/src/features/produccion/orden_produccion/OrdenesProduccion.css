@@ -28,12 +28,11 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; color: #1a1a1a; }
    ═══════════════════════════════════════════════════════════ */
 
 .page-wrapper {
-  min-height: 100vh;
   background: linear-gradient(180deg, #e8f5e9 0%, #f5fbf5 18%, #ffffff 42%);
   padding-bottom: 60px;
   font-family: var(--font-body);
 }
-.page-header { text-align: center; padding: 40px 20px 32px; }
+.page-header { text-align: center; padding: 24px 20px 20px; }
 .page-header__title {
   margin: 0 0 10px;
   font-family: var(--font-head);
@@ -296,3 +295,62 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; color: #1a1a1a; }
 
 .act-btn--view   { color: #2e7d32; }
 .act-btn--empleado { color: #6a1b9a; }
+/* --- Formulario Edici�n Orden --------------------------- */
+.prod-edit-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
+.cant-input {
+  width: 60px;
+  padding: 6px;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 6px;
+  text-align: center;
+  font-weight: 700;
+}
+.btn-remove {
+  background: #ffebee;
+  color: #c62828;
+  border: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 10px;
+}
+.insumos-preview-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  max-height: 150px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.insumo-mini-card {
+  padding: 8px;
+  background: #f1f8f1;
+  border: 1px solid #c8e6c9;
+  border-radius: 8px;
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+}
+.insumo-mini-card.no-stock {
+  background: #ffebee;
+  border-color: #ef9a9a;
+  color: #c62828;
+}
+.order-summary-box {
+  margin-top: 16px;
+  padding: 16px;
+  background: #fafafa;
+  border-radius: 12px;
+  border: 1px dashed #bdbdbd;
+}
+

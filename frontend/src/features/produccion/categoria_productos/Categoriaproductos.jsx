@@ -33,19 +33,48 @@ function VerCategoria({ category, onClose }) {
     <ModalOverlay onClose={onClose}>
       <div className="modal-header">
         <div>
-          <p className="modal-header__eyebrow">Categorías</p>
-          <h2 className="modal-header__title">Detalle</h2>
+          <p className="modal-header__eyebrow">Categorías de Producto</p>
+          <h2 className="modal-header__title">Detalle de Categoría</h2>
         </div>
         <button className="modal-close-btn" onClick={onClose}>✕</button>
       </div>
       <div className="modal-body">
-        <div className="form-group"><label className="form-label">Ícono</label><span style={{ fontSize: 30 }}>{category.icon}</span></div>
-        <div className="form-group"><label className="form-label">Nombre</label><div className="field-input field-input--disabled">{category.nombre}</div></div>
-        <div className="form-group"><label className="form-label">Descripción</label><div className="field-input field-input--disabled" style={{ minHeight: 68, lineHeight: 1.5 }}>{category.descripcion}</div></div>
-        <div className="form-group" style={{ marginBottom: 0 }}><label className="form-label">Estado</label><StatusPill active={category.estado} /></div>
-        {category.fecha && <div className="date-info"><span>📅</span><span>Creada el <strong>{category.fecha}</strong></span></div>}
+        <div style={{ display: "grid", gridTemplateColumns: "80px 1fr", gap: 20, marginBottom: 16 }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Ícono</label>
+            <div style={{ width: "100%", height: 46, borderRadius: 10, background: "#f1f8f1", border: "1px solid #c8e6c9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>
+              {category.icon}
+            </div>
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Nombre</label>
+            <div className="field-input field-input--disabled">{category.nombre}</div>
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Descripción</label>
+          <div className="field-input field-input--disabled" style={{ minHeight: 60, lineHeight: 1.4, fontSize: 13 }}>
+            {category.descripcion || "Sin descripción registrada."}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8 }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Estado actual</label>
+            <StatusPill active={category.estado} />
+          </div>
+          {category.fecha && (
+            <div style={{ textAlign: "right", fontSize: 11, color: "#9e9e9e" }}>
+              <p style={{ margin: 0 }}>Fecha de creación</p>
+              <strong style={{ color: "#616161" }}>{category.fecha}</strong>
+            </div>
+          )}
+        </div>
       </div>
-      <div className="modal-footer"><button className="btn-ghost" onClick={onClose}>Cerrar</button></div>
+      <div className="modal-footer">
+        <button className="btn-ghost" onClick={onClose}>Cerrar</button>
+      </div>
     </ModalOverlay>
   );
 }

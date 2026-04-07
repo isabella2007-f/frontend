@@ -199,277 +199,6 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   MODAL — CAMBIAR ESTADO
-   ═══════════════════════════════════════════════════════════ */
-function ModalCambiarEstado({ pedido, onClose, onConfirm }) {
-  const [nuevo, setNuevo] = useState(pedido.estado);
-  const actualIdx = ESTADOS_FLUJO.indexOf(pedido.estado);
-
-  const validos = ESTADOS_FLUJO.filter((e, i) => {
-    if (e === "Cancelado") return !["Entregado", "Cancelado"].includes(pedido.estado);
-    return i >= actualIdx;
-  });
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box--md" onClick={e => e.stopPropagation()}>
-
-        <div className="modal-header">
-          <div>
-            <p className="modal-header__eyebrow">ACTUALIZAR</p>
-            <h2 className="modal-header__title">Cambiar estado</h2>
-          </div>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
-        </div>
-
-        <div className="modal-body">
-          <p style={{ margin: "0 0 4px", fontSize: 12, color: "#616161" }}>
-            Pedido: <strong>{pedido.numero}</strong> · Estado actual: <EstadoBadge estado={pedido.estado} />
-          </p>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
-            {validos.map(e => {
-              const c = ESTADO_CONFIG[e];
-              const sel = nuevo === e;
-              return (
-                <button
-                  key={e}
-                  className={`estado-option-btn${sel ? " selected" : ""}`}
-                  onClick={() => setNuevo(e)}
-                  style={sel ? { borderColor: c.border, background: c.bg } : {}}
-                >
-                  <span className="estado-option-btn__dot" style={{ background: c.dot }} />
-                  <span className="estado-option-btn__label" style={{ color: sel ? c.color : "#424242", fontWeight: sel ? 700 : 500 }}>
-                    {e}
-                  </span>
-                  {e === pedido.estado && (
-                    <span className="estado-option-btn__actual">actual</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {nuevo === "Cancelado" && pedido.estado !== "Cancelado" && (
-            <div className="info-box info-box--danger" style={{ marginTop: 4 }}>
-              <span className="info-box__icon">⚠️</span>
-              <span className="info-box__text">Esta acción no se puede deshacer fácilmente.</span>
-            </div>
-          )}
-        </div>
-
-        <div className="modal-footer">
-          <button className="btn-cancel" onClick={onClose}>Cancelar</button>
-          <button
-            className="btn-save"
-            disabled={nuevo === pedido.estado}
-            onClick={() => onConfirm(pedido.id, nuevo)}
-          >
-            Guardar cambio
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════
-   MODAL — ASIGNAR DOMICILIARIO
-   ═══════════════════════════════════════════════════════════ */
-function ModalAsignarDomicilio({ pedido, empleados, onClose, onConfirm }) {
-  const [empId, setEmpId] = useState(pedido.idEmpleado || "");
-  const [error, setError] = useState("");
-
-  /* Bloqueo si no tiene domicilio */
-  if (!pedido.domicilio) {
-    return (
-      <div className="modal-overlay" onClick={onClose}>
-        <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
-          <div style={{ padding: "28px 24px", textAlign: "center" }}>
-            <div style={{ width: 52, height: 52, borderRadius: 14, background: "#fff8e1", border: "1px solid #ffe082", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, margin: "0 auto 14px" }}>⚠️</div>
-            <h3 style={{ margin: "0 0 8px", fontSize: 17, fontWeight: 700, fontFamily: "var(--font-head)" }}>Sin domicilio</h3>
-            <p style={{ margin: "0 0 20px", fontSize: 14, color: "#616161" }}>Este pedido no requiere domicilio.</p>
-            <button className="btn-ghost" onClick={onClose}>Entendido</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const empActual = empleados.find(e => e.id === pedido.idEmpleado);
-
-  const handleConfirm = () => {
-    if (!empId) { setError("Selecciona un domiciliario"); return; }
-    onConfirm(pedido.id, parseInt(empId));
-  };
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box--md" onClick={e => e.stopPropagation()}>
-
-        <div className="modal-header">
-          <div>
-            <p className="modal-header__eyebrow">LOGÍSTICA</p>
-            <h2 className="modal-header__title">Asignar domiciliario</h2>
-          </div>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
-        </div>
-
-        <div className="modal-body">
-          <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "#616161" }}>
-            Pedido: <strong>{pedido.numero}</strong>
-          </p>
-
-          <div className="info-box info-box--success">
-            <span className="info-box__icon">📍</span>
-            <span className="info-box__text">{pedido.direccion_entrega}</span>
-          </div>
-
-          {empActual && (
-            <div className="info-box info-box--warn">
-              <span className="info-box__icon">👷</span>
-              <span className="info-box__text">
-                Domiciliario actual: <strong>{empActual.nombre} {empActual.apellidos}</strong>
-              </span>
-            </div>
-          )}
-
-          <div className="field-wrap">
-            <label className="field-label">Seleccionar empleado <span className="required">*</span></label>
-            <div className="select-wrap">
-              <select
-                className={`field-select${error ? " error" : ""}`}
-                value={empId}
-                onChange={e => { setEmpId(e.target.value); setError(""); }}
-              >
-                <option value="">Seleccione un empleado…</option>
-                {empleados.map(e => (
-                  <option key={e.id} value={e.id}>
-                    {e.nombre} {e.apellidos}
-                  </option>
-                ))}
-              </select>
-              <div className="select-arrow">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5">
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </div>
-            </div>
-            {error && <span className="field-error">{error}</span>}
-          </div>
-        </div>
-
-        <div className="modal-footer">
-          <button className="btn-cancel" onClick={onClose}>Cancelar</button>
-          <button className="btn-save" onClick={handleConfirm}>Asignar</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════
-   MODAL — ORDEN DE PRODUCCIÓN
-   ═══════════════════════════════════════════════════════════ */
-function ModalOrdenProduccion({ pedido, onClose, onConfirm }) {
-  const [fechaEntrega, setFechaEntrega] = useState("");
-  const [notas, setNotas]               = useState("");
-  const [errors, setErrors]             = useState({});
-  const [done, setDone]                 = useState(false);
-
-  const sinStock = (pedido.productosItems || []).filter(
-    p => !p.stockOk || p.cantidad > p.stockActual
-  );
-  const todoOk = sinStock.length === 0;
-
-  const handleConfirm = () => {
-    if (todoOk) { onClose(); return; }
-    if (!fechaEntrega) { setErrors({ fechaEntrega: "Requerido" }); return; }
-    setDone(true);
-    setTimeout(() => onConfirm(pedido.id, { fechaEntrega, notas }), 900);
-  };
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box--md" onClick={e => e.stopPropagation()}>
-
-        <div className="modal-header modal-header--blue">
-          <div>
-            <p className="modal-header__eyebrow">PRODUCCIÓN</p>
-            <h2 className="modal-header__title modal-header__title--blue">Orden de producción</h2>
-          </div>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
-        </div>
-
-        <div className="modal-body">
-          <p style={{ margin: 0, fontSize: 12, color: "#616161" }}>
-            Pedido: <strong>{pedido.numero}</strong> · {pedido.cliente?.nombre}
-          </p>
-
-          {todoOk ? (
-            <div className="sinstock-empty">
-              <div className="sinstock-empty__icon">✅</div>
-              <p className="sinstock-empty__title">Todos los productos tienen stock</p>
-              <p className="sinstock-empty__sub">No es necesario generar una orden de producción</p>
-            </div>
-          ) : (
-            <>
-              <div>
-                <label className="form-label" style={{ marginBottom: 6 }}>Productos sin stock suficiente</label>
-                <div className="sinstock-list">
-                  {sinStock.map((p, i) => (
-                    <div key={i} className="sinstock-item">
-                      <span className="sinstock-item__name">{p.nombre}</span>
-                      <span className="sinstock-item__badge">
-                        ✕ {p.stockActual === 0 ? "Sin stock" : `Solo ${p.stockActual} disp.`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="field-wrap">
-                <label className="field-label">Fecha de entrega estimada <span className="required">*</span></label>
-                <input
-                  type="date"
-                  className={`field-input${errors.fechaEntrega ? " error" : ""}`}
-                  value={fechaEntrega}
-                  min={new Date().toISOString().split("T")[0]}
-                  onChange={e => { setFechaEntrega(e.target.value); setErrors({}); }}
-                />
-                {errors.fechaEntrega && <span className="field-error">{errors.fechaEntrega}</span>}
-              </div>
-
-              <div className="field-wrap">
-                <label className="field-label">Notas de producción</label>
-                <textarea
-                  className="field-textarea"
-                  rows={2}
-                  placeholder="Instrucciones especiales, observaciones…"
-                  value={notas}
-                  onChange={e => setNotas(e.target.value)}
-                />
-              </div>
-            </>
-          )}
-        </div>
-
-        <div className="modal-footer">
-          <button className="btn-cancel" onClick={onClose}>
-            {todoOk ? "Cerrar" : "Cancelar"}
-          </button>
-          {!todoOk && (
-            <button className="btn-blue" onClick={handleConfirm} disabled={done}>
-              {done ? "Generando…" : "🏭 Generar orden"}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════
    MODAL — ELIMINAR PEDIDO
    ═══════════════════════════════════════════════════════════ */
 function ModalEliminarPedido({ pedido, onClose, onConfirm }) {
@@ -585,23 +314,15 @@ export default function GestionPedidos() {
     setModal(null);
   };
 
-  const handleCambiarEstado = (id, nuevoEstado) => {
-    cambiarEstadoPedido(id, nuevoEstado);
-    showToast(`Estado actualizado a "${nuevoEstado}"`);
-    setModal(null);
-  };
-
-  const handleAsignarDomicilio = (id, empId) => {
-    asignarDomiciliario(id, empId);
-    const emp = empleados.find(e => e.id === empId);
-    showToast(`Domiciliario asignado: ${emp?.nombre} ${emp?.apellidos}`);
-    setModal(null);
-  };
-
-  const handleOrdenProduccion = (id, datos) => {
-    generarOrdenProduccion(id, datos);
-    showToast("Orden de producción generada");
-    setModal(null);
+  const handleCambiarEstadoDirecto = (ped) => {
+    const actualIdx = ESTADOS_FLUJO.indexOf(ped.estado);
+    if (actualIdx === -1 || actualIdx >= ESTADOS_FLUJO.length - 2) {
+      showToast("No se puede avanzar más el estado desde aquí", "warn");
+      return;
+    }
+    const nuevoEstado = ESTADOS_FLUJO[actualIdx + 1];
+    cambiarEstadoPedido(ped.id, nuevoEstado);
+    showToast(`Pedido ${ped.numero} avanzado a: ${nuevoEstado}`);
   };
 
   const handleEliminar = (id) => {
@@ -617,18 +338,6 @@ export default function GestionPedidos() {
       return;
     }
     setModal({ type: "domicilio", pedido: ped });
-  };
-
-  const abrirProduccion = (ped) => {
-    if (ped.estado === "Cancelado") {
-      showToast("No se puede generar orden para un pedido cancelado", "warn");
-      return;
-    }
-    if (ped.orden_produccion) {
-      showToast("Este pedido ya tiene una orden de producción activa", "warn");
-      return;
-    }
-    setModal({ type: "produccion", pedido: ped });
   };
 
   /* ═══════════════════════════════════════════════════════
@@ -664,36 +373,53 @@ export default function GestionPedidos() {
             >▼</button>
 
             {showFilter && (
-              <div className="filter-dropdown" style={{ minWidth: 185 }}>
-                <p className="filter-section-title">Estado</p>
-                {[{ val: "todos", label: "Todos", dot: "#bdbdbd" },
-                  ...ESTADOS_FLUJO.map(e => ({ val: e, label: e, dot: ESTADO_CONFIG[e]?.dot }))
-                ].map(f => (
-                  <button
-                    key={f.val}
-                    className={`filter-option${filterEstado === f.val ? " active" : ""}`}
-                    onClick={() => { setFilterEstado(f.val); setPage(1); }}
-                  >
-                    <span className="filter-dot" style={{ background: f.dot }} />{f.label}
-                  </button>
-                ))}
+              <div className="filter-dropdown filter-dropdown--wide" style={{ minWidth: 340 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <div>
+                    <p className="filter-section-title">Estado</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 2 }}>
+                      {[{ val: "todos", label: "Todos", dot: "#bdbdbd" },
+                        ...ESTADOS_FLUJO.map(e => ({ val: e, label: e, dot: ESTADO_CONFIG[e]?.dot }))
+                      ].map(f => (
+                        <button
+                          key={f.val}
+                          className={`filter-option${filterEstado === f.val ? " active" : ""}`}
+                          onClick={() => { setFilterEstado(f.val); setPage(1); }}
+                        >
+                          <span className="filter-dot" style={{ background: f.dot }} />{f.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-                <div style={{ height: 1, background: "#f0f0f0", margin: "4px 0" }} />
-                <p className="filter-section-title">Tipo</p>
-                {[
-                  { val: "todos",      label: "Todos",           dot: "#bdbdbd" },
-                  { val: "domicilio",  label: "Con domicilio",   dot: "#8e24aa" },
-                  { val: "tienda",     label: "Retiro en tienda",dot: "#1976d2" },
-                  { val: "produccion", label: "En producción",   dot: "#1565c0" },
-                ].map(f => (
-                  <button
-                    key={f.val}
-                    className={`filter-option${filterTipo === f.val ? " active" : ""}`}
-                    onClick={() => { setFilterTipo(f.val); setPage(1); setShowFilter(false); }}
-                  >
-                    <span className="filter-dot" style={{ background: f.dot }} />{f.label}
-                  </button>
-                ))}
+                  <div style={{ borderLeft: "1px solid #f0f0f0", paddingLeft: 12 }}>
+                    <p className="filter-section-title">Tipo</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 2 }}>
+                      {[
+                        { val: "todos",      label: "Todos",           dot: "#bdbdbd" },
+                        { val: "domicilio",  label: "Con domicilio",   dot: "#8e24aa" },
+                        { val: "tienda",     label: "Retiro en tienda",dot: "#1976d2" },
+                        { val: "produccion", label: "En producción",   dot: "#1565c0" },
+                      ].map(f => (
+                        <button
+                          key={f.val}
+                          className={`filter-option${filterTipo === f.val ? " active" : ""}`}
+                          onClick={() => { setFilterTipo(f.val); setPage(1); setShowFilter(false); }}
+                        >
+                          <span className="filter-dot" style={{ background: f.dot }} />{f.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                {hasFilter && (
+                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #f0f0f0", textAlign: "center" }}>
+                    <button 
+                      onClick={() => { setFilterEstado("todos"); setFilterTipo("todos"); setShowFilter(false); }}
+                      style={{ fontSize: 11, fontWeight: 700, color: "#c62828", background: "none", border: "none", cursor: "pointer", fontFamily: "inherit" }}
+                    >Limpiar filtros</button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -731,81 +457,53 @@ export default function GestionPedidos() {
                   </td></tr>
                 ) : paged.map((ped, idx) => {
                   const emp = empleados.find(e => e.id === ped.idEmpleado);
-                  const sinStock = (ped.productosItems || []).some(p => !p.stockOk);
+                  const canAdvance = ESTADOS_FLUJO.indexOf(ped.estado) < ESTADOS_FLUJO.length - 2;
                   return (
                     <tr key={ped.id} className="tbl-row">
-                      {/* Nº */}
-                      <td>
-                        <span className="row-num">
-                          {String((safePage - 1) * PER_PAGE + idx + 1).padStart(2, "0")}
-                        </span>
-                      </td>
-
-                      {/* Pedido */}
-                      <td>
-                        <div className="pedido-num">{ped.numero}</div>
-                      </td>
-
-                      {/* Cliente */}
+                      <td><span className="row-num">{String((safePage - 1) * PER_PAGE + idx + 1).padStart(2, "0")}</span></td>
+                      <td><div className="pedido-num">{ped.numero}</div></td>
                       <td>
                         <div className="client-name">{ped.cliente?.nombre || "—"}</div>
                         <div className="client-email">{ped.cliente?.correo || ""}</div>
                       </td>
-
-                      {/* Fecha */}
                       <td><span className="date-badge">{ped.fecha_pedido}</span></td>
-
-                      {/* Total */}
                       <td>
                         <div className="total-amount">{fmt(ped.total)}</div>
                         <div className="total-method">{ped.metodo_pago}</div>
                       </td>
-
-                      {/* Entrega */}
                       <td>
                         {ped.domicilio ? (
                           <>
                             <div className="tipo-domicilio">🛵 Domicilio</div>
-                            <div className="tipo-sub">
-                              {emp ? `${emp.nombre} ${emp.apellidos}` : "Sin asignar"}
-                            </div>
+                            <div className="tipo-sub">{emp ? `${emp.nombre} ${emp.apellidos.split(" ")[0]}` : "Sin asignar"}</div>
                           </>
                         ) : (
                           <div className="tipo-tienda">🏪 Tienda</div>
                         )}
                       </td>
-
-                      {/* Estado */}
                       <td><EstadoBadge estado={ped.estado} /></td>
-
-                      {/* Acciones */}
                       <td>
                         <div className="actions-cell">
-                          <button className="act-btn act-btn--view"
-                            title="Ver detalle"
-                            onClick={() => setModal({ type: "ver", pedido: ped })}>👁</button>
-
-                          <button className="act-btn act-btn--edit"
-                            title="Editar pedido"
-                            onClick={() => setModal({ type: "editar", pedido: ped })}>✎</button>
-
-                          <button className="act-btn act-btn--domicilio"
-                            title="Asignar domiciliario"
-                            onClick={() => abrirDomicilio(ped)}>🛵</button>
-
-                          {/* Solo mostrar 🏭 si tiene orden de producción activa */}
-                          {ped.orden_produccion && (
-                            <button className="act-btn act-btn--produccion"
-                              title="Ver orden de producción"
-                              onClick={() => {
-                                const orden = ordenes.find(o => o.idPedido === ped.id);
-                                if (orden) setModal({ type: "verOrden", orden });
-                              }}>🏭</button>
+                          <button className="act-btn act-btn--view" title="Ver detalle" onClick={() => setModal({ type: "ver", pedido: ped })}>👁</button>
+                          
+                          {canAdvance && (
+                            <button className="act-btn act-btn--success" title="Avanzar estado" onClick={() => handleCambiarEstadoDirecto(ped)}>🔄</button>
                           )}
 
-                          <button className="act-btn act-btn--delete"
-                            title="Eliminar pedido"
-                            onClick={() => setModal({ type: "eliminar", pedido: ped })}>🗑️</button>
+                          <button className="act-btn act-btn--edit" title="Editar pedido" onClick={() => setModal({ type: "editar", pedido: ped })}>✎</button>
+
+                          {ped.domicilio && (
+                            <button className="act-btn act-btn--domicilio" title="Asignar domiciliario" onClick={() => abrirDomicilio(ped)}>🛵</button>
+                          )}
+
+                          {ped.orden_produccion && (
+                            <button className="act-btn act-btn--produccion" title="Ver orden de producción" onClick={() => {
+                              const orden = ordenes.find(o => o.idPedido === ped.id);
+                              if (orden) setModal({ type: "verOrden", orden });
+                            }}>🏭</button>
+                          )}
+
+                          <button className="act-btn act-btn--delete" title="Eliminar pedido" onClick={() => setModal({ type: "eliminar", pedido: ped })}>🗑️</button>
                         </div>
                       </td>
                     </tr>
@@ -817,125 +515,47 @@ export default function GestionPedidos() {
 
           {/* Paginación */}
           <div className="pagination-bar">
-            <span className="pagination-count">
-              {filtered.length} {filtered.length === 1 ? "pedido" : "pedidos"} en total
-            </span>
+            <span className="pagination-count">{filtered.length} {filtered.length === 1 ? "pedido" : "pedidos"} en total</span>
             <div className="pagination-btns">
-              <button className="pg-btn-arrow"
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={safePage === 1}>‹</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
               <span className="pg-pill">Página {safePage} de {totalPages}</span>
-              <button className="pg-btn-arrow"
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={safePage === totalPages}>›</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
             </div>
           </div>
         </div>
       </div>
 
       {/* ── Modales ── */}
-      {modal?.type === "crear" && (
-        <CrearPedido onClose={() => setModal(null)} onSave={handleSave} />
-      )}
-      {modal?.type === "editar" && (
-        <EditarPedido pedido={modal.pedido} onClose={() => setModal(null)} onSave={handleSave} />
-      )}
-      {modal?.type === "ver" && (
-        <ModalVerPedido
-          pedido={modal.pedido}
-          empleados={empleados}
-          onClose={() => setModal(null)}
-          onEdit={ped => setModal({ type: "editar", pedido: ped })}
-        />
-      )}
-      {modal?.type === "estado" && (
-        <ModalCambiarEstado
-          pedido={modal.pedido}
-          onClose={() => setModal(null)}
-          onConfirm={handleCambiarEstado}
-        />
-      )}
-      {modal?.type === "domicilio" && (
-        <ModalAsignarDomicilio
-          pedido={modal.pedido}
-          empleados={empleados}
-          onClose={() => setModal(null)}
-          onConfirm={handleAsignarDomicilio}
-        />
-      )}
-      {/* Modal ver orden de producción desde pedido */}
+      {modal?.type === "crear" && <CrearPedido onClose={() => setModal(null)} onSave={handleSave} />}
+      {modal?.type === "editar" && <EditarPedido pedido={modal.pedido} onClose={() => setModal(null)} onSave={handleSave} />}
+      {modal?.type === "ver" && <ModalVerPedido pedido={modal.pedido} empleados={empleados} onClose={() => setModal(null)} onEdit={ped => setModal({ type: "editar", pedido: ped })} />}
+      {modal?.type === "eliminar" && <ModalEliminarPedido pedido={modal.pedido} onClose={() => setModal(null)} onConfirm={handleEliminar} />}
+      
       {modal?.type === "verOrden" && modal.orden && (
-        <div style={{
-          position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(6px)",
-          display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20,
-        }} onClick={() => setModal(null)}>
-          <div style={{
-            background: "#fff", borderRadius: 16, width: "100%", maxWidth: 440,
-            overflow: "hidden", boxShadow: "0 20px 60px rgba(0,0,0,0.18)",
-          }} onClick={e => e.stopPropagation()}>
-            <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid #f5f5f5", display: "flex", alignItems: "center", justifyContent: "space-between", background: "linear-gradient(135deg,#e3f2fd,#fff)" }}>
+        <div className="modal-overlay" onClick={() => setModal(null)}>
+          <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
               <div>
-                <p style={{ margin: "0 0 2px", fontSize: 10, fontWeight: 700, letterSpacing: 2, color: "#9e9e9e" }}>ORDEN DE PRODUCCIÓN</p>
-                <h2 style={{ margin: 0, fontFamily: "var(--font-head,Nunito)", fontSize: 17, fontWeight: 800, color: "#1565c0" }}>{modal.orden.id}</h2>
+                <p className="modal-header__eyebrow">PRODUCCIÓN</p>
+                <h2 className="modal-header__title">{modal.orden.id}</h2>
               </div>
-              <button onClick={() => setModal(null)} style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #e0e0e0", background: "transparent", cursor: "pointer", color: "#757575", fontSize: 14 }}>✕</button>
+              <button onClick={() => setModal(null)} className="modal-close-btn">✕</button>
             </div>
-            <div style={{ padding: "16px 24px", display: "flex", flexDirection: "column", gap: 10 }}>
-              {/* Estado */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: "0.8px" }}>Estado</span>
-                <span style={{
-                  display: "inline-flex", alignItems: "center", gap: 5, borderRadius: 20, padding: "3px 10px",
-                  fontSize: 11, fontWeight: 700, border: "1px solid #90caf9", background: "#e3f2fd", color: "#1565c0",
-                }}>{modal.orden.estado}</span>
+            <div className="modal-body">
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#9e9e9e" }}>Estado</span>
+                <span className="estado-badge" style={{ background: "#e3f2fd", color: "#1565c0", border: "1px solid #90caf9" }}>{modal.orden.estado}</span>
               </div>
-              {/* Productos */}
-              <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 6 }}>Productos</div>
-                {(modal.orden.productos || []).map((p, i) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "7px 10px", background: "#f9fdf9", borderRadius: 8, marginBottom: 4, fontSize: 13 }}>
-                    <span style={{ fontWeight: 600 }}>{p.nombre}</span>
-                    <span style={{ fontWeight: 700, color: "#1565c0" }}>× {p.cantidad}</span>
-                  </div>
-                ))}
-              </div>
-              {/* Fechas */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 4 }}>Inicio</div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: "#424242" }}>{modal.orden.fechaInicio || "—"}</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", marginBottom: 6 }}>Productos</div>
+              {(modal.orden.productos || []).map((p, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "6px 10px", background: "#f9fdf9", borderRadius: 8, marginBottom: 4, fontSize: 13 }}>
+                  <span>{p.nombre}</span><strong>× {p.cantidad}</strong>
                 </div>
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 4 }}>Entrega estimada</div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: modal.orden.fechaEntrega ? "#c62828" : "#424242" }}>{modal.orden.fechaEntrega || "—"}</div>
-                </div>
-              </div>
-              {modal.orden.notas && (
-                <div style={{ padding: "8px 12px", background: "#fff8e1", borderRadius: 8, border: "1px solid #ffe082", fontSize: 12, color: "#f9a825", fontWeight: 600 }}>
-                  📝 {modal.orden.notas}
-                </div>
-              )}
+              ))}
             </div>
-            <div style={{ padding: "12px 24px 20px", display: "flex", justifyContent: "flex-end", gap: 10, borderTop: "1px solid #f5f5f5" }}>
-              <button onClick={() => setModal(null)} style={{ padding: "9px 20px", borderRadius: 9, border: "1.5px solid #e0e0e0", background: "transparent", color: "#616161", fontWeight: 600, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>Cerrar</button>
-            </div>
+            <div className="modal-footer"><button onClick={() => setModal(null)} className="btn-ghost">Cerrar</button></div>
           </div>
         </div>
-      )}
-
-      {modal?.type === "produccion" && (
-        <ModalOrdenProduccion
-          pedido={modal.pedido}
-          onClose={() => setModal(null)}
-          onConfirm={handleOrdenProduccion}
-        />
-      )}
-      {modal?.type === "eliminar" && (
-        <ModalEliminarPedido
-          pedido={modal.pedido}
-          onClose={() => setModal(null)}
-          onConfirm={handleEliminar}
-        />
       )}
 
       <Toast toast={toast} />

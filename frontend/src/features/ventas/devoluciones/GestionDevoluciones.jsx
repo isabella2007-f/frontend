@@ -247,13 +247,13 @@ function ModalAprobar({ dev, onClose, onConfirm }) {
             <span className="info-box__icon">✅</span>
             <div className="info-box__text">
               <span className="info-box__label">Al aprobar</span>
-              La devolución quedará lista para ser reembolsada como crédito al cliente.
+              La devolución se marcará como aprobada y se realizará el **reembolso automático** al crédito del cliente.
             </div>
           </div>
           <div className="credito-box">
             <span className="credito-box__icon">💳</span>
             <div>
-              <div className="credito-box__label">Monto a aprobar</div>
+              <div className="credito-box__label">Monto a reembolsar</div>
               <div className="credito-box__val">{fmt(dev.totalDevuelto)}</div>
             </div>
           </div>
@@ -261,7 +261,7 @@ function ModalAprobar({ dev, onClose, onConfirm }) {
         <div className="modal-footer">
           <button className="btn-cancel" onClick={onClose}>Cancelar</button>
           <button className="btn-approve" disabled={done} onClick={() => { setDone(true); setTimeout(() => onConfirm(dev.id), 700); }}>
-            {done ? "Aprobando…" : "✅ Aprobar"}
+            {done ? "Aprobando…" : "✅ Aprobar y Reembolsar"}
           </button>
         </div>
       </div>
@@ -318,61 +318,6 @@ function ModalRechazar({ dev, onClose, onConfirm }) {
           <button className="btn-cancel" onClick={onClose}>Cancelar</button>
           <button className="btn-reject" disabled={done} onClick={handleConfirm}>
             {done ? "Rechazando…" : "🚫 Rechazar"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════
-   MODAL REEMBOLSAR (crédito)
-   ═══════════════════════════════════════════════════════════ */
-function ModalReembolsar({ dev, creditoActual, onClose, onConfirm }) {
-  const [done, setDone] = useState(false);
-  const nuevoSaldo = (creditoActual || 0) + dev.totalDevuelto;
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box--md" onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <div>
-            <p className="modal-header__eyebrow">REEMBOLSO</p>
-            <h2 className="modal-header__title">Aplicar crédito al cliente</h2>
-          </div>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
-        </div>
-        <div className="modal-body">
-          <p style={{ margin: 0, fontSize: 13, color: "#616161" }}>
-            Reembolso para <strong>{dev.cliente?.nombre}</strong> · {dev.numero}
-          </p>
-          <div className="form-grid-2" style={{ gap: 10 }}>
-            <div>
-              <label className="form-label">Saldo actual</label>
-              <div className="field-input--disabled" style={{ color: "#757575" }}>{fmt(creditoActual || 0)}</div>
-            </div>
-            <div>
-              <label className="form-label">A agregar</label>
-              <div className="field-input--disabled" style={{ color: "#c62828", fontWeight: 700 }}>+ {fmt(dev.totalDevuelto)}</div>
-            </div>
-          </div>
-          <div className="credito-box">
-            <span className="credito-box__icon">💳</span>
-            <div>
-              <div className="credito-box__label">Nuevo saldo del cliente</div>
-              <div className="credito-box__val">{fmt(nuevoSaldo)}</div>
-              <div className="credito-box__saldo">{dev.cliente?.nombre}</div>
-            </div>
-          </div>
-          <div className="info-box info-box--info">
-            <span className="info-box__icon">ℹ️</span>
-            <span className="info-box__text">El crédito podrá ser usado en futuras compras del cliente.</span>
-          </div>
-        </div>
-        <div className="modal-footer">
-          <button className="btn-cancel" onClick={onClose}>Cancelar</button>
-          <button className="btn-credit" disabled={done} onClick={() => { setDone(true); setTimeout(() => onConfirm(dev.id), 700); }}>
-            {done ? "Aplicando…" : "💳 Aplicar crédito"}
           </button>
         </div>
       </div>
@@ -478,7 +423,8 @@ export default function GestionDevoluciones() {
 
   const handleAprobar = (id) => {
     aprobarDevolucion(id);
-    showToast("Devolución aprobada");
+    reembolsarDevolucion(id); // Reembolso automático
+    showToast("Devolución aprobada y crédito aplicado");
     setModal(null);
   };
 
@@ -488,16 +434,24 @@ export default function GestionDevoluciones() {
     setModal(null);
   };
 
-  const handleReembolsar = (id) => {
-    reembolsarDevolucion(id);
-    showToast("Crédito aplicado al cliente ✓");
-    setModal(null);
-  };
-
   const handleEliminar = (id) => {
     eliminarDevolucion(id);
     showToast("Devolución eliminada", "error");
     setModal(null);
+  };
+
+  /* Reporte de métricas */
+  const counts = {
+    todos:       devoluciones.length,
+    Pendiente:   devoluciones.filter(d => d.estado === "Pendiente").length,
+    Aprobada:    devoluciones.filter(d => d.estado === "Aprobada").length,
+    Reembolsada: devoluciones.filter(d => d.estado === "Reembolsada").length,
+    Rechazada:   devoluciones.filter(d => d.estado === "Rechazada").length,
+  };
+
+  const toggleFilter = (est) => {
+    setFilterEstado(prev => prev === est ? "todos" : est);
+    setPage(1);
   };
 
   /* Validaciones al abrir modales */
@@ -511,11 +465,6 @@ export default function GestionDevoluciones() {
     setModal({ type: "rechazar", dev });
   };
 
-  const abrirReembolsar = (dev) => {
-    if (dev.estado !== "Aprobada") { showToast("Solo se pueden reembolsar devoluciones aprobadas", "warn"); return; }
-    setModal({ type: "reembolsar", dev });
-  };
-
   /* ═══════════════════════════════════════════════════════
      RENDER
   ═══════════════════════════════════════════════════════ */
@@ -527,6 +476,29 @@ export default function GestionDevoluciones() {
       </div>
 
       <div className="page-inner">
+
+        {/* Mallas de Reporte (Botones de Filtro) */}
+        <div className="metrics-row">
+          {[
+            { val: "todos",       label: "Total",       count: counts.todos,       color: "#2e7d32", icon: "📊" },
+            { val: "Pendiente",   label: "Pendientes",  count: counts.Pendiente,   color: "#f9a825", icon: "⏳" },
+            { val: "Reembolsada", label: "Reembolsadas",count: counts.Reembolsada, color: "#009688", icon: "💳" },
+            { val: "Rechazada",   label: "Rechazadas",  count: counts.Rechazada,   color: "#c62828", icon: "🚫" },
+          ].map(m => (
+            <button
+              key={m.val}
+              className={`metric-card-btn ${filterEstado === m.val ? "active" : ""}`}
+              onClick={() => toggleFilter(m.val)}
+              style={{ borderColor: filterEstado === m.val ? m.color : "#e0e0e0" }}
+            >
+              <div className="metric-card-btn__icon" style={{ background: m.color + "15", color: m.color }}>{m.icon}</div>
+              <div className="metric-card-btn__info">
+                <span className="metric-card-btn__count">{m.count}</span>
+                <span className="metric-card-btn__label">{m.label}</span>
+              </div>
+            </button>
+          ))}
+        </div>
 
         {/* Toolbar */}
         <div className="toolbar">
@@ -646,7 +618,7 @@ export default function GestionDevoluciones() {
                           onClick={() => setModal({ type: "ver", dev })}>👁</button>
 
                         <button className="act-btn act-btn--approve"
-                          title="Aprobar"
+                          title="Aprobar y Reembolsar"
                           onClick={() => abrirAprobar(dev)}
                           style={{ opacity: dev.estado === "Pendiente" ? 1 : 0.35, cursor: dev.estado === "Pendiente" ? "pointer" : "default" }}>
                           ✅
@@ -657,13 +629,6 @@ export default function GestionDevoluciones() {
                           onClick={() => abrirRechazar(dev)}
                           style={{ opacity: dev.estado === "Pendiente" ? 1 : 0.35, cursor: dev.estado === "Pendiente" ? "pointer" : "default" }}>
                           🚫
-                        </button>
-
-                        <button className="act-btn act-btn--credit"
-                          title="Aplicar crédito"
-                          onClick={() => abrirReembolsar(dev)}
-                          style={{ opacity: dev.estado === "Aprobada" ? 1 : 0.35, cursor: dev.estado === "Aprobada" ? "pointer" : "default" }}>
-                          💳
                         </button>
 
                         <button className="act-btn act-btn--delete"
@@ -704,14 +669,6 @@ export default function GestionDevoluciones() {
       )}
       {modal?.type === "aprobar"    && <ModalAprobar    dev={modal.dev} onClose={() => setModal(null)} onConfirm={handleAprobar} />}
       {modal?.type === "rechazar"   && <ModalRechazar   dev={modal.dev} onClose={() => setModal(null)} onConfirm={handleRechazar} />}
-      {modal?.type === "reembolsar" && (
-        <ModalReembolsar
-          dev={modal.dev}
-          creditoActual={creditosClientes[modal.dev.idCliente] || 0}
-          onClose={() => setModal(null)}
-          onConfirm={handleReembolsar}
-        />
-      )}
       {modal?.type === "eliminar"   && <ModalEliminar   dev={modal.dev} onClose={() => setModal(null)} onConfirm={handleEliminar} />}
 
       <Toast toast={toast} />

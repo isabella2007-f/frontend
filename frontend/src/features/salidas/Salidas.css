@@ -258,7 +258,11 @@
   border: 1.5px solid #c8e6c9;
   box-shadow: 0 1px 6px rgba(46,125,50,0.06);
   min-width: 80px;
+  transition: all 0.2s ease;
+  user-select: none;
 }
+.sl-stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(46,125,50,0.1); }
+.sl-stat-card.active { background: #f1f8f1; border-width: 2px; box-shadow: 0 4px 12px rgba(46,125,50,0.15); }
 .sl-stat-card__num   { font-family: 'Nunito', sans-serif; font-size: 20px; font-weight: 800; color: #1a1a1a; line-height: 1; }
 .sl-stat-card__label { font-size: 10px; font-weight: 600; color: #9e9e9e; text-transform: uppercase; letter-spacing: 0.4px; text-align: center; }
 
@@ -281,9 +285,10 @@
   background: #fff; border-radius: 10px;
   border: 1px solid #e0e0e0;
   box-shadow: 0 8px 24px rgba(0,0,0,0.1);
-  min-width: 180px; z-index: 200; overflow: hidden;
+  min-width: 180px; z-index: 200; overflow: visible;
   animation: slideUp 0.18s ease;
 }
+.sl-filter-dropdown--wide { min-width: 340px; padding-bottom: 8px; }
 .sl-filter-title {
   padding: 8px 14px 4px; font-size: 10px; font-weight: 700;
   color: #bdbdbd; letter-spacing: 1px; text-transform: uppercase;

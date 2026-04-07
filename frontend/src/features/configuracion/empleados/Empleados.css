@@ -11,11 +11,11 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; color: #1a1a1a; }
 
 /* ─── Page ───────────────────────────────────────────────── */
 .page-wrapper {
-  min-height: 100vh; width: 100%;
+  width: 100%;
   background: linear-gradient(180deg, #f4faf4 0%, #fafffe 12%, #ffffff 30%);
   padding-bottom: 60px;
 }
-.page-header { text-align: center; padding: 40px 20px 32px; }
+.page-header { text-align: center; padding: 24px 20px 20px; }
 .page-header__title {
   margin: 0 0 10px; font-family: 'Nunito', sans-serif;
   font-size: clamp(26px, 4.5vw, 38px); font-weight: 800; font-style: italic;

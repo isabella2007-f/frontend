@@ -98,11 +98,11 @@ const initLotesProductos      = {};
 const initSalidasProductos    = {};
 
 const initProveedores = [
-  { id: "PROV0001", responsable: "Juan Morales",   direccion: "Cra 45 # 10-20, Medellín",     celular: "300 123 4567", correo: "juan.morales@prov.com",   ciudad: "Medellín"     },
-  { id: "PROV0002", responsable: "Sandra López",   direccion: "Calle 80 # 23-15, Bogotá",     celular: "312 456 7890", correo: "sandra.lopez@prov.com",   ciudad: "Bogotá"       },
-  { id: "PROV0003", responsable: "Pedro Ríos",     direccion: "Av. 6N # 12-50, Cali",         celular: "315 789 0123", correo: "pedro.rios@prov.com",     ciudad: "Cali"         },
-  { id: "PROV0004", responsable: "Marcela Gómez",  direccion: "Cl. 50 # 40-30, Barranquilla", celular: "318 012 3456", correo: "marcela.gomez@prov.com",  ciudad: "Barranquilla" },
-  { id: "PROV0005", responsable: "Andrés Herrera", direccion: "Cra 15 # 68-10, Bucaramanga",  celular: "321 345 6789", correo: "andres.herrera@prov.com", ciudad: "Bucaramanga"  },
+  { id: "PROV0001", responsable: "Juan Morales",   direccion: "Cra 45 # 10-20, Medellín",     celular: "300 123 4567", correo: "juan.morales@prov.com",   ciudad: "Medellín",     estado: true },
+  { id: "PROV0002", responsable: "Sandra López",   direccion: "Calle 80 # 23-15, Bogotá",     celular: "312 456 7890", correo: "sandra.lopez@prov.com",   ciudad: "Bogotá",       estado: true },
+  { id: "PROV0003", responsable: "Pedro Ríos",     direccion: "Av. 6N # 12-50, Cali",         celular: "315 789 0123", correo: "pedro.rios@prov.com",     ciudad: "Cali",         estado: true },
+  { id: "PROV0004", responsable: "Marcela Gómez",  direccion: "Cl. 50 # 40-30, Barranquilla", celular: "318 012 3456", correo: "marcela.gomez@prov.com",  ciudad: "Barranquilla", estado: true },
+  { id: "PROV0005", responsable: "Andrés Herrera", direccion: "Cra 15 # 68-10, Bucaramanga",  celular: "321 345 6789", correo: "andres.herrera@prov.com", ciudad: "Bucaramanga",  estado: true },
 ];
 
 const initRolesData = [
@@ -613,15 +613,35 @@ export function AppProvider({ children }) {
   /* ── CRUD categorías ────────────────────────────────── */
   const crearCatProducto    = f  => setCategoriasProductos(p => [{ ...f, id: Date.now() }, ...p]);
   const editarCatProducto   = f  => setCategoriasProductos(p => p.map(c => c.id === f.id ? f : c));
-  const toggleCatProducto   = id => setCategoriasProductos(p => p.map(c => c.id === id ? { ...c, estado: !c.estado } : c));
+  const toggleCatProducto   = id => {
+    setCategoriasProductos(prev => prev.map(c => {
+      if (c.id !== id) return c;
+      const nuevoEstado = !c.estado;
+      // Si se inactiva la categoría, inactivar todos los productos asociados
+      if (!nuevoEstado) {
+        setProductos(prods => prods.map(p => p.idCategoria === id ? { ...p, activo: false } : p));
+      }
+      return { ...c, estado: nuevoEstado };
+    }));
+  };
   const eliminarCatProducto = id => setCategoriasProductos(p => p.filter(c => c.id !== id));
   const crearCatInsumo    = f  => setCategoriasInsumos(p => [{ ...f, id: Date.now() }, ...p]);
   const editarCatInsumo   = f  => setCategoriasInsumos(p => p.map(c => c.id === f.id ? f : c));
-  const toggleCatInsumo   = id => setCategoriasInsumos(p => p.map(c => c.id === id ? { ...c, estado: !c.estado } : c));
+  const toggleCatInsumo   = id => {
+    setCategoriasInsumos(prev => prev.map(c => {
+      if (c.id !== id) return c;
+      const nuevoEstado = !c.estado;
+      // Si se inactiva la categoría, inactivar todos los insumos asociados
+      if (!nuevoEstado) {
+        setInsumos(ins => ins.map(i => i.idCategoria === id ? { ...i, estado: false } : i));
+      }
+      return { ...c, estado: nuevoEstado };
+    }));
+  };
   const eliminarCatInsumo = id => setCategoriasInsumos(p => p.filter(c => c.id !== id));
 
   /* ── CRUD insumos ───────────────────────────────────── */
-  const crearInsumo    = f  => setInsumos(p => [{ ...f, id: Date.now() }, ...p]);
+  const crearInsumo    = f  => setInsumos(p => [{ ...f, id: Date.now(), fechaCreacion: new Date().toLocaleDateString("es-CO") }, ...p]);
   const editarInsumo   = f  => setInsumos(p => p.map(i => i.id === f.id ? f : i));
   const toggleInsumo   = id => setInsumos(p => p.map(i => i.id === id ? { ...i, estado: !i.estado } : i));
   const eliminarInsumo = id => setInsumos(p => p.filter(i => i.id !== id));
@@ -734,6 +754,38 @@ export function AppProvider({ children }) {
     }));
   };
 
+  const completarCompra = (id) => {
+    setCompras(prev => prev.map(c => {
+      if (c.id !== id || c.stockAplicado) return c;
+      const detallesConId = c.detalles.map((d, i) => ({ ...d, id: d.id || `${c.id}-D${i + 1}` }));
+      setLotes(prevL => [...prevL, ..._buildLotes(c.id, detallesConId, prevL)]);
+      _subirStock(detallesConId);
+      return { ...c, estado: "completada", detalles: detallesConId, stockAplicado: true };
+    }));
+  };
+
+  const anularCompra = (id) => {
+    const c = compras.find(x => x.id === id);
+    if (!c) return { ok: false, razon: "Compra no encontrada" };
+    if (c.estado === "anulada") return { ok: false, razon: "La compra ya está anulada" };
+
+    // Si el stock ya se aplicó, hay que reversarlo mediante salidas
+    if (c.stockAplicado) {
+      c.detalles.forEach(d => {
+        registrarSalidaInsumo({
+          idInsumo: d.idInsumo,
+          tipo: "ajuste",
+          cantidad: d.cantidad,
+          motivo: `Anulación de compra ${id}`,
+          usuario: "sistema"
+        });
+      });
+    }
+
+    setCompras(prev => prev.map(comp => comp.id === id ? { ...comp, estado: "anulada" } : comp));
+    return { ok: true };
+  };
+
   const eliminarCompra = (id) => {
     const check = canDeleteCompra(id); if (!check.ok) return check;
     setCompras(p => p.filter(c => c.id !== id)); return { ok: true };
@@ -748,10 +800,12 @@ export function AppProvider({ children }) {
       cambios.push({ id: lote.id, nueva: lote.cantidadActual - descontar });
       restante -= descontar;
     }
-    if (restante > 0) return { ok: false, faltante: restante };
-    setLotes(prev => prev.map(l => { const c = cambios.find(x => x.id === l.id); return c ? { ...l, cantidadActual: c.nueva } : l; }));
-    setInsumos(prev => prev.map(ins => ins.id === Number(idInsumo) ? { ...ins, stockActual: Math.max(0, ins.stockActual - cantidadNecesaria) } : ins));
-    return { ok: true, faltante: 0 };
+    const descontadoEfectivo = cantidadNecesaria - restante;
+    if (descontadoEfectivo > 0) {
+      setLotes(prev => prev.map(l => { const c = cambios.find(x => x.id === l.id); return c ? { ...l, cantidadActual: c.nueva } : l; }));
+      setInsumos(prev => prev.map(ins => ins.id === Number(idInsumo) ? { ...ins, stockActual: Math.max(0, ins.stockActual - descontadoEfectivo) } : ins));
+    }
+    return { ok: restante === 0, faltante: restante };
   };
 
   /* ── CRUD pedidos ───────────────────────────────────── */
@@ -829,9 +883,18 @@ export function AppProvider({ children }) {
       if (p.id !== id) return p;
       if (nuevoEstado === "Cancelado" && p.estado !== "Cancelado") {
         setProductos(prods => prods.map(prod => {
-          const item = (p.productosItems || []).find(pi => pi.idProducto === prod.id && pi.stockOk);
+          const item = (p.productosItems || []).find(pi => pi.idProducto === prod.id);
           if (!item) return prod;
-          return { ...prod, stock: prod.stock + item.cantidad };
+          
+          // Si el producto fue tomado del stock inicial (stockOk) 
+          // O si ya fue fabricado (el pedido estaba Listo o En camino)
+          // se debe devolver al stock general al cancelar.
+          const debeRetornar = item.stockOk || ["Listo", "En camino"].includes(p.estado);
+          
+          if (debeRetornar) {
+            return { ...prod, stock: prod.stock + item.cantidad };
+          }
+          return prod;
         }));
       }
       // ── Notif cambio de estado relevante ───────────────
@@ -857,18 +920,54 @@ export function AppProvider({ children }) {
   };
 
   /* ── CRUD órdenes ───────────────────────────────────── */
+  const crearOrdenProduccion = (payload) => {
+    const id = nextOrdenId(ordenes);
+    const nueva = {
+      ...payload,
+      id,
+      estado: payload.estado || "Pendiente",
+      fechaInicio: payload.fechaInicio || fechaHoy(),
+    };
+    setOrdenes(prev => [nueva, ...prev]);
+    return id;
+  };
+
+  const editarOrdenProduccion = (payload) => {
+    setOrdenes(prev => prev.map(o => o.id === payload.id ? { ...o, ...payload } : o));
+  };
+
   const cambiarEstadoOrden = (ordenId, nuevoEstado) => {
     setOrdenes(prev => prev.map(o => {
       if (o.id !== ordenId) return o;
       const fechaCierre = nuevoEstado === "Completada" ? fechaHoy() : o.fechaCierre;
       if (nuevoEstado === "Completada" && o.estado !== "Completada") {
-        setProductos(prods => prods.map(prod => { const item = (o.productos || []).find(p => p.idProducto === prod.id); if (!item) return prod; return { ...prod, stock: prod.stock + item.cantidad }; }));
+        
+        // Solo sumamos al stock general si la orden NO viene de un pedido (es reposición manual)
+        if (!o.idPedido) {
+          setProductos(prods => prods.map(prod => { 
+            const item = (o.productos || []).find(p => p.idProducto === prod.id); 
+            if (!item) return prod; 
+            return { ...prod, stock: prod.stock + item.cantidad }; 
+          }));
+        }
+        
+        // Descontar insumos (Siempre se descuentan, sea manual o por pedido)
+        (o.insumos || []).forEach(ins => {
+          registrarSalidaInsumo({
+            idInsumo: ins.idInsumo,
+            tipo: "produccion",
+            cantidad: ins.cantidad,
+            motivo: `Consumo por orden de producción ${ordenId}`,
+            usuario: "sistema"
+          });
+        });
+
         if (o.idPedido) setPedidos(prevP => prevP.map(p => p.id !== o.idPedido ? p : { ...p, estado: "Listo" }));
         agregarNotifInterna({
           tipo:  NOTIF_TIPOS.SISTEMA,
           clave: `orden-completada-${ordenId}`,
           titulo: `Orden de producción completada: ${ordenId}`,
-          mensaje: `La orden ${ordenId} fue marcada como completada. El stock de los productos fue actualizado.`,
+          mensaje: `La orden ${ordenId} fue marcada como completada. El stock de los productos e insumos fue actualizado.`,
           idReferencia: ordenId, refNombre: ordenId,
         });
       }

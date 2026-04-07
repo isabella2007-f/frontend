@@ -283,11 +283,16 @@ function HistorialSalidas() {
 
   const totalUnidades = todasSalidas.reduce((acc, s) => acc + s.cantidad, 0);
 
+  const toggleFiltroTipo = (val) => {
+    setFiltroTipo(prev => prev === val ? "todos" : val);
+  };
+
   return (
     <div className="sl-tab-content">
-      {/* Stats — fila compacta */}
+      {/* Stats — métricas funcionales */}
       <div className="sl-stats-row">
-        <div className="sl-stat-card">
+        <div className={`sl-stat-card ${filtroTipo === 'todos' && filtroEntidad === 'todos' ? 'active' : ''}`} 
+          onClick={() => { setFiltroTipo('todos'); setFiltroEntidad('todos'); }} style={{ cursor: 'pointer' }}>
           <span className="sl-stat-card__num">{todasSalidas.length}</span>
           <span className="sl-stat-card__label">Total salidas</span>
         </div>
@@ -298,8 +303,9 @@ function HistorialSalidas() {
         {TIPOS.map(t => {
           const count = todasSalidas.filter(s => s.tipo === t.val).length;
           return (
-            <div key={t.val} className="sl-stat-card" style={{ borderColor: count > 0 ? t.border : "#e0e0e0", cursor: "pointer" }}
-              onClick={() => setFiltroTipo(filtroTipo === t.val ? "todos" : t.val)}>
+            <div key={t.val} className={`sl-stat-card ${filtroTipo === t.val ? 'active' : ''}`} 
+              style={{ borderColor: count > 0 ? (filtroTipo === t.val ? t.color : t.border) : "#e0e0e0", cursor: "pointer" }}
+              onClick={() => toggleFiltroTipo(t.val)}>
               <span style={{ fontSize: 18 }}>{t.icon}</span>
               <span className="sl-stat-card__num" style={{ color: count > 0 ? t.color : "#bdbdbd", fontSize: 18 }}>{count}</span>
               <span className="sl-stat-card__label">{t.label}</span>
@@ -316,29 +322,35 @@ function HistorialSalidas() {
             value={busqueda} onChange={e => setBusqueda(e.target.value)} />
         </div>
         <div ref={filterRef} style={{ position: "relative" }}>
-          <button className="sl-filter-btn" onClick={() => setShowFilter(v => !v)}>▼ Filtrar</button>
+          <button className={`sl-filter-btn ${filtroTipo !== 'todos' || filtroEntidad !== 'todos' ? 'has-filter' : ''}`} 
+            onClick={() => setShowFilter(v => !v)}>▼ Filtrar</button>
           {showFilter && (
-            <div className="sl-filter-dropdown">
-              <p className="sl-filter-title">Tipo de salida</p>
-              {["todos", ...TIPOS.map(t => t.val)].map(val => {
-                const t = TIPO_MAP[val];
-                return (
-                  <button key={val} className={`sl-filter-opt${filtroTipo === val ? " active" : ""}`}
-                    onClick={() => setFiltroTipo(val)}>
-                    <span>{t?.icon || "📋"}</span>
-                    {val === "todos" ? "Todos los tipos" : t?.label}
-                  </button>
-                );
-              })}
-              <div className="sl-filter-divider" />
-              <p className="sl-filter-title">Tipo de elemento</p>
-              {[{ val: "todos", label: "Todos", icon: "📋" }, { val: "producto", label: "Productos", icon: "📦" }, { val: "insumo", label: "Insumos", icon: "🧺" }]
-                .map(opt => (
-                  <button key={opt.val} className={`sl-filter-opt${filtroEntidad === opt.val ? " active" : ""}`}
-                    onClick={() => { setFiltroEntidad(opt.val); setShowFilter(false); }}>
-                    <span>{opt.icon}</span>{opt.label}
-                  </button>
-                ))}
+            <div className="sl-filter-dropdown sl-filter-dropdown--wide">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                <div>
+                  <p className="sl-filter-title">Tipo de salida</p>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 2 }}>
+                    {[{ val: "todos", label: "Todos", icon: "📋" }, ...TIPOS].map(t => (
+                      <button key={t.val} className={`sl-filter-opt${filtroTipo === t.val ? " active" : ""}`}
+                        onClick={() => setFiltroTipo(t.val)}>
+                        <span>{t.icon}</span>{t.val === "todos" ? "Todos los tipos" : t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ borderLeft: "1px solid #f0f0f0", paddingLeft: 12 }}>
+                  <p className="sl-filter-title">Tipo de elemento</p>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 2 }}>
+                    {[{ val: "todos", label: "Todos", icon: "📋" }, { val: "producto", label: "Productos", icon: "📦" }, { val: "insumo", label: "Insumos", icon: "🧺" }]
+                      .map(opt => (
+                        <button key={opt.val} className={`sl-filter-opt${filtroEntidad === opt.val ? " active" : ""}`}
+                          onClick={() => { setFiltroEntidad(opt.val); setShowFilter(false); }}>
+                          <span>{opt.icon}</span>{opt.label}
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -427,17 +439,23 @@ function Vencidos() {
     : filtro === "insumo"   ? lotesInsumosVencidos
     : todosVencidos;
 
+  const toggleFiltroVencidos = (val) => {
+    setFiltro(prev => prev === val ? "todos" : val);
+  };
+
   return (
     <div className="sl-tab-content">
-      {/* Stats */}
+      {/* Stats — métricas funcionales */}
       <div className="sl-stats-row">
         {[
-          { label: "Lotes vencidos",    num: todosVencidos.length,          color: "#c62828", border: "#ef9a9a", icon: "⛔" },
-          { label: "Productos",         num: lotesProductosVencidos.length,  color: "#c62828", border: "#ef9a9a", icon: "📦" },
-          { label: "Insumos",           num: lotesInsumosVencidos.length,    color: "#c62828", border: "#ef9a9a", icon: "🧺" },
-          { label: "Por vencer (≤7d)",  num: lotesPorVencer.length,          color: "#e65100", border: "#ffcc80", icon: "⚠️" },
+          { val: "todos",      label: "Lotes vencidos",    num: todosVencidos.length,          color: "#c62828", border: "#ef9a9a", icon: "⛔" },
+          { val: "producto",   label: "Productos",         num: lotesProductosVencidos.length,  color: "#c62828", border: "#ef9a9a", icon: "📦" },
+          { val: "insumo",     label: "Insumos",           num: lotesInsumosVencidos.length,    color: "#c62828", border: "#ef9a9a", icon: "🧺" },
+          { val: "por-vencer", label: "Por vencer (≤7d)",  num: lotesPorVencer.length,          color: "#e65100", border: "#ffcc80", icon: "⚠️" },
         ].map(s => (
-          <div key={s.label} className="sl-stat-card" style={{ borderColor: s.num > 0 ? s.border : "#e0e0e0" }}>
+          <div key={s.label} className={`sl-stat-card ${filtro === s.val ? 'active' : ''}`} 
+            style={{ borderColor: s.num > 0 ? (filtro === s.val ? s.color : s.border) : "#e0e0e0", cursor: "pointer" }}
+            onClick={() => toggleFiltroVencidos(s.val)}>
             <span style={{ fontSize: 18 }}>{s.icon}</span>
             <span className="sl-stat-card__num" style={{ color: s.num > 0 ? s.color : "#bdbdbd", fontSize: 18 }}>{s.num}</span>
             <span className="sl-stat-card__label">{s.label}</span>

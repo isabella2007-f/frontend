@@ -29,8 +29,9 @@ export default function GestionProveedores() {
     canDeleteProveedor 
   } = useApp();
 
-  const [search, setSearch]           = useState("");
+  const [search, setSearch]             = useState("");
   const [filterCiudad, setFilterCiudad] = useState("todas");
+  const [filterEstado, setFilterEstado] = useState("todos");
   const [showFilter, setShowFilter]   = useState(false);
   const [page, setPage]               = useState(1);
   const [modal, setModal]             = useState(null);
@@ -61,18 +62,22 @@ export default function GestionProveedores() {
       p.responsable.toLowerCase().includes(q) ||
       (p.correo    || "").toLowerCase().includes(q) ||
       (p.celular   || "").toLowerCase().includes(q) ||
-      (p.direccion || "").toLowerCase().includes(q)
+      (p.direccion || "").toLowerCase().includes(q) ||
+      (p.documento || "").toLowerCase().includes(q)
     );
     const matchCiudad = filterCiudad === "todas" || p.ciudad === filterCiudad;
-    return matchQ && matchCiudad;
+    const matchEstado = filterEstado === "todos" || 
+                        (filterEstado === "activos"   ? p.estado : !p.estado);
+    
+    return matchQ && matchCiudad && matchEstado;
   });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const safePage   = Math.min(page, totalPages);
   const paginated  = filtered.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
-  useEffect(() => setPage(1), [search, filterCiudad]);
+  useEffect(() => setPage(1), [search, filterCiudad, filterEstado]);
 
-  const hasFilter = filterCiudad !== "todas";
+  const hasFilter = filterCiudad !== "todas" || filterEstado !== "todos";
 
   /* ── CRUD ── */
   const handleCreate = data => {
@@ -109,7 +114,7 @@ export default function GestionProveedores() {
             <input
               type="text"
               className="search-input"
-              placeholder="Buscar por responsable, correo, celular o dirección…"
+              placeholder="Buscar por responsable, documento, correo o celular…"
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
             />
@@ -125,23 +130,47 @@ export default function GestionProveedores() {
             </button>
 
             {showFilter && (
-              <div className="filter-dropdown" style={{ minWidth: 170 }}>
-                <p className="filter-section-title">Ciudad</p>
-                <button
-                  className={"filter-option" + (filterCiudad === "todas" ? " active" : "")}
-                  onClick={() => { setFilterCiudad("todas"); setPage(1); setShowFilter(false); }}
-                >
-                  <span className="filter-dot" style={{ background: "#bdbdbd" }} />Todas
-                </button>
-                {ciudadesUnicas.map(ciudad => (
+              <div className="filter-dropdown" style={{ minWidth: 200 }}>
+                <div className="filter-dropdown__section">
+                  <p className="filter-section-title">Estado</p>
                   <button
-                    key={ciudad}
-                    className={"filter-option" + (filterCiudad === ciudad ? " active" : "")}
-                    onClick={() => { setFilterCiudad(ciudad); setPage(1); setShowFilter(false); }}
+                    className={"filter-option" + (filterEstado === "todos" ? " active" : "")}
+                    onClick={() => setFilterEstado("todos")}
                   >
-                    <span className="filter-dot" style={{ background: "#2e7d32" }} />{ciudad}
+                    <span className="filter-dot" style={{ background: "#bdbdbd" }} />Todos
                   </button>
-                ))}
+                  <button
+                    className={"filter-option" + (filterEstado === "activos" ? " active" : "")}
+                    onClick={() => setFilterEstado("activos")}
+                  >
+                    <span className="filter-dot" style={{ background: "#2e7d32" }} />Activos
+                  </button>
+                  <button
+                    className={"filter-option" + (filterEstado === "inactivos" ? " active" : "")}
+                    onClick={() => setFilterEstado("inactivos")}
+                  >
+                    <span className="filter-dot" style={{ background: "#c62828" }} />Inactivos
+                  </button>
+                </div>
+
+                <div className="filter-dropdown__section" style={{ borderTop: "1px solid #f0f0f0", marginTop: 4, paddingTop: 4 }}>
+                  <p className="filter-section-title">Ciudad</p>
+                  <button
+                    className={"filter-option" + (filterCiudad === "todas" ? " active" : "")}
+                    onClick={() => setFilterCiudad("todas")}
+                  >
+                    <span className="filter-dot" style={{ background: "#bdbdbd" }} />Todas
+                  </button>
+                  {ciudadesUnicas.map(ciudad => (
+                    <button
+                      key={ciudad}
+                      className={"filter-option" + (filterCiudad === ciudad ? " active" : "")}
+                      onClick={() => setFilterCiudad(ciudad)}
+                    >
+                      <span className="filter-dot" style={{ background: "#2e7d32" }} />{ciudad}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -159,9 +188,9 @@ export default function GestionProveedores() {
                 <tr>
                   <th style={{ width: 48 }}>Nº</th>
                   <th>Responsable</th>
-                  <th>Dirección</th>
-                  <th>Celular</th>
-                  <th>Correo</th>
+                  <th>Dirección / Ciudad</th>
+                  <th>Contacto</th>
+                  <th>Estado</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
@@ -193,28 +222,37 @@ export default function GestionProveedores() {
                         <div className="prov-avatar">🏭</div>
                         <div>
                           <div className="prov-name">{p.responsable}</div>
-                          <div className="prov-id">ID #{p.id}</div>
+                          <div className="prov-id">{p.tipoDoc}: {p.documento || p.id}</div>
                         </div>
                       </div>
                     </td>
 
                     {/* Dirección */}
-                    <td style={{ fontSize: 13, color: "#424242", maxWidth: 200 }}>
-                      {p.direccion || "—"}
+                    <td>
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <span style={{ fontSize: 13, color: "#424242" }}>{p.direccion || "—"}</span>
+                        <span style={{ fontSize: 11, color: "#9e9e9e", fontWeight: 600 }}>{p.ciudad || ""}</span>
+                      </div>
                     </td>
 
-                    {/* Celular */}
+                    {/* Contacto */}
                     <td>
-                      <span className="phone-cell">
-                        <span className="phone-icon">📞</span>
-                        {p.celular || "—"}
-                      </span>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        <span className="phone-cell" style={{ fontSize: 12 }}>
+                          <span className="phone-icon">📞</span>
+                          {p.celular || "—"}
+                        </span>
+                        <span className="client-email" style={{ fontSize: 12 }}>
+                          {p.correo || "—"}
+                        </span>
+                      </div>
                     </td>
 
-                    {/* Correo */}
+                    {/* Estado */}
                     <td>
-                      <span className="client-email" style={{ fontSize: 13 }}>
-                        {p.correo || "—"}
+                      <span className={`estado-badge ${p.estado ? "estado-badge--disponible" : "estado-badge--agotado"}`}>
+                        <span className="estado-dot" style={{ background: p.estado ? "#2e7d32" : "#c62828" }} />
+                        {p.estado ? "Activo" : "Inactivo"}
                       </span>
                     </td>
 

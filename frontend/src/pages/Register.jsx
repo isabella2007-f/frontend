@@ -249,7 +249,7 @@ const Register = () => {
         <div className="auth-blob auth-blob--1" />
         <div className="auth-blob auth-blob--2" />
 
-        <div className="auth-card auth-card--wide" style={{ maxWidth: 560 }}>
+        <div className="auth-card auth-card--wide">
           <div className="auth-topbar" />
 
           {/* Brand */}
@@ -262,7 +262,7 @@ const Register = () => {
           </div>
 
           {/* Stepper */}
-          <div style={{ padding: '0 4px', marginBottom: 28 }}>
+          <div style={{ padding: '0 32px', marginBottom: 28 }}>
             <div style={{ position: 'relative', height: 4, background: '#e5e7eb', borderRadius: 99, marginBottom: 16 }}>
               <div style={{
                 position: 'absolute', left: 0, top: 0, height: '100%',
@@ -303,14 +303,16 @@ const Register = () => {
 
           {/* Error global */}
           {errors.global && (
-            <div style={{
-              background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b',
-              borderRadius: 12, padding: '10px 14px', marginBottom: 16,
-              fontSize: 13, fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
-            }}>⚠️ {errors.global}</div>
+            <div style={{ padding: '0 32px', marginBottom: 16 }}>
+              <div style={{
+                background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b',
+                borderRadius: 12, padding: '10px 14px',
+                fontSize: 13, fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
+              }}>⚠️ {errors.global}</div>
+            </div>
           )}
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} className="auth-form" style={{ paddingBottom: 24 }}>
 
             {/* ── PASO 1: Identidad ── */}
             {step === 1 && (

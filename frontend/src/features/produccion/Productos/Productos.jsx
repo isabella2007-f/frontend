@@ -133,89 +133,29 @@ function CatCell({ cat }) {
   );
 }
 
-function ProductImg({ preview, nombre }) {
-  return preview
-    ? <img src={preview} alt={nombre} style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover", border: "1px solid #c8e6c9", flexShrink: 0 }} />
+function ProductImg({ previews, nombre }) {
+  const thumb = previews && previews.length > 0 ? previews[0] : null;
+  return thumb
+    ? <img src={thumb} alt={nombre} style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover", border: "1px solid #c8e6c9", flexShrink: 0 }} />
     : <div style={{ width: 36, height: 36, borderRadius: 8, flexShrink: 0, background: "#f1f8f1", border: "1px solid #c8e6c9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17 }}>🍌</div>;
 }
 
 /* ══════════════════════════════════════════════════════════
-   LOTES PANEL
+   LOTES PANEL — Solo lectura, manual deshabilitado
 ══════════════════════════════════════════════════════════ */
 function LotesProductoPanel({ idProducto }) {
-  const { getLotesProducto, agregarLoteProducto } = useApp();
-  const lotes   = getLotesProducto ? getLotesProducto(idProducto) : [];
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm]         = useState({ id: "", fechaVenc: "", cantInicial: "", costo: "" });
-  const [errors, setErrors]     = useState({});
-
-  const set = (k, v) => { setForm(p => ({ ...p, [k]: v })); setErrors(p => ({ ...p, [k]: "" })); };
-
-  const validate = () => {
-    const e = {};
-    if (!form.id.trim())                                    e.id          = "Requerido";
-    if (!form.cantInicial || Number(form.cantInicial) <= 0) e.cantInicial = "Cantidad inválida";
-    return e;
-  };
-
-  const handleAdd = () => {
-    const e = validate();
-    if (Object.keys(e).length) { setErrors(e); return; }
-    agregarLoteProducto && agregarLoteProducto(idProducto, {
-      id:               form.id,
-      fechaVencimiento: form.fechaVenc || null,
-      cantidadInicial:  Number(form.cantInicial),
-      cantidadActual:   Number(form.cantInicial),
-      fechaIngreso:     hoyISO(),
-      costo:            form.costo ? Number(form.costo) : null,
-    });
-    setForm({ id: "", fechaVenc: "", cantInicial: "", costo: "" });
-    setShowForm(false);
-  };
+  const { getLotesProducto } = useApp();
+  const lotes = getLotesProducto ? getLotesProducto(idProducto) : [];
 
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <p className="ver-ins-section-label" style={{ margin: 0, textTransform: "none" }}>Lotes en inventario</p>
-        <button className="btn-save" style={{ padding: "6px 14px", fontSize: 12 }}
-          onClick={() => setShowForm(v => !v)}>
-          {showForm ? "Cancelar" : "+ Agregar lote"}
-        </button>
       </div>
 
-      {showForm && (
-        <div className="lote-section" style={{ marginBottom: 14 }}>
-          <div className="lote-section__header"><span>📦</span><p className="lote-section__title">Nuevo lote</p></div>
-          <div className="lote-section__body" style={{ gridTemplateColumns: "1fr 1fr" }}>
-            <div style={{ gridColumn: "1 / -1" }}>
-              <p className="lote-field__label">ID del lote *</p>
-              <input className={`field-input${errors.id ? " field-input--error" : ""}`}
-                value={form.id} onChange={e => set("id", e.target.value)} placeholder="Ej. LP-001" />
-              {errors.id && <p className="field-error">{errors.id}</p>}
-            </div>
-            <div>
-              <p className="lote-field__label">Fecha de vencimiento</p>
-              <input type="date" className="field-input" value={form.fechaVenc}
-                onChange={e => set("fechaVenc", e.target.value)} />
-            </div>
-            <div>
-              <p className="lote-field__label">Cantidad inicial *</p>
-              <input type="number" min="1"
-                className={`field-input${errors.cantInicial ? " field-input--error" : ""}`}
-                value={form.cantInicial} onChange={e => set("cantInicial", e.target.value)} placeholder="0" />
-              {errors.cantInicial && <p className="field-error">{errors.cantInicial}</p>}
-            </div>
-            <div>
-              <p className="lote-field__label">Costo unitario (opcional)</p>
-              <input type="number" min="0" className="field-input"
-                value={form.costo} onChange={e => set("costo", e.target.value)} placeholder="$0" />
-            </div>
-          </div>
-          <div style={{ padding: "0 14px 12px", display: "flex", justifyContent: "flex-end" }}>
-            <button className="btn-save" onClick={handleAdd}>Guardar lote</button>
-          </div>
-        </div>
-      )}
+      <div className="form-info-box" style={{ marginBottom: 14, fontSize: 11 }}>
+        <p>ℹ️ Los lotes se generan automáticamente al completar una <strong>Orden de Producción</strong>.</p>
+      </div>
 
       {lotes.length === 0 ? (
         <div className="empty-state" style={{ padding: "28px 20px" }}>
@@ -260,6 +200,7 @@ function LotesProductoPanel({ idProducto }) {
 function VerProducto({ product, catObj, onClose }) {
   const { getLotesProducto, getSalidasProducto, getLotesVencidosProducto } = useApp();
   const [tab, setTab] = useState("info");
+  const [imgIdx, setImgIdx] = useState(0);
 
   const minimo   = product.stockMinimo ?? 10;
   const estado   = calcEstado(product.stock, minimo);
@@ -272,15 +213,14 @@ function VerProducto({ product, catObj, onClose }) {
     return acc;
   }, {});
 
+  const previews = product.imagenesPreview || (product.imagenPreview ? [product.imagenPreview] : []);
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box" style={{ maxWidth: 560, display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 40px)" }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            {product.imagenPreview
-              ? <img src={product.imagenPreview} alt={product.nombre} style={{ width: 44, height: 44, borderRadius: 12, objectFit: "cover", border: "2px solid #c8e6c9" }} />
-              : <div style={{ width: 44, height: 44, borderRadius: 12, background: "#f1f8f1", border: "2px solid #c8e6c9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>📦</div>
-            }
+            <ProductImg previews={previews} nombre={product.nombre} />
             <div>
               <p className="modal-header__eyebrow">Producto</p>
               <h2 className="modal-header__title">{product.nombre}</h2>
@@ -298,6 +238,25 @@ function VerProducto({ product, catObj, onClose }) {
         <div className="modal-body" style={{ flex: 1, overflowY: "auto" }}>
           {tab === "info" && (
             <>
+              {/* Galería de imágenes */}
+              {previews.length > 0 && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ width: "100%", height: 220, borderRadius: 14, overflow: "hidden", border: "1.5px solid #e8f5e9", background: "#f9fdf9" }}>
+                    <img src={previews[imgIdx]} alt={product.nombre} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                  </div>
+                  {previews.length > 1 && (
+                    <div style={{ display: "flex", gap: 8, marginTop: 10, overflowX: "auto", paddingBottom: 4 }}>
+                      {previews.map((url, i) => (
+                        <div key={i} onClick={() => setImgIdx(i)} 
+                          style={{ width: 50, height: 50, borderRadius: 8, overflow: "hidden", cursor: "pointer", border: `2px solid ${imgIdx === i ? "#2e7d32" : "#e0e0e0"}`, flexShrink: 0 }}>
+                          <img src={url} alt="thumb" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="ver-ins-grid" style={{ marginBottom: 16 }}>
                 <div className="ver-ins-field">
                   <span className="ver-ins-field__label">Nombre</span>
@@ -540,7 +499,7 @@ export default function GestionProductos() {
                   <th>Producto</th>
                   <th>Categoría</th>
                   <th>Precio</th>
-                  <th>Stock</th>        {/* ← misma cabecera, nuevo contenido */}
+                  <th>Stock</th>
                   <th>Activo</th>
                   <th>Acciones</th>
                 </tr>
@@ -550,14 +509,14 @@ export default function GestionProductos() {
                   <tr><td colSpan={7}><div className="empty-state"><div className="empty-state__icon">🍌</div><p className="empty-state__text">Sin resultados</p></div></td></tr>
                 ) : paginated.map((p, idx) => {
                   const cat = getCatProducto(p.idCategoria);
+                  const previews = p.imagenesPreview || (p.imagenPreview ? [p.imagenPreview] : []);
                   return (
                     <tr key={p.id} className="tbl-row">
                       <td><span className="cat-num">{String((safePage - 1) * ITEMS_PER_PAGE + idx + 1).padStart(2, "0")}</span></td>
-                      <td><div className="cat-cell"><ProductImg preview={p.imagenPreview} nombre={p.nombre} /><span className="cat-name">{p.nombre}</span></div></td>
+                      <td><div className="cat-cell"><ProductImg previews={previews} nombre={p.nombre} /><span className="cat-name">{p.nombre}</span></div></td>
                       <td><CatCell cat={cat} /></td>
                       <td><span style={{ fontWeight: 700, color: "#2e7d32", fontSize: 14 }}>${p.precio?.toLocaleString("es-CO")}</span></td>
 
-                      {/* ── StockBar igual que GestionInsumos ── */}
                       <td><StockBar actual={p.stock} minimo={p.stockMinimo ?? 10} /></td>
 
                       <td>

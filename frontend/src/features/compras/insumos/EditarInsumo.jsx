@@ -2,7 +2,7 @@ import { useState } from "react";
 import "./GestionInsumos.css";
 
 // ─── Barra de pasos ───────────────────────────────────────
-const STEPS = ["Identificación", "Stock Mínimo y Lote"];
+const STEPS = ["Identificación", "Stock y Vencimiento"];
 
 function StepsBar({ current }) {
   return (
@@ -32,14 +32,17 @@ function StepsBar({ current }) {
 export default function EditarInsumo({ ins, onClose, onSave, categorias, unidades }) {
   const [form, setForm] = useState({
     ...ins,
-    lote: ins.lote ? { ...ins.lote } : { id: "", fechaVenc: "", cantInicial: "" },
+    vencimientoTipo: ins.vencimientoTipo || "dias",
+    vencimientoValor: ins.vencimientoValor || "30",
   });
   const [errors, setSErrors] = useState({});
   const [saving, setSaving]  = useState(false);
   const [step, setStep]      = useState(1);
 
-  const set     = (k, v) => { setForm(p => ({ ...p, [k]: v }));             setSErrors(p => ({ ...p, [k]: "" })); };
-  const setLote = (k, v) => setForm(p => ({ ...p, lote: { ...p.lote, [k]: v } }));
+  const set = (k, v) => { 
+    setForm(p => ({ ...p, [k]: v })); 
+    setSErrors(p => ({ ...p, [k]: "" })); 
+  };
 
   const validateStep = (s) => {
     const e = {};
@@ -50,6 +53,9 @@ export default function EditarInsumo({ ins, onClose, onSave, categorias, unidade
     }
     if (s === 2) {
       if (form.stockMinimo === "") e.stockMinimo = "Campo requerido";
+      if (form.vencimientoTipo === "dias" && (!form.vencimientoValor || Number(form.vencimientoValor) <= 0)) {
+        e.vencimientoValor = "Ingresa un número de días válido";
+      }
     }
     return e;
   };
@@ -72,7 +78,7 @@ export default function EditarInsumo({ ins, onClose, onSave, categorias, unidade
       idCategoria: Number(form.idCategoria),
       idUnidad:    Number(form.idUnidad),
       stockMinimo: Number(form.stockMinimo),
-      lote: form.lote.id ? { ...form.lote, cantInicial: Number(form.lote.cantInicial) } : null,
+      vencimientoValor: form.vencimientoTipo === "dias" ? Number(form.vencimientoValor) : null,
     });
     setSaving(false);
   };
@@ -140,58 +146,60 @@ export default function EditarInsumo({ ins, onClose, onSave, categorias, unidade
             </>
           )}
 
-          {/* ── Paso 2: Stock y Lote ── */}
+          {/* ── Paso 2: Stock y Vencimiento ── */}
           {step === 2 && (
             <>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Stock mínimo <span>*</span></label>
-                  <input
-                    type="number" min="0"
-                    className={`field-input${errors.stockMinimo ? " field-input--error" : ""}`}
-                    value={form.stockMinimo} onChange={e => set("stockMinimo", e.target.value)}
-                    onFocus={e => e.target.style.borderColor = "#4caf50"}
-                    onBlur={e => e.target.style.borderColor = errors.stockMinimo ? "#e53935" : "#e0e0e0"}
-                  />
-                  {errors.stockMinimo && <p className="field-error">{errors.stockMinimo}</p>}
-                </div>
+              <div className="form-group">
+                <label className="form-label">Stock mínimo <span>*</span></label>
+                <input
+                  type="number" min="0"
+                  className={`field-input${errors.stockMinimo ? " field-input--error" : ""}`}
+                  value={form.stockMinimo} onChange={e => set("stockMinimo", e.target.value)}
+                  onFocus={e => e.target.style.borderColor = "#4caf50"}
+                  onBlur={e => e.target.style.borderColor = errors.stockMinimo ? "#e53935" : "#e0e0e0"}
+                />
+                {errors.stockMinimo && <p className="field-error">{errors.stockMinimo}</p>}
               </div>
 
-              {/* Lote */}
-              <div className="form-group" style={{ marginTop: 16 }}>
-                <label className="form-label">
-                  Lote de compra{" "}
-                  <span style={{ color: "#9e9e9e", fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
-                </label>
-                <div className="lote-section">
-                  <div className="lote-section__header">
-                    <span>📦</span>
-                    <p className="lote-section__title">Información del lote</p>
-                  </div>
-                  <div className="lote-section__body">
-                    <div style={{ gridColumn: "1 / -1" }}>
-                      <p className="lote-field__label">ID del lote</p>
-                      <input className="field-input" value={form.lote.id}
-                        onChange={e => setLote("id", e.target.value)} placeholder="Ej. L-001"
-                        onFocus={e => e.target.style.borderColor = "#4caf50"}
-                        onBlur={e => e.target.style.borderColor = "#e0e0e0"}
-                      />
-                    </div>
-                    <div>
-                      <p className="lote-field__label">Fecha de vencimiento</p>
-                      <input type="date" className="field-input" value={form.lote.fechaVenc || ""}
-                        onChange={e => setLote("fechaVenc", e.target.value)} />
-                    </div>
-                    <div>
-                      <p className="lote-field__label">Cantidad inicial</p>
-                      <input type="number" min="0" className="field-input" value={form.lote.cantInicial}
-                        onChange={e => setLote("cantInicial", e.target.value)} placeholder="0"
-                        onFocus={e => e.target.style.borderColor = "#4caf50"}
-                        onBlur={e => e.target.style.borderColor = "#e0e0e0"}
-                      />
-                    </div>
-                  </div>
+              <div className="form-group" style={{ marginTop: 20 }}>
+                <label className="form-label">Preferencia de Vencimiento</label>
+                <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                  <button
+                    type="button"
+                    className={`venc-pref-btn ${form.vencimientoTipo === "dias" ? "active" : ""}`}
+                    onClick={() => set("vencimientoTipo", "dias")}
+                  >
+                    📅 Por Días
+                  </button>
+                  <button
+                    type="button"
+                    className={`venc-pref-btn ${form.vencimientoTipo === "fecha" ? "active" : ""}`}
+                    onClick={() => set("vencimientoTipo", "fecha")}
+                  >
+                    🗓️ Por Fecha
+                  </button>
                 </div>
+
+                {form.vencimientoTipo === "dias" && (
+                  <div className="form-group">
+                    <label className="form-label">Días de vida útil (estimados)</label>
+                    <div style={{ position: "relative" }}>
+                      <input
+                        type="number" min="1"
+                        className={`field-input ${errors.vencimientoValor ? "field-input--error" : ""}`}
+                        value={form.vencimientoValor}
+                        onChange={e => set("vencimientoValor", e.target.value)}
+                        placeholder="Ej: 30"
+                      />
+                      <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: "#9e9e9e", pointerEvents: "none" }}>días</span>
+                    </div>
+                    {errors.vencimientoValor && <p className="field-error">{errors.vencimientoValor}</p>}
+                  </div>
+                )}
+                
+                <p style={{ fontSize: 11, color: "#9e9e9e", margin: "8px 0 0", fontStyle: "italic" }}>
+                  * Esta preferencia se usará como valor por defecto al registrar compras de este insumo.
+                </p>
               </div>
             </>
           )}

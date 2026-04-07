@@ -1,6 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import "./proveedores.css";
 
+const TIPO_DOCS = [
+  { val: "CC",  label: "Cédula de Ciudadanía" },
+  { val: "CE",  label: "Cédula de Extranjería" },
+  { val: "NIT", label: "NIT" },
+  { val: "PP",  label: "Pasaporte" },
+];
+
 const fmtTel = raw => {
   const d = raw.replace(/\D/g, "").slice(0, 10);
   if (d.length <= 3) return d;
@@ -9,7 +16,16 @@ const fmtTel = raw => {
 };
 
 export default function CrearProveedor({ onClose, onSave }) {
-  const [form, setForm]     = useState({ tipo: "natural", responsable: "", documento: "", direccion: "", celular: "", correo: "" });
+  const [form, setForm] = useState({ 
+    tipo: "natural", 
+    tipoDoc: "CC",
+    responsable: "", 
+    documento: "", 
+    direccion: "", 
+    celular: "", 
+    correo: "",
+    estado: true 
+  });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const inputRefs = useRef({});
@@ -25,10 +41,13 @@ export default function CrearProveedor({ onClose, onSave }) {
     const key = activeField.current;
     if (!key) return;
     const input = inputRefs.current[key];
+    // Evitar setSelectionRange en email/number para prevenir crash
     if (input && document.activeElement !== input) {
       input.focus();
-      const len = input.value.length;
-      input.setSelectionRange(len, len);
+      if (input.type === "text" || input.type === "search" || input.type === "tel" || input.type === "url") {
+        const len = input.value.length;
+        input.setSelectionRange(len, len);
+      }
     }
   }, [form]);
 
@@ -47,7 +66,7 @@ export default function CrearProveedor({ onClose, onSave }) {
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaving(true);
     await new Promise(r => setTimeout(r, 500));
-    onSave({ ...form, id: Date.now() });
+    onSave({ ...form, id: `PROV${Date.now().toString().slice(-4)}` });
     setSaving(false);
   };
 
@@ -90,12 +109,13 @@ export default function CrearProveedor({ onClose, onSave }) {
           <button className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
 
-        {/* Body — sin overflow, 4 campos caben perfectamente */}
-        <div className="modal-body" style={{ overflow: "visible" }}>
-          <p className="section-label" style={{ marginTop: 0,  textTransform: "none"}}>Datos del proveedor</p>
+        {/* Body */}
+        <div className="modal-body" style={{ overflowY: "auto", maxHeight: "70vh" }}>
+          <p className="section-label" style={{ marginTop: 0, textTransform: "none" }}>Datos básicos</p>
+          
           <div className="form-grid-2">
-            <div className="form-group" style={{ gridColumn: "1 / -1" }}>
-              <label className="form-label">Tipo de proveedor</label>
+            <div className="form-group">
+              <label className="form-label">Tipo de persona</label>
               <select
                 className="field-input"
                 value={form.tipo}
@@ -106,16 +126,44 @@ export default function CrearProveedor({ onClose, onSave }) {
               </select>
             </div>
 
+            <div className="form-group">
+              <label className="form-label">Estado</label>
+              <select
+                className="field-input"
+                value={form.estado ? "true" : "false"}
+                onChange={e => set("estado", e.target.value === "true")}
+              >
+                <option value="true">Activo</option>
+                <option value="false">Inactivo</option>
+              </select>
+            </div>
+
             <Field k="responsable" label={form.tipo === "juridica" ? "Razón social" : "Responsable"} ph={form.tipo === "juridica" ? "Nombre empresa" : "Nombre del contacto"} full />
-            <Field k="documento" label={form.tipo === "juridica" ? "NIT" : "Documento"} ph={form.tipo === "juridica" ? "900..." : "CC (sin puntos)"} full />
-            <Field k="direccion"   label="Dirección"   ph="Ej. Cra 10 # 5-30"  full />
-            <Field k="celular"     label="Celular"     ph="300 000 0000" />
-            <Field k="correo"      label="Correo"      type="email" ph="proveedor@correo.com" />
+            
+            <div className="form-group">
+              <label className="form-label">Tipo de documento</label>
+              <select
+                className="field-input"
+                value={form.tipoDoc}
+                onChange={e => set("tipoDoc", e.target.value)}
+              >
+                {TIPO_DOCS.map(td => (
+                  <option key={td.val} value={td.val}>{td.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <Field k="documento" label="Documento / NIT" ph="Sin puntos ni guiones" />
+            
+            <Field k="direccion" label="Dirección" ph="Ej. Cra 10 # 5-30" full />
+            
+            <Field k="celular" label="Celular" ph="300 000 0000" />
+            <Field k="correo" label="Correo" type="email" ph="proveedor@correo.com" />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="modal-footer">
+        <div className="modal-footer" style={{ paddingBottom: "24px" }}>
           <button className="btn-ghost" onClick={onClose}>Cancelar</button>
           <button className="btn-save" onClick={handleSave} disabled={saving}>
             {saving && <span className="spinner">◌</span>}

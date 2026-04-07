@@ -12,6 +12,7 @@ const COP = (n) =>
 const METODOS_LABEL = {
   efectivo:      { label: "Efectivo",      icon: "💵" },
   transferencia: { label: "Transferencia", icon: "🏦" },
+  crédito:       { label: "Crédito",       icon: "💳" },
 };
 
 /* ── Toast ────────────────────────────────────────────────── */
@@ -29,7 +30,7 @@ function Toast({ toast }) {
 export default function GestionCompras() {
   const {
     compras, proveedores,
-    crearCompra, editarCompra, eliminarCompra, anularCompra,
+    crearCompra, editarCompra, eliminarCompra, anularCompra, completarCompra,
     getProveedor,
   } = useApp();
 
@@ -94,13 +95,18 @@ export default function GestionCompras() {
   };
 
   const handleAnular = (id) => {
-    const result = anularCompra ? anularCompra(id) : eliminarCompra(id);
+    const result = anularCompra(id);
     if (result.ok) {
       showToast("Compra anulada", "error");
     } else {
       showToast(result.razon, "error");
     }
     setModal(null);
+  };
+
+  const handleCompletarRapido = (id) => {
+    completarCompra(id);
+    showToast("Compra marcada como completada — stock actualizado");
   };
 
   return (
@@ -137,44 +143,58 @@ export default function GestionCompras() {
             </button>
 
             {showFilter && (
-              <div className="filter-dropdown" style={{ minWidth: 190 }}>
+              <div className="filter-dropdown filter-dropdown--wide">
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <div>
+                    <p className="filter-section-title">Estado</p>
+                    <div className="filter-grid">
+                      {[
+                        { val: "todos",      label: "Todos",       dot: "#bdbdbd" },
+                        { val: "pendiente",  label: "Pendientes",  dot: "#f9a825" },
+                        { val: "completada", label: "Completadas", dot: "#43a047" },
+                        { val: "anulada",    label: "Anuladas",    dot: "#e53935" },
+                      ].map(f => (
+                        <button
+                          key={f.val}
+                          className={"filter-option" + (filterEstado === f.val ? " active" : "")}
+                          onClick={() => { setFilterEstado(f.val); setPage(1); }}
+                        >
+                          <span className="filter-dot" style={{ background: f.dot }} />{f.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-                {/* Por estado */}
-                <p className="filter-section-title">Estado</p>
-                {[
-                  { val: "todos",      label: "Todos",       dot: "#bdbdbd" },
-                  { val: "pendiente",  label: "Pendientes",  dot: "#f9a825" },
-                  { val: "completada", label: "Completadas", dot: "#43a047" },
-                  { val: "anulada",    label: "Anuladas",    dot: "#e53935" },
-                ].map(f => (
-                  <button
-                    key={f.val}
-                    className={"filter-option" + (filterEstado === f.val ? " active" : "")}
-                    onClick={() => { setFilterEstado(f.val); setPage(1); }}
-                  >
-                    <span className="filter-dot" style={{ background: f.dot }} />{f.label}
-                  </button>
-                ))}
-
-                <div style={{ height: 1, background: "#f0f0f0", margin: "4px 0" }} />
-
-                {/* Por proveedor */}
-                <p className="filter-section-title">Proveedor</p>
-                <button
-                  className={"filter-option" + (filterProv === "todos" ? " active" : "")}
-                  onClick={() => { setFilterProv("todos"); setPage(1); setShowFilter(false); }}
-                >
-                  <span className="filter-dot" style={{ background: "#bdbdbd" }} />Todos
-                </button>
-                {proveedores.map(p => (
-                  <button
-                    key={p.id}
-                    className={"filter-option" + (filterProv === p.id ? " active" : "")}
-                    onClick={() => { setFilterProv(p.id); setPage(1); setShowFilter(false); }}
-                  >
-                    <span className="filter-dot" style={{ background: "#2e7d32" }} />{p.responsable}
-                  </button>
-                ))}
+                  <div style={{ borderLeft: "1px solid #f0f0f0", paddingLeft: 12 }}>
+                    <p className="filter-section-title">Proveedor</p>
+                    <div className="filter-grid">
+                      <button
+                        className={"filter-option" + (filterProv === "todos" ? " active" : "")}
+                        onClick={() => { setFilterProv("todos"); setPage(1); }}
+                      >
+                        <span className="filter-dot" style={{ background: "#bdbdbd" }} />Todos
+                      </button>
+                      {proveedores.map(p => (
+                        <button
+                          key={p.id}
+                          className={"filter-option" + (filterProv === p.id ? " active" : "")}
+                          onClick={() => { setFilterProv(p.id); setPage(1); }}
+                        >
+                          <span className="filter-dot" style={{ background: "#2e7d32" }} />{p.responsable.split(" ")[0]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                
+                {hasFilter && (
+                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #f0f0f0", textAlign: "center" }}>
+                    <button 
+                      onClick={() => { setFilterEstado("todos"); setFilterProv("todos"); setShowFilter(false); }}
+                      style={{ fontSize: 11, fontWeight: 700, color: "#c62828", background: "none", border: "none", cursor: "pointer" }}
+                    >Limpiar filtros</button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -277,16 +297,28 @@ export default function GestionCompras() {
                             title="Ver detalle"
                             onClick={() => setModal({ mode: "view", compra: c })}
                           >👁</button>
+                          
+                          {c.estado === "pendiente" && (
+                            <button
+                              className="act-btn act-btn--success"
+                              title="Marcar como recibida"
+                              onClick={() => handleCompletarRapido(c.id)}
+                            >✅</button>
+                          )}
+
                           <button
                             className="act-btn act-btn--edit"
                             title="Editar"
                             onClick={() => setModal({ mode: "edit", compra: c })}
                           >✎</button>
-                          <button
-                            className="act-btn act-btn--delete"
-                            title="Anular"
-                            onClick={() => setModal({ mode: "anular", compra: c })}
-                          >🚫</button>
+                          
+                          {c.estado !== "anulada" && (
+                            <button
+                              className="act-btn act-btn--delete"
+                              title="Anular"
+                              onClick={() => setModal({ mode: "anular", compra: c })}
+                            >🚫</button>
+                          )}
                         </div>
                       </td>
 

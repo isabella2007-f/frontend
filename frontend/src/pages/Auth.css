@@ -21,7 +21,7 @@
   align-items: center;
   justify-content: center;
   background: linear-gradient(160deg, #1b5e20 0%, #2e7d32 45%, #81c784 100%);
-  padding: 32px 20px;
+  padding: 40px 24px;
   position: relative;
   overflow: hidden;
 }
@@ -51,6 +51,7 @@
   border-radius: 24px;
   max-width: 460px;
   width: 100%;
+  margin: 0 auto;
   overflow: hidden;
   box-shadow:
     0 2px 4px rgba(0, 0, 0, 0.04),
@@ -62,7 +63,7 @@
 }
 
 .auth-card--wide {
-  max-width: 520px;
+  max-width: 580px;
 }
 
 /* ── Barra superior animada ── */

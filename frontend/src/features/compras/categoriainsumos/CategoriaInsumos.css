@@ -10,11 +10,10 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; color: #1a1a1a; }
 
 /* ─── Page ───────────────────────────────────────────────── */
 .page-wrapper {
-  min-height: 100vh;
   background: linear-gradient(180deg, #e8f5e9 0%, #f5fbf5 18%, #ffffff 42%);
   padding-bottom: 60px;
 }
-.page-header { text-align: center; padding: 40px 20px 32px; }
+.page-header { text-align: center; padding: 24px 20px 20px; }
 .page-header__title {
   margin: 0 0 10px; font-family: 'Nunito', sans-serif;
   font-size: clamp(26px, 4.5vw, 38px); font-weight: 800; font-style: italic;

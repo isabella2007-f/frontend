@@ -1,6 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import "./proveedores.css";
 
+const TIPO_DOCS = [
+  { val: "CC",  label: "Cédula de Ciudadanía" },
+  { val: "CE",  label: "Cédula de Extranjería" },
+  { val: "NIT", label: "NIT" },
+  { val: "PP",  label: "Pasaporte" },
+];
+
 const fmtTel = raw => {
   const d = raw.replace(/\D/g, "").slice(0, 10);
   if (d.length <= 3) return d;
@@ -11,22 +18,19 @@ const fmtTel = raw => {
 const fmtCOP = v =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(v);
 
-/*
-  Props:
-  - proveedor : objeto del proveedor
-  - mode      : "view" | "edit"
-  - compras   : array de Compra
-  - onClose   : fn
-  - onSave    : fn(proveedorActualizado)
-*/
-
 const NAV_ITEMS = [
   { id: "datos",    label: "Datos",   icon: "🏭" },
   { id: "insumos",  label: "Insumos", icon: "📦" },
 ];
 
 export default function EditarProveedor({ proveedor, mode = "edit", compras = [], onClose, onSave }) {
-  const [form, setForm]           = useState({ tipo: "natural", documento: "", ...proveedor });
+  const [form, setForm] = useState({ 
+    tipo: "natural", 
+    tipoDoc: "CC",
+    documento: "", 
+    estado: true,
+    ...proveedor 
+  });
   const [errors, setErrors]       = useState({});
   const [saving, setSaving]       = useState(false);
   const [activeSection, setActiveSection] = useState("datos");
@@ -48,21 +52,24 @@ export default function EditarProveedor({ proveedor, mode = "edit", compras = []
     const input = inputRefs.current[key];
     if (input && document.activeElement !== input) {
       input.focus();
-      const len = input.value.length;
-      input.setSelectionRange(len, len);
+      // Evitar crash en email/number
+      if (input.type === "text" || input.type === "search" || input.type === "tel" || input.type === "url") {
+        const len = input.value.length;
+        input.setSelectionRange(len, len);
+      }
     }
   }, [form]);
 
   /* ── Últimos insumos comprados ── */
   const ultimosInsumos = (() => {
     const misCompras = compras
-      .filter(c => String(c.ID_Proveedor) === String(proveedor.id))
-      .sort((a, b) => new Date(b.Fecha_Compra) - new Date(a.Fecha_Compra));
+      .filter(c => String(c.idProveedor) === String(proveedor.id))
+      .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
     const items = [];
     for (const compra of misCompras) {
       for (const det of (compra.detalles || [])) {
-        items.push({ ...det, Fecha_Compra: compra.Fecha_Compra, ID_Compra: compra.ID_Compra });
-        if (items.length >= 5) return items;
+        items.push({ ...det, fecha: compra.fecha, id: compra.id });
+        if (items.length >= 8) return items;
       }
     }
     return items;
@@ -88,8 +95,8 @@ export default function EditarProveedor({ proveedor, mode = "edit", compras = []
   };
 
   /* Campo helper */
-  const Field = ({ k, label, type = "text", ph = "" }) => (
-    <div className="form-group">
+  const Field = ({ k, label, type = "text", ph = "", full = false }) => (
+    <div className="form-group" style={full ? { gridColumn: "1 / -1" } : {}}>
       <label className="form-label">{label}</label>
       {isView
         ? <div className="field-input field-input--disabled">{form[k] || "—"}</div>
@@ -122,7 +129,7 @@ export default function EditarProveedor({ proveedor, mode = "edit", compras = []
       <div
         className="modal-box modal-box--prov"
         onClick={e => e.stopPropagation()}
-        style={{ maxWidth: 580, display: "flex", flexDirection: "column", overflow: "hidden" }}
+        style={{ maxWidth: 640, display: "flex", flexDirection: "column", overflow: "hidden" }}
       >
         {/* Header */}
         <div className="modal-header">
@@ -136,7 +143,7 @@ export default function EditarProveedor({ proveedor, mode = "edit", compras = []
         </div>
 
         {/* Side panel layout */}
-        <div style={{ display: "flex", flex: 1 }}>
+        <div style={{ display: "flex", flex: 1, minHeight: 400 }}>
 
           {/* Nav lateral */}
           <nav style={{
@@ -170,7 +177,6 @@ export default function EditarProveedor({ proveedor, mode = "edit", compras = []
               >
                 <span style={{ fontSize: 15 }}>{item.icon}</span>
                 {item.label}
-                {/* Badge de insumos */}
                 {item.id === "insumos" && ultimosInsumos.length > 0 && (
                   <span style={{
                     marginLeft: "auto", fontSize: 10, fontWeight: 800,
@@ -184,53 +190,75 @@ export default function EditarProveedor({ proveedor, mode = "edit", compras = []
             ))}
           </nav>
 
-          {/* Contenido — sin overflow */}
-          <div style={{ flex: 1, padding: "20px 24px", display: "flex", flexDirection: "column" }}>
+          {/* Contenido */}
+          <div style={{ flex: 1, padding: "20px 24px", display: "flex", flexDirection: "column", overflowY: "auto", maxHeight: "65vh" }}>
 
             {/* ── Sección: Datos ── */}
             {activeSection === "datos" && (
               <>
-                <p className="section-label" style={{ marginTop: 0, textTransform: "none" }}>Datos del proveedor</p>
-
-                <div className="form-group" style={{ gridColumn: "1 / -1" }}>
-                  <label className="form-label">Tipo de proveedor</label>
-                  {isView ? (
-                    <div className="field-input field-input--disabled">{form.tipo === "juridica" ? "Persona Jurídica" : "Persona Natural"}</div>
-                  ) : (
-                    <select
-                      className={"field-input" + (errors.tipo ? " field-input--error" : "")}
-                      value={form.tipo}
-                      onChange={e => set("tipo", e.target.value)}
-                    >
-                      <option value="natural">Persona Natural</option>
-                      <option value="juridica">Persona Jurídica</option>
-                    </select>
-                  )}
-                  {errors.tipo && <p className="field-error">{errors.tipo}</p>}
-                </div>
-
-                {/* Responsable y dirección: full width */}
-                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                  <Field k="responsable" label={form.tipo === "juridica" ? "Razón social" : "Responsable"} ph={form.tipo === "juridica" ? "Nombre empresa" : "Nombre del contacto"} />
-                  <Field k="direccion" label="Dirección" ph="Ej. Cra 10 # 5-30" />
-                </div>
-
-                {/* Documento + celular + correo */}
-                <div className="form-grid-2" style={{ marginTop: 0 }}>
-                  <Field k="documento" label={form.tipo === "juridica" ? "NIT" : "Documento"} ph={form.tipo === "juridica" ? "900..." : "CC (sin puntos)"} />
-                  <Field k="celular" label={<>Celular {!isView && <span className="required">*</span>}</>} ph="300 000 0000" />
-                </div>
-                <div className="form-grid-2" style={{ marginTop: 0 }}>
-                  <Field k="correo" label={<>Correo {!isView && <span className="required">*</span>}</>} type="email" ph="proveedor@correo.com" />
-                </div>
-
-                {/* Ciudad (solo lectura en ambos modos) */}
-                {form.ciudad && (
+                <p className="section-label" style={{ marginTop: 0, textTransform: "none" }}>Datos básicos</p>
+                
+                <div className="form-grid-2">
                   <div className="form-group">
-                    <label className="form-label">Ciudad</label>
-                    <div className="field-input field-input--disabled">{form.ciudad}</div>
+                    <label className="form-label">Tipo de persona</label>
+                    {isView ? (
+                      <div className="field-input field-input--disabled">{form.tipo === "juridica" ? "Persona Jurídica" : "Persona Natural"}</div>
+                    ) : (
+                      <select
+                        className="field-input"
+                        value={form.tipo}
+                        onChange={e => set("tipo", e.target.value)}
+                      >
+                        <option value="natural">Persona Natural</option>
+                        <option value="juridica">Persona Jurídica</option>
+                      </select>
+                    )}
                   </div>
-                )}
+
+                  <div className="form-group">
+                    <label className="form-label">Estado</label>
+                    {isView ? (
+                      <div className={`field-input field-input--disabled ${form.estado ? "text-success" : "text-danger"}`}>
+                        {form.estado ? "Activo" : "Inactivo"}
+                      </div>
+                    ) : (
+                      <select
+                        className="field-input"
+                        value={form.estado ? "true" : "false"}
+                        onChange={e => set("estado", e.target.value === "true")}
+                      >
+                        <option value="true">Activo</option>
+                        <option value="false">Inactivo</option>
+                      </select>
+                    )}
+                  </div>
+
+                  <Field k="responsable" label={form.tipo === "juridica" ? "Razón social" : "Responsable"} ph={form.tipo === "juridica" ? "Nombre empresa" : "Nombre del contacto"} full />
+                  
+                  <div className="form-group">
+                    <label className="form-label">Tipo de documento</label>
+                    {isView ? (
+                      <div className="field-input field-input--disabled">{TIPO_DOCS.find(td => td.val === form.tipoDoc)?.label || form.tipoDoc}</div>
+                    ) : (
+                      <select
+                        className="field-input"
+                        value={form.tipoDoc}
+                        onChange={e => set("tipoDoc", e.target.value)}
+                      >
+                        {TIPO_DOCS.map(td => (
+                          <option key={td.val} value={td.val}>{td.label}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  <Field k="documento" label="Documento / NIT" ph="Sin puntos ni guiones" />
+                  
+                  <Field k="direccion" label="Dirección" ph="Ej. Cra 10 # 5-30" full />
+                  
+                  <Field k="celular" label="Celular" ph="300 000 0000" />
+                  <Field k="correo" label="Correo" type="email" ph="proveedor@correo.com" />
+                </div>
               </>
             )}
 
@@ -248,13 +276,13 @@ export default function EditarProveedor({ proveedor, mode = "edit", compras = []
                       <div className="insumo-left">
                         <span className="insumo-icon">📦</span>
                         <div>
-                          <div className="insumo-name">{det.nombreInsumo || `Insumo #${det.ID_Insumo}`}</div>
-                          {det.Notas && <div className="insumo-notes">{det.Notas}</div>}
+                          <div className="insumo-name">{det.nombreInsumo || `Insumo #${det.idInsumo}`}</div>
+                          {det.notas && <div className="insumo-notes">{det.notas}</div>}
                         </div>
                       </div>
                       <div className="insumo-right">
-                        <span className="insumo-price">{fmtCOP(det.Precio_Und)} × {det.Cantidad}</span>
-                        <span className="compra-badge">📅 {det.Fecha_Compra}</span>
+                        <span className="insumo-price">{fmtCOP(det.precioUnd)} × {det.cantidad}</span>
+                        <span className="compra-badge">📅 {det.fecha}</span>
                       </div>
                     </div>
                   ))}
@@ -265,7 +293,7 @@ export default function EditarProveedor({ proveedor, mode = "edit", compras = []
         </div>
 
         {/* Footer */}
-        <div className="modal-footer">
+        <div className="modal-footer" style={{ paddingBottom: "24px" }}>
           <button className="btn-ghost" onClick={onClose}>{isView ? "Cerrar" : "Cancelar"}</button>
           {!isView && (
             <button className="btn-save" onClick={handleSave} disabled={saving}>

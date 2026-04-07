@@ -40,13 +40,21 @@ function StockBar({ actual, minimo }) {
 
 /* ─── VerInsumo — tabs internas, sin scroll externo ─────── */
 export default function VerInsumo({ ins, onClose }) {
-  const { getCatInsumo, getUnidad, getStockRealInsumo, getLotesVencidos, getSalidasInsumo } = useApp();
+  const { getCatInsumo, getUnidad, getStockRealInsumo, getLotesVencidos, getSalidasInsumo, getLotesDeInsumo } = useApp();
   const [tab, setTab] = useState("info");
 
   const cat       = getCatInsumo(ins.idCategoria);
   const unidad    = getUnidad(ins.idUnidad);
   const est       = calcEstado(ins.stockActual, ins.stockMinimo);
   const stockReal = getStockRealInsumo(ins.id);
+
+  const getProximoVencimiento = (idInsumo) => {
+    const lotesValidos = getLotesDeInsumo(idInsumo).filter(l => l.cantidadActual > 0);
+    if (lotesValidos.length === 0) return "—";
+    return lotesValidos[0].fechaVencimiento;
+  };
+
+  const proxVenc = getProximoVencimiento(ins.id);
 
   const estConfig = {
     disponible: { label: "Disponible", color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7", icon: "✅" },
@@ -132,6 +140,14 @@ export default function VerInsumo({ ins, onClose }) {
                       {ins.estado ? "Activo" : "Inactivo"}
                     </span>
                   </div>
+                </div>
+                <div className="ver-ins-field">
+                  <span className="ver-ins-field__label">Fecha de creación</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "#555", marginTop: 4 }}>{ins.fechaCreacion || "—"}</span>
+                </div>
+                <div className="ver-ins-field">
+                  <span className="ver-ins-field__label">Próximo vencimiento</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "#555", marginTop: 4 }}>{proxVenc || "—"}</span>
                 </div>
               </div>
 

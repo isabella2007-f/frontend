@@ -152,29 +152,53 @@ function ChartCard({ title, period, onPeriod, children, defaultOpen = true, clas
 
 /* ── Main Dashboard ─────────────────────────────────────── */
 export default function Dashboard() {
+  const { productos, insumos } = useApp();
   const [pVentas,  setPVentas]  = useState("hoy");
-  const [pPedidos, setPPedidos] = useState("hoy");
-  const [pTiempo,  setPTiempo]  = useState("hoy");
-  const [pKpi,     setPKpi]     = useState("hoy");
-  const [animated, setAnimated] = useState(false);
+  // ... resto de estados existentes ...
 
-  useEffect(() => { setTimeout(() => setAnimated(true), 100); }, []);
-
-  const ventasData   = pVentas  === "hoy" ? VENTAS_HOY  : pVentas  === "semana" ? VENTAS_SEMANA  : VENTAS_MES;
-  const pedidosData  = pPedidos === "hoy" ? PEDIDOS_HOY : PEDIDOS_SEMANA;
-  const tiempoData   = pTiempo  === "hoy" ? TIEMPO_HOY  : TIEMPO_SEMANA;
-  const kpi          = KPI[pKpi];
-  const totalPedidos = pedidosData.reduce((s, p) => s + p.value, 0);
+  // Cálculos de inventario crítico
+  const prodsCriticos = productos.filter(p => p.stock <= (p.stockMinimo || 10));
+  const insCriticos   = insumos.filter(i => i.stockActual <= (i.stockMinimo || 5));
+  const totalAgotados = [...productos, ...insumos].filter(x => (x.stock ?? x.stockActual) === 0).length;
 
   return (
     <div className={"dash-wrapper" + (animated ? " dash-wrapper--in" : "")}>
-
-      <div className="dash-header">
-        <h1 className="dash-title">DashBoard</h1>
-        <div className="dash-title-line" />
-      </div>
-
+      {/* ... header ... */}
       <div className="dash-inner">
+        
+        {/* Nueva Fila: Inventario Crítico */}
+        <div className="inventory-alerts-row" style={{ marginBottom: 20 }}>
+          <div className="alert-kpi-card" style={{ borderLeft: "4px solid #ef5350" }}>
+            <span className="alert-kpi-card__icon">🚨</span>
+            <div className="alert-kpi-card__body">
+              <span className="alert-kpi-card__label">Items Agotados</span>
+              <span className="alert-kpi-card__val">{totalAgotados}</span>
+            </div>
+          </div>
+          <div className="alert-kpi-card" style={{ borderLeft: "4px solid #ffa726" }}>
+            <span className="alert-kpi-card__icon">⚠️</span>
+            <div className="alert-kpi-card__body">
+              <span className="alert-kpi-card__label">Stock Bajo</span>
+              <span className="alert-kpi-card__val">{prodsCriticos.length + insCriticos.length - totalAgotados}</span>
+            </div>
+          </div>
+          <div className="critical-list-box">
+            <p className="critical-list-title">Atención Inmediata</p>
+            <div className="critical-list-items">
+              {[...prodsCriticos, ...insCriticos].slice(0, 3).map((item, idx) => (
+                <div key={idx} className="critical-item">
+                  <span>{item.nombre}</span>
+                  <strong className={(item.stock ?? item.stockActual) === 0 ? "agotado" : "bajo"}>
+                    {(item.stock ?? item.stockActual)} uds
+                  </strong>
+                </div>
+              ))}
+              {totalAgotados + prodsCriticos.length + insCriticos.length === 0 && <p className="all-ok">✅ Todo el stock al día</p>}
+            </div>
+          </div>
+        </div>
+
+        {/* ... Resto de los charts ... */}
 
         {/* KPI strip — también desplegable */}
         <div className={`kpi-strip${true ? " kpi-strip--open" : ""}`} style={{ marginBottom: 20 }}>

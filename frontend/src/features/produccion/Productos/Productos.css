@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,600;0,700;0,800;1,700;1,800&family=DM+Sans:wght@400;500;600;700&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; }
-body { margin: 0; font-family: 'DM Sans', sans-serif; color: #1a1a1a; }
+/* body { margin: 0; font-family: 'DM Sans', sans-serif; color: #1a1a1a; } */
 
 /* ─── Animations ─────────────────────────────────────────── */
 @keyframes fadeIn       { from{opacity:0}                          to{opacity:1} }
@@ -11,13 +11,13 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; color: #1a1a1a; }
 
 /* ─── Page wrapper ───────────────────────────────────────── */
 .page-wrapper {
-  min-height: 100vh;
+  /* min-height: 100vh; */
   background: linear-gradient(180deg, #e8f5e9 0%, #f5fbf5 18%, #ffffff 42%);
   padding-bottom: 60px;
 }
 
 /* ─── Page header ────────────────────────────────────────── */
-.page-header { text-align: center; padding: 40px 20px 32px; }
+.page-header { text-align: center; /* padding: 40px 20px 32px; */ }
 .page-header__title {
   margin: 0 0 10px;
   font-family: 'Nunito', sans-serif;
