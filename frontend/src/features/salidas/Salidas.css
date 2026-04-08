@@ -157,6 +157,7 @@
   overflow-y: auto;
   display: flex; flex-direction: column; gap: 5px;
   min-height: 0;
+  padding: 2px 4px 4px 4px; /* evita corte de hover/shadow en los items */
 }
 .sl-lista::-webkit-scrollbar       { width: 3px; }
 .sl-lista::-webkit-scrollbar-thumb { background: #c8e6c9; border-radius: 3px; }
@@ -251,6 +252,7 @@
 .sl-stats-row {
   flex-shrink: 0;
   display: flex; flex-wrap: wrap; gap: 10px;
+  padding: 4px 2px; /* evita corte del transform hover en las cards */
 }
 .sl-stat-card {
   display: flex; flex-direction: column; align-items: center; gap: 3px;
@@ -307,6 +309,7 @@
 .sl-table-wrap {
   flex: 1;
   overflow-y: auto;
+  overflow-x: auto; /* separado para no crear stacking context que corte hovers */
   min-height: 0;
   border-radius: 12px;
   border: 1.5px solid #c8e6c9;
@@ -355,6 +358,7 @@
   flex: 1;
   overflow-y: auto;
   min-height: 0;
+  padding: 4px 4px 8px 4px; /* evita corte del transform hover en las tarjetas */
 }
 .sl-vencidos-scroll::-webkit-scrollbar       { width: 4px; }
 .sl-vencidos-scroll::-webkit-scrollbar-thumb { background: #c8e6c9; border-radius: 4px; }
@@ -369,12 +373,14 @@
 /* ─── Tarjeta vencido ────────────────────────────────────── */
 .sl-vencido-card {
   border-radius: 12px; border: 1.5px solid;
-  overflow: hidden; transition: transform 0.15s;
+  overflow: visible; /* permite que box-shadow y transform se vean completos */
+  transition: transform 0.15s;
 }
 .sl-vencido-card:hover { transform: translateY(-2px); }
 .sl-vencido-card__header {
   display: flex; justify-content: space-between; align-items: flex-start;
   padding: 12px 12px 8px; gap: 8px;
+  border-radius: 12px 12px 0 0; /* mantiene las esquinas redondeadas sin overflow:hidden */
 }
 .sl-vencido-card__badge {
   padding: 3px 9px; border-radius: 20px;
@@ -384,6 +390,7 @@
   display: grid; grid-template-columns: 1fr 1fr;
   gap: 6px; padding: 8px 12px 12px;
   border-top: 1px solid rgba(0,0,0,0.06); font-size: 12px;
+  border-radius: 0 0 12px 12px; /* mantiene las esquinas redondeadas sin overflow:hidden */
 }
 .sl-vencido-card__key { display: block; color: #9e9e9e; font-weight: 600; margin-bottom: 1px; }
 .sl-vencido-card__val { font-weight: 700; color: #1a1a1a; }

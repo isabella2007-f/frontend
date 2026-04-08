@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, CartesianGrid, Legend } from "recharts";
 import "./dashboard.css";
+import { useApp } from "../../AppContext";
+
 
 /* ── Data ─────────────────────────────────────────────────── */
 const VENTAS_HOY = [
@@ -153,51 +155,43 @@ function ChartCard({ title, period, onPeriod, children, defaultOpen = true, clas
 /* ── Main Dashboard ─────────────────────────────────────── */
 export default function Dashboard() {
   const { productos, insumos } = useApp();
-  const [pVentas,  setPVentas]  = useState("hoy");
-  // ... resto de estados existentes ...
 
-  // Cálculos de inventario crítico
+  // ── Estados faltantes ──────────────────────────────────────
+  const [animated,  setAnimated]  = useState(false);
+  const [pVentas,   setPVentas]   = useState("hoy");
+  const [pPedidos,  setPPedidos]  = useState("hoy");
+  const [pTiempo,   setPTiempo]   = useState("hoy");
+  const [pKpi,      setPKpi]      = useState("hoy");
+
+  // Animación de entrada
+  useEffect(() => {
+    const t = setTimeout(() => setAnimated(true), 50);
+    return () => clearTimeout(t);
+  }, []);
+
+  // ── Datos derivados del período ────────────────────────────
+  const ventasData  = pVentas  === "hoy"    ? VENTAS_HOY
+                    : pVentas  === "semana"  ? VENTAS_SEMANA
+                    : VENTAS_MES;
+
+  const pedidosData = pPedidos === "semana"  ? PEDIDOS_SEMANA : PEDIDOS_HOY;
+  const totalPedidos = pedidosData.reduce((s, p) => s + p.value, 0);
+
+  const tiempoData  = pTiempo  === "semana"  ? TIEMPO_SEMANA  : TIEMPO_HOY;
+
+  const kpi = KPI[pKpi];
+
+  // ── Inventario crítico ─────────────────────────────────────
   const prodsCriticos = productos.filter(p => p.stock <= (p.stockMinimo || 10));
   const insCriticos   = insumos.filter(i => i.stockActual <= (i.stockMinimo || 5));
-  const totalAgotados = [...productos, ...insumos].filter(x => (x.stock ?? x.stockActual) === 0).length;
+  const totalAgotados = [...productos, ...insumos]
+    .filter(x => (x.stock ?? x.stockActual) === 0).length;
+
 
   return (
-    <div className={"dash-wrapper" + (animated ? " dash-wrapper--in" : "")}>
-      {/* ... header ... */}
+      
+    <div className={`dash-wrapper${animated ? " dash-wrapper--in" : ""}`}>
       <div className="dash-inner">
-        
-        {/* Nueva Fila: Inventario Crítico */}
-        <div className="inventory-alerts-row" style={{ marginBottom: 20 }}>
-          <div className="alert-kpi-card" style={{ borderLeft: "4px solid #ef5350" }}>
-            <span className="alert-kpi-card__icon">🚨</span>
-            <div className="alert-kpi-card__body">
-              <span className="alert-kpi-card__label">Items Agotados</span>
-              <span className="alert-kpi-card__val">{totalAgotados}</span>
-            </div>
-          </div>
-          <div className="alert-kpi-card" style={{ borderLeft: "4px solid #ffa726" }}>
-            <span className="alert-kpi-card__icon">⚠️</span>
-            <div className="alert-kpi-card__body">
-              <span className="alert-kpi-card__label">Stock Bajo</span>
-              <span className="alert-kpi-card__val">{prodsCriticos.length + insCriticos.length - totalAgotados}</span>
-            </div>
-          </div>
-          <div className="critical-list-box">
-            <p className="critical-list-title">Atención Inmediata</p>
-            <div className="critical-list-items">
-              {[...prodsCriticos, ...insCriticos].slice(0, 3).map((item, idx) => (
-                <div key={idx} className="critical-item">
-                  <span>{item.nombre}</span>
-                  <strong className={(item.stock ?? item.stockActual) === 0 ? "agotado" : "bajo"}>
-                    {(item.stock ?? item.stockActual)} uds
-                  </strong>
-                </div>
-              ))}
-              {totalAgotados + prodsCriticos.length + insCriticos.length === 0 && <p className="all-ok">✅ Todo el stock al día</p>}
-            </div>
-          </div>
-        </div>
-
         {/* ... Resto de los charts ... */}
 
         {/* KPI strip — también desplegable */}
