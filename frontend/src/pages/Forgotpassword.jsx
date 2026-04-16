@@ -1,14 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { getUsers, saveUser } from "../services/userService";
+import { Mail, Lock, Eye, EyeOff, Key, ChevronRight, CheckCircle, ArrowLeft } from "lucide-react";
 import "./Auth.css";
-
-/*
-  Lógica simulada (sin backend):
-  - Paso 1: ingresa correo → verifica que exista en localStorage
-  - Paso 2: ingresa nueva contraseña
-  - Paso 3: confirmación de éxito
-*/
 
 const ForgotPassword = () => {
   const [step, setStep]           = useState(1); // 1 | 2 | 3
@@ -20,7 +14,6 @@ const ForgotPassword = () => {
   const [error, setError]         = useState("");
   const [loading, setLoading]     = useState(false);
 
-  /* ── PASO 1: verificar correo ── */
   const handleEmailSubmit = (e) => {
     e.preventDefault();
     setError("");
@@ -37,7 +30,6 @@ const ForgotPassword = () => {
     }, 600);
   };
 
-  /* ── PASO 2: nueva contraseña ── */
   const handlePasswordSubmit = (e) => {
     e.preventDefault();
     setError("");
@@ -84,7 +76,9 @@ const ForgotPassword = () => {
           {step === 1 && (
             <>
               <div className="auth-brand">
-                <div className="auth-brand-icon">🔑</div>
+                <div className="auth-brand-icon">
+                  <Key size={20} color="#2e7d32" />
+                </div>
                 <h1 className="auth-brand-name">Recuperar contraseña</h1>
                 <p className="auth-brand-sub">Ingresa tu correo para continuar</p>
               </div>
@@ -98,9 +92,14 @@ const ForgotPassword = () => {
 
               <form onSubmit={handleEmailSubmit} className="auth-form">
                 <div className="auth-field">
-                  <label className="auth-label">Correo electrónico</label>
+                  <label className="auth-label">
+                    <Mail size={11} />
+                    Correo electrónico
+                  </label>
                   <div className="auth-input-wrap">
-                    <span className="auth-input-icon">✉</span>
+                    <span className="auth-input-icon">
+                      <Mail size={14} />
+                    </span>
                     <input
                       type="email"
                       required
@@ -113,7 +112,16 @@ const ForgotPassword = () => {
                 </div>
 
                 <button type="submit" className="auth-submit" disabled={loading}>
-                  {loading ? <span className="auth-spinner" /> : <>Verificar correo <span className="auth-arrow">→</span></>}
+                  {loading ? (
+                    <span className="auth-spinner" />
+                  ) : (
+                    <>
+                      Verificar correo
+                      <span className="auth-arrow">
+                        <ChevronRight size={18} />
+                      </span>
+                    </>
+                  )}
                 </button>
               </form>
             </>
@@ -123,7 +131,9 @@ const ForgotPassword = () => {
           {step === 2 && (
             <>
               <div className="auth-brand">
-                <div className="auth-brand-icon">🛡️</div>
+                <div className="auth-brand-icon">
+                  <Lock size={20} color="#2e7d32" />
+                </div>
                 <h1 className="auth-brand-name">Nueva contraseña</h1>
                 <p className="auth-brand-sub">Elige una contraseña segura</p>
               </div>
@@ -137,9 +147,14 @@ const ForgotPassword = () => {
 
               <form onSubmit={handlePasswordSubmit} className="auth-form">
                 <div className="auth-field">
-                  <label className="auth-label">Nueva contraseña</label>
+                  <label className="auth-label">
+                    <Lock size={11} />
+                    Nueva contraseña
+                  </label>
                   <div className="auth-input-wrap">
-                    <span className="auth-input-icon">🔒</span>
+                    <span className="auth-input-icon">
+                      <Lock size={14} />
+                    </span>
                     <input
                       type={showPass ? "text" : "password"}
                       required
@@ -149,15 +164,20 @@ const ForgotPassword = () => {
                       onChange={(e) => setPassword(e.target.value)}
                     />
                     <button type="button" className="auth-eye" onClick={() => setShowPass(v => !v)} tabIndex={-1}>
-                      {showPass ? "🙈" : "👁"}
+                      {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
                 </div>
 
                 <div className="auth-field">
-                  <label className="auth-label">Confirmar contraseña</label>
+                  <label className="auth-label">
+                    <Lock size={11} />
+                    Confirmar contraseña
+                  </label>
                   <div className="auth-input-wrap">
-                    <span className="auth-input-icon">🔒</span>
+                    <span className="auth-input-icon">
+                      <Lock size={14} />
+                    </span>
                     <input
                       type={showConf ? "text" : "password"}
                       required
@@ -167,7 +187,7 @@ const ForgotPassword = () => {
                       onChange={(e) => setConfirm(e.target.value)}
                     />
                     <button type="button" className="auth-eye" onClick={() => setShowConf(v => !v)} tabIndex={-1}>
-                      {showConf ? "🙈" : "👁"}
+                      {showConf ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
                 </div>
@@ -179,7 +199,16 @@ const ForgotPassword = () => {
                 )}
 
                 <button type="submit" className="auth-submit" disabled={loading}>
-                  {loading ? <span className="auth-spinner" /> : <>Guardar contraseña <span className="auth-arrow">→</span></>}
+                  {loading ? (
+                    <span className="auth-spinner" />
+                  ) : (
+                    <>
+                      Guardar contraseña
+                      <span className="auth-arrow">
+                        <ChevronRight size={18} />
+                      </span>
+                    </>
+                  )}
                 </button>
               </form>
             </>
@@ -189,12 +218,15 @@ const ForgotPassword = () => {
           {step === 3 && (
             <div className="auth-success">
               <div className="auth-success-circle">
-                <span className="auth-success-check">✓</span>
+                <CheckCircle size={32} color="#fff" />
               </div>
               <h2 className="auth-success-title">¡Listo!</h2>
               <p className="auth-success-text">Tu contraseña fue actualizada correctamente.</p>
               <Link to="/login" className="auth-submit auth-submit--link">
-                Ir a iniciar sesión <span className="auth-arrow">→</span>
+                Ir a iniciar sesión
+                <span className="auth-arrow">
+                  <ChevronRight size={18} />
+                </span>
               </Link>
             </div>
           )}
@@ -202,7 +234,10 @@ const ForgotPassword = () => {
           {/* Back to login */}
           {step < 3 && (
             <p className="auth-switch">
-              <Link to="/login" className="auth-switch-link">← Volver al inicio de sesión</Link>
+              <Link to="/login" className="auth-switch-link">
+                <ArrowLeft size={14} style={{ marginRight: 4 }} />
+                Volver al inicio de sesión
+              </Link>
             </p>
           )}
         </div>

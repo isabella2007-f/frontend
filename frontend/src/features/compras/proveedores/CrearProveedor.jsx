@@ -15,6 +15,34 @@ const fmtTel = raw => {
   return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`;
 };
 
+/* ─── BARRA DE PASOS ─────────────────────────────────────── */
+const STEPS = ["Identificación", "Contacto y Ubicación"];
+
+function StepsBar({ current }) {
+  return (
+    <div className="wizard-steps-bar">
+      {STEPS.map((label, i) => {
+        const idx    = i + 1;
+        const done   = idx < current;
+        const active = idx === current;
+        return (
+          <div key={label} className="wizard-step-item">
+            <div className={`wizard-step-circle${done ? " done" : active ? " active" : ""}`}>
+              {done ? "✓" : idx}
+            </div>
+            <span className={`wizard-step-label${active ? " active" : done ? " done" : ""}`}>
+              {label}
+            </span>
+            {i < STEPS.length - 1 && (
+              <div className={`wizard-step-line${done ? " done" : ""}`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function CrearProveedor({ onClose, onSave }) {
   const [form, setForm] = useState({ 
     tipo: "natural", 
@@ -28,41 +56,36 @@ export default function CrearProveedor({ onClose, onSave }) {
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
-  const inputRefs = useRef({});
-  const activeField = useRef(null);
+  const [step, setStep]     = useState(1);
 
   const set = (k, v) => {
-    activeField.current = k;
     setForm(p => ({ ...p, [k]: v }));
-    setErrors(p => ({ ...p, [k]: "" }));
+    setErrors(p => ({ ...e, [k]: "" }));
   };
 
-  useEffect(() => {
-    const key = activeField.current;
-    if (!key) return;
-    const input = inputRefs.current[key];
-    // Evitar setSelectionRange en email/number para prevenir crash
-    if (input && document.activeElement !== input) {
-      input.focus();
-      if (input.type === "text" || input.type === "search" || input.type === "tel" || input.type === "url") {
-        const len = input.value.length;
-        input.setSelectionRange(len, len);
-      }
-    }
-  }, [form]);
-
-  const validate = () => {
+  const validateStep = (s) => {
     const e = {};
-    if (!form.tipo) e.tipo = "Selecciona tipo";
-    if (!form.responsable.trim()) e.responsable = "Requerido";
-    if (!form.documento.trim())   e.documento   = "Requerido";
-    if (!form.celular.trim())     e.celular     = "Requerido";
-    if (!form.correo.trim() || !/\S+@\S+\.\S+/.test(form.correo)) e.correo = "Correo inválido";
+    if (s === 1) {
+      if (!form.responsable.trim()) e.responsable = "Requerido";
+      if (!form.documento.trim())   e.documento   = "Requerido";
+    }
+    if (s === 2) {
+      if (!form.celular.trim())     e.celular     = "Requerido";
+      if (!form.correo.trim() || !/\S+@\S+\.\S+/.test(form.correo)) e.correo = "Correo inválido";
+    }
     return e;
   };
 
+  const handleNext = () => {
+    const e = validateStep(step);
+    if (Object.keys(e).length) { setErrors(e); return; }
+    setStep(s => s + 1);
+  };
+
+  const handleBack = () => setStep(s => s - 1);
+
   const handleSave = async () => {
-    const e = validate();
+    const e = validateStep(2);
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaving(true);
     await new Promise(r => setTimeout(r, 500));
@@ -70,35 +93,26 @@ export default function CrearProveedor({ onClose, onSave }) {
     setSaving(false);
   };
 
-  const Field = ({ k, label, type = "text", ph = "", full = false }) => (
-    <div className="form-group" style={full ? { gridColumn: "1 / -1" } : {}}>
+  const Field = ({ k, label, type = "text", ph = "" }) => (
+    <div className="form-group">
       <label className="form-label">
-        {label}{["responsable", "celular", "correo"].includes(k) && <span className="required"> *</span>}
+        {label}{["responsable", "celular", "correo", "documento"].includes(k) && <span className="required"> *</span>}
       </label>
       <input
-        ref={el => inputRefs.current[k] = el}
         className={"field-input" + (errors[k] ? " field-input--error" : "")}
         type={type}
         value={form[k] || ""}
         onChange={e => set(k, k === "celular" ? fmtTel(e.target.value) : e.target.value)}
         placeholder={ph}
         maxLength={k === "celular" ? 12 : undefined}
-        onFocus={e => {
-          activeField.current = k;
-          e.target.style.borderColor = "#4caf50";
-        }}
-        onBlur={e => {
-          if (activeField.current === k) activeField.current = null;
-          e.target.style.borderColor = errors[k] ? "#e53935" : "#e0e0e0";
-        }}
       />
       {errors[k] && <p className="field-error">{errors[k]}</p>}
     </div>
   );
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box--prov" onClick={e => e.stopPropagation()}>
+    <div className="overlay" onClick={onClose}>
+      <div className="modal-card" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div className="modal-header">
@@ -109,66 +123,66 @@ export default function CrearProveedor({ onClose, onSave }) {
           <button className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
 
+        {/* Steps */}
+        <div style={{ padding: "16px 24px 0" }}>
+          <StepsBar current={step} />
+        </div>
+
         {/* Body */}
-        <div className="modal-body" style={{ overflowY: "auto", maxHeight: "70vh" }}>
-          <p className="section-label" style={{ marginTop: 0, textTransform: "none" }}>Datos básicos</p>
-          
-          <div className="form-grid-2">
-            <div className="form-group">
-              <label className="form-label">Tipo de persona</label>
-              <select
-                className="field-input"
-                value={form.tipo}
-                onChange={e => set("tipo", e.target.value)}
-              >
-                <option value="natural">Persona Natural</option>
-                <option value="juridica">Persona Jurídica</option>
-              </select>
-            </div>
+        <div className="modal-body" style={{ minHeight: 260 }}>
+          {step === 1 && (
+            <>
+              <p className="section-label" style={{ marginTop: 0 }}>Datos de Identificación</p>
+              <div className="form-grid-2">
+                <div className="form-group">
+                  <label className="form-label">Tipo de persona</label>
+                  <select className="field-input" value={form.tipo} onChange={e => set("tipo", e.target.value)}>
+                    <option value="natural">Persona Natural</option>
+                    <option value="juridica">Persona Jurídica</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Tipo de documento</label>
+                  <select className="field-input" value={form.tipoDoc} onChange={e => set("tipoDoc", e.target.value)}>
+                    {TIPO_DOCS.map(td => <option key={td.val} value={td.val}>{td.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <Field k="responsable" label={form.tipo === "juridica" ? "Razón social" : "Responsable"} ph="Ej. Distribuidora S.A.S" />
+              <Field k="documento" label="Número de Documento" ph="Ej. 900123456" />
+            </>
+          )}
 
-            <div className="form-group">
-              <label className="form-label">Estado</label>
-              <select
-                className="field-input"
-                value={form.estado ? "true" : "false"}
-                onChange={e => set("estado", e.target.value === "true")}
-              >
-                <option value="true">Activo</option>
-                <option value="false">Inactivo</option>
-              </select>
-            </div>
-
-            <Field k="responsable" label={form.tipo === "juridica" ? "Razón social" : "Responsable"} ph={form.tipo === "juridica" ? "Nombre empresa" : "Nombre del contacto"} full />
-            
-            <div className="form-group">
-              <label className="form-label">Tipo de documento</label>
-              <select
-                className="field-input"
-                value={form.tipoDoc}
-                onChange={e => set("tipoDoc", e.target.value)}
-              >
-                {TIPO_DOCS.map(td => (
-                  <option key={td.val} value={td.val}>{td.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <Field k="documento" label="Documento / NIT" ph="Sin puntos ni guiones" />
-            
-            <Field k="direccion" label="Dirección" ph="Ej. Cra 10 # 5-30" full />
-            
-            <Field k="celular" label="Celular" ph="300 000 0000" />
-            <Field k="correo" label="Correo" type="email" ph="proveedor@correo.com" />
-          </div>
+          {step === 2 && (
+            <>
+              <p className="section-label" style={{ marginTop: 0 }}>Contacto y Localización</p>
+              <div className="form-grid-2">
+                <Field k="celular" label="Celular" ph="300 000 0000" />
+                <Field k="correo" label="Correo electrónico" type="email" ph="proveedor@empresa.com" />
+              </div>
+              <Field k="direccion" label="Dirección (Opcional)" ph="Ej. Calle 10 # 5-20" />
+              <div className="form-group">
+                <label className="form-label">Estado Inicial</label>
+                <div style={{ display:"flex", alignItems:"center", gap:10, paddingTop:4 }}>
+                  <button onClick={() => set("estado", !form.estado)} className="toggle-btn"
+                    style={{ background: form.estado ? "#43a047" : "#c62828" }}>
+                    <span className="toggle-thumb" style={{ left: form.estado ? 27 : 3 }} />
+                  </button>
+                  <span style={{ fontSize:13, fontWeight:600, color: form.estado ? "#2e7d32" : "#9e9e9e" }}>
+                    {form.estado ? "Activo" : "Inactivo"}
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Footer */}
-        <div className="modal-footer" style={{ paddingBottom: "24px" }}>
-          <button className="btn-ghost" onClick={onClose}>Cancelar</button>
-          <button className="btn-save" onClick={handleSave} disabled={saving}>
-            {saving && <span className="spinner">◌</span>}
-            {saving ? "Guardando…" : "Guardar"}
-          </button>
+        <div className="modal-footer" style={{ justifyContent: "space-between" }}>
+          {step > 1 ? <button className="btn-ghost" onClick={handleBack}>← Atrás</button> : <button className="btn-ghost" onClick={onClose}>Cancelar</button>}
+          <div style={{ display: "flex", gap: 10 }}>
+            {step < 2 ? <button className="btn-save" onClick={handleNext}>Siguiente →</button> : <button className="btn-save" onClick={handleSave} disabled={saving}>{saving ? "Guardando…" : "Crear proveedor"}</button>}
+          </div>
         </div>
       </div>
     </div>

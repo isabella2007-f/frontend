@@ -1,98 +1,112 @@
 /**
  * PrivilegiosModal — navegación dos niveles SIN scroll
  *
- * Nivel 1 (chips superiores): Grupos  →  Sistema | Inventario | Producción | Ventas
- * Nivel 2 (tabs inferiores):  Módulos del grupo activo (máx. 5, siempre caben)
- * Panel central:              Tarjetas de acciones del módulo seleccionado
- *
- * FIX: Usa createPortal para renderizar directamente en document.body
- * y evitar quedar atrapado en el stacking context del modal padre.
+ * Acciones personalizadas por módulo:
+ * - Compras:              Ver, Crear, Editar, Anular
+ * - Insumos:              Ver, Crear, Editar, Eliminar, Generar Salida
+ * - Cat. Productos:       Ver, Crear, Editar, Eliminar, Generar Salida
+ * - Gestión Prod.:        Ver, Crear, Editar, Eliminar, Generar Salida
+ * - Órdenes Producción:   Crear, Editar
+ * - Domicilios:           Ver, Ver Detalles, Cambiar Estado
+ * - Gestión Salidas:      Ver, Crear, Editar, Eliminar  (grupo Configuración)
  */
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
 
+// ── Catálogo completo de acciones posibles ──────────────────────────────────
+const TODAS_ACCIONES = {
+  ver:            { key: "ver",            label: "Ver",            icon: "👁️",  color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7" },
+  crear:          { key: "crear",          label: "Crear",          icon: "➕",   color: "#1565c0", bg: "#e3f2fd", border: "#90caf9" },
+  editar:         { key: "editar",         label: "Editar",         icon: "✎",    color: "#e65100", bg: "#fff3e0", border: "#ffcc80" },
+  eliminar:       { key: "eliminar",       label: "Eliminar",       icon: "🗑️",  color: "#c62828", bg: "#ffebee", border: "#ef9a9a" },
+  anular:         { key: "anular",         label: "Anular",         icon: "🚫",   color: "#6a1b9a", bg: "#f3e5f5", border: "#ce93d8" },
+  generar_salida: { key: "generar_salida", label: "Generar Salida", icon: "📤",   color: "#00695c", bg: "#e0f2f1", border: "#80cbc4" },
+  ver_detalles:   { key: "ver_detalles",   label: "Ver Detalles",   icon: "🔍",   color: "#1565c0", bg: "#e3f2fd", border: "#90caf9" },
+  cambiar_estado: { key: "cambiar_estado", label: "Cambiar Estado", icon: "🔄",   color: "#f57f17", bg: "#fff8e1", border: "#ffe082" },
+};
+
+// Acciones estándar (la mayoría de módulos)
+const STD = ["ver", "crear", "editar", "eliminar"];
+
+// ── Definición de grupos y módulos con sus acciones propias ─────────────────
 const GRUPOS_MODULOS = [
   {
     grupo: "Configuración",
     icon: "⚙️",
     modulos: [
-      { key: "Dashboard",  label: "Dashboard",  icon: "📊" },
-      { key: "Roles",      label: "Roles",       icon: "🛡️" },
-      { key: "Usuarios",   label: "Usuarios",    icon: "👥" },
+      { key: "Dashboard",       label: "Dashboard",       icon: "📊", acciones: ["ver"] },
+      { key: "Roles",           label: "Roles",           icon: "🛡️", acciones: STD },
+      { key: "Usuarios",        label: "Usuarios",        icon: "👥", acciones: STD },
+      { key: "GestionSalidas",  label: "Gestión Salidas", icon: "📤", acciones: ["ver" , "crear"] },
     ],
   },
   {
     grupo: "Compras",
     icon: "📦",
     modulos: [
-      { key: "CategoriaInsumos", label: "Cat. Insumos",  icon: "📂" },
-      { key: "Insumos",          label: "Insumos",        icon: "🧪" },
-      { key: "Proveedores",      label: "Proveedores",    icon: "🚚" },
-      { key: "Compras",          label: "Compras",        icon: "📋" },
+      { key: "CategoriaInsumos", label: "Cat. Insumos",  icon: "📂", acciones: STD },
+      { key: "Insumos",          label: "Insumos",       icon: "🧪", acciones: ["ver", "crear", "editar", "eliminar", "generar_salida"] },
+      { key: "Proveedores",      label: "Proveedores",   icon: "🚚", acciones: STD },
+      { key: "Compras",          label: "Compras",       icon: "📋", acciones: ["ver", "crear", "editar", "anular"] },
     ],
   },
   {
     grupo: "Producción",
     icon: "🏭",
     modulos: [
-      { key: "CategoriaProductos", label: "Cat. Productos", icon: "📦" },
-      { key: "GestionProductos",   label: "Gestión Prod.",  icon: "📋" },
-      { key: "OrdenesProduccion",  label: "Órdenes Prod.",  icon: "🏭" },
+      { key: "CategoriaProductos", label: "Cat. Productos", icon: "📦", acciones: ["ver", "crear", "editar", "eliminar"] },
+      { key: "GestionProductos",   label: "Gestión Prod.",  icon: "📋", acciones: ["ver", "crear", "editar", "eliminar", "generar_salida"] },
+      { key: "OrdenesProduccion",  label: "Órdenes Prod.",  icon: "🏭", acciones: ["crear", "editar"] },
     ],
   },
   {
     grupo: "Ventas",
     icon: "💰",
     modulos: [
-      { key: "Clientes",      label: "Clientes",      icon: "🧑‍💼" },
-      { key: "Pedidos",       label: "Pedidos",        icon: "🛒" },
-      { key: "GestionVentas", label: "Gestión Ventas", icon: "💰" },
-      { key: "Devoluciones",  label: "Devoluciones",   icon: "↩️" },
-      { key: "Domicilios",    label: "Domicilios",     icon: "🏍️" },
+      { key: "Pedidos",       label: "Pedidos",        icon: "🛒", acciones: STD },
+      { key: "GestionVentas", label: "Gestión Ventas", icon: "💰", acciones: STD },
+      { key: "Devoluciones",  label: "Devoluciones",   icon: "↩️", acciones: STD },
+      { key: "Domicilios",    label: "Domicilios",     icon: "🏍️", acciones: ["ver", "ver_detalles", "cambiar_estado"] },
     ],
   },
 ];
 
 const MODULOS = GRUPOS_MODULOS.flatMap(g => g.modulos);
 
-const ACCIONES = [
-  { key: "ver",      label: "Ver",      icon: "👁️",  color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7" },
-  { key: "crear",    label: "Crear",    icon: "➕",   color: "#1565c0", bg: "#e3f2fd", border: "#90caf9" },
-  { key: "editar",   label: "Editar",   icon: "✎",    color: "#e65100", bg: "#fff3e0", border: "#ffcc80" },
-  { key: "eliminar", label: "Eliminar", icon: "🗑️",  color: "#c62828", bg: "#ffebee", border: "#ef9a9a" },
-];
+// Cuenta cuántos privilegios existen en total (para la advertencia de "todos activos")
+const TOTAL_PRIVILEGIOS = MODULOS.reduce((acc, m) => acc + m.acciones.length, 0);
 
-const TOTAL_PRIVILEGIOS = MODULOS.reduce(
-  (acc, m) => acc + (m.key === "Dashboard" ? 1 : ACCIONES.length), 0
-);
-
+// ── Helpers ─────────────────────────────────────────────────────────────────
 export function buildPrivilegios(overrides = []) {
   const map = {};
   overrides.forEach(p => { if (p.modulo) map[p.id] = p.estado; });
   return MODULOS.flatMap(m =>
-    ACCIONES.map(a => {
-      const id = `${m.key}_${a.key}`;
-      return { id, modulo: m.key, accion: a.key,
-        nombre: `${a.label} ${m.label.toLowerCase()}`, estado: map[id] ?? false };
+    m.acciones.map(aKey => {
+      const a  = TODAS_ACCIONES[aKey];
+      const id = `${m.key}_${aKey}`;
+      return {
+        id,
+        modulo:  m.key,
+        accion:  aKey,
+        nombre:  `${a.label} ${m.label.toLowerCase()}`,
+        estado:  map[id] ?? false,
+      };
     })
   );
 }
 
 function tieneTodosLosPrivilegios(privilegios) {
-  const activos = privilegios.filter(p =>
-    p.modulo === "Dashboard" ? p.accion === "ver" && p.estado : p.estado
-  ).length;
-  return activos >= TOTAL_PRIVILEGIOS;
+  return privilegios.filter(p => p.estado).length >= TOTAL_PRIVILEGIOS;
 }
 
-/* ── Estilos inline reutilizables ── */
+// ── Estilos inline reutilizables ────────────────────────────────────────────
 const S = {
   overlay: {
     position: "fixed", inset: 0,
     background: "rgba(0,0,0,0.45)",
     display: "flex", alignItems: "center", justifyContent: "center",
-    zIndex: 3000, // mayor que el modal padre (2000)
+    zIndex: 3000,
   },
   box: {
     background: "#fff",
@@ -100,7 +114,7 @@ const S = {
     boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
     display: "flex",
     flexDirection: "column",
-    width: "min(700px, 96vw)",
+    width: "min(740px, 96vw)",
     maxHeight: "90vh",
     overflow: "hidden",
   },
@@ -115,6 +129,7 @@ const S = {
     gap: 6,
     padding: "10px 20px 0",
     flexShrink: 0,
+    flexWrap: "wrap",
   },
   grupoChip: (activo) => ({
     display: "flex", alignItems: "center", gap: 5,
@@ -134,6 +149,7 @@ const S = {
     gap: 4,
     padding: "8px 20px 0",
     flexShrink: 0,
+    flexWrap: "wrap",
   },
   moduloTab: (activo) => ({
     display: "flex", alignItems: "center", gap: 5,
@@ -155,13 +171,14 @@ const S = {
     display: "flex",
     flexDirection: "column",
     gap: 14,
-    overflow: "hidden",
+    overflow: "auto",
   },
-  accionesGrid: {
+  // Grid dinámico según cantidad de acciones
+  accionesGrid: (n) => ({
     display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
+    gridTemplateColumns: `repeat(${Math.min(n, 4)}, 1fr)`,
     gap: 10,
-  },
+  }),
   accionCard: (on, accion) => ({
     display: "flex", flexDirection: "column", alignItems: "center",
     gap: 6,
@@ -188,6 +205,7 @@ const S = {
   },
 };
 
+// ── Componente principal ─────────────────────────────────────────────────────
 export default function PrivilegiosModal({
   privilegios,
   esAdmin   = false,
@@ -215,42 +233,31 @@ export default function PrivilegiosModal({
 
   const toggleAll = (moduloKey, valor) => {
     if (isView) return;
-    if (moduloKey === "Dashboard") {
-      setLocal(prev =>
-        prev.map(p => p.modulo === moduloKey && p.accion === "ver" ? { ...p, estado: valor } : p)
-      );
-    } else {
-      setLocal(prev => prev.map(p => p.modulo === moduloKey ? { ...p, estado: valor } : p));
-    }
+    setLocal(prev => prev.map(p => p.modulo === moduloKey ? { ...p, estado: valor } : p));
   };
 
-  const grupoActual    = GRUPOS_MODULOS.find(g => g.grupo === grupo);
-  const modMeta        = MODULOS.find(m => m.key === modKey);
-  const modItems       = local.filter(p => p.modulo === modKey);
-  const accionesMod    = ACCIONES.filter(a => modKey === "Dashboard" ? a.key === "ver" : true);
-  const modActivos     = modItems.filter(p => p.estado).length;
-  const todosOn        = modKey === "Dashboard"
-    ? modItems.some(p => p.accion === "ver" && p.estado)
-    : modActivos === accionesMod.length;
+  // Meta del módulo activo
+  const grupoActual = GRUPOS_MODULOS.find(g => g.grupo === grupo);
+  const modMeta     = MODULOS.find(m => m.key === modKey);
+  const modItems    = local.filter(p => p.modulo === modKey);
+  const accionesMod = (modMeta?.acciones ?? []).map(k => TODAS_ACCIONES[k]);
+  const modActivos  = modItems.filter(p => p.estado).length;
+  const todosOn     = modActivos === accionesMod.length && accionesMod.length > 0;
 
   const totalActivos = local.filter(p => p.estado).length;
   const advertencia  = !isView && !esAdmin && tieneTodosLosPrivilegios(local);
 
   const activosPorGrupo = (g) => {
     const modulos = GRUPOS_MODULOS.find(gr => gr.grupo === g)?.modulos || [];
-    return local.filter(p =>
-      modulos.some(m => m.key === p.modulo) && p.estado
-    ).length;
+    return local.filter(p => modulos.some(m => m.key === p.modulo) && p.estado).length;
   };
 
   const activosPorModulo = (mKey) => {
-    const items = local.filter(p => p.modulo === mKey &&
-      (mKey === "Dashboard" ? p.accion === "ver" : true));
-    return { activos: items.filter(p => p.estado).length, total: items.length };
+    const mod   = MODULOS.find(m => m.key === mKey);
+    const items = local.filter(p => p.modulo === mKey);
+    return { activos: items.filter(p => p.estado).length, total: mod?.acciones.length ?? 0 };
   };
 
-  // ─── FIX: createPortal monta el modal en document.body,
-  //     escapando el stacking context del modal padre (z-index: 2000).
   return createPortal(
     <div style={S.overlay} onClick={onClose}>
       <div style={S.box} onClick={e => e.stopPropagation()}>
@@ -300,14 +307,10 @@ export default function PrivilegiosModal({
         {/* ── Nivel 1: chips de grupo ── */}
         <div style={S.gruposBar}>
           {GRUPOS_MODULOS.map(g => {
-            const activos = activosPorGrupo(g.grupo);
+            const activos  = activosPorGrupo(g.grupo);
             const esActivo = grupo === g.grupo;
             return (
-              <button
-                key={g.grupo}
-                style={S.grupoChip(esActivo)}
-                onClick={() => handleGrupo(g.grupo)}
-              >
+              <button key={g.grupo} style={S.grupoChip(esActivo)} onClick={() => handleGrupo(g.grupo)}>
                 <span style={{ fontSize: 14 }}>{g.icon}</span>
                 <span>{g.grupo}</span>
                 {activos > 0 && (
@@ -315,8 +318,7 @@ export default function PrivilegiosModal({
                     fontSize: 10, fontWeight: 700,
                     background: esActivo ? "#c8e6c9" : "#eeeeee",
                     color: esActivo ? "#2e7d32" : "#9e9e9e",
-                    borderRadius: 10, padding: "0 5px",
-                    marginLeft: 2,
+                    borderRadius: 10, padding: "0 5px", marginLeft: 2,
                   }}>
                     {activos}
                   </span>
@@ -326,30 +328,21 @@ export default function PrivilegiosModal({
           })}
         </div>
 
-        {/* ── Nivel 2: tabs de módulo del grupo activo ── */}
-        <div style={{
-          ...S.modulosBar,
-          borderBottom: "1px solid #f0f0f0",
-          paddingBottom: 0,
-          marginBottom: 0,
-        }}>
+        {/* ── Nivel 2: tabs de módulo ── */}
+        <div style={{ ...S.modulosBar, borderBottom: "1px solid #f0f0f0", paddingBottom: 0 }}>
           {grupoActual?.modulos.map(m => {
             const { activos, total } = activosPorModulo(m.key);
             const esActivo = modKey === m.key;
             return (
-              <button
-                key={m.key}
-                style={S.moduloTab(esActivo)}
-                onClick={() => setModKey(m.key)}
-              >
+              <button key={m.key} style={S.moduloTab(esActivo)} onClick={() => setModKey(m.key)}>
                 <span style={{ fontSize: 13 }}>{m.icon}</span>
                 <span>{m.label}</span>
                 {activos > 0 && (
                   <span style={{
                     fontSize: 10, fontWeight: 700,
                     background: activos === total ? "#e8f5e9" : "#fff3e0",
-                    color: activos === total ? "#2e7d32" : "#e65100",
-                    border: `1px solid ${activos === total ? "#c8e6c9" : "#ffcc80"}`,
+                    color:      activos === total ? "#2e7d32" : "#e65100",
+                    border:    `1px solid ${activos === total ? "#c8e6c9" : "#ffcc80"}`,
                     borderRadius: 10, padding: "0 5px",
                   }}>
                     {activos}/{total}
@@ -362,6 +355,7 @@ export default function PrivilegiosModal({
 
         {/* ── Panel de acciones ── */}
         <div style={S.panelBody}>
+
           {/* Sub-cabecera del módulo */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
@@ -382,17 +376,15 @@ export default function PrivilegiosModal({
                 </p>
               </div>
             </div>
-            {!isView && (
+            {!isView && accionesMod.length > 0 && (
               <button
                 onClick={() => toggleAll(modKey, !todosOn)}
                 style={{
-                  padding: "5px 12px",
-                  borderRadius: 7,
-                  border: todosOn ? "1px solid #ef9a9a" : "1px solid #a5d6a7",
-                  background: todosOn ? "#ffebee" : "#e8f5e9",
-                  color: todosOn ? "#c62828" : "#2e7d32",
-                  fontSize: 12, fontWeight: 600,
-                  cursor: "pointer",
+                  padding: "5px 12px", borderRadius: 7,
+                  border:      todosOn ? "1px solid #ef9a9a" : "1px solid #a5d6a7",
+                  background:  todosOn ? "#ffebee" : "#e8f5e9",
+                  color:       todosOn ? "#c62828" : "#2e7d32",
+                  fontSize: 12, fontWeight: 600, cursor: "pointer",
                 }}
               >
                 {todosOn ? "Desactivar todo" : "Activar todo"}
@@ -400,8 +392,8 @@ export default function PrivilegiosModal({
             )}
           </div>
 
-          {/* Tarjetas */}
-          <div style={S.accionesGrid}>
+          {/* Tarjetas de acciones */}
+          <div style={S.accionesGrid(accionesMod.length)}>
             {accionesMod
               .filter(a => !isView || modItems.find(p => p.accion === a.key)?.estado)
               .map(accion => {
@@ -411,10 +403,7 @@ export default function PrivilegiosModal({
                 return (
                   <div
                     key={accion.key}
-                    style={{
-                      ...S.accionCard(on, accion),
-                      cursor: isView ? "default" : "pointer",
-                    }}
+                    style={{ ...S.accionCard(on, accion), cursor: isView ? "default" : "pointer" }}
                     onClick={() => toggle(permiso.id)}
                   >
                     <div style={{
@@ -425,10 +414,7 @@ export default function PrivilegiosModal({
                     }}>
                       <span style={{ fontSize: 22 }}>{accion.icon}</span>
                     </div>
-                    <p style={{
-                      margin: 0, fontSize: 12, fontWeight: 600,
-                      color: on ? accion.color : "#9e9e9e",
-                    }}>
+                    <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: on ? accion.color : "#9e9e9e" }}>
                       {accion.label}
                     </p>
                     <div style={S.accionCheck(on, accion)}>
@@ -438,7 +424,7 @@ export default function PrivilegiosModal({
                 );
               })}
 
-            {/* Placeholder si modo view y sin acciones activas */}
+            {/* Placeholder modo view sin acciones activas */}
             {isView && accionesMod.filter(a => modItems.find(p => p.accion === a.key)?.estado).length === 0 && (
               <div style={{
                 gridColumn: "1 / -1", textAlign: "center",
@@ -469,8 +455,7 @@ export default function PrivilegiosModal({
               style={{
                 padding: "7px 18px", borderRadius: 8,
                 border: "none", background: "#4caf50",
-                color: "#fff", fontSize: 13, fontWeight: 600,
-                cursor: "pointer",
+                color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
               }}
             >
               Aplicar privilegios
@@ -479,6 +464,6 @@ export default function PrivilegiosModal({
         </div>
       </div>
     </div>,
-    document.body  // ← Portal: monta fuera del stacking context del modal padre
+    document.body
   );
 }

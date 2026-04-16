@@ -30,7 +30,7 @@ export default function ConfigurarNotificaciones({ insumos = [], onClose }) {
 
   return (
     <div className="modal-overlay">
-      <div className="modal-box" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
+      <div className="modal-box" style={{ maxWidth: 470 }} onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div className="modal-header">

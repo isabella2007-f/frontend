@@ -4,6 +4,7 @@ import "./proveedores.css";
 import CrearProveedor   from "./CrearProveedor";
 import EditarProveedor  from "./EditarProveedor";
 import ModalEliminarValidado from "../../../ModalEliminarValidado";
+import { Toggle } from "../../configuracion/Usuarios/CrearUsuario.jsx";
 
 const ITEMS_PER_PAGE = 5;
 
@@ -25,6 +26,7 @@ export default function GestionProveedores() {
     compras, 
     crearProveedor, 
     editarProveedor, 
+    toggleProveedor,
     eliminarProveedor,
     canDeleteProveedor 
   } = useApp();
@@ -182,7 +184,7 @@ export default function GestionProveedores() {
 
         {/* TABLA */}
         <div className="card">
-          <div style={{ overflowX: "auto" }}>
+          <div className="tbl-wrapper">
             <table className="tbl">
               <thead>
                 <tr>
@@ -250,10 +252,13 @@ export default function GestionProveedores() {
 
                     {/* Estado */}
                     <td>
-                      <span className={`estado-badge ${p.estado ? "estado-badge--disponible" : "estado-badge--agotado"}`}>
-                        <span className="estado-dot" style={{ background: p.estado ? "#2e7d32" : "#c62828" }} />
-                        {p.estado ? "Activo" : "Inactivo"}
-                      </span>
+                      <Toggle 
+                        on={p.estado} 
+                        onToggle={() => {
+                          toggleProveedor(p.id);
+                          showToast(`Proveedor ${p.estado ? "inactivado" : "activado"}`);
+                        }} 
+                      />
                     </td>
 
                     {/* Acciones */}

@@ -88,9 +88,6 @@ const Login = () => {
                   <Lock size={11} />
                   Contraseña
                 </label>
-                <Link to="/recuperar" className="auth-forgot">
-                  ¿Olvidaste tu contraseña?
-                </Link>
               </div>
               <div className="auth-input-wrap">
                 <span className="auth-input-icon">
@@ -113,6 +110,9 @@ const Login = () => {
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+                <Link to="/recuperar" className="auth-forgot">
+                  ¿Olvidaste tu contraseña?
+                </Link>
             </div>
 
             {/* Submit */}

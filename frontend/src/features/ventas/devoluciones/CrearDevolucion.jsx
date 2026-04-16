@@ -24,6 +24,34 @@ function SelectArrow() {
   );
 }
 
+/* ─── BARRA DE PASOS ─────────────────────────────────────── */
+const STEPS = ["Pedido", "Detalles devolución"];
+
+function StepsBar({ current }) {
+  return (
+    <div className="wizard-steps-bar">
+      {STEPS.map((label, i) => {
+        const idx    = i + 1;
+        const done   = idx < current;
+        const active = idx === current;
+        return (
+          <div key={label} className="wizard-step-item">
+            <div className={`wizard-step-circle${done ? " done" : active ? " active" : ""}`}>
+              {done ? "✓" : idx}
+            </div>
+            <span className={`wizard-step-label${active ? " active" : done ? " done" : ""}`}>
+              {label}
+            </span>
+            {i < STEPS.length - 1 && (
+              <div className={`wizard-step-line${done ? " done" : ""}`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function CrearDevolucion({ onClose, onSave }) {
   const { pedidos, clientes, getCliente } = useApp();
 
@@ -37,8 +65,9 @@ export default function CrearDevolucion({ onClose, onSave }) {
   const [items,      setItems]      = useState([]);
   const [errors,     setErrors]     = useState({});
   const [saved,      setSaved]      = useState(false);
+  const [step,       setStep]       = useState(1);
 
-  const pedidoSel = pedidosEntregados.find(p => p.id === Number(idPedido) || p.id === idPedido);
+  const pedidoSel = pedidosEntregados.find(p => String(p.id) === String(idPedido));
 
   /* Al seleccionar pedido → cargar productos con cantidad 0 */
   const handleSelectPedido = (val) => {
@@ -68,16 +97,28 @@ export default function CrearDevolucion({ onClose, onSave }) {
   const itemsSeleccionados = items.filter(i => i.cantidad > 0);
   const totalDevolucion    = itemsSeleccionados.reduce((a, i) => a + i.precio * i.cantidad, 0);
 
-  const validate = () => {
+  const validateStep = (s) => {
     const e = {};
-    if (!idPedido)                  e.idPedido = "Selecciona un pedido";
-    if (!motivo)                    e.motivo   = "Selecciona un motivo";
-    if (itemsSeleccionados.length === 0) e.items = "Selecciona al menos un producto a devolver";
+    if (s === 1) {
+      if (!idPedido) e.idPedido = "Selecciona un pedido";
+    }
+    if (s === 2) {
+      if (!motivo) e.motivo = "Selecciona un motivo";
+      if (itemsSeleccionados.length === 0) e.items = "Agrega productos";
+    }
     return e;
   };
 
+  const handleNext = () => {
+    const e = validateStep(step);
+    if (Object.keys(e).length) { setErrors(e); return; }
+    setStep(s => s + 1);
+  };
+
+  const handleBack = () => setStep(s => s - 1);
+
   const handleSave = () => {
-    const e = validate();
+    const e = validateStep(2);
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaved(true);
 
@@ -105,232 +146,130 @@ export default function CrearDevolucion({ onClose, onSave }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box--wide" style={{ position: "relative" }} onClick={e => e.stopPropagation()}>
+    <div className="overlay" onClick={onClose}>
+      <div className="modal-card" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
 
         {/* Header */}
-        <div className="modal-header modal-header--red">
+        <div className="modal-header">
           <div>
             <p className="modal-header__eyebrow">Devoluciones</p>
-            <h2 className="modal-header__title modal-header__title--red">Registrar devolución</h2>
+            <h2 className="modal-header__title" style={{ color: "#c62828" }}>Registrar devolución</h2>
           </div>
           <button className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
 
-        <div className="modal-body">
+        {/* Steps */}
+        <div style={{ padding: "16px 24px 0" }}>
+          <StepsBar current={step} />
+        </div>
 
-          {/* Pedido */}
-          <p className="section-label" style={{textTransform: "none"}} >Pedido</p>
-          <div className="field-wrap" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label className="form-label">Pedido entregado <span className="required">*</span></label>
-            <div className="select-wrap">
-              <select
-                className={`field-select${errors.idPedido ? " error" : ""}`}
-                value={idPedido}
-                onChange={e => handleSelectPedido(e.target.value)}
-              >
-                <option value="">Seleccione un pedido…</option>
-                {pedidosEntregados.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.numero} — {p.cliente?.nombre} · {fmt(p.total)}
-                  </option>
-                ))}
-              </select>
-              <SelectArrow />
-            </div>
-            {errors.idPedido && <span className="field-error">{errors.idPedido}</span>}
-            {pedidosEntregados.length === 0 && (
-              <div className="info-box info-box--warn" style={{ marginTop: 4 }}>
-                <span className="info-box__icon">ℹ️</span>
-                <span className="info-box__text">No hay pedidos entregados disponibles para devolución.</span>
-              </div>
-            )}
-          </div>
+        <div className="modal-body" style={{ overflowY: "auto", minHeight: 280 }}>
 
-          {/* Info pedido seleccionado */}
-          {pedidoSel && (
-            <div className="info-box info-box--info">
-              <span className="info-box__icon">📦</span>
-              <div className="info-box__text">
-                <span className="info-box__label">{pedidoSel.numero} · {pedidoSel.cliente?.nombre}</span>
-                Total pagado: {fmt(pedidoSel.total)} · {pedidoSel.metodo_pago}
-              </div>
-            </div>
-          )}
-
-          {/* Productos a devolver */}
-          {items.length > 0 && (
+          {/* ── Paso 1: Pedido ── */}
+          {step === 1 && (
             <>
-              <p className="section-label">Productos a devolver</p>
-              {errors.items && <span className="field-error" style={{ marginTop: -4 }}>{errors.items}</span>}
-              <div className="productos-devolucion">
-                {items.map((item, idx) => (
-                  <div key={idx} className="prod-dev-item">
-                    <div style={{ flex: 1 }}>
-                      <div className="prod-dev-name">{item.nombre}</div>
-                      <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 2 }}>
-                        {fmt(item.precio)} c/u · máx. {item.cantMax}
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <button
-                        onClick={() => setCantidad(idx, item.cantidad - 1)}
-                        style={{ width: 26, height: 26, borderRadius: 6, border: "1.5px solid #c8e6c9", background: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 700, color: "#2e7d32", display: "flex", alignItems: "center", justifyContent: "center" }}
-                      >−</button>
-                      <input
-                        type="number" min={0} max={item.cantMax}
-                        value={item.cantidad}
-                        onChange={e => setCantidad(idx, e.target.value)}
-                        style={{ width: 44, padding: "4px 6px", borderRadius: 6, border: "1.5px solid #e0e0e0", fontSize: 13, fontWeight: 700, textAlign: "center", outline: "none", fontFamily: "inherit" }}
-                      />
-                      <button
-                        onClick={() => setCantidad(idx, item.cantidad + 1)}
-                        style={{ width: 26, height: 26, borderRadius: 6, border: "1.5px solid #c8e6c9", background: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 700, color: "#2e7d32", display: "flex", alignItems: "center", justifyContent: "center" }}
-                      >+</button>
-                    </div>
-                    <div className="prod-dev-sub" style={{ minWidth: 80, textAlign: "right" }}>
-                      {item.cantidad > 0 ? fmt(item.precio * item.cantidad) : "—"}
-                    </div>
-                  </div>
-                ))}
+              <p className="section-label" style={{textTransform: "none", marginTop: 0}} >Seleccionar Pedido</p>
+              <div className="field-wrap">
+                <label className="field-label">Pedido entregado <span className="required">*</span></label>
+                <div className="select-wrap">
+                  <select
+                    className={`field-select${errors.idPedido ? " error" : ""}`}
+                    value={idPedido}
+                    onChange={e => handleSelectPedido(e.target.value)}
+                  >
+                    <option value="">Seleccione un pedido…</option>
+                    {pedidosEntregados.map(p => (
+                      <option key={p.id} value={String(p.id)}>
+                        {p.numero} — {p.cliente?.nombre}
+                      </option>
+                    ))}
+                  </select>
+                  <SelectArrow />
+                </div>
+                {errors.idPedido && <span className="field-error">{errors.idPedido}</span>}
               </div>
 
-              {/* Total devolución */}
-              {totalDevolucion > 0 && (
-                <div className="credito-box">
-                  <span className="credito-box__icon">💳</span>
-                  <div>
-                    <div className="credito-box__label">Crédito a generar</div>
-                    <div className="credito-box__val">{fmt(totalDevolucion)}</div>
-                    <div className="credito-box__saldo">Se sumará al saldo del cliente</div>
+              {pedidoSel && (
+                <div className="info-box info-box--info" style={{ marginTop: 16 }}>
+                  <span className="info-box__icon">📦</span>
+                  <div className="info-box__text">
+                    <span className="info-box__label">{pedidoSel.numero} · {pedidoSel.cliente?.nombre}</span>
+                    Total pagado: {fmt(pedidoSel.total)} · {pedidoSel.metodo_pago}
                   </div>
                 </div>
               )}
             </>
           )}
 
-          {/* Motivo */}
-          <p className="section-label" style={{textTransform: "none"}} >Motivo</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label className="form-label">Motivo de la devolución <span className="required">*</span></label>
-            <div className="select-wrap">
-              <select
-                className={`field-select${errors.motivo ? " error" : ""}`}
-                value={motivo}
-                onChange={e => { setMotivo(e.target.value); setErrors(v => ({ ...v, motivo: "" })); }}
-              >
-                <option value="">Seleccione…</option>
-                {MOTIVOS.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-              <SelectArrow />
-            </div>
-            {errors.motivo && <span className="field-error">{errors.motivo}</span>}
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label className="form-label">Comentario adicional</label>
-            <textarea
-              className="field-textarea"
-              rows={2}
-              placeholder="Descripción detallada del problema…"
-              value={comentario}
-              onChange={e => setComentario(e.target.value)}
-            />
-          </div>
-
-          {/* Evidencia */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label className="form-label">Evidencia <span style={{ color: "#9e9e9e", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>(opcional)</span></label>
-
-            {!evidencia ? (
-              <label style={{
-                display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
-                padding: "20px 16px", borderRadius: 10, cursor: "pointer",
-                border: "2px dashed #c8e6c9", background: "#f9fdf9",
-                transition: "all 0.15s",
-              }}>
-                <span style={{ fontSize: 28 }}>📎</span>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#2e7d32" }}>Adjuntar archivo</div>
-                  <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 2 }}>
-                    Foto, video o documento del problema · Máx. 5MB
+          {/* ── Paso 2: Detalles ── */}
+          {step === 2 && (
+            <>
+              <p className="section-label" style={{textTransform: "none", marginTop: 0}}>Productos a devolver</p>
+              <div className="productos-devolucion" style={{ maxHeight: 180, overflowY: "auto", border: "1.5px solid #eee", borderRadius: 10, padding: 8 }}>
+                {items.map((item, idx) => (
+                  <div key={idx} className="prod-dev-item" style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: idx < items.length - 1 ? "1px solid #f5f5f5" : "none" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>{item.nombre}</div>
+                      <div style={{ fontSize: 11, color: "#9e9e9e" }}>{fmt(item.precio)} c/u</div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <button className="qty-btn" onClick={() => setCantidad(idx, item.cantidad - 1)}>−</button>
+                      <input className="qty-input" type="number" value={item.cantidad} onChange={e => setCantidad(idx, e.target.value)} style={{ width: 36, textAlign: "center" }} />
+                      <button className="qty-btn" onClick={() => setCantidad(idx, item.cantidad + 1)}>+</button>
+                    </div>
                   </div>
-                </div>
-                <input
-                  type="file"
-                  accept="image/*,video/*,.pdf,.doc,.docx"
-                  style={{ display: "none" }}
-                  onChange={e => {
-                    const file = e.target.files[0];
-                    if (!file) return;
-                    if (file.size > 5 * 1024 * 1024) {
-                      alert("El archivo supera los 5MB");
-                      return;
-                    }
-                    const reader = new FileReader();
-                    reader.onload = ev => setEvidencia({
-                      nombre: file.name,
-                      base64: ev.target.result,
-                      tipo:   file.type,
-                    });
-                    reader.readAsDataURL(file);
-                  }}
-                />
-              </label>
-            ) : (
-              <div style={{
-                display: "flex", alignItems: "center", gap: 12,
-                padding: "12px 14px", borderRadius: 10,
-                border: "1.5px solid #a5d6a7", background: "#f1f8f1",
-              }}>
-                {/* Preview si es imagen */}
-                {evidencia.tipo?.startsWith("image/") ? (
-                  <img
-                    src={evidencia.base64}
-                    alt="evidencia"
-                    style={{ width: 48, height: 48, borderRadius: 8, objectFit: "cover", flexShrink: 0 }}
-                  />
-                ) : (
-                  <div style={{
-                    width: 48, height: 48, borderRadius: 8, background: "#e8f5e9",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 24, flexShrink: 0,
-                  }}>
-                    {evidencia.tipo?.startsWith("video/") ? "🎥" : "📄"}
-                  </div>
-                )}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#1a1a1a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {evidencia.nombre}
-                  </div>
-                  <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 2 }}>Archivo adjunto</div>
-                </div>
-                <button
-                  onClick={() => setEvidencia(null)}
-                  style={{
-                    width: 28, height: 28, borderRadius: 7, border: "1.5px solid #ef9a9a",
-                    background: "#ffebee", cursor: "pointer", fontSize: 13, color: "#c62828",
-                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                  }}
-                  title="Quitar archivo"
-                >✕</button>
+                ))}
               </div>
-            )}
-          </div>
+              {errors.items && <p className="field-error">{errors.items}</p>}
+
+              <div className="form-grid-2" style={{ marginTop: 12 }}>
+                <div className="field-wrap">
+                  <label className="field-label">Motivo <span className="required">*</span></label>
+                  <div className="select-wrap">
+                    <select className={`field-select${errors.motivo ? " error" : ""}`} value={motivo} onChange={e => setMotivo(e.target.value)}>
+                      <option value="">Seleccione…</option>
+                      {MOTIVOS.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                    <SelectArrow />
+                  </div>
+                </div>
+                <div className="field-wrap">
+                  <label className="field-label">Total a devolver</label>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: "#c62828", paddingTop: 8 }}>{fmt(totalDevolucion)}</div>
+                </div>
+              </div>
+
+              <div className="field-wrap" style={{ marginTop: 12 }}>
+                <label className="field-label">Evidencia (opcional)</label>
+                <input type="file" style={{ fontSize: 12 }} onChange={e => {
+                  const file = e.target.files[0]; if (!file) return;
+                  const r = new FileReader(); r.onload = ev => setEvidencia({ nombre: file.name, base64: ev.target.result }); r.readAsDataURL(file);
+                }} />
+              </div>
+            </>
+          )}
 
         </div>
 
         {/* Footer */}
-        <div className="modal-footer">
-          <button className="btn-cancel" onClick={onClose}>Cancelar</button>
-          <button className="btn-save" onClick={handleSave} disabled={saved || totalDevolucion === 0}>
-            {saved ? "Guardando…" : " Registrar devolución"}
-          </button>
+        <div className="modal-footer" style={{ justifyContent: "space-between" }}>
+          {step > 1
+            ? <button className="btn-ghost" onClick={handleBack}>← Atrás</button>
+            : <button className="btn-ghost" onClick={onClose}>Cancelar</button>
+          }
+          <div style={{ display: "flex", gap: 10 }}>
+            {step < 2
+              ? <button className="btn-save" onClick={handleNext}>Siguiente →</button>
+              : <button className="btn-save" style={{ background: "#c62828" }} onClick={handleSave} disabled={saved || totalDevolucion === 0}>
+                  {saved ? "Guardando…" : "Registrar"}
+                </button>
+            }
+          </div>
         </div>
 
         {saved && (
           <div className="modal-success-toast">
-            <span>✓</span><span>Devolución registrada con éxito</span>
+            <span>✓</span><span>Devolución exitosa</span>
           </div>
         )}
       </div>

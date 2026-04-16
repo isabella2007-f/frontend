@@ -18,8 +18,8 @@
 .lm-card {
   background: #ffffff;
   border-radius: 28px;
-  padding: 0 0 32px 0;
-  max-width: 360px;
+  padding: 0 0 28px 0;
+  max-width: 320px;
   width: 92%;
   text-align: center;
   box-shadow:
@@ -80,7 +80,7 @@
   margin: 0 auto;
   max-width: 260px;
   line-height: 1.6;
-  padding: 0 24px;
+  padding: 0 20px;
 }
 
 /* Divider */
@@ -94,7 +94,7 @@
 .lm-actions {
   display: flex;
   gap: 10px;
-  padding: 0 24px;
+  padding: 0 20px;
 }
 
 .lm-btn {
@@ -103,7 +103,7 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 14px 16px;
+  padding: 10px 12px;
   border-radius: 16px;
   font-size: 0.9rem;
   font-weight: 800;

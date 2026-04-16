@@ -116,160 +116,98 @@ export default function CrearProducto({ onClose, onSave }) {
 
   return (
     <>
-      <ModalOverlay onClose={onClose}>
-        <div className="modal-header">
-          <div>
-            <p className="modal-header__eyebrow">Productos</p>
-            <h2 className="modal-header__title">Nuevo producto</h2>
+      <div className="overlay" onClick={onClose}>
+        <div className="modal-card" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+          <div className="modal-header">
+            <div>
+              <p className="modal-header__eyebrow">Productos</p>
+              <h2 className="modal-header__title">Nuevo producto</h2>
+            </div>
+            <button className="modal-close-btn" onClick={onClose}>✕</button>
           </div>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
-        </div>
 
-        <div style={{ padding: "16px 24px 0" }}>
-          <StepsBar current={step} />
-        </div>
+          <div style={{ padding: "16px 24px 0" }}>
+            <StepsBar current={step} />
+          </div>
 
-        <div className="modal-body" style={{ overflow: "visible" }}>
+          <div className="modal-body" style={{ minHeight: 260 }}>
 
-          {/* ── Paso 1: Información ── */}
-          {step === 1 && (
-            <>
-              <div className="form-group">
-                <label className="form-label">Nombre</label>
-                <input
-                  className={`field-input${errors.nombre ? " field-input--error" : ""}`}
-                  value={form.nombre}
-                  onChange={e => set("nombre", e.target.value)}
-                  placeholder="Ej. Tostones de plátano verde"
-                  onFocus={e => e.target.style.borderColor = "#4caf50"}
-                  onBlur={e => e.target.style.borderColor = errors.nombre ? "#e53935" : "#e0e0e0"}
-                />
-                {errors.nombre && <p className="field-error">{errors.nombre}</p>}
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Categoría</label>
-                <select
-                  className={`field-input${errors.idCategoria ? " field-input--error" : ""}`}
-                  value={form.idCategoria}
-                  onChange={e => set("idCategoria", e.target.value)}
-                  style={{ cursor: "pointer" }}
-                >
-                  <option value="">— Seleccionar —</option>
-                  {categoriasProductosActivas.map(c => (
-                    <option key={c.id} value={c.id}>{c.icon} {c.nombre}</option>
-                  ))}
-                </select>
-                {errors.idCategoria && <p className="field-error">{errors.idCategoria}</p>}
-              </div>
-            </>
-          )}
-
-          {/* ── Paso 2: Precio, stock e imágenes ── */}
-          {step === 2 && (
-            <>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            {/* ── Paso 1: Información ── */}
+            {step === 1 && (
+              <>
                 <div className="form-group">
-                  <label className="form-label">Precio de venta</label>
-                  <div style={{ position: "relative" }}>
-                    <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#9e9e9e", fontSize: 13 }}>$</span>
-                    <input
-                      className={`field-input${errors.precio ? " field-input--error" : ""}`}
-                      style={{ paddingLeft: 24 }}
-                      type="number" min="0" value={form.precio}
-                      onChange={e => set("precio", e.target.value)} placeholder="0"
-                      onFocus={e => e.target.style.borderColor = "#4caf50"}
-                      onBlur={e => e.target.style.borderColor = errors.precio ? "#e53935" : "#e0e0e0"}
-                    />
-                  </div>
-                  {errors.precio && <p className="field-error">{errors.precio}</p>}
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Stock inicial</label>
+                  <label className="form-label">Nombre <span className="required">*</span></label>
                   <input
-                    className="field-input"
-                    type="number" disabled value="0"
-                    style={{ background: "#f5f5f5", cursor: "not-allowed" }}
+                    className={`field-input${errors.nombre ? " error" : ""}`}
+                    value={form.nombre}
+                    onChange={e => set("nombre", e.target.value)}
+                    placeholder="Ej. Tostones de plátano verde"
                   />
-                  <p style={{ fontSize: 10, color: "#9e9e9e", marginTop: 4 }}>Depende de órdenes de producción</p>
+                  {errors.nombre && <p className="field-error">{errors.nombre}</p>}
                 </div>
-              </div>
 
-              <div className="form-group">
-                <label className="form-label">
-                  Stock mínimo{" "}
-                  <span style={{ color: "#9e9e9e", fontWeight: 400, textTransform: "none", marginLeft: 4, fontSize: 11 }}>
-                    (el estado se ajusta automáticamente)
-                  </span>
-                </label>
-                <input
-                  className={`field-input${errors.stockMinimo ? " field-input--error" : ""}`}
-                  type="number" min="0" value={form.stockMinimo}
-                  onChange={e => set("stockMinimo", e.target.value)} placeholder="Ej. 10"
-                  onFocus={e => e.target.style.borderColor = "#4caf50"}
-                  onBlur={e => e.target.style.borderColor = errors.stockMinimo ? "#e53935" : "#e0e0e0"}
-                />
-                {errors.stockMinimo && <p className="field-error">{errors.stockMinimo}</p>}
-              </div>
-
-              {/* Ficha técnica */}
-              <div className="form-group">
-                <button
-                  className={`btn-ficha-tecnica${form.ficha ? " btn-ficha-tecnica--done" : ""}`}
-                  onClick={() => setShowFicha(true)}
-                >
-                  <span>📋</span>
-                  {form.ficha ? "Ficha técnica agregada ✓" : "Agregar ficha técnica"}
-                </button>
-              </div>
-
-              {/* Imágenes */}
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Imágenes del producto</label>
-                
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
-                  {form.imagenesPreview.map((url, idx) => (
-                    <div key={idx} style={{ position: "relative", width: 80, height: 80, borderRadius: 10, overflow: "hidden", border: "1px solid #c8e6c9" }}>
-                      <img src={url} alt="preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                      <button 
-                        onClick={() => removeImg(idx)}
-                        style={{ position: "absolute", top: 2, right: 2, background: "rgba(255,255,255,0.8)", border: "none", borderRadius: "50%", width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, cursor: "pointer", color: "#c62828" }}
-                      >✕</button>
-                    </div>
-                  ))}
-                  
-                  <div
-                    onClick={() => fileRef.current.click()}
-                    className="img-upload-zone"
-                    style={{ width: 80, height: 80, margin: 0, padding: 0 }}
+                <div className="form-group">
+                  <label className="form-label">Categoría <span className="required">*</span></label>
+                  <select
+                    className={`field-input${errors.idCategoria ? " error" : ""}`}
+                    value={form.idCategoria}
+                    onChange={e => set("idCategoria", e.target.value)}
                   >
-                    <div style={{ textAlign: "center", color: "#9e9e9e" }}>
-                      <div style={{ fontSize: 20 }}>➕</div>
-                      <span style={{ fontSize: 9 }}>Subir</span>
-                    </div>
+                    <option value="">— Seleccionar —</option>
+                    {categoriasProductosActivas.map(c => (
+                      <option key={c.id} value={c.id}>{c.icon} {c.nombre}</option>
+                    ))}
+                  </select>
+                  {errors.idCategoria && <p className="field-error">{errors.idCategoria}</p>}
+                </div>
+              </>
+            )}
+
+            {/* ── Paso 2: Precio y stock ── */}
+            {step === 2 && (
+              <>
+                <div className="form-grid-2">
+                  <div className="form-group">
+                    <label className="form-label">Precio venta <span className="required">*</span></label>
+                    <input className={`field-input${errors.precio ? " error" : ""}`} type="number" value={form.precio} onChange={e => set("precio", e.target.value)} placeholder="0" />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Stock mín. <span className="required">*</span></label>
+                    <input className={`field-input${errors.stockMinimo ? " error" : ""}`} type="number" value={form.stockMinimo} onChange={e => set("stockMinimo", e.target.value)} placeholder="10" />
                   </div>
                 </div>
 
-                <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={handleImgs} />
-              </div>
-            </>
-          )}
-        </div>
+                <div className="form-group">
+                  <button className={`btn-ghost ${form.ficha ? "active" : ""}`} onClick={() => setShowFicha(true)} style={{ width: "100%", justifyContent: "center" }}>
+                    {form.ficha ? "📋 Ficha técnica configurada ✓" : "📋 Configurar ficha técnica"}
+                  </button>
+                </div>
 
-        <div className="modal-footer" style={{ justifyContent: "space-between" }}>
-          {step > 1
-            ? <button className="btn-ghost" onClick={handleBack}>← Atrás</button>
-            : <button className="btn-ghost" onClick={onClose}>Cancelar</button>
-          }
-          {step < 2
-            ? <button className="btn-save" onClick={handleNext}>Siguiente →</button>
-            : <button className="btn-save" onClick={handleSave} disabled={saving}>
-                {saving ? "Guardando…" : "Guardar"}
-              </button>
-          }
+                <div className="form-group">
+                  <label className="form-label">Imágenes</label>
+                  <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
+                    {form.imagenesPreview.map((img, i) => (
+                      <div key={i} style={{ position: "relative", flexShrink: 0 }}>
+                        <img src={img} style={{ width: 50, height: 50, borderRadius: 8, objectFit: "cover" }} />
+                        <button onClick={() => removeImg(i)} style={{ position: "absolute", top: -4, right: -4, background: "#c62828", color: "#fff", border: "none", borderRadius: "50%", width: 16, height: 16, fontSize: 10 }}>✕</button>
+                      </div>
+                    ))}
+                    <button onClick={() => fileRef.current.click()} style={{ width: 50, height: 50, borderRadius: 8, border: "1.5px dashed #ccc", background: "#f9f9f9", color: "#999", fontSize: 20 }}>+</button>
+                  </div>
+                  <input ref={fileRef} type="file" multiple accept="image/*" style={{ display: "none" }} onChange={handleImgs} />
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="modal-footer" style={{ justifyContent: "space-between" }}>
+            {step > 1 ? <button className="btn-ghost" onClick={handleBack}>← Atrás</button> : <button className="btn-ghost" onClick={onClose}>Cancelar</button>}
+            <div style={{ display: "flex", gap: 10 }}>
+              {step < 2 ? <button className="btn-save" onClick={handleNext}>Siguiente →</button> : <button className="btn-save" onClick={handleSave} disabled={saving}>{saving ? "Guardando…" : "Guardar"}</button>}
+            </div>
+          </div>
         </div>
-      </ModalOverlay>
+      </div>
 
       {/* ── La ficha se monta ENCIMA sin desmontar CrearProducto ── */}
       {showFicha && (

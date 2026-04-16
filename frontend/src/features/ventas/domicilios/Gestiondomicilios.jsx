@@ -626,10 +626,10 @@ export default function GestionDomicilios() {
                 )}
               </div>
             </div>
-
-            <div className="card">
-              <div style={{ overflowX: "auto" }}>
-                <table className="tbl">
+{/* TABLA */}
+<div className="card">
+  <div className="tbl-wrapper">
+    <table className="tbl">
                   <thead>
                     <tr>
                       <th className="col-num">Nº</th>

@@ -1,4 +1,5 @@
-import { TIPO_ICONS, TIPO_LABELS, TIPO_COLORS } from "../context/NotificacionesContext";
+import { useNavigate } from "react-router-dom";
+import { useNotificaciones, TIPO_ICONS, TIPO_LABELS, TIPO_COLORS, TIPOS } from "../context/NotificacionesContext";
 import "./notificaciones.css";
 
 const fmtFechaCompleta = (iso) => {
@@ -9,20 +10,38 @@ const fmtFechaCompleta = (iso) => {
   });
 };
 
-/* ══════════════════════════════════════════════════════════
-   HU_02 — Ver detalles de la notificación
-   CA_02_01 listado de notificaciones al administrador
-   CA_02_02 info básica del evento
-   CA_02_03 ordenadas por fecha
-   CA_02_04 acceder al detalle
-   CA_02_05 marcar como leída
-══════════════════════════════════════════════════════════ */
-export default function NotificacionDetalle({ notif, onClose, onMarcarLeida }) {
+/* Mapeo de rutas para navegación rápida */
+const RUTA_MAP = {
+  [TIPOS.STOCK_MINIMO]:    "/compras/insumos",
+  [TIPOS.STOCK_AGOTADO]:   "/compras/insumos",
+  [TIPOS.LOTE_POR_VENCER]: "/compras/insumos",
+  [TIPOS.LOTE_VENCIDO]:    "/compras/insumos",
+  [TIPOS.PEDIDO_NUEVO]:    "/ventas/pedidos",
+  [TIPOS.COMPRA_PENDIENTE]:"/compras/gestioncompras",
+  [TIPOS.DEVOLUCION]:      "/ventas/devoluciones",
+  [TIPOS.SISTEMA]:         "/dashboard",
+};
+
+export default function NotificacionDetalle({ notif, onClose }) {
+  const { eliminarNotificacion } = useNotificaciones();
+  const navigate = useNavigate();
   if (!notif) return null;
+
   const color = TIPO_COLORS[notif.tipo] || "#2e7d32";
+  const ruta  = RUTA_MAP[notif.tipo] || "/dashboard";
+
+  const handleIrAlRecurso = () => {
+    navigate(ruta);
+    onClose();
+  };
+
+  const handleListo = () => {
+    eliminarNotificacion(notif.id);
+    onClose();
+  };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 3000 }}>
       <div className="modal-box modal-box--sm notif-detalle" onClick={e => e.stopPropagation()}>
 
         {/* Header */}
@@ -36,13 +55,12 @@ export default function NotificacionDetalle({ notif, onClose, onMarcarLeida }) {
           <button className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
 
-        {/* Body — CA_02_02 información básica del evento */}
+        {/* Body */}
         <div className="modal-body notif-detalle__body">
           <div className="notif-detalle__pill-row">
             <span className="notif-detalle__pill" style={{ background: `${color}18`, color }}>
               {TIPO_ICONS[notif.tipo]} {TIPO_LABELS[notif.tipo]}
             </span>
-            {/* CA_02_03 — fecha */}
             <span className="notif-detalle__fecha">{fmtFechaCompleta(notif.fecha)}</span>
           </div>
 
@@ -56,22 +74,32 @@ export default function NotificacionDetalle({ notif, onClose, onMarcarLeida }) {
             </div>
           )}
 
-          {/* Estado leída / no leída — CA_02_05 */}
-          <div className={`notif-detalle__estado ${notif.leida ? "notif-detalle__estado--leida" : "notif-detalle__estado--nueva"}`}>
-            {notif.leida ? "✓ Marcada como leída" : "● No leída"}
+          <div className="info-box info-box--info" style={{ marginTop: 20 }}>
+            <span className="info-box__icon">💡</span>
+            <span className="info-box__text">
+              Accede directamente al módulo relacionado para gestionar este evento.
+            </span>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="modal-footer">
-          {!notif.leida && (
-            <button
-              className="btn-save"
-              onClick={() => { onMarcarLeida(notif.id); onClose(); }}
-            >
-              ✓ Marcar como leída
-            </button>
-          )}
+        <div className="modal-footer" style={{ gap: 10 }}>
+          <button 
+            className="btn-save" 
+            style={{ background: color, border: "none", color: "#fff" }} 
+            onClick={handleIrAlRecurso}
+          >
+            🚀 Ir al módulo
+          </button>
+          
+          <button 
+            className="btn-save" 
+            onClick={handleListo}
+            title="Marcar como completado y eliminar de la lista"
+          >
+            ✓ Listo
+          </button>
+          
           <button className="btn-ghost" onClick={onClose}>Cerrar</button>
         </div>
       </div>

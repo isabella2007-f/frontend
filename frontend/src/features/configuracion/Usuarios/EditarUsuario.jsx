@@ -76,7 +76,7 @@ export function ModalVerUsuario({ user, onClose }) {
       {/* Caja más ancha para el layout side panel */}
       <div
         className="modal-box"
-        style={{ maxWidth: 660, width: "100%", maxHeight: "calc(100vh - 40px)", display: "flex", flexDirection: "column", overflow: "hidden" }}
+        style={{ maxWidth: 600, width: "100%", maxHeight: "calc(100vh - 40px)", display: "flex", flexDirection: "column", overflow: "hidden" }}
         onClick={e => e.stopPropagation()}
       >
         {/* HEADER */}

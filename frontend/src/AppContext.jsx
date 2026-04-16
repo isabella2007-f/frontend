@@ -164,6 +164,17 @@ const initPedidos = [
     idEmpleado: 2, notas: "", estado: "En camino",
     orden_produccion: false, fecha_pedido: "2026-03-20",
   },
+  {
+    id: 4, numero: "PED-004", idCliente: null,
+    cliente: { nombre: "Ana García López", correo: "ana.garcia@email.com", telefono: "300 123 4567" },
+    productosItems: [
+      { idProducto: 1, nombre: "Muffin de plátano", precio: 10000, cantidad: 5, stockActual: 47, stockOk: true },
+    ],
+    subtotal: 50000, descuento: 5000, total: 45000,
+    metodo_pago: "Efectivo", domicilio: false,
+    idEmpleado: 2, notas: "", estado: "Entregado",
+    orden_produccion: false, fecha_pedido: "2026-03-15",
+  },
 ];
 
 const initCompras = [
@@ -540,9 +551,9 @@ export function AppProvider({ children }) {
   const getCatInsumo   = id     => categoriasInsumos.find(c => c.id === id)   || { nombre: "—", icon: "📦" };
   const getUnidad      = id     => UNIDADES_MEDIDA.find(u => u.id === id)     || { simbolo: "—", nombre: "—" };
   const getRol         = nombre => roles.find(r => r.nombre === nombre)       || null;
-  const getProveedor   = id     => proveedores.find(p => p.id === id)         || null;
-  const getInsumo      = id     => insumos.find(i => i.id === Number(id))     || null;
-  const getCliente     = id     => clientes.find(c => c.id === id)            || null;
+  const getProveedor   = id     => proveedores.find(p => String(p.id) === String(id)) || null;
+  const getInsumo      = id     => insumos.find(i     => String(i.id) === String(id)) || null;
+  const getCliente     = id     => clientes.find(c    => String(c.id) === String(id)) || null;
 
   /* ── Validaciones ───────────────────────────────────── */
   const canDeleteCatProducto = (catId) => {
@@ -696,6 +707,7 @@ export function AppProvider({ children }) {
   /* ── CRUD proveedores ───────────────────────────────── */
   const crearProveedor    = (form) => setProveedores(p => [{ ...form, id: `PROV${String(Date.now()).slice(-4)}` }, ...p]);
   const editarProveedor   = (form) => setProveedores(p => p.map(x => x.id === form.id ? form : x));
+  const toggleProveedor   = (id)   => setProveedores(p => p.map(x => x.id === id ? { ...x, estado: !x.estado } : x));
   const eliminarProveedor = (id)   => {
     const check = canDeleteProveedor(id); if (!check.ok) return check;
     setProveedores(p => p.filter(x => x.id !== id)); return { ok: true };
@@ -1064,7 +1076,7 @@ export function AppProvider({ children }) {
       crearRol,         editarRol,         toggleRol,         eliminarRol,
       crearUsuario,     editarUsuario,     toggleUsuario,     eliminarUsuario,
       crearCliente,     editarCliente,     toggleCliente,     eliminarCliente,
-      crearProveedor,   editarProveedor,   eliminarProveedor,
+      crearProveedor,   editarProveedor,   toggleProveedor,   eliminarProveedor,
       crearCompra,      editarCompra,      eliminarCompra,
       registrarSalidaInsumo, descontarStockFIFO,
       crearPedido,      editarPedido,      eliminarPedido,

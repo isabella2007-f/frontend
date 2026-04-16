@@ -349,7 +349,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
         className="modal-card"
         onClick={e => e.stopPropagation()}
         style={{
-          maxWidth: 640,
+          maxWidth: 580,
           /* ── Clave: flex column + altura máxima ── */
           display: "flex",
           flexDirection: "column",

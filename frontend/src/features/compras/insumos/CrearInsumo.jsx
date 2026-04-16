@@ -56,9 +56,6 @@ export default function CrearInsumo({ onClose, onSave, categorias, unidades }) {
     }
     if (s === 2) {
       if (form.stockMinimo === "") e.stockMinimo = "Campo requerido";
-      if (form.vencimientoTipo === "dias" && (!form.vencimientoValor || Number(form.vencimientoValor) <= 0)) {
-        e.vencimientoValor = "Ingresa un número de días válido";
-      }
     }
     return e;
   };
@@ -88,8 +85,8 @@ export default function CrearInsumo({ onClose, onSave, categorias, unidades }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box--lg" onClick={e => e.stopPropagation()}>
+    <div className="overlay" onClick={onClose}>
+      <div className="modal-card" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div className="modal-header">
@@ -105,46 +102,42 @@ export default function CrearInsumo({ onClose, onSave, categorias, unidades }) {
           <StepsBar current={step} />
         </div>
 
-        {/* Body — sin overflow */}
-        <div className="modal-body" style={{ overflow: "visible" }}>
+        {/* Body */}
+        <div className="modal-body" style={{ minHeight: 240 }}>
 
           {/* ── Paso 1: Identificación ── */}
           {step === 1 && (
             <>
               <div className="form-group">
-                <label className="form-label">Nombre <span>*</span></label>
+                <label className="form-label">Nombre <span className="required">*</span></label>
                 <input
-                  className={`field-input${errors.nombre ? " field-input--error" : ""}`}
+                  className={`field-input${errors.nombre ? " error" : ""}`}
                   value={form.nombre} onChange={e => set("nombre", e.target.value)}
                   placeholder="Ej. Plátano verde"
-                  onFocus={e => e.target.style.borderColor = "#4caf50"}
-                  onBlur={e => e.target.style.borderColor = errors.nombre ? "#e53935" : "#e0e0e0"}
                 />
                 {errors.nombre && <p className="field-error">{errors.nombre}</p>}
               </div>
 
-              <div className="form-row">
+              <div className="form-grid-2">
                 <div className="form-group">
-                  <label className="form-label">Categoría <span>*</span></label>
+                  <label className="form-label">Categoría <span className="required">*</span></label>
                   <select
-                    className={`field-input${errors.idCategoria ? " field-input--error" : ""}`}
+                    className={`field-input${errors.idCategoria ? " error" : ""}`}
                     value={form.idCategoria} onChange={e => set("idCategoria", e.target.value)}
                   >
                     <option value="">— Seleccionar —</option>
                     {categorias.map(c => <option key={c.id} value={c.id}>{c.icon} {c.nombre}</option>)}
                   </select>
-                  {errors.idCategoria && <p className="field-error">{errors.idCategoria}</p>}
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Unidad de medida <span>*</span></label>
+                  <label className="form-label">Unidad de medida <span className="required">*</span></label>
                   <select
-                    className={`field-input${errors.idUnidad ? " field-input--error" : ""}`}
+                    className={`field-input${errors.idUnidad ? " error" : ""}`}
                     value={form.idUnidad} onChange={e => set("idUnidad", e.target.value)}
                   >
                     <option value="">— Seleccionar —</option>
                     {unidades.map(u => <option key={u.id} value={u.id}>{u.simbolo} — {u.nombre}</option>)}
                   </select>
-                  {errors.idUnidad && <p className="field-error">{errors.idUnidad}</p>}
                 </div>
               </div>
             </>
@@ -154,78 +147,51 @@ export default function CrearInsumo({ onClose, onSave, categorias, unidades }) {
           {step === 2 && (
             <>
               <div className="form-group">
-                <label className="form-label">Stock mínimo <span>*</span></label>
+                <label className="form-label">Stock mínimo <span className="required">*</span></label>
                 <input
                   type="number" min="0"
-                  className={`field-input${errors.stockMinimo ? " field-input--error" : ""}`}
+                  className={`field-input${errors.stockMinimo ? " error" : ""}`}
                   value={form.stockMinimo} onChange={e => set("stockMinimo", e.target.value)}
                   placeholder="0"
-                  onFocus={e => e.target.style.borderColor = "#4caf50"}
-                  onBlur={e => e.target.style.borderColor = errors.stockMinimo ? "#e53935" : "#e0e0e0"}
                 />
                 {errors.stockMinimo && <p className="field-error">{errors.stockMinimo}</p>}
               </div>
 
-              <div className="form-group" style={{ marginTop: 20 }}>
+              <div className="form-group">
                 <label className="form-label">Preferencia de Vencimiento</label>
-                <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+                <div style={{ display: "flex", gap: 10 }}>
                   <button
                     type="button"
-                    className={`venc-pref-btn ${form.vencimientoTipo === "dias" ? "active" : ""}`}
+                    className={`btn-ghost ${form.vencimientoTipo === "dias" ? "active" : ""}`}
                     onClick={() => set("vencimientoTipo", "dias")}
-                  >
-                    📅 Por Días
-                  </button>
+                    style={{ flex: 1, borderColor: form.vencimientoTipo === "dias" ? "#2e7d32" : "#e0e0e0", background: form.vencimientoTipo === "dias" ? "#e8f5e9" : "#fff", color: form.vencimientoTipo === "dias" ? "#2e7d32" : "#757575" }}
+                  >📅 Por Días</button>
                   <button
                     type="button"
-                    className={`venc-pref-btn ${form.vencimientoTipo === "fecha" ? "active" : ""}`}
+                    className={`btn-ghost ${form.vencimientoTipo === "fecha" ? "active" : ""}`}
                     onClick={() => set("vencimientoTipo", "fecha")}
-                  >
-                    🗓️ Por Fecha
-                  </button>
+                    style={{ flex: 1, borderColor: form.vencimientoTipo === "fecha" ? "#2e7d32" : "#e0e0e0", background: form.vencimientoTipo === "fecha" ? "#e8f5e9" : "#fff", color: form.vencimientoTipo === "fecha" ? "#2e7d32" : "#757575" }}
+                  >🗓️ Por Fecha</button>
                 </div>
-
-                {form.vencimientoTipo === "dias" && (
-                  <div className="form-group">
-                    <label className="form-label">Días de vida útil (estimados)</label>
-                    <div style={{ position: "relative" }}>
-                      <input
-                        type="number" min="1"
-                        className={`field-input ${errors.vencimientoValor ? "field-input--error" : ""}`}
-                        value={form.vencimientoValor}
-                        onChange={e => set("vencimientoValor", e.target.value)}
-                        placeholder="Ej: 30"
-                      />
-                      <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: "#9e9e9e", pointerEvents: "none" }}>días</span>
-                    </div>
-                    {errors.vencimientoValor && <p className="field-error">{errors.vencimientoValor}</p>}
-                  </div>
-                )}
-                
-                <p style={{ fontSize: 11, color: "#9e9e9e", margin: "8px 0 0", fontStyle: "italic" }}>
-                  * Esta preferencia se usará como valor por defecto al registrar compras de este insumo.
-                </p>
-              </div>
-              
-              <div className="form-info-box" style={{ marginTop: 20 }}>
-                <p>ℹ️ El stock inicial será de 0 unidades. El inventario se incrementará a través del módulo de compras.</p>
               </div>
             </>
           )}
         </div>
 
-        {/* Footer — navegación wizard */}
+        {/* Footer */}
         <div className="modal-footer" style={{ justifyContent: "space-between" }}>
           {step > 1
             ? <button className="btn-ghost" onClick={handleBack}>← Atrás</button>
             : <button className="btn-ghost" onClick={onClose}>Cancelar</button>
           }
-          {step < 2
-            ? <button className="btn-save" onClick={handleNext}>Siguiente →</button>
-            : <button className="btn-save" onClick={handleSave} disabled={saving}>
-                {saving ? "Guardando…" : "Guardar"}
-              </button>
-          }
+          <div style={{ display: "flex", gap: 10 }}>
+            {step < 2
+              ? <button className="btn-save" onClick={handleNext}>Siguiente →</button>
+              : <button className="btn-save" onClick={handleSave} disabled={saving}>
+                  {saving ? "Guardando…" : "Guardar"}
+                </button>
+            }
+          </div>
         </div>
       </div>
     </div>

@@ -26,7 +26,7 @@
 .compra-badge     { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: #757575; background: #fafafa; border: 1px solid #eeeeee; border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
 
 /* ─── Modal proveedor (un poco más ancho por la sección insumos) */
-.modal-box--prov  { max-width: 500px; }
+.modal-box--prov  { max-width: 450px; }
 
 /* Reducir separación entre campos para evitar scroll innecesario */
 .modal-box--prov .form-group {
@@ -35,4 +35,19 @@
 
 .modal-box--prov .form-group:last-child {
   margin-bottom: 0;
+}
+
+/* ─── Tabla scrollable y sticky headers ─── */
+.card .tbl-wrapper {
+  max-height: calc(100vh - 320px);
+  overflow-y: auto;
+  border-radius: 8px;
+}
+
+.tbl thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #f8fcf8; /* Fondo que combine con el resto */
+  box-shadow: inset 0 -1px 0 #e0e0e0;
 }

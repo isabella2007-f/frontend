@@ -45,7 +45,13 @@ export default function NotificacionesPanel({ isOpen, onClose }) {
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e) => {
-      if (panelRef.current && !panelRef.current.contains(e.target)) onClose();
+      // Si el clic es fuera del panel Y fuera de cualquier modal, cerramos
+      const isOutsidePanel = panelRef.current && !panelRef.current.contains(e.target);
+      const isClickingModal = e.target.closest(".modal-overlay") || e.target.closest(".modal-box") || e.target.closest(".notif-overlay");
+      
+      if (isOutsidePanel && !isClickingModal) {
+        onClose();
+      }
     };
     setTimeout(() => document.addEventListener("mousedown", handler), 50);
     return () => document.removeEventListener("mousedown", handler);

@@ -115,7 +115,7 @@
 
 /* Panel derecho: scroll si el contenido desborda */
 .sl-panel--form {
-  overflow-y: auto;
+  overflow-y: hidden;
 }
 .sl-panel--form::-webkit-scrollbar       { width: 3px; }
 .sl-panel--form::-webkit-scrollbar-thumb { background: #c8e6c9; border-radius: 3px; }
@@ -154,7 +154,7 @@
 /* ─── Lista con scroll interno ───────────────────────────── */
 .sl-lista {
   flex: 1;
-  overflow-y: auto;
+  overflow-y: hidden;
   display: flex; flex-direction: column; gap: 5px;
   min-height: 0;
   padding: 2px 4px 4px 4px; /* evita corte de hover/shadow en los items */
@@ -308,8 +308,8 @@
 /* ─── Tabla con scroll interno ───────────────────────────── */
 .sl-table-wrap {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: auto; /* separado para no crear stacking context que corte hovers */
+  overflow-y: hidden;
+  overflow-x: hidden; /* separado para no crear stacking context que corte hovers */
   min-height: 0;
   border-radius: 12px;
   border: 1.5px solid #c8e6c9;
@@ -356,7 +356,7 @@
 /* ─── Vencidos: área scrolleable ─────────────────────────── */
 .sl-vencidos-scroll {
   flex: 1;
-  overflow-y: auto;
+  overflow-y: hidden;
   min-height: 0;
   padding: 4px 4px 8px 4px; /* evita corte del transform hover en las tarjetas */
 }
@@ -408,7 +408,7 @@
 
 /* ─── Responsive ─────────────────────────────────────────── */
 @media (max-width: 860px) {
-  .sl-registrar-grid { grid-template-columns: 1fr; overflow-y: auto; }
+  .sl-registrar-grid { grid-template-columns: 1fr; overflow-y: hidden; }
   .sl-tipos-grid     { grid-template-columns: repeat(3, 1fr); }
   .sl-page__body     { padding: 12px 14px; }
 }

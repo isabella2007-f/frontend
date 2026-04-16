@@ -158,8 +158,8 @@ export default function CrearCliente({ onClose, onSave }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box--wide" onClick={e => e.stopPropagation()}>
+    <div className="overlay" onClick={onClose}>
+      <div className="modal-card" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
 
         <div className="modal-header">
           <div>
@@ -173,8 +173,7 @@ export default function CrearCliente({ onClose, onSave }) {
           <StepsBar current={step} />
         </div>
 
-        {/* Body — sin overflow */}
-        <div className="modal-body" style={{ overflow: "visible" }}>
+        <div className="modal-body" style={{ minHeight: 280 }}>
 
           {/* ── Paso 1: Identificación ── */}
           {step === 1 && (

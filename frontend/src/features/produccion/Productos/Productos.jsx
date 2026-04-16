@@ -217,7 +217,7 @@ function VerProducto({ product, catObj, onClose }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box" style={{ maxWidth: 560, display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 40px)" }} onClick={e => e.stopPropagation()}>
+      <div className="modal-box" style={{ maxWidth: 500, display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 40px)" }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <ProductImg previews={previews} nombre={product.nombre} />

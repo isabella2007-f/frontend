@@ -132,7 +132,7 @@ export default function CrearCompra({ onClose, onSave }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card modal-card--compra" onClick={e => e.stopPropagation()} style={{ display: "flex", flexDirection: "column", maxHeight: "90vh", overflow: "hidden" }}>
+      <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 500, display: "flex", flexDirection: "column", maxHeight: "90vh", overflow: "hidden" }}>
         <div className="modal-header" style={{ flexShrink: 0 }}>
           <div>
             <p className="modal-header__eyebrow">Compras</p>
