@@ -167,7 +167,7 @@ export default function Sidebar({ isOpen }) {
 
         {/* FOOTER */}
         <div className="sidebar-footer">
-          <div className="avatar">
+          <div className="avatar" onClick={() => navigate(user.rol === "cliente" ? "/cliente/perfil" : "/admin/perfil")} style={{ cursor: 'pointer' }}>
             {user?.nombre?.charAt(0) || "U"}
           </div>
 

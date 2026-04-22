@@ -5,7 +5,6 @@ import "./compras.css";
 const METODOS_PAGO = [
   { value: "efectivo",      label: "Efectivo",      icon: "💵" },
   { value: "transferencia", label: "Transferencia", icon: "🏦" },
-  { value: "crédito",       label: "Crédito",       icon: "💳" },
 ];
 
 const COP = (n) =>
@@ -301,19 +300,21 @@ export default function CrearCompra({ onClose, onSave }) {
               })}
 
               <button className="btn-add-detalle" type="button" onClick={addDetalle}>+ Agregar insumo</button>
-              <div className="total-bar">
-                <span className="total-bar__label">Total</span>
-                <span className="total-bar__value">{COP(totalActual || 0)}</span>
-              </div>
             </>
           )}
         </div>
 
         <div style={{ flexShrink: 0, display: "flex", justifyContent: "space-between", padding: "14px 24px 20px", borderTop: "1px solid #f5f5f5" }}>
-          {step === 2 ? <button className="btn-ghost" onClick={() => setStep(1)}>← Volver</button> : <button className="btn-ghost" onClick={onClose}>Cancelar</button>}
-          <button className="btn-save" onClick={step === 1 ? handleNextStep : handleSave} disabled={saving}>
-            {saving ? "Guardando…" : step === 1 ? "Siguiente →" : "Guardar compra"}
-          </button>
+          <div className="total-bar" style={{ margin: 0 }}>
+            <span className="total-bar__label">Total</span>
+            <span className="total-bar__value">{COP(totalActual || 0)}</span>
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            {step === 2 ? <button className="btn-ghost" onClick={() => setStep(1)}>← Volver</button> : <button className="btn-ghost" onClick={onClose}>Cancelar</button>}
+            <button className="btn-save" onClick={step === 1 ? handleNextStep : handleSave} disabled={saving}>
+              {saving ? "Guardando…" : step === 1 ? "Siguiente →" : "Guardar compra"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

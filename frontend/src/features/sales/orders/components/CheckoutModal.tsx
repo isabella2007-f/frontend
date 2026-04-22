@@ -14,12 +14,13 @@ interface CheckoutModalProps {
     items: CartItem[];
     total: number;
   };
-  onConfirm: (paymentMethod: string, onBehalfOf: string) => void;
+  onConfirm: (paymentMethod: string, onBehalfOf: string, comprobante?: File | null) => void;
 }
 
 const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDetails, onConfirm }) => {
   const [paymentMethod, setPaymentMethod] = useState('digital');
   const [onBehalfOf, setOnBehalfOf] = useState('');
+  const [comprobante, setComprobante] = useState<File | null>(null);
 
   // ✅ Cargar datos del usuario logueado cada vez que se abre el modal
   useEffect(() => {
@@ -161,6 +162,30 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                 <span className="text-sm font-bold">Efectivo</span>
               </button>
             </div>
+
+            {paymentMethod === 'digital' && (
+              <div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl">
+                <h3 className="text-sm font-bold text-emerald-800 mb-2">Pago Digital</h3>
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="bg-white p-2 rounded-lg">
+                    <img src="/qr-banco.png" alt="QR Banco" className="w-20 h-20" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-700">Banco: Bancolombia</p>
+                    <p className="text-sm text-emerald-600">Cuenta: 123-456789-0</p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Subir Comprobante</label>
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={(e) => setComprobante(e.target.files?.[0] || null)}
+                    className="w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-100 file:text-emerald-700 hover:file:bg-emerald-200"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -173,7 +198,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
             </span>
           </div>
           <button
-            onClick={() => onConfirm(paymentMethod, onBehalfOf)}
+            onClick={() => onConfirm(paymentMethod, onBehalfOf, comprobante)}
             className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-bold text-lg transition-all shadow-xl shadow-emerald-200 flex items-center justify-center gap-2 active:scale-[0.98]"
           >
             Confirmar y Pagar

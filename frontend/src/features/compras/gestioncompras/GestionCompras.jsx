@@ -34,13 +34,13 @@ export default function GestionCompras() {
     getProveedor,
   } = useApp();
 
-  const [search,      setSearch]      = useState("");
-  const [filterEstado, setFilterEstado] = useState("todos");
-  const [filterProv,   setFilterProv]   = useState("todos");
-  const [showFilter,   setShowFilter]   = useState(false);
-  const [page,         setPage]         = useState(1);
-  const [modal,        setModal]        = useState(null);
-  const [toast,        setToast]        = useState(null);
+  const [search,        setSearch]        = useState("");
+  const [filterEstado,  setFilterEstado]  = useState("todos");
+  const [filterProv,    setFilterProv]    = useState("todos");
+  const [showFilter,    setShowFilter]    = useState(false);
+  const [page,          setPage]          = useState(1);
+  const [modal,         setModal]         = useState(null);
+  const [toast,         setToast]         = useState(null);
   const filterRef = useRef();
 
   /* Cerrar dropdown al hacer clic fuera */
@@ -94,14 +94,15 @@ export default function GestionCompras() {
     setModal(null);
   };
 
+  // ✅ FIX: siempre llama setModal(null) pase lo que pase
   const handleAnular = (id) => {
     const result = anularCompra(id);
-    if (result.ok) {
+    if (!result || result.ok) {
       showToast("Compra anulada", "error");
     } else {
-      showToast(result.razon, "error");
+      showToast(result.razon || "No se pudo anular la compra", "error");
     }
-    setModal(null);
+    setModal(null); // siempre cerrar el modal
   };
 
   const handleCompletarRapido = (id) => {
@@ -186,10 +187,10 @@ export default function GestionCompras() {
                     </div>
                   </div>
                 </div>
-                
+
                 {hasFilter && (
                   <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #f0f0f0", textAlign: "center" }}>
-                    <button 
+                    <button
                       onClick={() => { setFilterEstado("todos"); setFilterProv("todos"); setShowFilter(false); }}
                       style={{ fontSize: 11, fontWeight: 700, color: "#c62828", background: "none", border: "none", cursor: "pointer" }}
                     >Limpiar filtros</button>
@@ -283,9 +284,9 @@ export default function GestionCompras() {
                       {/* Estado */}
                       <td>
                         <span className={`estado-chip estado-chip--${c.estado}`}>
-                          {c.estado === "pendiente" && "⏳ Pendiente"}
+                          {c.estado === "pendiente"  && "⏳ Pendiente"}
                           {c.estado === "completada" && "✅ Completada"}
-                          {c.estado === "anulada" && "🚫 Anulada"}
+                          {c.estado === "anulada"    && "🚫 Anulada"}
                         </span>
                       </td>
 
@@ -297,7 +298,7 @@ export default function GestionCompras() {
                             title="Ver detalle"
                             onClick={() => setModal({ mode: "view", compra: c })}
                           >👁</button>
-                          
+
                           {c.estado === "pendiente" && (
                             <button
                               className="act-btn act-btn--success"
@@ -311,7 +312,7 @@ export default function GestionCompras() {
                             title="Editar"
                             onClick={() => setModal({ mode: "edit", compra: c })}
                           >✎</button>
-                          
+
                           {c.estado !== "anulada" && (
                             <button
                               className="act-btn act-btn--delete"

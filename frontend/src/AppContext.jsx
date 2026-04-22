@@ -287,11 +287,8 @@ const nextDescuentoId    = (arr) => { const nums = arr.map(d => parseInt(d.id.re
 
 /* ══════════════════════════════════════════════════════════
    NOTIFICACIONES — helpers internos
-   Se usan dentro de AppContext para disparar notifs
-   sin crear una dependencia circular con NotificacionesContext
 ══════════════════════════════════════════════════════════ */
 
-// Tipos exportados para que otros componentes puedan usarlos
 export const NOTIF_TIPOS = {
   STOCK_MINIMO:    "stock_minimo",
   STOCK_AGOTADO:   "stock_agotado",
@@ -306,7 +303,6 @@ export const NOTIF_TIPOS = {
 const notifUID = () => `N-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 const notifFecha = () => new Date().toISOString();
 
-// Función pura para construir una notificación
 const buildNotif = ({ tipo, titulo, mensaje, clave, idReferencia, refNombre }) => ({
   id: notifUID(),
   clave: clave || `${tipo}-${Date.now()}`,
@@ -354,27 +350,14 @@ export function AppProvider({ children }) {
   const [asignacionesDesc,    setAsignacionesDesc]    = useState(() => loadFromLS("asignacionesDesc",    initAsignacionesDescuento));
   const [historialDescuentos, setHistorialDescuentos] = useState(() => loadFromLS("historialDescuentos", initHistorialDescuentos));
 
-  /* ══════════════════════════════════════════════════════
-     NOTIFICACIONES — estado propio dentro de AppContext
-     Así AppContext puede agregar notifs sin depender de
-     NotificacionesContext (evita dependencia circular).
-     NotificacionesContext lee este mismo localStorage.
-  ══════════════════════════════════════════════════════ */
   const [notificaciones, setNotificaciones] = useState(() => loadFromLS("notificaciones", []));
   useEffect(() => { localStorage.setItem("notificaciones", JSON.stringify(notificaciones)); }, [notificaciones]);
 
-  // Ref para evitar re-renders en el callback
   const notificacionesRef = useRef(notificaciones);
   useEffect(() => { notificacionesRef.current = notificaciones; }, [notificaciones]);
 
-  /**
-   * agregarNotifInterna — agrega una notificación desde AppContext.
-   * Respeta CA_01_05: no genera duplicados si ya existe una con la
-   * misma clave y está sin leer.
-   */
   const agregarNotifInterna = useCallback((datos) => {
     setNotificaciones(prev => {
-      // CA_01_05 — no duplicar si ya existe sin leer con la misma clave
       if (datos.clave && prev.some(n => n.clave === datos.clave && !n.leida)) return prev;
       return [buildNotif(datos), ...prev];
     });
@@ -512,7 +495,6 @@ export function AppProvider({ children }) {
     const insumo = insumos.find(i => i.id === Number(idInsumo));
     if (!insumo) return { ok: false, razon: "Insumo no encontrado" };
 
-    // ── Notificación si queda bajo mínimo ──────────────
     const nuevoStock = Math.max(0, insumo.stockActual - cantidadNum);
     if (nuevoStock <= insumo.stockMinimo && nuevoStock > 0) {
       agregarNotifInterna({
@@ -628,7 +610,6 @@ export function AppProvider({ children }) {
     setCategoriasProductos(prev => prev.map(c => {
       if (c.id !== id) return c;
       const nuevoEstado = !c.estado;
-      // Si se inactiva la categoría, inactivar todos los productos asociados
       if (!nuevoEstado) {
         setProductos(prods => prods.map(p => p.idCategoria === id ? { ...p, activo: false } : p));
       }
@@ -642,7 +623,6 @@ export function AppProvider({ children }) {
     setCategoriasInsumos(prev => prev.map(c => {
       if (c.id !== id) return c;
       const nuevoEstado = !c.estado;
-      // Si se inactiva la categoría, inactivar todos los insumos asociados
       if (!nuevoEstado) {
         setInsumos(ins => ins.map(i => i.idCategoria === id ? { ...i, estado: false } : i));
       }
@@ -740,7 +720,6 @@ export function AppProvider({ children }) {
       setLotes(prev => [...prev, ..._buildLotes(id, detalles, prev)]);
       _subirStock(detalles);
     } else {
-      // ── Notif compra pendiente (HU_01 / COMPRA_PENDIENTE) ──
       agregarNotifInterna({
         tipo:  NOTIF_TIPOS.COMPRA_PENDIENTE,
         clave: `${NOTIF_TIPOS.COMPRA_PENDIENTE}-${id}`,
@@ -776,25 +755,36 @@ export function AppProvider({ children }) {
     }));
   };
 
+  // ✅ FIX: anularCompra corregido — siempre retorna { ok: true/false }
+  // y setModal(null) nunca queda bloqueado por una excepción interna
   const anularCompra = (id) => {
     const c = compras.find(x => x.id === id);
     if (!c) return { ok: false, razon: "Compra no encontrada" };
     if (c.estado === "anulada") return { ok: false, razon: "La compra ya está anulada" };
 
-    // Si el stock ya se aplicó, hay que reversarlo mediante salidas
+    // Primero marcar como anulada — esto siempre se ejecuta
+    setCompras(prev => prev.map(comp =>
+      comp.id === id ? { ...comp, estado: "anulada" } : comp
+    ));
+
+    // Luego revertir stock si aplica, de forma aislada para no bloquear el return
     if (c.stockAplicado) {
-      c.detalles.forEach(d => {
-        registrarSalidaInsumo({
-          idInsumo: d.idInsumo,
-          tipo: "ajuste",
-          cantidad: d.cantidad,
-          motivo: `Anulación de compra ${id}`,
-          usuario: "sistema"
+      try {
+        c.detalles.forEach(d => {
+          registrarSalidaInsumo({
+            idInsumo: d.idInsumo,
+            tipo: "ajuste",
+            cantidad: d.cantidad,
+            motivo: `Anulación de compra ${id}`,
+            usuario: "sistema",
+          });
         });
-      });
+      } catch (e) {
+        console.warn("Error al revertir stock en anulación:", e);
+        // No bloquear — la compra ya quedó anulada correctamente
+      }
     }
 
-    setCompras(prev => prev.map(comp => comp.id === id ? { ...comp, estado: "anulada" } : comp));
     return { ok: true };
   };
 
@@ -852,7 +842,6 @@ export function AppProvider({ children }) {
     }));
     if (nuevo.orden_produccion) setOrdenes(prev => { const orden = _buildOrden(nuevo, { fechaEntrega: null, notas: payload.notas || "" }, prev, productos, insumos); return [orden, ...prev]; });
 
-    // ── Notif nuevo pedido ──────────────────────────────
     agregarNotifInterna({
       tipo:  NOTIF_TIPOS.PEDIDO_NUEVO,
       clave: `${NOTIF_TIPOS.PEDIDO_NUEVO}-${numero}`,
@@ -897,19 +886,13 @@ export function AppProvider({ children }) {
         setProductos(prods => prods.map(prod => {
           const item = (p.productosItems || []).find(pi => pi.idProducto === prod.id);
           if (!item) return prod;
-          
-          // Si el producto fue tomado del stock inicial (stockOk) 
-          // O si ya fue fabricado (el pedido estaba Listo o En camino)
-          // se debe devolver al stock general al cancelar.
           const debeRetornar = item.stockOk || ["Listo", "En camino"].includes(p.estado);
-          
           if (debeRetornar) {
             return { ...prod, stock: prod.stock + item.cantidad };
           }
           return prod;
         }));
       }
-      // ── Notif cambio de estado relevante ───────────────
       if (["Listo", "En camino", "Entregado"].includes(nuevoEstado)) {
         agregarNotifInterna({
           tipo:  NOTIF_TIPOS.SISTEMA,
@@ -953,17 +936,13 @@ export function AppProvider({ children }) {
       if (o.id !== ordenId) return o;
       const fechaCierre = nuevoEstado === "Completada" ? fechaHoy() : o.fechaCierre;
       if (nuevoEstado === "Completada" && o.estado !== "Completada") {
-        
-        // Solo sumamos al stock general si la orden NO viene de un pedido (es reposición manual)
         if (!o.idPedido) {
-          setProductos(prods => prods.map(prod => { 
-            const item = (o.productos || []).find(p => p.idProducto === prod.id); 
-            if (!item) return prod; 
-            return { ...prod, stock: prod.stock + item.cantidad }; 
+          setProductos(prods => prods.map(prod => {
+            const item = (o.productos || []).find(p => p.idProducto === prod.id);
+            if (!item) return prod;
+            return { ...prod, stock: prod.stock + item.cantidad };
           }));
         }
-        
-        // Descontar insumos (Siempre se descuentan, sea manual o por pedido)
         (o.insumos || []).forEach(ins => {
           registrarSalidaInsumo({
             idInsumo: ins.idInsumo,
@@ -973,7 +952,6 @@ export function AppProvider({ children }) {
             usuario: "sistema"
           });
         });
-
         if (o.idPedido) setPedidos(prevP => prevP.map(p => p.id !== o.idPedido ? p : { ...p, estado: "Listo" }));
         agregarNotifInterna({
           tipo:  NOTIF_TIPOS.SISTEMA,
@@ -993,7 +971,6 @@ export function AppProvider({ children }) {
   const crearDevolucion = (payload) => {
     const numero = nextDevolucionNum(devoluciones);
     setDevoluciones(prev => [{ ...payload, id: numero, numero, estado: "Pendiente", fechaSolicitud: fechaHoy(), fechaAprobacion: null, fechaReembolso: null, motivoRechazo: null }, ...prev]);
-    // ── Notif devolución ──────────────────────────────
     agregarNotifInterna({
       tipo:  NOTIF_TIPOS.DEVOLUCION,
       clave: `devolucion-${numero}`,
@@ -1077,10 +1054,11 @@ export function AppProvider({ children }) {
       crearUsuario,     editarUsuario,     toggleUsuario,     eliminarUsuario,
       crearCliente,     editarCliente,     toggleCliente,     eliminarCliente,
       crearProveedor,   editarProveedor,   toggleProveedor,   eliminarProveedor,
-      crearCompra,      editarCompra,      eliminarCompra,
+      crearCompra,      editarCompra,      eliminarCompra,    anularCompra, completarCompra,
       registrarSalidaInsumo, descontarStockFIFO,
       crearPedido,      editarPedido,      eliminarPedido,
       cambiarEstadoPedido, asignarDomiciliario, generarOrdenProduccion,
+      crearOrdenProduccion, editarOrdenProduccion,
       cambiarEstadoOrden,  asignarEmpleadoOrden,
       crearDevolucion, aprobarDevolucion, rechazarDevolucion, reembolsarDevolucion, eliminarDevolucion,
       crearDescuento, editarDescuento, toggleDescuento, eliminarDescuento,

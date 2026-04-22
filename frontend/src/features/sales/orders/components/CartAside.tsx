@@ -6,7 +6,7 @@ import { isAuthenticated } from '../../../../services/authService';
 interface CartAsideProps {
   isOpen: boolean;
   onClose: () => void;
-  onCheckout: (details: { address: string; date: string }) => void;
+  onCheckout: (details: { address: string; date: string; departamento: string }) => void;
   onLoginRequired: () => void; // 👈 nuevo prop
   cartUpdateToggle: boolean;
 }
@@ -14,6 +14,7 @@ interface CartAsideProps {
 const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLoginRequired, cartUpdateToggle }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [address, setAddress] = useState('');
+  const [departamento, setDepartamento] = useState('');
   const [date, setDate] = useState('');
   const [total, setTotal] = useState(0);
 
@@ -51,6 +52,7 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
   const handleCheckout = () => {
     if (cart.length === 0) return alert('El carrito está vacío');
     if (!address) return alert('Por favor ingresa una dirección de entrega');
+    if (!departamento) return alert('Por favor selecciona un departamento');
     if (!date) return alert('Por favor selecciona una fecha de entrega');
 
     // ✅ Verificar sesión antes de continuar
@@ -60,7 +62,7 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
       return;
     }
 
-    onCheckout({ address, date });
+    onCheckout({ address, departamento, date });
   };
 
   if (!isOpen) return null;
@@ -108,6 +110,45 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
                     onChange={(e) => setAddress(e.target.value)}
                     className="w-full pl-10 pr-4 py-2.5 bg-white border border-emerald-100 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
                   />
+                </div>
+                <div className="relative">
+                  <select
+                    value={departamento}
+                    onChange={(e) => setDepartamento(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-white border border-emerald-100 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
+                  >
+                    <option value="">Selecciona departamento...</option>
+                    <option value="Antioquia">Antioquia</option>
+                    <option value="Cundinamarca">Cundinamarca</option>
+                    <option value="Valle del Cauca">Valle del Cauca</option>
+                    <option value="Santander">Santander</option>
+                    <option value="Atlántico">Atlántico</option>
+                    <option value="Bolívar">Bolívar</option>
+                    <option value="Boyacá">Boyacá</option>
+                    <option value="Caldas">Caldas</option>
+                    <option value="Caquetá">Caquetá</option>
+                    <option value="Casanare">Casanare</option>
+                    <option value="Cauca">Cauca</option>
+                    <option value="Cesar">Cesar</option>
+                    <option value="Chocó">Chocó</option>
+                    <option value="Córdoba">Córdoba</option>
+                    <option value="Guainía">Guainía</option>
+                    <option value="Guaviare">Guaviare</option>
+                    <option value="Huila">Huila</option>
+                    <option value="La Guajira">La Guajira</option>
+                    <option value="Magdalena">Magdalena</option>
+                    <option value="Meta">Meta</option>
+                    <option value="Nariño">Nariño</option>
+                    <option value="Norte de Santander">Norte de Santander</option>
+                    <option value="Putumayo">Putumayo</option>
+                    <option value="Quindío">Quindío</option>
+                    <option value="Risaralda">Risaralda</option>
+                    <option value="San Andrés y Providencia">San Andrés y Providencia</option>
+                    <option value="Sucre">Sucre</option>
+                    <option value="Tolima">Tolima</option>
+                    <option value="Vaupés">Vaupés</option>
+                    <option value="Vichada">Vichada</option>
+                  </select>
                 </div>
                 <div className="relative">
                   <Calendar size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-500" />

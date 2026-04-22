@@ -52,6 +52,7 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
       ...details,
       clientName: currentUser.nombre || 'Cliente',
       address: details.address || currentUser.direccion || '',
+      departamento: details.departamento || currentUser.departamento || '',
       items: getCart(),
       total: getTotal(),
     });
@@ -61,8 +62,8 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
 
   const handleLoginRequired = () => navigate("/login");
 
-  const handleConfirmOrder = (paymentMethod, onBehalfOf) => {
-    console.log("Orden confirmada:", { ...orderDetails, paymentMethod, onBehalfOf });
+  const handleConfirmOrder = (paymentMethod, onBehalfOf, comprobante) => {
+    console.log("Orden confirmada:", { ...orderDetails, paymentMethod, onBehalfOf, comprobante });
     alert("¡Pedido realizado con éxito! Gracias por tu compra.");
     setIsCheckoutOpen(false);
     localStorage.removeItem('toston_app_cart');
@@ -151,7 +152,7 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
             )}
 
             {!isLanding && user && (
-              <div className="user-area">
+              <div className="user-area" onClick={() => navigate(user.rol === "cliente" ? "/cliente/perfil" : "/admin/perfil")} style={{ cursor: 'pointer' }}>
                 <div className="avatar">{user.nombre.charAt(0)}</div>
                 <div className="user-info-text">
                   <div className="user-name">{user.nombre}</div>

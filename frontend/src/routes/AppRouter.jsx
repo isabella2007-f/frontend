@@ -86,6 +86,8 @@ const AppRouter = () => {
             <Route path="compras" element={<GestionCompras />} />
             <Route path="proveedores" element={<Proveedores />} />
 
+            <Route path="perfil" element={<ProfilePage />} />
+
           </Route>
         </Route>
 
