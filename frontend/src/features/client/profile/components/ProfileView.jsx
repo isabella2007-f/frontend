@@ -37,7 +37,7 @@ const InfoBlock = ({ icon: Icon, label, value, span = 1 }) => (
   </div>
 );
 
-const ProfileView = ({ user, onEdit }) => {
+const ProfileView = ({ user, totalPedidos, onEdit }) => {
   return (
     <div>
       {/* Avatar + nombre */}

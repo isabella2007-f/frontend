@@ -3,6 +3,10 @@ import { useApp } from "../../../AppContext.jsx";
 import { ModalOverlay } from "./ui.jsx";
 import "./Productos.css";
 
+// ─── Helpers ──────────────────────────────────────────────
+const fmt = (n) =>
+  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n ?? 0);
+
 // ─── Barra de pasos ───────────────────────────────────────
 const STEPS = ["Información", "Precio, stock e imágenes"];
 
@@ -44,7 +48,7 @@ function Toggle({ value, onChange }) {
 }
 
 export default function EditarProducto({ product, onClose, onSave }) {
-  const { categoriasProductosActivas } = useApp();
+  const { categoriasProductosActivas, calcularCostoProduccion, sugerirPrecioConGanancia } = useApp();
 
   const [form, setForm] = useState({
     ...product,
@@ -59,6 +63,9 @@ export default function EditarProducto({ product, onClose, onSave }) {
   const [saving, setSaving] = useState(false);
   const [step, setStep]     = useState(1);
   const fileRef = useRef();
+
+  const costoProduccion = calcularCostoProduccion(product);
+  const precioSugerido = sugerirPrecioConGanancia(costoProduccion);
 
   const set = (k, v) => { setForm(p => ({ ...p, [k]: v })); setErrors(p => ({ ...p, [k]: "" })); };
 
@@ -191,6 +198,26 @@ export default function EditarProducto({ product, onClose, onSave }) {
         {/* ── Paso 2: Precio, stock e imágenes ── */}
         {step === 2 && (
           <>
+            {/* Costo de producción y sugerencia */}
+            {costoProduccion > 0 && (
+              <div style={{ background: "#f9f9f9", border: "1px solid #e0e0e0", borderRadius: 8, padding: "12px 16px", marginBottom: 16 }}>
+                <p style={{ fontSize: 13, color: "#424242", margin: 0, fontWeight: 600 }}>💰 Información de costos</p>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+                  <span style={{ fontSize: 12, color: "#757575" }}>Costo de producción:</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#2e7d32" }}>${fmt(costoProduccion)}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                  <span style={{ fontSize: 12, color: "#757575" }}>Precio sugerido (50% ganancia):</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#1565c0" }}>${fmt(precioSugerido)}</span>
+                </div>
+                {Number(form.precio) < costoProduccion && (
+                  <p style={{ fontSize: 11, color: "#e65100", marginTop: 8, marginBottom: 0 }}>
+                    ⚠️ El precio actual es menor al costo de producción. Considera aumentar el precio para generar ganancia.
+                  </p>
+                )}
+              </div>
+            )}
+
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div className="form-group">
                 <label className="form-label">Precio de venta</label>

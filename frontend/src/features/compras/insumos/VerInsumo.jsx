@@ -186,44 +186,273 @@ export default function VerInsumo({ ins, onClose }) {
           {tab === "lotes" && <LotesInsumoPanel idInsumo={ins.id} />}
 
           {tab === "vencidos" && (
-            <div>
-              <p className="ver-ins-section-label" style={{ textTransform: "none" }}>Lotes vencidos</p>
-              {getLotesVencidos(ins.id).length === 0 ? (
-                <div className="empty-state" style={{ padding: "12px 14px" }}>
-                  <p className="empty-state__text">No hay lotes vencidos para este insumo.</p>
-                </div>
-              ) : (
-                <div className="lotes-lista">
-                  {getLotesVencidos(ins.id).map(lote => (
-                    <div key={lote.id} className="lote-item" style={{ borderColor: "#ef9a9a" }}>
-                      <div className="lote-item__head">
-                        <span className="lote-item__id">{lote.id}</span>
-                        <span style={{ fontWeight: 600 }}>Vence: {lote.fechaVencimiento}</span>
-                      </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 8, marginTop: 8 }}>
-                        <div><strong>Cantidad actual:</strong> {lote.cantidadActual} {unidad.simbolo}</div>
-                        <div><strong>Ingreso:</strong> {lote.fechaIngreso}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+              {/* ══════════════════════════════════════════════════════════════ */}
+              {/* LOTES VENCIDOS */}
+              {/* ══════════════════════════════════════════════════════════════ */}
+              <div style={{
+                background: "#fafafa",
+                border: "1px solid #e8e8e8",
+                borderRadius: 12,
+                padding: 20,
+                overflow: "hidden"
+              }}>
+                <h3 style={{
+                  margin: "0 0 16px 0",
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: "#333",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8
+                }}>
+                  <span style={{ fontSize: 18 }}>⏰</span>
+                  Lotes Vencidos
+                </h3>
 
-              <p className="ver-ins-section-label" style={{ textTransform: "none", marginTop: 14 }}>Historial de salidas</p>
-              {getSalidasInsumo(ins.id).length === 0 ? (
-                <div className="empty-state" style={{ padding: "12px 14px" }}>
-                  <p className="empty-state__text">Aún no hay salidas registradas.</p>
-                </div>
-              ) : (
-                <div className="historial-list">
-                  {getSalidasInsumo(ins.id).map(salida => (
-                    <div key={salida.id} className="historial-item">
-                      <span>{salida.fecha} · {salida.tipo} · {salida.cantidad} {unidad.simbolo}</span>
-                      <span style={{ color: "#757575" }}>{salida.motivo}</span>
+                {getLotesVencidos(ins.id).length === 0 ? (
+                  <div style={{
+                    textAlign: "center",
+                    padding: "40px 20px",
+                    color: "#999",
+                    fontSize: 14
+                  }}>
+                    <span style={{ fontSize: 24, marginBottom: 8, display: "block" }}>✅</span>
+                    No hay lotes vencidos
+                  </div>
+                ) : (
+                  <>
+                    {/* Resumen */}
+                    <div style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                      gap: 12,
+                      marginBottom: 16,
+                      padding: "12px",
+                      background: "#fff3e0",
+                      borderRadius: 8,
+                      border: "1px solid #ffe082"
+                    }}>
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: "#e65100" }}>
+                          {getLotesVencidos(ins.id).length}
+                        </div>
+                        <div style={{ fontSize: 12, color: "#f57f17", fontWeight: 600, marginTop: 2 }}>
+                          Lotes vencidos
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: "#e65100" }}>
+                          {getLotesVencidos(ins.id).reduce((sum, l) => sum + (l.cantidadActual || 0), 0)}
+                        </div>
+                        <div style={{ fontSize: 12, color: "#f57f17", fontWeight: 600, marginTop: 2 }}>
+                          {unidad.simbolo} acumuladas
+                        </div>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              )}
+
+                    {/* Lista de lotes */}
+                    <div style={{ maxHeight: 350, overflowY: "auto" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {getLotesVencidos(ins.id).map(lote => (
+                          <div key={lote.id} style={{
+                            background: "white",
+                            border: "2px solid #ffcdd2",
+                            borderRadius: 8,
+                            padding: 12,
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 8
+                          }}>
+                            <div style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center"
+                            }}>
+                              <div style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: "#c62828",
+                                background: "#ffebee",
+                                padding: "4px 8px",
+                                borderRadius: 4
+                              }}>
+                                Lote #{lote.id}
+                              </div>
+                              <div style={{
+                                fontSize: 11,
+                                color: "#666",
+                                background: "#f5f5f5",
+                                padding: "2px 8px",
+                                borderRadius: 4
+                              }}>
+                                Vencido: {lote.fechaVencimiento}
+                              </div>
+                            </div>
+                            <div style={{
+                              display: "grid",
+                              gridTemplateColumns: "1fr 1fr",
+                              gap: 8,
+                              fontSize: 12
+                            }}>
+                              <div>
+                                <span style={{ color: "#999", fontSize: 11 }}>Cantidad vencida</span>
+                                <div style={{
+                                  fontSize: 16,
+                                  fontWeight: 700,
+                                  color: "#c62828",
+                                  marginTop: 2
+                                }}>
+                                  {lote.cantidadActual} {unidad.simbolo}
+                                </div>
+                              </div>
+                              <div>
+                                <span style={{ color: "#999", fontSize: 11 }}>Ingreso</span>
+                                <div style={{
+                                  fontSize: 13,
+                                  fontWeight: 600,
+                                  color: "#555",
+                                  marginTop: 2
+                                }}>
+                                  {lote.fechaIngreso}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* ══════════════════════════════════════════════════════════════ */}
+              {/* HISTORIAL DE SALIDAS */}
+              {/* ══════════════════════════════════════════════════════════════ */}
+              <div style={{
+                background: "#fafafa",
+                border: "1px solid #e8e8e8",
+                borderRadius: 12,
+                padding: 20,
+                overflow: "hidden"
+              }}>
+                <h3 style={{
+                  margin: "0 0 16px 0",
+                  fontSize: 16,
+                  fontWeight: 700,
+                  color: "#333",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8
+                }}>
+                  <span style={{ fontSize: 18 }}>📊</span>
+                  Historial de Salidas
+                </h3>
+
+                {getSalidasInsumo(ins.id).length === 0 ? (
+                  <div style={{
+                    textAlign: "center",
+                    padding: "40px 20px",
+                    color: "#999",
+                    fontSize: 14
+                  }}>
+                    <span style={{ fontSize: 24, marginBottom: 8, display: "block" }}>📋</span>
+                    No hay salidas registradas
+                  </div>
+                ) : (
+                  <>
+                    {/* Resumen */}
+                    <div style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                      gap: 12,
+                      marginBottom: 16,
+                      padding: "12px",
+                      background: "#e3f2fd",
+                      borderRadius: 8,
+                      border: "1px solid #bbdefb"
+                    }}>
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: "#1565c0" }}>
+                          {getSalidasInsumo(ins.id).length}
+                        </div>
+                        <div style={{ fontSize: 12, color: "#1976d2", fontWeight: 600, marginTop: 2 }}>
+                          Transacciones
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: "#1565c0" }}>
+                          {getSalidasInsumo(ins.id).reduce((sum, s) => sum + (s.cantidad || 0), 0)}
+                        </div>
+                        <div style={{ fontSize: 12, color: "#1976d2", fontWeight: 600, marginTop: 2 }}>
+                          {unidad.simbolo} total
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Lista de salidas */}
+                    <div style={{ maxHeight: 350, overflowY: "auto" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                        {getSalidasInsumo(ins.id).map(salida => (
+                          <div key={salida.id} style={{
+                            background: "white",
+                            border: "1px solid #e0e0e0",
+                            borderRadius: 8,
+                            padding: 10,
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 6
+                          }}>
+                            <div style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center"
+                            }}>
+                              <div style={{
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: "#333"
+                              }}>
+                                {salida.tipo}
+                              </div>
+                              <div style={{
+                                fontSize: 11,
+                                color: "#666",
+                                background: "#f5f5f5",
+                                padding: "2px 6px",
+                                borderRadius: 3
+                              }}>
+                                {salida.fecha}
+                              </div>
+                            </div>
+                            <div style={{
+                              display: "grid",
+                              gridTemplateColumns: "auto 1fr",
+                              gap: 12,
+                              fontSize: 12
+                            }}>
+                              <div style={{
+                                background: "#e3f2fd",
+                                color: "#1565c0",
+                                padding: "4px 8px",
+                                borderRadius: 4,
+                                fontWeight: 700,
+                                textAlign: "center",
+                                minWidth: 60
+                              }}>
+                                {salida.cantidad} {unidad.simbolo}
+                              </div>
+                              <div style={{ color: "#757575", fontSize: 12, alignSelf: "center" }}>
+                                {salida.motivo || "—"}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           )}
         </div>

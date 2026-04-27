@@ -128,7 +128,7 @@ const initClientes = [
 
 const initPedidos = [
   {
-    id: 1, numero: "PED-001", idCliente: null,
+    id: 1, numero: "PED-001", idCliente: "12345678",
     cliente: { nombre: "Jorge Torres Suárez",  correo: "jorge.torres@email.com", telefono: "320 321 0987" },
     productosItems: [
       { idProducto: 1, nombre: "Muffin de plátano",     precio: 10000, cantidad: 3, stockActual: 50, stockOk: true },
@@ -140,7 +140,7 @@ const initPedidos = [
     orden_produccion: false, fecha_pedido: "2026-03-18",
   },
   {
-    id: 2, numero: "PED-002", idCliente: null,
+    id: 2, numero: "PED-002", idCliente: "87654321",
     cliente: { nombre: "María López Castillo", correo: "maria.lc@email.com", telefono: "317 654 3210" },
     productosItems: [
       { idProducto: 2, nombre: "Palito de queso",        precio: 5000,  cantidad: 4, stockActual: 20, stockOk: true },
@@ -153,7 +153,7 @@ const initPedidos = [
     estado: "En producción", orden_produccion: true, fecha_pedido: "2026-03-19",
   },
   {
-    id: 3, numero: "PED-003", idCliente: null,
+    id: 3, numero: "PED-003", idCliente: "12345678",
     cliente: { nombre: "Jorge Torres Suárez", correo: "jorge.torres@email.com", telefono: "320 321 0987" },
     productosItems: [
       { idProducto: 5, nombre: "Tostones orgánicos", precio: 7500, cantidad: 2, stockActual: 15, stockOk: true },
@@ -165,7 +165,7 @@ const initPedidos = [
     orden_produccion: false, fecha_pedido: "2026-03-20",
   },
   {
-    id: 4, numero: "PED-004", idCliente: null,
+    id: 4, numero: "PED-004", idCliente: "11223344",
     cliente: { nombre: "Ana García López", correo: "ana.garcia@email.com", telefono: "300 123 4567" },
     productosItems: [
       { idProducto: 1, nombre: "Muffin de plátano", precio: 10000, cantidad: 5, stockActual: 47, stockOk: true },
@@ -1014,6 +1014,23 @@ export function AppProvider({ children }) {
   const registrarUsoDescuento = (idDescuento, { numeroPedido, cliente, montoDescuento }) =>
     setHistorialDescuentos(prev => [{ idDescuento, numeroPedido, cliente, montoDescuento, fecha: fechaHoy() }, ...prev]);
 
+  /* ── Utilidades de producción ───────────────────────── */
+  const calcularCostoProduccion = (producto, cantidad = 1) => {
+    if (!producto?.ficha?.insumos) return 0;
+    let costoTotal = 0;
+    producto.ficha.insumos.forEach(fi => {
+      const insumo = insumos.find(i => i.id === fi.idInsumo);
+      if (insumo && insumo.precio) {
+        costoTotal += insumo.precio * (Number(fi.cantidad) || 0);
+      }
+    });
+    return costoTotal * cantidad;
+  };
+
+  const sugerirPrecioConGanancia = (costo, margenPorcentaje = 50) => {
+    return costo * (1 + margenPorcentaje / 100);
+  };
+
   /* ══════════════════════════════════════════════════════
      PROVIDER
   ══════════════════════════════════════════════════════ */
@@ -1067,6 +1084,7 @@ export function AppProvider({ children }) {
 
       /* Utilidades */
       calcularTotal, diasHasta, estadoLote, convertirUnidad, getVencimientoMasAntiguo,
+      calcularCostoProduccion, sugerirPrecioConGanancia,
     }}>
       {children}
     </AppContext.Provider>

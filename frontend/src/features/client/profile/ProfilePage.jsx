@@ -2,17 +2,22 @@ import { useState, useEffect } from 'react';
 import ProfileView from './components/ProfileView.jsx';
 import ProfileForm from './components/ProfileForm.jsx';
 import { getCurrentUser, updateUser } from './services/profileService.js';
-import { UserCircle, Leaf, ShieldCheck } from 'lucide-react';
+import { useApp } from '../../../AppContext.jsx';
+import { UserCircle, Leaf, ShieldCheck, Package } from 'lucide-react';
 import '../../../styles/client.css';
 
 const ProfilePage = () => {
+  const { pedidos } = useApp();
   const [user,      setUser]      = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [toast,     setToast]     = useState(null);
 
   useEffect(() => {
-    setUser(getCurrentUser());
+    const currentUser = getCurrentUser();
+    setUser(currentUser);
   }, []);
+
+  const userPedidos = user ? pedidos.filter(p => p.idCliente === user.cedula) : [];
 
   const handleSave = (updatedData) => {
     try {
@@ -111,6 +116,7 @@ const ProfilePage = () => {
             ) : (
               <ProfileView
                 user={user}
+                totalPedidos={userPedidos.length}
                 onEdit={() => setIsEditing(true)}
               />
             )}
@@ -147,7 +153,7 @@ const ProfilePage = () => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {[
                   { label: 'Miembro desde', value: user.fechaRegistro || '2024' },
-                  { label: 'Pedidos realizados', value: user.totalPedidos || '—' },
+                  { label: 'Pedidos realizados', value: totalPedidos || '—' },
                   { label: 'Última sesión', value: user.ultimaSesion || 'Hoy' },
                 ].map(item => (
                   <div key={item.label} style={{
@@ -159,6 +165,71 @@ const ProfilePage = () => {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Card de pedidos */}
+            <div className="card" style={{ padding: 24 }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 14,
+                padding: '16px 0', borderBottom: '1px solid var(--green-100)',
+                marginBottom: 16,
+              }}>
+                <div style={{
+                  width: 44, height: 44,
+                  background: 'var(--green-50)',
+                  borderRadius: 'var(--radius-md)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: 'var(--green-700)',
+                }}>
+                  <Package size={22} />
+                </div>
+                <div>
+                  <p style={{ margin: 0, fontWeight: 700, fontSize: 14, fontFamily: 'var(--font-body)', color: 'var(--gray-900)' }}>
+                    Mis Pedidos
+                  </p>
+                  <p style={{ margin: 0, fontSize: 12, color: 'var(--gray-500)', fontFamily: 'var(--font-body)' }}>
+                    Historial de tus compras
+                  </p>
+                </div>
+              </div>
+
+              {userPedidos.length === 0 ? (
+                <p style={{ textAlign: 'center', color: 'var(--gray-500)', fontFamily: 'var(--font-body)' }}>
+                  No tienes pedidos registrados aún.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {userPedidos.map(pedido => (
+                    <div key={pedido.id} style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '12px 16px', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius-md)',
+                      background: 'var(--gray-50)',
+                    }}>
+                      <div>
+                        <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: 'var(--gray-900)' }}>
+                          {pedido.numero}
+                        </p>
+                        <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--gray-500)' }}>
+                          {pedido.fecha_pedido} • {pedido.productosItems.length} producto{pedido.productosItems.length !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: 'var(--gray-900)' }}>
+                          ${pedido.total.toLocaleString()}
+                        </p>
+                        <span style={{
+                          display: 'inline-block', marginTop: 4,
+                          padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 700,
+                          background: pedido.estado === 'Entregado' ? 'var(--green-100)' : pedido.estado === 'En camino' ? 'var(--blue-100)' : 'var(--yellow-100)',
+                          color: pedido.estado === 'Entregado' ? 'var(--green-800)' : pedido.estado === 'En camino' ? 'var(--blue-800)' : 'var(--yellow-800)',
+                        }}>
+                          {pedido.estado}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

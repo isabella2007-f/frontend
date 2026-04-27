@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useApp } from "../../../AppContext.jsx";
 import CrearPedido from "./CrearPedido.jsx";
 import EditarPedido from "./EditarPedido.jsx";
@@ -244,7 +245,82 @@ function ModalEliminarPedido({ pedido, onClose, onConfirm }) {
     </div>
   );
 }
+function ModalAsignarDomiciliario({ pedido, empleados, onClose, onConfirm }) {
+  const [empId, setEmpId] = useState(pedido.idEmpleado || "");
+  const [error, setError] = useState("");
+  const empActual = empleados.find(e => e.id === pedido.idEmpleado);
 
+  const handleSubmit = () => {
+    if (!empId) {
+      setError("Selecciona un domiciliario");
+      return;
+    }
+    const id = parseInt(empId, 10);
+    if (pedido.idEmpleado && pedido.idEmpleado === id) {
+      setError("El pedido ya tiene asignado este domiciliario");
+      return;
+    }
+    onConfirm(pedido.id, id);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={e => e.stopPropagation()}>
+
+        <div className="modal-header">
+          <div>
+            <p className="modal-header__eyebrow">Domicilio</p>
+            <h2 className="modal-header__title">Asignar repartidor</h2>
+          </div>
+          <button className="modal-close-btn" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="modal-body" style={{ overflow: "visible" }}>
+          <p style={{ margin: 0, fontSize: 12, color: "#616161" }}>
+            Pedido: <strong>{pedido.numero}</strong>
+          </p>
+          <div className="info-box info-box--info" style={{ marginTop: 12 }}>
+            <span className="info-box__icon">📍</span>
+            <span className="info-box__text">{pedido.direccion_entrega || "Sin dirección"}</span>
+          </div>
+
+          {empActual && (
+            <div className="info-box info-box--warn" style={{ marginTop: 12 }}>
+              <span className="info-box__icon">🛵</span>
+              <span className="info-box__text">
+                Actual: <strong>{empActual.nombre} {empActual.apellidos}</strong>
+              </span>
+            </div>
+          )}
+
+          <div style={{ marginTop: 16 }}>
+            <label className="form-label">Seleccionar repartidor <span className="required">*</span></label>
+            <div className="select-wrap">
+              <select
+                className={`field-select${error ? " error" : ""}`}
+                value={empId}
+                onChange={e => { setEmpId(e.target.value); setError(""); }}
+              >
+                <option value="">Seleccione…</option>
+                {empleados.map(e => (
+                  <option key={e.id} value={e.id}>
+                    {e.nombre} {e.apellidos}{e.id === pedido.idEmpleado ? " (actual)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {error && <p className="field-error">{error}</p>}
+          </div>
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn-cancel" onClick={onClose}>Cancelar</button>
+          <button className="btn-save" onClick={handleSubmit}>Asignar repartidor</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 /* ═══════════════════════════════════════════════════════════
    COMPONENTE PRINCIPAL
    ═══════════════════════════════════════════════════════════ */
@@ -255,6 +331,8 @@ export default function GestionPedidos() {
     cambiarEstadoPedido, asignarDomiciliario, generarOrdenProduccion,
     usuarios, ordenes,
   } = useApp();
+
+  const navigate = useNavigate();
 
   /* Empleados activos disponibles para domicilios */
   const empleados = usuarios.filter(u => u.rol === "Empleado" && u.estado);
@@ -328,6 +406,13 @@ export default function GestionPedidos() {
   const handleEliminar = (id) => {
     eliminarPedido(id);
     showToast("Pedido eliminado", "error");
+    setModal(null);
+  };
+
+  const handleAsignarDomiciliario = (pedidoId, empleadoId) => {
+    asignarDomiciliario(pedidoId, empleadoId);
+    const empleado = empleados.find(e => e.id === empleadoId);
+    showToast(`Pedido asignado a ${empleado?.nombre} ${empleado?.apellidos}`);
     setModal(null);
   };
 
@@ -498,8 +583,7 @@ export default function GestionPedidos() {
 
                           {ped.orden_produccion && (
                             <button className="act-btn act-btn--produccion" title="Ver orden de producción" onClick={() => {
-                              const orden = ordenes.find(o => o.idPedido === ped.id);
-                              if (orden) setModal({ type: "verOrden", orden });
+                              navigate('/ordenes-produccion');
                             }}>🏭</button>
                           )}
 
@@ -556,6 +640,15 @@ export default function GestionPedidos() {
             <div className="modal-footer"><button onClick={() => setModal(null)} className="btn-ghost">Cerrar</button></div>
           </div>
         </div>
+      )}
+
+      {modal?.type === "domicilio" && modal.pedido && (
+        <ModalAsignarDomiciliario
+          pedido={modal.pedido}
+          empleados={empleados}
+          onClose={() => setModal(null)}
+          onConfirm={handleAsignarDomiciliario}
+        />
       )}
 
       <Toast toast={toast} />

@@ -61,144 +61,532 @@ function Toast({ toast }) {
    MODAL VER DETALLES
    ═══════════════════════════════════════════════════════════ */
 function ModalDetallesOrden({ orden, empleados, onClose, onEdit }) {
+  const [activeTab, setActiveTab] = useState("general");
   if (!orden) return null;
   const empleado = empleados.find(e => String(e.id) === String(orden.idEmpleado));
   const cfg = ESTADO_CONFIG[orden.estado] || {};
 
+  const totalUnidades = (orden.productos || []).reduce((acc, x) => acc + (x.cantidad || 0), 0);
+  const totalProductos = (orden.productos || []).length;
+
+  const tabs = [
+    { id: "general", label: "General", icon: "📋" },
+    { id: "productos", label: "Productos", icon: "📦" },
+    { id: "insumos", label: "Insumos", icon: "🧺" },
+  ];
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box--wide" onClick={e => e.stopPropagation()}>
+      <div className="modal-box modal-box--wide" onClick={e => e.stopPropagation()} style={{ maxWidth: 900 }}>
 
-        {/* Cabecera */}
-        <div className="modal-header">
-          <div>
-            <p className="modal-header__eyebrow">Detalle de orden</p>
-            <h2 className="modal-header__title">{orden.id}</h2>
+        {/* Cabecera mejorada */}
+        <div className="modal-header" style={{ borderBottom: "2px solid #f0f0f0", paddingBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{
+              width: 48, height: 48, borderRadius: "50%",
+              background: cfg.bg || "#f5f5f5",
+              border: `3px solid ${cfg.border || "#e0e0e0"}`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 20, fontWeight: 700, color: cfg.color || "#424242"
+            }}>
+              📋
+            </div>
+            <div>
+              <p className="modal-header__eyebrow" style={{ margin: 0, color: "#666", fontSize: 14 }}>Orden de Producción</p>
+              <h2 className="modal-header__title" style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>{orden.id}</h2>
+            </div>
           </div>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <EstadoBadge estado={orden.estado} />
+            <button className="modal-close-btn" onClick={onClose}>✕</button>
+          </div>
         </div>
 
-        <div className="modal-body" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, alignItems: "start" }}>
+        {/* Pestañas */}
+        <div style={{ display: "flex", borderBottom: "1px solid #e0e0e0", background: "#fafafa" }}>
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                flex: 1,
+                padding: "12px 16px",
+                border: "none",
+                background: activeTab === tab.id ? "#fff" : "transparent",
+                borderBottom: activeTab === tab.id ? "2px solid #2e7d32" : "none",
+                color: activeTab === tab.id ? "#2e7d32" : "#757575",
+                fontWeight: activeTab === tab.id ? 700 : 500,
+                fontSize: 14,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                transition: "all 0.15s"
+              }}
+            >
+              <span style={{ fontSize: 16 }}>{tab.icon}</span>
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-          {/* Columna izquierda */}
-          <div>
-            <p className="section-label" style={{ marginTop: 0 }}>Información general</p>
+        <div className="modal-body" style={{ padding: "24px 0", minHeight: 400 }}>
 
-            <div className="detail-row">
-              <span className="detail-label">Estado</span>
-              <EstadoBadge estado={orden.estado} />
-            </div>
-            <div className="detail-row">
-              <span className="detail-label">Responsable</span>
-              <span className="detail-value">
-                {empleado ? `${empleado.nombre} ${empleado.apellidos || ""}` : <em style={{ color: "#9e9e9e" }}>Sin asignar</em>}
-              </span>
-            </div>
-            <div className="detail-row">
-              <span className="detail-label">Fecha de entrega</span>
-              <span className={`date-badge ${urgenciaFecha(orden.fechaEntrega)}`}>
-                {fmtFecha(orden.fechaEntrega)}
-              </span>
-            </div>
-            {orden.numeroPedido && (
-              <div className="detail-row">
-                <span className="detail-label">Pedido vinculado</span>
-                <span className="detail-value" style={{ color: "#1565c0", fontWeight: 700 }}>{orden.numeroPedido}</span>
-              </div>
-            )}
-            <div className="detail-row">
-              <span className="detail-label">Costo estimado</span>
-              <span className="detail-value" style={{ fontWeight: 800, color: "#2e7d32", fontSize: 15 }}>{fmt(orden.costo)}</span>
-            </div>
-
-            {orden.notas && (
-              <>
-                <p className="section-label">Notas / Instrucciones</p>
-                <div style={{
-                  background: "#f9f9f9",
-                  border: "1px solid #e0e0e0",
-                  borderRadius: 8,
-                  padding: "10px 14px",
-                  fontSize: 13,
-                  color: "#424242",
-                  lineHeight: 1.6,
-                }}>
-                  {orden.notas}
+          {/* ── Pestaña General ── */}
+          {activeTab === "general" && (
+            <>
+              {/* Resumen principal */}
+              <div style={{
+                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                color: "white",
+                padding: "20px 24px",
+                borderRadius: 12,
+                marginBottom: 24,
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                gap: 20
+              }}>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>{totalUnidades}</div>
+                  <div style={{ fontSize: 12, opacity: 0.9 }}>Unidades totales</div>
                 </div>
-              </>
-            )}
-
-            {/* Descripción de estado */}
-            {cfg.desc && (
-              <div className="info-box info-box--info" style={{ marginTop: 16 }}>
-                <span className="info-box__icon">ℹ️</span>
-                <span className="info-box__text">{cfg.desc}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Columna derecha */}
-          <div>
-            <p className="section-label" style={{ marginTop: 0 }}>Productos a fabricar</p>
-            <div className="selected-prods-list" style={{ maxHeight: 200, overflowY: "auto", marginBottom: 16 }}>
-              {(orden.productos || []).length === 0 ? (
-                <p style={{ fontSize: 12, color: "#bdbdbd", textAlign: "center", padding: "18px 0" }}>Sin productos.</p>
-              ) : (orden.productos || []).map((p, i) => (
-                <div key={i} className="prod-edit-item" style={{ cursor: "default" }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13 }}>{p.nombre}</div>
-                    <div style={{ fontSize: 11, color: "#9e9e9e" }}>{fmt(p.precio)} c/u</div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>{totalProductos}</div>
+                  <div style={{ fontSize: 12, opacity: 0.9 }}>Productos</div>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>{fmt(orden.costo)}</div>
+                  <div style={{ fontSize: 12, opacity: 0.9 }}>Costo estimado</div>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>
+                    {orden.fechaEntrega ? fmtFecha(orden.fechaEntrega) : "—"}
                   </div>
-                  <span style={{
-                    background: "#e3f2fd",
-                    color: "#1565c0",
-                    borderRadius: 6,
-                    padding: "2px 10px",
-                    fontWeight: 700,
-                    fontSize: 13,
-                  }}>×{p.cantidad}</span>
+                  <div style={{ fontSize: 12, opacity: 0.9 }}>Fecha entrega</div>
                 </div>
-              ))}
+              </div>
+
+              {/* Información detallada */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+
+            {/* Información General */}
+            <div style={{
+              background: "#fafafa",
+              border: "1px solid #e8e8e8",
+              borderRadius: 12,
+              padding: 20
+            }}>
+              <h3 style={{
+                margin: "0 0 16px 0",
+                fontSize: 16,
+                fontWeight: 700,
+                color: "#333",
+                display: "flex",
+                alignItems: "center",
+                gap: 8
+              }}>
+                <span style={{ fontSize: 18 }}>📋</span>
+                Información General
+              </h3>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 13, color: "#666", fontWeight: 500 }}>Responsable:</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "#333" }}>
+                    {empleado ? `${empleado.nombre} ${empleado.apellidos || ""}` : "Sin asignar"}
+                  </span>
+                </div>
+
+                {orden.numeroPedido && (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 13, color: "#666", fontWeight: 500 }}>Pedido vinculado:</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "#1976d2" }}>
+                      #{orden.numeroPedido}
+                    </span>
+                  </div>
+                )}
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 13, color: "#666", fontWeight: 500 }}>Fecha creación:</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "#333" }}>
+                    {orden.fechaInicio ? fmtFecha(orden.fechaInicio) : "—"}
+                  </span>
+                </div>
+
+                {orden.fechaCierre && (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 13, color: "#666", fontWeight: 500 }}>Fecha cierre:</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "#333" }}>
+                      {fmtFecha(orden.fechaCierre)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {orden.notas && (
+                <div style={{ marginTop: 16 }}>
+                  <p style={{ fontSize: 13, color: "#666", fontWeight: 500, margin: "0 0 8px 0" }}>Notas:</p>
+                  <div style={{
+                    background: "white",
+                    border: "1px solid #ddd",
+                    borderRadius: 8,
+                    padding: "10px 12px",
+                    fontSize: 12,
+                    color: "#555",
+                    lineHeight: 1.5
+                  }}>
+                    {orden.notas}
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="order-summary-box">
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13, color: "#757575" }}>
-                <span>Total unidades:</span>
-                <strong style={{ color: "#1a1a1a" }}>
-                  {(orden.productos || []).reduce((acc, x) => acc + (x.cantidad || 0), 0)} uds
-                </strong>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 800, color: "#2e7d32" }}>
-                <span>Costo estimado:</span>
-                <span>{fmt(orden.costo)}</span>
-              </div>
-            </div>
+            {/* Productos a Fabricar */}
+            <div style={{
+              background: "#fafafa",
+              border: "1px solid #e8e8e8",
+              borderRadius: 12,
+              padding: 20
+            }}>
+              <h3 style={{
+                margin: "0 0 16px 0",
+                fontSize: 16,
+                fontWeight: 700,
+                color: "#333",
+                display: "flex",
+                alignItems: "center",
+                gap: 8
+              }}>
+                <span style={{ fontSize: 18 }}>🏭</span>
+                Productos a Fabricar
+              </h3>
 
-            {/* Insumos */}
-            {(orden.insumos || []).length > 0 && (
-              <>
-                <p className="section-label">Insumos requeridos</p>
-                <div className="insumos-preview-list">
-                  {orden.insumos.map(ins => (
-                    <div key={ins.idInsumo} className={`insumo-mini-card${!ins.stockOk ? " no-stock" : ""}`}>
-                      <span style={{ fontWeight: 600 }}>{ins.nombre}</span>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
-                        <strong style={{ fontSize: 12 }}>{ins.cantidad} {ins.unidad}</strong>
-                        {!ins.stockOk && <span title="Stock insuficiente" style={{ fontSize: 12 }}>⚠️</span>}
+              <div style={{ maxHeight: 300, overflowY: "auto" }}>
+                {(orden.productos || []).length === 0 ? (
+                  <div style={{
+                    textAlign: "center",
+                    padding: "40px 20px",
+                    color: "#999",
+                    fontSize: 14
+                  }}>
+                    <span style={{ fontSize: 24, marginBottom: 8, display: "block" }}>📦</span>
+                    Sin productos asignados
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {(orden.productos || []).map((p, i) => (
+                      <div key={i} style={{
+                        background: "white",
+                        border: "1px solid #e0e0e0",
+                        borderRadius: 8,
+                        padding: 12,
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center"
+                      }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 600, fontSize: 14, color: "#333", marginBottom: 2 }}>
+                            {p.nombre}
+                          </div>
+                          <div style={{ fontSize: 12, color: "#666" }}>
+                            {fmt(p.precio)} por unidad
+                          </div>
+                        </div>
+                        <div style={{
+                          background: "#e3f2fd",
+                          color: "#1976d2",
+                          borderRadius: 20,
+                          padding: "4px 12px",
+                          fontWeight: 700,
+                          fontSize: 14,
+                          minWidth: 50,
+                          textAlign: "center"
+                        }}>
+                          ×{p.cantidad}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
 
-        <div className="modal-footer">
-          <button className="btn-ghost" onClick={onClose}>Cerrar</button>
-          <button className="btn-save" onClick={() => { onClose(); onEdit(orden); }}>
-            ✎ Editar Orden
-          </button>
+            {/* Insumos Requeridos */}
+            <div style={{
+              background: "#fafafa",
+              border: "1px solid #e8e8e8",
+              borderRadius: 12,
+              padding: 20
+            }}>
+              <h3 style={{
+                margin: "0 0 16px 0",
+                fontSize: 16,
+                fontWeight: 700,
+                color: "#333",
+                display: "flex",
+                alignItems: "center",
+                gap: 8
+              }}>
+                <span style={{ fontSize: 18 }}>📦</span>
+                Insumos Requeridos
+              </h3>
+
+              <div style={{ maxHeight: 300, overflowY: "auto" }}>
+                {(orden.insumos || []).length === 0 ? (
+                  <div style={{
+                    textAlign: "center",
+                    padding: "40px 20px",
+                    color: "#999",
+                    fontSize: 14
+                  }}>
+                    <span style={{ fontSize: 24, marginBottom: 8, display: "block" }}>🔍</span>
+                    Sin insumos calculados
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {(orden.insumos || []).map((ins, i) => (
+                      <div key={ins.idInsumo} style={{
+                        background: ins.stockOk ? "white" : "#fff3e0",
+                        border: `1px solid ${ins.stockOk ? "#e0e0e0" : "#ffcc02"}`,
+                        borderRadius: 8,
+                        padding: 10,
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center"
+                      }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{
+                            fontWeight: 600,
+                            fontSize: 13,
+                            color: ins.stockOk ? "#333" : "#e65100",
+                            marginBottom: 2
+                          }}>
+                            {ins.nombre}
+                          </div>
+                          <div style={{ fontSize: 11, color: "#666" }}>
+                            {ins.cantidad} {ins.unidad}
+                          </div>
+                        </div>
+                        {!ins.stockOk && (
+                          <div style={{
+                            color: "#e65100",
+                            fontSize: 16,
+                            fontWeight: 700,
+                            marginLeft: 8
+                          }}>
+                            ⚠️
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {(orden.insumos || []).some(ins => !ins.stockOk) && (
+                <div style={{
+                  marginTop: 12,
+                  padding: "8px 12px",
+                  background: "#ffebee",
+                  border: "1px solid #ffcdd2",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  color: "#c62828",
+                  textAlign: "center"
+                }}>
+                  ⚠️ Algunos insumos tienen stock insuficiente
+                </div>
+              )}
+            </div>
+          </div>
+            </>
+          )}
+
+          {/* ── Pestaña Productos ── */}
+          {activeTab === "productos" && (
+            <div style={{
+              background: "#fafafa",
+              border: "1px solid #e8e8e8",
+              borderRadius: 12,
+              padding: 20,
+              margin: "0 24px"
+            }}>
+              <h3 style={{
+                margin: "0 0 16px 0",
+                fontSize: 16,
+                fontWeight: 700,
+                color: "#333",
+                display: "flex",
+                alignItems: "center",
+                gap: 8
+              }}>
+                <span style={{ fontSize: 18 }}>📦</span>
+                Productos a Fabricar
+              </h3>
+
+              <div style={{ maxHeight: 400, overflowY: "auto" }}>
+                {(orden.productos || []).length === 0 ? (
+                  <div style={{
+                    textAlign: "center",
+                    padding: "40px 20px",
+                    color: "#999",
+                    fontSize: 14
+                  }}>
+                    <span style={{ fontSize: 24, marginBottom: 8, display: "block" }}>📦</span>
+                    Sin productos asignados
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    {(orden.productos || []).map((p, i) => (
+                      <div key={i} style={{
+                        background: "white",
+                        border: "1px solid #e0e0e0",
+                        borderRadius: 8,
+                        padding: 12,
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center"
+                      }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 600, fontSize: 14, color: "#333", marginBottom: 2 }}>
+                            {p.nombre}
+                          </div>
+                          <div style={{ fontSize: 12, color: "#666" }}>
+                            {fmt(p.precio)} por unidad
+                          </div>
+                        </div>
+                        <div style={{
+                          background: "#e3f2fd",
+                          color: "#1976d2",
+                          borderRadius: 20,
+                          padding: "4px 12px",
+                          fontWeight: 700,
+                          fontSize: 14,
+                          minWidth: 50,
+                          textAlign: "center"
+                        }}>
+                          ×{p.cantidad}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {(orden.productos || []).length > 0 && (
+                <div style={{
+                  marginTop: 20,
+                  padding: "16px",
+                  background: "#e8f5e9",
+                  borderRadius: 10,
+                  border: "1px solid #a5d6a7"
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13, color: "#757575" }}>
+                    <span>Total unidades:</span>
+                    <strong style={{ color: "#1a1a1a" }}>
+                      {(orden.productos || []).reduce((acc, x) => acc + (x.cantidad || 0), 0)} uds
+                    </strong>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 800, color: "#2e7d32" }}>
+                    <span>Costo estimado:</span>
+                    <span>{fmt(orden.costo)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Pestaña Insumos ── */}
+          {activeTab === "insumos" && (
+            <div style={{
+              background: "#fafafa",
+              border: "1px solid #e8e8e8",
+              borderRadius: 12,
+              padding: 20,
+              margin: "0 24px"
+            }}>
+              <h3 style={{
+                margin: "0 0 16px 0",
+                fontSize: 16,
+                fontWeight: 700,
+                color: "#333",
+                display: "flex",
+                alignItems: "center",
+                gap: 8
+              }}>
+                <span style={{ fontSize: 18 }}>🧺</span>
+                Insumos Requeridos
+              </h3>
+
+              <div style={{ maxHeight: 400, overflowY: "auto" }}>
+                {(orden.insumos || []).length === 0 ? (
+                  <div style={{
+                    textAlign: "center",
+                    padding: "40px 20px",
+                    color: "#999",
+                    fontSize: 14
+                  }}>
+                    <span style={{ fontSize: 24, marginBottom: 8, display: "block" }}>🔍</span>
+                    Sin insumos calculados
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {(orden.insumos || []).map((ins, i) => (
+                      <div key={ins.idInsumo} style={{
+                        background: ins.stockOk ? "white" : "#fff3e0",
+                        border: `1px solid ${ins.stockOk ? "#e0e0e0" : "#ffcc02"}`,
+                        borderRadius: 8,
+                        padding: 10,
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center"
+                      }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{
+                            fontWeight: 600,
+                            fontSize: 13,
+                            color: ins.stockOk ? "#333" : "#e65100",
+                            marginBottom: 2
+                          }}>
+                            {ins.nombre}
+                          </div>
+                          <div style={{ fontSize: 11, color: "#666" }}>
+                            {ins.cantidad} {ins.unidad}
+                          </div>
+                        </div>
+                        {!ins.stockOk && (
+                          <div style={{
+                            color: "#e65100",
+                            fontSize: 16,
+                            fontWeight: 700,
+                            marginLeft: 8
+                          }}>
+                            ⚠️
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {(orden.insumos || []).some(ins => !ins.stockOk) && (
+                <div style={{
+                  marginTop: 12,
+                  padding: "8px 12px",
+                  background: "#ffebee",
+                  border: "1px solid #ffcdd2",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  color: "#c62828",
+                  textAlign: "center"
+                }}>
+                  ⚠️ Algunos insumos tienen stock insuficiente
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -375,6 +763,7 @@ function ModalFormOrden({ orden, onClose, onSave }) {
     usuarios    = [],
     insumos: allInsumos = [],
     UNIDADES_MEDIDA = [],
+    calcularCostoProduccion,
   } = useApp();
 
   const empleados = usuarios.filter(u => u.rol === "Empleado" && u.estado);
@@ -405,7 +794,7 @@ function ModalFormOrden({ orden, onClose, onSave }) {
       const prod = productos.find(p => p.id === item.idProducto);
       if (!prod) return;
 
-      totalCosto += (prod.precio || 0) * item.cantidad;
+      totalCosto += calcularCostoProduccion(prod, item.cantidad);
 
       (prod.ficha?.insumos || []).forEach(fi => {
         const ins = allInsumos.find(i => i.id === fi.idInsumo || i.nombre === fi.nombre);
@@ -434,7 +823,7 @@ function ModalFormOrden({ orden, onClose, onSave }) {
     });
 
     setForm(p => ({ ...p, insumos: insumosArray, costo: totalCosto }));
-  }, [form.productos, productos, allInsumos, UNIDADES_MEDIDA]);
+  }, [form.productos, productos, allInsumos, UNIDADES_MEDIDA, calcularCostoProduccion]);
 
   const addProducto = (idStr) => {
     const id = Number(idStr); if (!id) return;

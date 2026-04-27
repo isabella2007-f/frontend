@@ -27,6 +27,7 @@ import OrdersPage from "../features/sales/orders/OrdersPage";
 import ReturnsPage from '../features/sales/returns/ReturnsPage';
 import DeliveryPage from "../features/sales/delivery/DeliveryPage";
 import ProfilePage from "../features/client/profile/ProfilePage";
+import InicioPage from "../features/client/inicio/InicioPage";
 
 /* ─── COMPRAS ─── */
 import CategoriaInsumos from "../features/compras/categoriainsumos/CategoriaInsumos";
@@ -95,9 +96,9 @@ const AppRouter = () => {
         <Route element={<ProtectedRoute allowedRoles={["cliente"]} />}>
           <Route path="/cliente" element={<MainLayout />}>
             
-            <Route index element={<Navigate to="pedidos" replace />} />
+            <Route index element={<InicioPage />} />
 
-            <Route path="inicio" element={<LandingPage hideNavbar={true} />} />
+            <Route path="inicio" element={<InicioPage />} />
             <Route path="pedidos" element={<OrdersPage />} />
             <Route path="domicilios" element={<DeliveryPage />} />
             <Route path="devoluciones" element={<ReturnsPage />} />

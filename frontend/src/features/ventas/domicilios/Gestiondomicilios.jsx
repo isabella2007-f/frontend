@@ -15,21 +15,70 @@ const fmtFecha = (iso) => {
 const PER_PAGE = 5;
 
 const ESTADO_CONFIG = {
-  "Listo":     { dot: "#43a047" },
-  "En camino": { dot: "#8e24aa" },
-  "Entregado": { dot: "#009688" },
-  "Pendiente": { dot: "#f9a825" },
+  "Listo":     { dot: "#43a047", label: "Listo", desc: "Pedido listo para entregar" },
+  "En camino": { dot: "#8e24aa", label: "En camino", desc: "Domiciliario en trayecto" },
+  "Entregado": { dot: "#009688", label: "Entregado", desc: "Pedido entregado al cliente" },
+  "Pendiente": { dot: "#f9a825", label: "Pendiente", desc: "Pedido pendiente de salida" },
 };
 
 /* ─── Componentes pequeños ───────────────────────────────── */
 function EstadoBadge({ estado }) {
+  const cfg = ESTADO_CONFIG[estado] || { dot: "#bdbdbd", label: estado, desc: "" };
   const cls = `estado-badge estado--${estado.replace(/ /g, "-")}`;
   return (
-    <span className={cls}>
+    <span className={cls} title={cfg.desc}>
       <span className="estado-badge__dot" />
       {estado}
     </span>
   );
+}
+
+function AlertaEstado({ pedido, empleados }) {
+  const emp = empleados.find(e => e.id === pedido.idEmpleado);
+  
+  // Sin domiciliario asignado
+  if (!emp && !["Entregado", "Cancelado"].includes(pedido.estado)) {
+    return (
+      <div style={{
+        display: "flex", alignItems: "center", gap: 6,
+        background: "#ffebee", color: "#c62828", fontSize: 12,
+        fontWeight: 600, padding: "3px 6px", borderRadius: 4,
+        whiteSpace: "nowrap"
+      }}>
+        <span>⚠️</span> Sin asignar
+      </div>
+    );
+  }
+  
+  // Pedido entregado
+  if (pedido.estado === "Entregado") {
+    return (
+      <div style={{
+        display: "flex", alignItems: "center", gap: 6,
+        background: "#e0f2f1", color: "#00695c", fontSize: 12,
+        fontWeight: 600, padding: "3px 6px", borderRadius: 4,
+        whiteSpace: "nowrap"
+      }}>
+        <span>✅</span> Completado
+      </div>
+    );
+  }
+  
+  // En camino
+  if (pedido.estado === "En camino") {
+    return (
+      <div style={{
+        display: "flex", alignItems: "center", gap: 6,
+        background: "#f3e5f5", color: "#6a1b9a", fontSize: 12,
+        fontWeight: 600, padding: "3px 6px", borderRadius: 4,
+        whiteSpace: "nowrap"
+      }}>
+        <span>🚴</span> En tránsito
+      </div>
+    );
+  }
+  
+  return null;
 }
 
 function Toast({ toast }) {
@@ -65,9 +114,14 @@ const NAV_VER = [
   { id: "fechas",       label: "Fechas",       icon: "📅" },
 ];
 
-function ModalVerDomicilio({ pedido, emp, onClose, onReasignar, onObservaciones }) {
+function ModalVerDomicilio({ pedido, emp, domicilios, onClose, onReasignar, onObservaciones }) {
   const [activeSection, setActiveSection] = useState("cliente");
   const activo = !["Entregado", "Cancelado"].includes(pedido.estado);
+  const cfg = ESTADO_CONFIG[pedido.estado] || { dot: "#bdbdbd", label: pedido.estado, desc: "" };
+  const pedidosAsignados = domicilios.filter(d => d.idEmpleado === emp?.id);
+  const pendientes = pedidosAsignados.filter(d => !["Entregado", "Cancelado"].includes(d.estado)).length;
+  const enCamino = pedidosAsignados.filter(d => d.estado === "En camino").length;
+  const entregados = pedidosAsignados.filter(d => d.estado === "Entregado").length;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -82,7 +136,19 @@ function ModalVerDomicilio({ pedido, emp, onClose, onReasignar, onObservaciones 
             <h2 className="modal-header__title">{pedido.numero}</h2>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <EstadoBadge estado={pedido.estado} />
+            <div style={{ textAlign: "right" }}>
+              <div style={{
+                display: "flex", alignItems: "center", gap: 6, fontSize: 11,
+                fontWeight: 600, color: cfg.dot, marginBottom: 2
+              }}>
+                <span style={{
+                  width: 10, height: 10, borderRadius: "50%",
+                  background: cfg.dot, display: "inline-block"
+                }} />
+                {cfg.label}
+              </div>
+              <div style={{ fontSize: 11, color: "#999" }}>{cfg.desc}</div>
+            </div>
             <button className="modal-close-btn" onClick={onClose}>✕</button>
           </div>
         </div>
@@ -126,7 +192,7 @@ function ModalVerDomicilio({ pedido, emp, onClose, onReasignar, onObservaciones 
           </nav>
 
           {/* Contenido */}
-          <div style={{ flex: 1, padding: "20px 24px" }}>
+          <div style={{ flex: 1, padding: "20px 24px", overflowY: "auto", maxHeight: "calc(100vh - 300px)" }}>
 
             {/* ── Cliente ── */}
             {activeSection === "cliente" && (
@@ -146,6 +212,29 @@ function ModalVerDomicilio({ pedido, emp, onClose, onReasignar, onObservaciones 
                   <label className="form-label">Total del pedido</label>
                   <div className="field-input--disabled" style={{ color: "#2e7d32", fontWeight: 700 }}>
                     {fmt(pedido.total)}
+                  </div>
+                </div>
+                
+                {/* Estado del pedido */}
+                <p className="section-label">Estado del pedido</p>
+                <div style={{
+                  background: cfg.dot + "11",
+                  border: `1px solid ${cfg.dot}33`,
+                  borderRadius: 8,
+                  padding: 12
+                }}>
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    marginBottom: 6, fontSize: 14, fontWeight: 700, color: cfg.dot
+                  }}>
+                    <span style={{
+                      width: 12, height: 12, borderRadius: "50%",
+                      background: cfg.dot
+                    }} />
+                    {cfg.label}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#666" }}>
+                    {cfg.desc || "Ver más información en las otras pestañas."}
                   </div>
                 </div>
               </>
@@ -179,22 +268,43 @@ function ModalVerDomicilio({ pedido, emp, onClose, onReasignar, onObservaciones 
               <>
                 <p className="section-label" style={{ marginTop: 0 }}>Domiciliario asignado</p>
                 {emp ? (
-                  <div style={{
-                    display: "flex", alignItems: "center", gap: 14, padding: "12px 16px",
-                    borderRadius: 10, border: "1.5px solid #c8e6c9", background: "#f9fdf9",
-                  }}>
+                  <>
                     <div style={{
-                      width: 42, height: 42, borderRadius: "50%", background: "#e8f5e9",
-                      border: "1.5px solid #a5d6a7", display: "flex", alignItems: "center",
-                      justifyContent: "center", fontSize: 20, flexShrink: 0,
-                    }}>🛵</div>
-                    <div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#1a1a1a" }}>
-                        {emp.nombre} {emp.apellidos}
+                      display: "flex", alignItems: "center", gap: 14, padding: "12px 16px",
+                      borderRadius: 10, border: "1.5px solid #c8e6c9", background: "#f9fdf9",
+                    }}>
+                      <div style={{
+                        width: 42, height: 42, borderRadius: "50%", background: "#e8f5e9",
+                        border: "1.5px solid #a5d6a7", display: "flex", alignItems: "center",
+                        justifyContent: "center", fontSize: 20, flexShrink: 0,
+                      }}>🛵</div>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#1a1a1a" }}>
+                          {emp.nombre} {emp.apellidos}
+                        </div>
+                        <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 2 }}>{emp.correo}</div>
                       </div>
-                      <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 2 }}>{emp.correo}</div>
                     </div>
-                  </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginTop: 14 }}>
+                      <div style={{ background: "#fff8e1", border: "1px solid #ffe082", borderRadius: 10, padding: 12 }}>
+                        <div style={{ fontSize: 12, color: "#795548", marginBottom: 4 }}>Asignados</div>
+                        <div style={{ fontSize: 18, fontWeight: 700, color: "#6d4c41" }}>{pedidosAsignados.length}</div>
+                      </div>
+                      <div style={{ background: "#e3f2fd", border: "1px solid #90caf9", borderRadius: 10, padding: 12 }}>
+                        <div style={{ fontSize: 12, color: "#1565c0", marginBottom: 4 }}>Pendientes</div>
+                        <div style={{ fontSize: 18, fontWeight: 700, color: "#1565c0" }}>{pendientes}</div>
+                      </div>
+                      <div style={{ background: "#f3e5f5", border: "1px solid #ce93d8", borderRadius: 10, padding: 12 }}>
+                        <div style={{ fontSize: 12, color: "#6a1b9a", marginBottom: 4 }}>En camino</div>
+                        <div style={{ fontSize: 18, fontWeight: 700, color: "#6a1b9a" }}>{enCamino}</div>
+                      </div>
+                      <div style={{ background: "#e0f2f1", border: "1px solid #80cbc4", borderRadius: 10, padding: 12 }}>
+                        <div style={{ fontSize: 12, color: "#00695c", marginBottom: 4 }}>Entregados</div>
+                        <div style={{ fontSize: 18, fontWeight: 700, color: "#00695c" }}>{entregados}</div>
+                      </div>
+                    </div>
+                  </>
                 ) : (
                   <div className="info-box info-box--warn">
                     <span className="info-box__icon">⚠️</span>
@@ -388,9 +498,10 @@ function HistorialDomiciliario({ domicilios, empleados }) {
       total:      pedidosEmp.length,
       entregados: pedidosEmp.filter(p => p.estado === "Entregado").length,
       enCamino:   pedidosEmp.filter(p => p.estado === "En camino").length,
+      activos:    pedidosEmp.filter(p => !["Entregado", "Cancelado"].includes(p.estado)).length,
       pedidos:    pedidosEmp,
     };
-  }).filter(g => g.total > 0);
+  }).filter(g => g.total > 0).sort((a, b) => b.total - a.total);
 
   if (grupos.length === 0) {
     return (
@@ -420,8 +531,9 @@ function HistorialDomiciliario({ domicilios, empleados }) {
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div className="hist-emp-stats">
                 <span className="hist-stat hist-stat--total">Total: {total}</span>
-                {entregados > 0 && <span className="hist-stat hist-stat--entregado">✓ {entregados}</span>}
+                <span className="hist-stat hist-stat--active">Pendientes: {activos}</span>
                 {enCamino   > 0 && <span className="hist-stat hist-stat--camino">🛵 {enCamino}</span>}
+                {entregados > 0 && <span className="hist-stat hist-stat--entregado">✓ {entregados}</span>}
               </div>
               <span style={{
                 color: "#9e9e9e", fontSize: 16,
@@ -457,6 +569,10 @@ export default function GestionDomicilios() {
 
   const empleados  = usuarios.filter(u => u.rol === "Empleado" && u.estado);
   const domicilios = pedidos.filter(p => p.domicilio);
+  const pedidosPorEmpleado = empleados.reduce((acc, emp) => {
+    acc[emp.id] = domicilios.filter(p => p.idEmpleado === emp.id).length;
+    return acc;
+  }, {});
 
   const [tab,          setTab]          = useState("tabla");
   const [search,       setSearch]       = useState("");
@@ -534,10 +650,11 @@ export default function GestionDomicilios() {
   };
 
   /* Stats */
-  const totalDom   = domicilios.length;
-  const enCamino   = domicilios.filter(p => p.estado === "En camino").length;
-  const entregados = domicilios.filter(p => p.estado === "Entregado").length;
-  const sinAsignar = domicilios.filter(p => !p.idEmpleado && !["Entregado", "Cancelado"].includes(p.estado)).length;
+  const totalDom      = domicilios.length;
+  const enCamino      = domicilios.filter(p => p.estado === "En camino").length;
+  const entregados    = domicilios.filter(p => p.estado === "Entregado").length;
+  const conAsignar    = domicilios.filter(p => p.idEmpleado).length;
+  const sinAsignar    = domicilios.filter(p => !p.idEmpleado && !["Entregado", "Cancelado"].includes(p.estado)).length;
 
   return (
     <div className="page-wrapper">
@@ -549,9 +666,10 @@ export default function GestionDomicilios() {
       <div className="page-inner">
 
         {/* ── Stats ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginBottom: 20 }}>
           {[
             { label: "Total domicilios", val: totalDom,   color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7", icon: "🛵" },
+            { label: "Asignados",        val: conAsignar, color: "#1565c0", bg: "#e3f2fd", border: "#90caf9", icon: "📌" },
             { label: "En camino",        val: enCamino,   color: "#6a1b9a", bg: "#f3e5f5", border: "#ce93d8", icon: "🚴" },
             { label: "Entregados",       val: entregados, color: "#00695c", bg: "#e0f2f1", border: "#80cbc4", icon: "✅" },
             { label: "Sin asignar",      val: sinAsignar, color: sinAsignar > 0 ? "#c62828" : "#9e9e9e", bg: sinAsignar > 0 ? "#ffebee" : "#fafafa", border: sinAsignar > 0 ? "#ef9a9a" : "#e0e0e0", icon: sinAsignar > 0 ? "⚠️" : "—" },
@@ -656,8 +774,9 @@ export default function GestionDomicilios() {
                     ) : paged.map((ped, idx) => {
                       const emp    = empleados.find(e => e.id === ped.idEmpleado);
                       const activo = !["Entregado", "Cancelado"].includes(ped.estado);
+                      const sinAsignado = !emp && activo;
                       return (
-                        <tr key={ped.id} className="tbl-row">
+                        <tr key={ped.id} className="tbl-row" style={{ background: sinAsignado ? "#fffbf0" : "transparent" }}>
                           <td>
                             <span className="row-num">
                               {String((safePage - 1) * PER_PAGE + idx + 1).padStart(2, "0")}
@@ -682,10 +801,16 @@ export default function GestionDomicilios() {
                             )}
                           </td>
                           <td>
-                            {emp
-                              ? <div className="emp-name">🛵 {emp.nombre} {emp.apellidos}</div>
-                              : <div className="emp-none">Sin asignar</div>
-                            }
+                            {emp ? (
+                              <div>
+                                <div className="emp-name">🛵 {emp.nombre} {emp.apellidos}</div>
+                                <div style={{ fontSize: 11, color: "#616161", marginTop: 2 }}>
+                                  {pedidosPorEmpleado[emp.id] || 0} pedido{pedidosPorEmpleado[emp.id] === 1 ? "" : "s"}
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="emp-none">Sin asignar</div>
+                            )}
                           </td>
                           <td><span className="date-badge">{fmtFecha(ped.fecha_pedido)}</span></td>
                           <td>
@@ -693,7 +818,12 @@ export default function GestionDomicilios() {
                               {ped.fecha_entrega_real ? fmtFecha(ped.fecha_entrega_real) : "—"}
                             </span>
                           </td>
-                          <td><EstadoBadge estado={ped.estado} /></td>
+                          <td>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                              <EstadoBadge estado={ped.estado} />
+                              <AlertaEstado pedido={ped} empleados={empleados} />
+                            </div>
+                          </td>
                           <td>
                             <div className="actions-cell">
                               <button className="act-btn act-btn--view"
@@ -749,6 +879,7 @@ export default function GestionDomicilios() {
         <ModalVerDomicilio
           pedido={modal.pedido}
           emp={empleados.find(e => e.id === modal.pedido.idEmpleado)}
+          domicilios={domicilios}
           onClose={() => setModal(null)}
           onReasignar={ped => setModal({ type: "reasignar", pedido: ped })}
           onObservaciones={ped => setModal({ type: "obs", pedido: ped })}

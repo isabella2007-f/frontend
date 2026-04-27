@@ -4,6 +4,10 @@ import { ModalOverlay } from "./ui.jsx";
 import CrearFicha from "./ficha_tecnica/CrearFicha.jsx";
 import "./Productos.css";
 
+// ─── Helpers ──────────────────────────────────────────────
+const fmt = (n) =>
+  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n ?? 0);
+
 // ─── Barra de pasos ───────────────────────────────────────
 const STEPS = ["Información", "Precio, stock e imágenes"];
 
@@ -33,7 +37,7 @@ function StepsBar({ current }) {
 }
 
 export default function CrearProducto({ onClose, onSave }) {
-  const { categoriasProductosActivas, getCatProducto } = useApp();
+  const { categoriasProductosActivas, getCatProducto, calcularCostoProduccion, sugerirPrecioConGanancia } = useApp();
 
   const [form, setForm] = useState({
     nombre: "", idCategoria: "", precio: "", stock: 0,
@@ -114,6 +118,9 @@ export default function CrearProducto({ onClose, onSave }) {
 
   const catSeleccionada = getCatProducto(Number(form.idCategoria));
 
+  const costoProduccion = form.ficha ? calcularCostoProduccion({ ficha: form.ficha }) : 0;
+  const precioSugerido = sugerirPrecioConGanancia(costoProduccion);
+
   return (
     <>
       <div className="overlay" onClick={onClose}>
@@ -166,6 +173,26 @@ export default function CrearProducto({ onClose, onSave }) {
             {/* ── Paso 2: Precio y stock ── */}
             {step === 2 && (
               <>
+                {/* Costo de producción y sugerencia */}
+                {costoProduccion > 0 && (
+                  <div style={{ background: "#f9f9f9", border: "1px solid #e0e0e0", borderRadius: 8, padding: "12px 16px", marginBottom: 16 }}>
+                    <p style={{ fontSize: 13, color: "#424242", margin: 0, fontWeight: 600 }}>💰 Información de costos</p>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+                      <span style={{ fontSize: 12, color: "#757575" }}>Costo de producción:</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "#2e7d32" }}>${fmt(costoProduccion)}</span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                      <span style={{ fontSize: 12, color: "#757575" }}>Precio sugerido (50% ganancia):</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "#1565c0" }}>${fmt(precioSugerido)}</span>
+                    </div>
+                    {form.precio && Number(form.precio) < costoProduccion && (
+                      <p style={{ fontSize: 11, color: "#e65100", marginTop: 8, marginBottom: 0 }}>
+                        ⚠️ El precio es menor al costo de producción. Considera aumentar el precio para generar ganancia.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 <div className="form-grid-2">
                   <div className="form-group">
                     <label className="form-label">Precio venta <span className="required">*</span></label>
