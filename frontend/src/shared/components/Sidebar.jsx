@@ -58,9 +58,9 @@ const adminMenuItems = [
 
 const clienteMenuItems = [
   { section: "Mi Cuenta", icon: "👤", items: [
+    { label: "Inicio", icon: "🏠", link: "/cliente/inicio" },
     { label: "Mis Pedidos", icon: "🛍️", link: "/cliente/pedidos" },
-    { label: "Seguimiento de Pedidos", icon: "🚚", link: "/cliente/domicilios" },
-    { label: "Mis Devoluciones", icon: "🔄", link: "/cliente/devoluciones" },
+    { label: "Devoluciones", icon: "🔄", link: "/cliente/devoluciones" },
     { label: "Mi Perfil", icon: "👤", link: "/cliente/perfil" },
   ]},
 ];

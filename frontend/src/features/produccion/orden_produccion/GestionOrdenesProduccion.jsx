@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useApp } from "../../../AppContext.jsx";
+import { 
+  Package, ClipboardList, User, Calendar, 
+  DollarSign, FileText, ChevronRight, ArrowRight,
+  CheckCircle2, X, AlertCircle, Info, History
+} from 'lucide-react';
 import "./OrdenesProduccion.css";
 
 /* ─── Helpers ────────────────────────────────────────────── */
@@ -11,11 +17,11 @@ const PER_PAGE = 5;
 const ESTADOS_ORDEN = ["Pendiente", "En proceso", "Pausada", "Completada", "Cancelada"];
 
 const ESTADO_CONFIG = {
-  "Pendiente":  { bg: "#fff8e1", color: "#f9a825", border: "#ffe082", dot: "#f9a825",  desc: "Esperando inicio de fabricación" },
-  "En proceso": { bg: "#e3f2fd", color: "#1565c0", border: "#90caf9", dot: "#1976d2",  desc: "Actualmente en fabricación" },
-  "Pausada":    { bg: "#f3e5f5", color: "#6a1b9a", border: "#ce93d8", dot: "#8e24aa",  desc: "Temporalmente detenida" },
-  "Completada": { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7", dot: "#43a047",  desc: "Fabricación finalizada — stock actualizado" },
-  "Cancelada":  { bg: "#ffebee", color: "#c62828", border: "#ef9a9a", dot: "#e53935",  desc: "Orden cancelada" },
+  "Pendiente":  { bg: "bg-amber-50",  color: "text-amber-700", border: "border-amber-200",  dot: "#f9a825", desc: "Esperando inicio de fabricación" },
+  "En proceso": { bg: "bg-blue-50",   color: "text-blue-700",  border: "border-blue-200",   dot: "#1976d2", desc: "Actualmente en fabricación" },
+  "Pausada":    { bg: "bg-purple-50", color: "text-purple-700",border: "border-purple-200", dot: "#8e24aa", desc: "Temporalmente detenida" },
+  "Completada": { bg: "bg-green-50",  color: "text-green-700", border: "border-green-200",  dot: "#43a047", desc: "Fabricación finalizada — stock actualizado" },
+  "Cancelada":  { bg: "bg-red-50",    color: "text-red-700",   border: "border-red-200",    dot: "#e53935", desc: "Orden cancelada" },
 };
 
 const fmtFecha = (iso) => {
@@ -36,11 +42,11 @@ const urgenciaFecha = (fechaISO) => {
 
 /* ─── Componentes ────────────────────────────────────────── */
 function EstadoBadge({ estado }) {
-  const c   = ESTADO_CONFIG[estado] || { bg: "#f5f5f5", color: "#757575", border: "#e0e0e0", dot: "#bdbdbd" };
-  const cls = `estado-badge estado--${estado.replace(/ /g, "-")}`;
+  const c   = ESTADO_CONFIG[estado] || { bg: "bg-gray-50", color: "text-gray-700", border: "border-gray-200", dot: "#bdbdbd" };
+  const cls = `estado-badge ${c.bg} ${c.color} border ${c.border} px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5`;
   return (
     <span className={cls}>
-      <span className="estado-badge__dot" />
+      <span className="w-1.5 h-1.5 rounded-full" style={{ background: c.dot }} />
       {estado}
     </span>
   );
@@ -48,545 +54,233 @@ function EstadoBadge({ estado }) {
 
 function Toast({ toast }) {
   if (!toast) return null;
-  const bg = toast.type === "error" ? "#c62828" : toast.type === "warn" ? "#e65100" : "#2e7d32";
+  const bg = toast.type === "error" ? "bg-red-600" : toast.type === "warn" ? "bg-orange-600" : "bg-green-600";
   return (
-    <div className="toast" style={{ background: bg }}>
-      <span style={{ fontSize: 15 }}>{toast.type === "error" ? "✕" : toast.type === "warn" ? "⚠" : "✓"}</span>
-      {toast.message}
+    <div className={`fixed bottom-8 right-8 ${bg} text-white px-6 py-3 rounded-xl shadow-2xl z-[30000] flex items-center gap-3 animate-in slide-in-from-right`}>
+      {toast.type === "error" ? <X size={18} /> : toast.type === "warn" ? <AlertCircle size={18} /> : <CheckCircle2 size={18} />}
+      <span className="font-bold text-sm">{toast.message}</span>
     </div>
   );
 }
 
 /* ═══════════════════════════════════════════════════════════
-   MODAL VER DETALLES
+   MODAL VER DETALLES (Rediseñado)
    ═══════════════════════════════════════════════════════════ */
-function ModalDetallesOrden({ orden, empleados, onClose, onEdit }) {
+function ModalDetallesOrden({ orden, empleados, onClose }) {
   const [activeTab, setActiveTab] = useState("general");
+  const navigate = useNavigate();
   if (!orden) return null;
+  
   const empleado = empleados.find(e => String(e.id) === String(orden.idEmpleado));
   const cfg = ESTADO_CONFIG[orden.estado] || {};
 
   const totalUnidades = (orden.productos || []).reduce((acc, x) => acc + (x.cantidad || 0), 0);
-  const totalProductos = (orden.productos || []).length;
 
-  const tabs = [
-    { id: "general", label: "General", icon: "📋" },
-    { id: "productos", label: "Productos", icon: "📦" },
-    { id: "insumos", label: "Insumos", icon: "🧺" },
-  ];
+  const goToFicha = (productId) => {
+    navigate('/admin/products', { state: { openFicha: productId } });
+  };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box--wide" onClick={e => e.stopPropagation()} style={{ maxWidth: 900 }}>
-
-        {/* Cabecera mejorada */}
-        <div className="modal-header" style={{ borderBottom: "2px solid #f0f0f0", paddingBottom: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <div style={{
-              width: 48, height: 48, borderRadius: "50%",
-              background: cfg.bg || "#f5f5f5",
-              border: `3px solid ${cfg.border || "#e0e0e0"}`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 20, fontWeight: 700, color: cfg.color || "#424242"
-            }}>
-              📋
+    <div className="modal-overlay">
+      <div className="modal-box modal-box--wide shadow-2xl overflow-hidden flex flex-col max-h-[95vh] border-none" style={{ borderRadius: '32px' }}>
+        
+        {/* Header con Variables de Marca */}
+        <div className="modal-header shrink-0" style={{ background: 'linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 100%)', padding: '24px' }}>
+          <div className="flex items-center gap-4">
+            <div className="bg-white/10 backdrop-blur-xl p-3 rounded-2xl border border-white/20">
+              <ClipboardList size={24} className="text-white" />
             </div>
             <div>
-              <p className="modal-header__eyebrow" style={{ margin: 0, color: "#666", fontSize: 14 }}>Orden de Producción</p>
-              <h2 className="modal-header__title" style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>{orden.id}</h2>
+              <h2 className="text-xl font-black tracking-tight leading-none mb-1 text-white">Orden {orden.id}</h2>
+              <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">Resumen Detallado</p>
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div className="flex items-center gap-3">
             <EstadoBadge estado={orden.estado} />
-            <button className="modal-close-btn" onClick={onClose}>✕</button>
+            <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-all text-white/70">
+              <X size={20} />
+            </button>
           </div>
         </div>
 
-        {/* Pestañas */}
-        <div style={{ display: "flex", borderBottom: "1px solid #e0e0e0", background: "#fafafa" }}>
-          {tabs.map(tab => (
+        {/* Pestañas Modernas */}
+        <div className="flex bg-gray-50/80 backdrop-blur-sm border-b border-gray-100 px-6">
+          {[
+            { id: "general", label: "General", icon: <Info size={14} /> },
+            { id: "productos", label: "Productos", icon: <Package size={14} /> },
+            { id: "insumos", label: "Insumos", icon: <FileText size={14} /> },
+          ].map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              style={{
-                flex: 1,
-                padding: "12px 16px",
-                border: "none",
-                background: activeTab === tab.id ? "#fff" : "transparent",
-                borderBottom: activeTab === tab.id ? "2px solid #2e7d32" : "none",
-                color: activeTab === tab.id ? "#2e7d32" : "#757575",
-                fontWeight: activeTab === tab.id ? 700 : 500,
-                fontSize: 14,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-                transition: "all 0.15s"
-              }}
+              className={`flex items-center gap-2 px-6 py-4 text-xs font-black uppercase tracking-widest transition-all border-b-2 ${
+                activeTab === tab.id 
+                  ? 'border-green-600 text-green-700 bg-white' 
+                  : 'border-transparent text-gray-400 hover:text-gray-600'
+              }`}
             >
-              <span style={{ fontSize: 16 }}>{tab.icon}</span>
-              {tab.label}
+              {tab.icon} {tab.label}
             </button>
           ))}
         </div>
 
-        <div className="modal-body" style={{ padding: "24px 0", minHeight: 400 }}>
+        <div className="modal-body p-6 overflow-y-auto custom-scrollbar flex-1 bg-white">
 
-          {/* ── Pestaña General ── */}
           {activeTab === "general" && (
-            <>
-              {/* Resumen principal */}
-              <div style={{
-                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                color: "white",
-                padding: "20px 24px",
-                borderRadius: 12,
-                marginBottom: 24,
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-                gap: 20
-              }}>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>{totalUnidades}</div>
-                  <div style={{ fontSize: 12, opacity: 0.9 }}>Unidades totales</div>
+            <div className="space-y-6">
+              {/* Resumen KPI */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-green-50 p-4 rounded-2xl border border-green-100">
+                  <p className="text-[9px] font-black text-green-600 uppercase tracking-widest mb-1">Unidades</p>
+                  <p className="text-2xl font-black text-green-900 leading-none">{totalUnidades}</p>
                 </div>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>{totalProductos}</div>
-                  <div style={{ fontSize: 12, opacity: 0.9 }}>Productos</div>
+                <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                  <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-1">Productos</p>
+                  <p className="text-2xl font-black text-blue-900 leading-none">{(orden.productos || []).length}</p>
                 </div>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>{fmt(orden.costo)}</div>
-                  <div style={{ fontSize: 12, opacity: 0.9 }}>Costo estimado</div>
+                <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                  <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Insumos</p>
+                  <p className="text-2xl font-black text-emerald-900 leading-none">{(orden.insumos || []).length}</p>
                 </div>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 28, fontWeight: 800, marginBottom: 4 }}>
-                    {orden.fechaEntrega ? fmtFecha(orden.fechaEntrega) : "—"}
-                  </div>
-                  <div style={{ fontSize: 12, opacity: 0.9 }}>Fecha entrega</div>
+                <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100">
+                  <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest mb-1">Costo</p>
+                  <p className="text-2xl font-black text-amber-900 leading-none">{fmt(orden.costo)}</p>
                 </div>
               </div>
 
-              {/* Información detallada */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-
-            {/* Información General */}
-            <div style={{
-              background: "#fafafa",
-              border: "1px solid #e8e8e8",
-              borderRadius: 12,
-              padding: 20
-            }}>
-              <h3 style={{
-                margin: "0 0 16px 0",
-                fontSize: 16,
-                fontWeight: 700,
-                color: "#333",
-                display: "flex",
-                alignItems: "center",
-                gap: 8
-              }}>
-                <span style={{ fontSize: 18 }}>📋</span>
-                Información General
-              </h3>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 13, color: "#666", fontWeight: 500 }}>Responsable:</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#333" }}>
-                    {empleado ? `${empleado.nombre} ${empleado.apellidos || ""}` : "Sin asignar"}
-                  </span>
-                </div>
-
-                {orden.numeroPedido && (
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 13, color: "#666", fontWeight: 500 }}>Pedido vinculado:</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "#1976d2" }}>
-                      #{orden.numeroPedido}
-                    </span>
-                  </div>
-                )}
-
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 13, color: "#666", fontWeight: 500 }}>Fecha creación:</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: "#333" }}>
-                    {orden.fechaInicio ? fmtFecha(orden.fechaInicio) : "—"}
-                  </span>
-                </div>
-
-                {orden.fechaCierre && (
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 13, color: "#666", fontWeight: 500 }}>Fecha cierre:</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "#333" }}>
-                      {fmtFecha(orden.fechaCierre)}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {orden.notas && (
-                <div style={{ marginTop: 16 }}>
-                  <p style={{ fontSize: 13, color: "#666", fontWeight: 500, margin: "0 0 8px 0" }}>Notas:</p>
-                  <div style={{
-                    background: "white",
-                    border: "1px solid #ddd",
-                    borderRadius: 8,
-                    padding: "10px 12px",
-                    fontSize: 12,
-                    color: "#555",
-                    lineHeight: 1.5
-                  }}>
-                    {orden.notas}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Productos a Fabricar */}
-            <div style={{
-              background: "#fafafa",
-              border: "1px solid #e8e8e8",
-              borderRadius: 12,
-              padding: 20
-            }}>
-              <h3 style={{
-                margin: "0 0 16px 0",
-                fontSize: 16,
-                fontWeight: 700,
-                color: "#333",
-                display: "flex",
-                alignItems: "center",
-                gap: 8
-              }}>
-                <span style={{ fontSize: 18 }}>🏭</span>
-                Productos a Fabricar
-              </h3>
-
-              <div style={{ maxHeight: 300, overflowY: "auto" }}>
-                {(orden.productos || []).length === 0 ? (
-                  <div style={{
-                    textAlign: "center",
-                    padding: "40px 20px",
-                    color: "#999",
-                    fontSize: 14
-                  }}>
-                    <span style={{ fontSize: 24, marginBottom: 8, display: "block" }}>📦</span>
-                    Sin productos asignados
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    {(orden.productos || []).map((p, i) => (
-                      <div key={i} style={{
-                        background: "white",
-                        border: "1px solid #e0e0e0",
-                        borderRadius: 8,
-                        padding: 12,
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center"
-                      }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 600, fontSize: 14, color: "#333", marginBottom: 2 }}>
-                            {p.nombre}
-                          </div>
-                          <div style={{ fontSize: 12, color: "#666" }}>
-                            {fmt(p.precio)} por unidad
-                          </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Información de Gestión</h4>
+                  <div className="bg-gray-50/50 p-5 rounded-[24px] border border-gray-100 space-y-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-green-700 shadow-sm border border-gray-100">
+                        <User size={18} />
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Responsable</p>
+                        <p className="text-sm font-bold text-gray-800">{empleado ? `${empleado.nombre} ${empleado.apellidos || ""}` : "Sin asignar"}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-blue-700 shadow-sm border border-gray-100">
+                        <Calendar size={18} />
+                      </div>
+                      <div>
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Entrega Prometida</p>
+                        <p className="text-sm font-bold text-gray-800">{orden.fechaEntrega ? fmtFecha(orden.fechaEntrega) : "—"}</p>
+                      </div>
+                    </div>
+                    {orden.numeroPedido && (
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-indigo-700 shadow-sm border border-gray-100">
+                          <ClipboardList size={18} />
                         </div>
-                        <div style={{
-                          background: "#e3f2fd",
-                          color: "#1976d2",
-                          borderRadius: 20,
-                          padding: "4px 12px",
-                          fontWeight: 700,
-                          fontSize: 14,
-                          minWidth: 50,
-                          textAlign: "center"
-                        }}>
-                          ×{p.cantidad}
+                        <div>
+                          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Pedido Venta</p>
+                          <p className="text-sm font-bold text-indigo-700">#{orden.numeroPedido}</p>
                         </div>
                       </div>
-                    ))}
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
-
-            {/* Insumos Requeridos */}
-            <div style={{
-              background: "#fafafa",
-              border: "1px solid #e8e8e8",
-              borderRadius: 12,
-              padding: 20
-            }}>
-              <h3 style={{
-                margin: "0 0 16px 0",
-                fontSize: 16,
-                fontWeight: 700,
-                color: "#333",
-                display: "flex",
-                alignItems: "center",
-                gap: 8
-              }}>
-                <span style={{ fontSize: 18 }}>📦</span>
-                Insumos Requeridos
-              </h3>
-
-              <div style={{ maxHeight: 300, overflowY: "auto" }}>
-                {(orden.insumos || []).length === 0 ? (
-                  <div style={{
-                    textAlign: "center",
-                    padding: "40px 20px",
-                    color: "#999",
-                    fontSize: 14
-                  }}>
-                    <span style={{ fontSize: 24, marginBottom: 8, display: "block" }}>🔍</span>
-                    Sin insumos calculados
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {(orden.insumos || []).map((ins, i) => (
-                      <div key={ins.idInsumo} style={{
-                        background: ins.stockOk ? "white" : "#fff3e0",
-                        border: `1px solid ${ins.stockOk ? "#e0e0e0" : "#ffcc02"}`,
-                        borderRadius: 8,
-                        padding: 10,
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center"
-                      }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{
-                            fontWeight: 600,
-                            fontSize: 13,
-                            color: ins.stockOk ? "#333" : "#e65100",
-                            marginBottom: 2
-                          }}>
-                            {ins.nombre}
-                          </div>
-                          <div style={{ fontSize: 11, color: "#666" }}>
-                            {ins.cantidad} {ins.unidad}
-                          </div>
-                        </div>
-                        {!ins.stockOk && (
-                          <div style={{
-                            color: "#e65100",
-                            fontSize: 16,
-                            fontWeight: 700,
-                            marginLeft: 8
-                          }}>
-                            ⚠️
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {(orden.insumos || []).some(ins => !ins.stockOk) && (
-                <div style={{
-                  marginTop: 12,
-                  padding: "8px 12px",
-                  background: "#ffebee",
-                  border: "1px solid #ffcdd2",
-                  borderRadius: 6,
-                  fontSize: 12,
-                  color: "#c62828",
-                  textAlign: "center"
-                }}>
-                  ⚠️ Algunos insumos tienen stock insuficiente
                 </div>
-              )}
+
+                <div className="space-y-4">
+                  <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Notas e Instrucciones</h4>
+                  <div className="bg-gray-50/50 p-5 rounded-[24px] border border-gray-100 h-full">
+                    {orden.notas ? (
+                      <p className="text-xs text-gray-600 leading-relaxed italic">"{orden.notas}"</p>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-gray-300 italic text-xs">Sin notas adicionales</div>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-            </>
           )}
 
-          {/* ── Pestaña Productos ── */}
           {activeTab === "productos" && (
-            <div style={{
-              background: "#fafafa",
-              border: "1px solid #e8e8e8",
-              borderRadius: 12,
-              padding: 20,
-              margin: "0 24px"
-            }}>
-              <h3 style={{
-                margin: "0 0 16px 0",
-                fontSize: 16,
-                fontWeight: 700,
-                color: "#333",
-                display: "flex",
-                alignItems: "center",
-                gap: 8
-              }}>
-                <span style={{ fontSize: 18 }}>📦</span>
-                Productos a Fabricar
-              </h3>
-
-              <div style={{ maxHeight: 400, overflowY: "auto" }}>
-                {(orden.productos || []).length === 0 ? (
-                  <div style={{
-                    textAlign: "center",
-                    padding: "40px 20px",
-                    color: "#999",
-                    fontSize: 14
-                  }}>
-                    <span style={{ fontSize: 24, marginBottom: 8, display: "block" }}>📦</span>
-                    Sin productos asignados
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    {(orden.productos || []).map((p, i) => (
-                      <div key={i} style={{
-                        background: "white",
-                        border: "1px solid #e0e0e0",
-                        borderRadius: 8,
-                        padding: 12,
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center"
-                      }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 600, fontSize: 14, color: "#333", marginBottom: 2 }}>
-                            {p.nombre}
-                          </div>
-                          <div style={{ fontSize: 12, color: "#666" }}>
-                            {fmt(p.precio)} por unidad
-                          </div>
-                        </div>
-                        <div style={{
-                          background: "#e3f2fd",
-                          color: "#1976d2",
-                          borderRadius: 20,
-                          padding: "4px 12px",
-                          fontWeight: 700,
-                          fontSize: 14,
-                          minWidth: 50,
-                          textAlign: "center"
-                        }}>
-                          ×{p.cantidad}
-                        </div>
+            <div className="space-y-4">
+               {orden.productos.map((p, i) => (
+                 <div key={i} className="group bg-gray-50/50 hover:bg-white p-4 rounded-2xl border border-gray-100 hover:border-green-200 transition-all flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-green-700 shadow-sm border border-gray-100 group-hover:scale-105 transition-transform">
+                        <Package size={22} />
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {(orden.productos || []).length > 0 && (
-                <div style={{
-                  marginTop: 20,
-                  padding: "16px",
-                  background: "#e8f5e9",
-                  borderRadius: 10,
-                  border: "1px solid #a5d6a7"
-                }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13, color: "#757575" }}>
-                    <span>Total unidades:</span>
-                    <strong style={{ color: "#1a1a1a" }}>
-                      {(orden.productos || []).reduce((acc, x) => acc + (x.cantidad || 0), 0)} uds
-                    </strong>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 800, color: "#2e7d32" }}>
-                    <span>Costo estimado:</span>
-                    <span>{fmt(orden.costo)}</span>
-                  </div>
-                </div>
-              )}
+                      <div>
+                        <h4 className="text-sm font-black text-gray-800">{p.nombre}</h4>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Costo unit: {fmt(p.precio)}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <p className="text-[10px] font-black text-gray-400 uppercase">Cantidad</p>
+                        <p className="text-lg font-black text-green-700">×{p.cantidad}</p>
+                      </div>
+                      {/* ✅ Botón a Ficha Técnica */}
+                      <button 
+                        onClick={() => goToFicha(p.idProducto)}
+                        className="p-2.5 bg-white hover:bg-green-600 text-green-600 hover:text-white rounded-xl shadow-sm border border-gray-100 hover:border-green-600 transition-all"
+                        title="Ver Ficha Técnica"
+                      >
+                        <FileText size={16} />
+                      </button>
+                    </div>
+                 </div>
+               ))}
             </div>
           )}
 
-          {/* ── Pestaña Insumos ── */}
           {activeTab === "insumos" && (
-            <div style={{
-              background: "#fafafa",
-              border: "1px solid #e8e8e8",
-              borderRadius: 12,
-              padding: 20,
-              margin: "0 24px"
-            }}>
-              <h3 style={{
-                margin: "0 0 16px 0",
-                fontSize: 16,
-                fontWeight: 700,
-                color: "#333",
-                display: "flex",
-                alignItems: "center",
-                gap: 8
-              }}>
-                <span style={{ fontSize: 18 }}>🧺</span>
-                Insumos Requeridos
-              </h3>
+            <div className="space-y-6">
+              {orden.missingFicha && orden.missingFicha.length > 0 && (
+                <div className="bg-orange-50 border border-orange-200 p-4 rounded-2xl flex items-start gap-3">
+                  <AlertCircle className="text-orange-600 shrink-0 mt-0.5" size={18} />
+                  <div>
+                    <p className="text-[11px] font-black text-orange-900 uppercase tracking-tight">Advertencia: Fichas Faltantes</p>
+                    <p className="text-xs text-orange-700 mt-1">Los productos <span className="font-bold">[{orden.missingFicha.join(", ")}]</span> no tienen ficha técnica. Los cálculos pueden estar incompletos.</p>
+                  </div>
+                </div>
+              )}
 
-              <div style={{ maxHeight: 400, overflowY: "auto" }}>
-                {(orden.insumos || []).length === 0 ? (
-                  <div style={{
-                    textAlign: "center",
-                    padding: "40px 20px",
-                    color: "#999",
-                    fontSize: 14
-                  }}>
-                    <span style={{ fontSize: 24, marginBottom: 8, display: "block" }}>🔍</span>
-                    Sin insumos calculados
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {(orden.insumos || []).map((ins, i) => (
-                      <div key={ins.idInsumo} style={{
-                        background: ins.stockOk ? "white" : "#fff3e0",
-                        border: `1px solid ${ins.stockOk ? "#e0e0e0" : "#ffcc02"}`,
-                        borderRadius: 8,
-                        padding: 10,
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center"
-                      }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{
-                            fontWeight: 600,
-                            fontSize: 13,
-                            color: ins.stockOk ? "#333" : "#e65100",
-                            marginBottom: 2
-                          }}>
-                            {ins.nombre}
-                          </div>
-                          <div style={{ fontSize: 11, color: "#666" }}>
-                            {ins.cantidad} {ins.unidad}
-                          </div>
-                        </div>
-                        {!ins.stockOk && (
-                          <div style={{
-                            color: "#e65100",
-                            fontSize: 16,
-                            fontWeight: 700,
-                            marginLeft: 8
-                          }}>
-                            ⚠️
-                          </div>
-                        )}
-                      </div>
+              <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+                <table className="w-full">
+                  <thead className="bg-gray-50/50">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-[9px] font-black text-gray-400 uppercase tracking-widest">Insumo</th>
+                      <th className="px-6 py-4 text-center text-[9px] font-black text-gray-400 uppercase tracking-widest">Requerido</th>
+                      <th className="px-6 py-4 text-center text-[9px] font-black text-gray-400 uppercase tracking-widest">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {orden.insumos.map((ins, i) => (
+                      <tr key={i} className="hover:bg-gray-50/30">
+                        <td className="px-6 py-4 text-xs font-bold text-gray-800">{ins.nombre}</td>
+                        <td className="px-6 py-4 text-center text-xs font-black text-gray-600">{ins.cantidad} {ins.unidad}</td>
+                        <td className="px-6 py-4 text-center">
+                          {ins.stockOk ? (
+                            <span className="text-[10px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded-lg border border-green-100">OK</span>
+                          ) : (
+                            <span className="text-[10px] font-black text-red-600 bg-red-50 px-2 py-0.5 rounded-lg border border-red-100">Stock Insuficiente</span>
+                          )}
+                        </td>
+                      </tr>
                     ))}
-                  </div>
-                )}
+                  </tbody>
+                </table>
               </div>
 
-              {(orden.insumos || []).some(ins => !ins.stockOk) && (
-                <div style={{
-                  marginTop: 12,
-                  padding: "8px 12px",
-                  background: "#ffebee",
-                  border: "1px solid #ffcdd2",
-                  borderRadius: 6,
-                  fontSize: 12,
-                  color: "#c62828",
-                  textAlign: "center"
-                }}>
-                  ⚠️ Algunos insumos tienen stock insuficiente
+              {orden.insumosDescontados && (
+                <div className="bg-green-600 p-4 rounded-2xl flex items-center justify-center gap-3 text-white shadow-lg shadow-green-200/50">
+                  <CheckCircle2 size={18} />
+                  <span className="text-xs font-black uppercase tracking-widest">Inventario actualizado con éxito</span>
                 </div>
               )}
             </div>
           )}
+        </div>
+
+        <div className="modal-footer p-6 bg-gray-50/50 border-t border-gray-100 shrink-0">
+          <button onClick={onClose} className="btn-secondary w-full py-4 text-xs font-black uppercase tracking-widest">Cerrar Detalle</button>
         </div>
       </div>
     </div>
@@ -594,76 +288,104 @@ function ModalDetallesOrden({ orden, empleados, onClose, onEdit }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   MODAL CAMBIAR ESTADO
+   MODAL CAMBIAR ESTADO (Confirmación Explícita)
    ═══════════════════════════════════════════════════════════ */
 function ModalCambiarEstado({ orden, onClose, onConfirm }) {
-  const [estadoSel, setEstadoSel] = useState(orden?.estado || "Pendiente");
+  const [estadoSel, setEstadoSel] = useState(null);
+  const [confirmStep, setConfirmStep] = useState(false);
+
   if (!orden) return null;
 
+  const handleInitialClick = (est) => {
+    if (est === orden.estado) return;
+    setEstadoSel(est);
+    setConfirmStep(true);
+  };
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
-
-        <div className="modal-header">
+    <div className="modal-overlay">
+      <div className="modal-box relative bg-white shadow-2xl overflow-hidden flex flex-col border-none" style={{ borderRadius: '28px' }}>
+        
+        {/* Cabecera */}
+        <div className="modal-header shrink-0" style={{ background: 'linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 100%)', padding: '20px 24px' }}>
           <div>
-            <p className="modal-header__eyebrow">Cambiar estado</p>
-            <h2 className="modal-header__title">{orden.id}</h2>
+            <h2 className="text-lg font-black text-white leading-none">Cambiar Estado</h2>
+            <p className="text-white/60 text-[9px] font-bold uppercase tracking-widest mt-1">Orden #{orden.id}</p>
           </div>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
+          <button onClick={onClose} className="text-white/70 hover:text-white"><X size={18} /></button>
         </div>
 
-        <div className="modal-body">
-          <p className="section-label" style={{ marginTop: 0 }}>Selecciona el nuevo estado</p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {ESTADOS_ORDEN.map(est => {
-              const cfg = ESTADO_CONFIG[est] || {};
-              const sel = estadoSel === est;
-              return (
-                <button
-                  key={est}
-                  onClick={() => setEstadoSel(est)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    padding: "12px 16px",
-                    borderRadius: 10,
-                    border: `2px solid ${sel ? cfg.border || "#bdbdbd" : "#eeeeee"}`,
-                    background: sel ? (cfg.bg || "#f5f5f5") : "#fff",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    transition: "all .15s",
-                  }}
-                >
-                  <span style={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: "50%",
-                    background: cfg.dot || "#bdbdbd",
-                    flexShrink: 0,
-                  }} />
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: cfg.color || "#424242" }}>{est}</div>
-                    {cfg.desc && <div style={{ fontSize: 12, color: "#9e9e9e", marginTop: 2 }}>{cfg.desc}</div>}
+        <div className="modal-body p-6">
+          {!confirmStep ? (
+            <div className="space-y-3">
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Selecciona el nuevo estado</p>
+              <div className="grid gap-2">
+                {ESTADOS_ORDEN.map(est => {
+                  const cfg = ESTADO_CONFIG[est] || {};
+                  const isCurrent = est === orden.estado;
+                  return (
+                    <button
+                      key={est}
+                      onClick={() => handleInitialClick(est)}
+                      disabled={isCurrent}
+                      className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 transition-all text-left ${
+                        isCurrent 
+                          ? 'border-gray-100 bg-gray-50 opacity-60 cursor-default' 
+                          : 'border-white bg-white hover:border-green-200 hover:bg-green-50 shadow-sm'
+                      }`}
+                    >
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ background: cfg.dot || '#ccc' }} />
+                      <div className="flex-1">
+                        <p className={`text-xs font-black ${isCurrent ? 'text-gray-400' : 'text-gray-800'}`}>{est}</p>
+                        {isCurrent && <span className="text-[9px] font-bold uppercase text-green-600">Estado Actual</span>}
+                      </div>
+                      {!isCurrent && <ChevronRight size={14} className="text-gray-300" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            /* ✅ PASO DE CONFIRMACIÓN */
+            <div className="space-y-6 animate-in zoom-in-95 duration-300">
+               <div className="bg-amber-50 border-2 border-amber-200 p-5 rounded-3xl text-center">
+                  <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-3 text-amber-600">
+                    <AlertCircle size={28} />
                   </div>
-                  {sel && (
-                    <span style={{ marginLeft: "auto", color: cfg.color || "#424242", fontSize: 16, fontWeight: 800 }}>✓</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+                  <h3 className="text-sm font-black text-amber-900 uppercase tracking-tight">¿Confirmar Cambio de Estado?</h3>
+                  <p className="text-xs text-amber-700/80 mt-2 font-medium">Estás a punto de mover esta orden a un nuevo estado en el flujo de producción.</p>
+               </div>
 
-        <div className="modal-footer">
-          <button className="btn-ghost" onClick={onClose}>Cancelar</button>
-          <button
-            className="btn-save"
-            disabled={estadoSel === orden.estado}
-            onClick={() => onConfirm(orden.id, estadoSel)}
-          >
-            Confirmar cambio
-          </button>
+               <div className="flex items-center justify-between px-6 py-4 bg-gray-50 rounded-2xl border border-gray-100 relative overflow-hidden">
+                  <div className="text-center flex-1">
+                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Actual</p>
+                    <EstadoBadge estado={orden.estado} />
+                  </div>
+                  <div className="px-4 text-gray-300 animate-pulse">
+                    <ArrowRight size={20} strokeWidth={3} />
+                  </div>
+                  <div className="text-center flex-1">
+                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Nuevo</p>
+                    <EstadoBadge estado={estadoSel} />
+                  </div>
+               </div>
+
+               <div className="space-y-2">
+                 <button 
+                  onClick={() => onConfirm(orden.id, estadoSel)}
+                  className="btn-primary w-full py-4 text-xs font-black uppercase tracking-widest shadow-lg shadow-green-200"
+                 >
+                   Confirmar y Aplicar
+                 </button>
+                 <button 
+                  onClick={() => setConfirmStep(false)}
+                  className="w-full py-3 text-[10px] font-black text-gray-400 hover:text-gray-600 uppercase tracking-widest transition-colors"
+                 >
+                   Regresar
+                 </button>
+               </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -825,10 +547,24 @@ function ModalFormOrden({ orden, onClose, onSave }) {
     setForm(p => ({ ...p, insumos: insumosArray, costo: totalCosto }));
   }, [form.productos, productos, allInsumos, UNIDADES_MEDIDA, calcularCostoProduccion]);
 
+  useEffect(() => {
+    // Bloquear scroll cuando el modal está abierto
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "auto";
+    };
+  }, []);
+
   const addProducto = (idStr) => {
     const id = Number(idStr); if (!id) return;
     const prod = productos.find(x => x.id === id); if (!prod) return;
     if (form.productos.some(x => x.idProducto === id)) return;
+    
+    // ADVERTENCIA FICHA TÉCNICA
+    if (!prod.ficha) {
+      alert(`⚠️ El producto "${prod.nombre}" no tiene una ficha técnica vinculada. No se podrán calcular los insumos necesarios para su fabricación.`);
+    }
+
     setForm(f => ({
       ...f,
       productos: [...f.productos, { idProducto: prod.id, nombre: prod.nombre, cantidad: 1, precio: prod.precio || 0 }],
@@ -967,7 +703,11 @@ export default function GestionOrdenesProduccion() {
 
   const empleados = usuarios.filter(u => u.rol === "Empleado" && u.estado);
 
-  const [search,       setSearch]       = useState("");
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const initialSearch = queryParams.get("search") || "";
+
+  const [search,       setSearch]       = useState(initialSearch);
   const [filterEstado, setFilterEstado] = useState("todos");
   const [showFilter,   setShowFilter]   = useState(false);
   const [page,         setPage]         = useState(1);
@@ -1118,6 +858,21 @@ export default function GestionOrdenesProduccion() {
                         {orden.numeroPedido && (
                           <div style={{ fontSize: 10, color: "#1565c0", fontWeight: 700 }}>
                             {orden.numeroPedido}
+                          </div>
+                        )}
+                        {orden.missingFicha && orden.missingFicha.length > 0 && (
+                          <div style={{ 
+                            fontSize: 9, 
+                            color: "#e65100", 
+                            fontWeight: 900, 
+                            background: "#fff3e0", 
+                            padding: "2px 4px", 
+                            borderRadius: 4, 
+                            display: "inline-block",
+                            marginTop: 4,
+                            border: "1px solid #ffcc02"
+                          }}>
+                            ⚠️ FICHA FALTANTE
                           </div>
                         )}
                       </td>

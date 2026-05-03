@@ -18,6 +18,7 @@ const ProfilePage = () => {
   }, []);
 
   const userPedidos = user ? pedidos.filter(p => p.idCliente === user.cedula) : [];
+  const totalPedidos = userPedidos.length; // ✅ FIX: variable estaba sin declarar
 
   const handleSave = (updatedData) => {
     try {
@@ -35,7 +36,6 @@ const ProfilePage = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
-  /* ── Loading ── */
   if (!user) return (
     <div className="toston-page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
       <div style={{ textAlign: 'center', color: 'var(--gray-500)', fontFamily: 'var(--font-body)' }}>
@@ -116,13 +116,13 @@ const ProfilePage = () => {
             ) : (
               <ProfileView
                 user={user}
-                totalPedidos={userPedidos.length}
+                totalPedidos={totalPedidos}
                 onEdit={() => setIsEditing(true)}
               />
             )}
           </div>
 
-          {/* Card de seguridad / info adicional */}
+          {/* Card de seguridad */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div className="card" style={{ padding: 24 }}>
               <div style={{
@@ -152,9 +152,9 @@ const ProfilePage = () => {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {[
-                  { label: 'Miembro desde', value: user.fechaRegistro || '2024' },
+                  { label: 'Miembro desde',    value: user.fechaRegistro || '2024' },
                   { label: 'Pedidos realizados', value: totalPedidos || '—' },
-                  { label: 'Última sesión', value: user.ultimaSesion || 'Hoy' },
+                  { label: 'Última sesión',     value: user.ultimaSesion || 'Hoy' },
                 ].map(item => (
                   <div key={item.label} style={{
                     display: 'flex', justifyContent: 'space-between',
@@ -220,8 +220,8 @@ const ProfilePage = () => {
                         <span style={{
                           display: 'inline-block', marginTop: 4,
                           padding: '2px 8px', borderRadius: 99, fontSize: 11, fontWeight: 700,
-                          background: pedido.estado === 'Entregado' ? 'var(--green-100)' : pedido.estado === 'En camino' ? 'var(--blue-100)' : 'var(--yellow-100)',
-                          color: pedido.estado === 'Entregado' ? 'var(--green-800)' : pedido.estado === 'En camino' ? 'var(--blue-800)' : 'var(--yellow-800)',
+                          background: pedido.estado === 'Entregado' ? 'var(--green-100)' : pedido.estado === 'En camino' ? '#dbeafe' : '#fef3c7',
+                          color: pedido.estado === 'Entregado' ? 'var(--green-800)' : pedido.estado === 'En camino' ? '#1e40af' : '#92400e',
                         }}>
                           {pedido.estado}
                         </span>

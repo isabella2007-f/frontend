@@ -6,6 +6,7 @@ import {
   User, Mail, Lock, Phone, MapPin, CreditCard,
   ChevronRight, ChevronLeft, Eye, EyeOff, Check, Leaf, Camera, XCircle
 } from 'lucide-react';
+import { useNotificaciones, TIPOS } from '../features/notificaciones/context/NotificacionesContext';
 import './Auth.css';
 
 // ── Pasos ───────────────────────────────────────────
@@ -167,6 +168,7 @@ const LocationSelects = ({ departamento, municipio, onDepto, onMunicipio, errDep
 // ── Register principal ───────────────────────────────
 const Register = () => {
   const navigate = useNavigate();
+  const { agregarNotificacion } = useNotificaciones();
   const [step,     setStep]     = useState(1);
   const [loading,  setLoading]  = useState(false);
   const [errors,   setErrors]   = useState({});
@@ -233,6 +235,15 @@ const Register = () => {
         departamento: form.departamento, password: form.password,
         rol: 'Cliente' // Por defecto al registrarse
       });
+
+      // ── NOTIFICACIÓN FUNCIONAL ──
+      agregarNotificacion({
+        tipo: TIPOS.SISTEMA,
+        titulo: "¡Bienvenido a Tostón App!",
+        mensaje: `Hola ${form.nombre}, gracias por registrarte. Ya puedes realizar tus pedidos.`,
+        idDestinatario: form.cedula // ✅ Dirigida al cliente registrado
+      });
+
       navigate('/login', { state: { registered: true } });
     } catch (err) {
       setErrors({ global: err.message });

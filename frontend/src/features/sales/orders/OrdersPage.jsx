@@ -1,44 +1,174 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../../../AppContext';
-import { addToCart } from './services/cartService';
+import { addToCart, getCart, getCartCount, clearCart } from './services/cartService';
 import ProductCard from './components/ProductCard';
-import { Search, SlidersHorizontal, ShoppingBag, Leaf } from 'lucide-react';
+import {
+  Search, SlidersHorizontal, ShoppingBag, Leaf,
+  X, CheckCircle2, ShoppingCart
+} from 'lucide-react';
+import { getUser } from '../../../services/authService';
+import CartAside from './components/CartAside';
+import CheckoutModal from './components/CheckoutModal';
 import '../../../styles/client.css';
 
+/* ─── OrdersPage principal ────────────────────────────── */
 const OrdersPage = () => {
-  const { productos, categoriasProductosActivas } = useApp();
+  const { productos, categoriasProductosActivas, crearPedido } = useApp();
 
   const [searchTerm,       setSearchTerm]       = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [activeProducts,   setActiveProducts]   = useState([]);
-  const [cartUpdateToggle, setCartUpdateToggle] = useState(false);
+  const [cartCount,        setCartCount]        = useState(0);
+  const [cartOpen,         setCartOpen]         = useState(false);
+  const [checkoutOpen,     setCheckoutOpen]     = useState(false);
+  const [orderDetails,     setOrderDetails]     = useState(null);
+  const [toast,            setToast]            = useState(null);
 
+  /* Sincroniza el contador del carrito */
+  const syncCount = useCallback(() => setCartCount(getCartCount()), []);
   useEffect(() => {
-    const activeCatIds = new Set(
-      (categoriasProductosActivas || []).map(c => Number(c.id))
+    syncCount();
+    window.addEventListener('cart-updated', syncCount);
+    return () => window.removeEventListener('cart-updated', syncCount);
+  }, [syncCount]);
+
+  /* Filtra productos */
+  useEffect(() => {
+    const activeCatIds = new Set((categoriasProductosActivas || []).map(c => Number(c.id)));
+    const filtered = (productos || []).filter(p =>
+      activeCatIds.has(Number(p.idCategoria)) &&
+      (p.nombre || '').toLowerCase().includes(searchTerm.toLowerCase()) &&
+      (selectedCategory === 'all' || Number(p.idCategoria) === Number(selectedCategory)) &&
+      (p.stock || 0) > 0
     );
-
-    const filtered = (productos || []).filter(p => {
-      const categoryId = Number(p.idCategoria);
-      return (
-        activeCatIds.has(categoryId) &&
-        (p.nombre || '').toLowerCase().includes(searchTerm.toLowerCase()) &&
-        (selectedCategory === 'all' || categoryId === Number(selectedCategory)) &&
-        (p.stock || 0) > 0
-      );
-    });
-
     setActiveProducts(filtered);
   }, [productos, categoriasProductosActivas, searchTerm, selectedCategory]);
 
+  const showToast = (msg, type = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
   const handleAddToCart = (product) => {
     addToCart(product);
-    setCartUpdateToggle(!cartUpdateToggle);
-    window.dispatchEvent(new Event('cart-updated'));
+    showToast(`${product.nombre} agregado al carrito ✓`);
+  };
+
+  const handleCheckout = (details) => {
+    const user = getUser();
+    setOrderDetails({
+      ...details,
+      clientName: user?.nombre || '',
+      items: getCart(),
+      total: getCart().reduce((a, i) => a + i.precio * i.cantidad, 0),
+    });
+    setCartOpen(false);
+    setCheckoutOpen(true);
+  };
+
+  const handleConfirmOrder = (paymentMethod, onBehalfOf, comprobante) => {
+    const user = getUser();
+    const cart = getCart();
+    const total = cart.reduce((a, i) => a + i.precio * i.cantidad, 0);
+
+    const fullAddress = `${orderDetails.address}, ${orderDetails.municipio}, ${orderDetails.departamento}`;
+
+    const pedido = {
+      idCliente:      user?.cedula || '',
+      cliente: {
+        nombre:   user ? `${user.nombre} ${user.apellidos || ''}`.trim() : onBehalfOf,
+        correo:   user?.correo   || '',
+        telefono: user?.telefono || '',
+      },
+      productosItems: cart.map(item => ({
+        idProducto:   item.id,
+        nombre:       item.nombre,
+        precio:       item.precio,
+        cantidad:     item.cantidad,
+        stockOk:      true,
+      })),
+      subtotal:          total,
+      descuento:         0,
+      total:             total,
+      metodo_pago:       paymentMethod === 'digital' ? 'Transferencia' : 'Efectivo',
+      domicilio:         true,
+      direccion_entrega: fullAddress,
+      notas:             '',
+      estado:            'Pendiente',
+      orden_produccion:  false,
+      comprobante:       !!comprobante,
+    };
+
+    const res = crearPedido(pedido);
+    if (res && res.error) {
+       alert(res.error);
+       return;
+    }
+
+    clearCart();
+    setCheckoutOpen(false);
+    showToast(`¡Pedido ${res.numero} creado exitosamente! 🎉`);
   };
 
   return (
     <div className="toston-page">
+
+      {/* ── Toast ── */}
+      {toast && (
+        <div className="toast-wrap">
+          <div className={`toast ${toast.type === 'error' ? 'toast--error' : ''}`}>
+            {toast.msg}
+          </div>
+        </div>
+      )}
+
+      {/* ── Botón flotante del carrito ── */}
+      <button
+        onClick={() => setCartOpen(true)}
+        style={{
+          position: 'fixed',
+          bottom: 32,
+          right: 32,
+          zIndex: 40,
+          width: 64,
+          height: 64,
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #065f46, #10b981)',
+          color: 'white',
+          border: 'none',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 8px 32px rgba(16,185,129,0.4)',
+          transition: 'all 0.3s ease',
+        }}
+        onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.1)'}
+        onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+        title="Ver carrito"
+      >
+        <ShoppingBag size={26} />
+        {cartCount > 0 && (
+          <span style={{
+            position: 'absolute',
+            top: -4,
+            right: -4,
+            background: '#f97316',
+            color: 'white',
+            fontSize: 11,
+            fontWeight: 900,
+            width: 22,
+            height: 22,
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: '2px solid white',
+          }}>
+            {cartCount > 99 ? '99+' : cartCount}
+          </span>
+        )}
+      </button>
 
       {/* ── Hero ── */}
       <header className="page-hero">
@@ -55,12 +185,16 @@ const OrdersPage = () => {
             </p>
           </div>
 
-          <div className="page-hero__badge">
+          <button
+            className="page-hero__badge"
+            onClick={() => setCartOpen(true)}
+            style={{ cursor: 'pointer', background: cartCount > 0 ? 'rgba(249,115,22,0.2)' : undefined }}
+          >
             <span className="page-hero__badge-icon">
               <ShoppingBag size={18} color="white" />
             </span>
-            {activeProducts.length} producto{activeProducts.length !== 1 ? 's' : ''} disponible{activeProducts.length !== 1 ? 's' : ''}
-          </div>
+            {cartCount > 0 ? `${cartCount} en carrito` : `${activeProducts.length} producto${activeProducts.length !== 1 ? 's' : ''}`}
+          </button>
         </div>
       </header>
 
@@ -87,35 +221,25 @@ const OrdersPage = () => {
             >
               Todos
             </button>
-
             {(categoriasProductosActivas || []).map(cat => (
               <button
                 key={cat.id}
                 className={`chip ${selectedCategory === cat.id ? 'chip--active' : 'chip--default'}`}
                 onClick={() => setSelectedCategory(cat.id)}
               >
-                <span>{cat.icon}</span>
-                {cat.nombre}
+                <span>{cat.icon}</span> {cat.nombre}
               </button>
             ))}
           </div>
 
-          <button
-            className="btn-secondary"
-            style={{ padding: '12px 14px' }}
-            title="Filtros avanzados"
-          >
+          <button className="btn-secondary" style={{ padding: '12px 14px' }} title="Filtros">
             <SlidersHorizontal size={16} />
           </button>
         </div>
 
-        {/* Grid de productos */}
+        {/* Grid */}
         {activeProducts.length > 0 ? (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-            gap: '24px',
-          }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 24 }}>
             {activeProducts.map(product => (
               <ProductCard
                 key={product.id}
@@ -126,22 +250,33 @@ const OrdersPage = () => {
           </div>
         ) : (
           <div className="empty-state">
-            <div className="empty-state__icon">
-              <Search size={32} />
-            </div>
+            <div className="empty-state__icon"><Search size={32} /></div>
             <h3 className="empty-state__title">No encontramos productos</h3>
-            <p className="empty-state__text">
-              Intenta con otra búsqueda o selecciona una categoría diferente.
-            </p>
-            <button
-              className="btn-primary"
-              onClick={() => { setSearchTerm(''); setSelectedCategory('all'); }}
-            >
+            <p className="empty-state__text">Intenta con otra búsqueda o selecciona una categoría diferente.</p>
+            <button className="btn-primary" onClick={() => { setSearchTerm(''); setSelectedCategory('all'); }}>
               Ver todos los productos
             </button>
           </div>
         )}
       </main>
+
+      {/* ── CartAside ── */}
+      <CartAside
+        isOpen={cartOpen}
+        onClose={() => setCartOpen(false)}
+        onCheckout={handleCheckout}
+        onLoginRequired={() => navigate('/login')}
+      />
+
+      {/* ── CheckoutModal ── */}
+      {orderDetails && (
+        <CheckoutModal
+          isOpen={checkoutOpen}
+          onClose={() => setCheckoutOpen(false)}
+          orderDetails={orderDetails}
+          onConfirm={handleConfirmOrder}
+        />
+      )}
     </div>
   );
 };

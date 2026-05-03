@@ -13,7 +13,7 @@
   border-bottom: 1px solid #e2ece6;
   position: sticky;
   top: 0;
-  z-index: 300;
+  z-index: 10000; /* ✅ Muy alto para estar por encima de todo, incluyendo el carrito si es necesario */
   font-family: 'DM Sans', sans-serif;
   box-shadow: 0 1px 10px rgba(27, 94, 32, 0.06);
   flex-shrink: 0;
@@ -136,6 +136,45 @@
 }
 
 .navbar .cart-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: #e53935;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  height: 17px;
+  min-width: 17px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border: 2px solid #fff;
+  line-height: 1;
+}
+
+/* ─── BELL ───────────────────────────────────────────────── */
+.bell-btn {
+  position: relative;
+  background: transparent;
+  border: none;
+  color: var(--g);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 9px;
+  transition: background 0.18s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.bell-btn:hover {
+  background: var(--g-soft);
+}
+
+.bell-badge {
   position: absolute;
   top: 2px;
   right: 2px;
@@ -300,6 +339,78 @@
   background: var(--g-soft);
 }
 
+/* ─── CART ASIDE — por encima del navbar ─────────────────── */
+/* El overlay cubre todo incluyendo el navbar */
+.cart-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;          /* ✅ muy por encima del navbar (z-index: 300) */
+  overflow: hidden;
+}
+
+.cart-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.45);
+  backdrop-filter: blur(6px);
+}
+
+.cart-panel {
+  position: absolute;
+  inset-y: 0;
+  right: 0;
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  box-shadow: -8px 0 48px rgba(0, 0, 0, 0.15);
+  border-left: 2px solid #d1fae5;
+  animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+/* ─── CHECKOUT MODAL — por encima del carrito ────────────── */
+.checkout-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9100;          /* ✅ por encima del carrito */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.checkout-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.5);
+  backdrop-filter: blur(8px);
+}
+
+.checkout-card {
+  position: relative;
+  background: #fff;
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  border-radius: 28px;
+  box-shadow: 0 32px 64px rgba(27, 94, 32, 0.18);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: zoomIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes zoomIn {
+  from { opacity: 0; transform: scale(0.9) translateY(16px); }
+  to   { opacity: 1; transform: scale(1)   translateY(0);    }
+}
+
 /* ─── RESPONSIVE ─────────────────────────────────────────── */
 @media (max-width: 900px) {
   .nav-links,
@@ -315,5 +426,9 @@
   }
   .auth-btns .btn-login-nav {
     display: none;
+  }
+
+  .cart-panel {
+    max-width: 100%;
   }
 }

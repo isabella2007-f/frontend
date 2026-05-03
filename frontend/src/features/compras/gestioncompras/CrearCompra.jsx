@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useApp, calcularTotal, sumarDias } from "../../../AppContext.jsx";
+import { DEPARTAMENTOS, getCiudades } from "../../../utils/departamentosYCiudades.js";
 import "./compras.css";
 
 const METODOS_PAGO = [
@@ -57,6 +58,8 @@ export default function CrearCompra({ onClose, onSave }) {
     fecha:       new Date().toISOString().split("T")[0],
     estado:      "pendiente",
     metodoPago:  "",
+    departamento: "",
+    ciudad:      "",
     notas:       "",
   });
 
@@ -93,6 +96,8 @@ export default function CrearCompra({ onClose, onSave }) {
     if (!form.idProveedor) e.idProveedor = "Selecciona un proveedor";
     if (!form.fecha)       e.fecha       = "Ingresa la fecha";
     if (!form.metodoPago)  e.metodoPago  = "Selecciona el método de pago";
+    if (!form.departamento) e.departamento = "Selecciona un departamento";
+    if (!form.ciudad)      e.ciudad      = "Selecciona una ciudad";
     if (detalles.length === 0) e.detalles = "Agrega al menos un insumo";
     detalles.forEach((d, i) => {
       if (!d.idInsumo)                              e[`ins_${i}`]    = "Selecciona un insumo";
@@ -109,6 +114,8 @@ export default function CrearCompra({ onClose, onSave }) {
     if (!form.idProveedor) e.idProveedor = "Selecciona un proveedor";
     if (!form.fecha)       e.fecha       = "Ingresa la fecha";
     if (!form.metodoPago)  e.metodoPago  = "Selecciona el método de pago";
+    if (!form.departamento) e.departamento = "Selecciona un departamento";
+    if (!form.ciudad)      e.ciudad      = "Selecciona una ciudad";
     if (Object.keys(e).length) { setErrors(e); return; }
     setErrors({});
     setStep(2);
@@ -131,7 +138,7 @@ export default function CrearCompra({ onClose, onSave }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 500, display: "flex", flexDirection: "column", maxHeight: "90vh", overflow: "hidden" }}>
+      <div className="modal-card" onClick={e => e.stopPropagation()} style={{ maxWidth: 700, display: "flex", flexDirection: "column", maxHeight: "90vh", overflow: "hidden" }}>
         <div className="modal-header" style={{ flexShrink: 0 }}>
           <div>
             <p className="modal-header__eyebrow">Compras</p>
@@ -186,6 +193,35 @@ export default function CrearCompra({ onClose, onSave }) {
                   <span className="select-arrow">▾</span>
                 </div>
                 {errors.metodoPago && <span className="field-error">{errors.metodoPago}</span>}
+              </div>
+
+              <div className="field-grid-2">
+                <div className="field-wrap">
+                  <label className="field-label">Departamento <span className="required">*</span></label>
+                  <div className="select-wrap">
+                    <select className={`field-select ${errors.departamento ? "error" : ""}`} value={form.departamento} onChange={e => {
+                      set("departamento", e.target.value);
+                      set("ciudad", "");
+                    }}>
+                      <option value="">— Seleccionar —</option>
+                      {DEPARTAMENTOS.map(dept => <option key={dept} value={dept}>{dept}</option>)}
+                    </select>
+                    <span className="select-arrow">▾</span>
+                  </div>
+                  {errors.departamento && <span className="field-error">{errors.departamento}</span>}
+                </div>
+
+                <div className="field-wrap">
+                  <label className="field-label">Ciudad <span className="required">*</span></label>
+                  <div className="select-wrap">
+                    <select className={`field-select ${errors.ciudad ? "error" : ""}`} value={form.ciudad} onChange={e => set("ciudad", e.target.value)} disabled={!form.departamento}>
+                      <option value="">— Seleccionar —</option>
+                      {form.departamento && getCiudades(form.departamento).map(city => <option key={city} value={city}>{city}</option>)}
+                    </select>
+                    <span className="select-arrow">▾</span>
+                  </div>
+                  {errors.ciudad && <span className="field-error">{errors.ciudad}</span>}
+                </div>
               </div>
 
               <div className="field-wrap">

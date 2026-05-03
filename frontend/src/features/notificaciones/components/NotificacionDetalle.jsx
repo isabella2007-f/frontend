@@ -12,14 +12,14 @@ const fmtFechaCompleta = (iso) => {
 
 /* Mapeo de rutas para navegación rápida */
 const RUTA_MAP = {
-  [TIPOS.STOCK_MINIMO]:    "/compras/insumos",
-  [TIPOS.STOCK_AGOTADO]:   "/compras/insumos",
-  [TIPOS.LOTE_POR_VENCER]: "/compras/insumos",
-  [TIPOS.LOTE_VENCIDO]:    "/compras/insumos",
-  [TIPOS.PEDIDO_NUEVO]:    "/ventas/pedidos",
-  [TIPOS.COMPRA_PENDIENTE]:"/compras/gestioncompras",
-  [TIPOS.DEVOLUCION]:      "/ventas/devoluciones",
-  [TIPOS.SISTEMA]:         "/dashboard",
+  [TIPOS.STOCK_MINIMO]:    "/admin/gestion-insumos",
+  [TIPOS.STOCK_AGOTADO]:   "/admin/gestion-insumos",
+  [TIPOS.LOTE_POR_VENCER]: "/admin/gestion-insumos",
+  [TIPOS.LOTE_VENCIDO]:    "/admin/gestion-insumos",
+  [TIPOS.PEDIDO_NUEVO]:    "/admin/pedidos",
+  [TIPOS.COMPRA_PENDIENTE]:"/admin/compras",
+  [TIPOS.DEVOLUCION]:      "/admin/devoluciones",
+  [TIPOS.SISTEMA]:         "/admin",
 };
 
 export default function NotificacionDetalle({ notif, onClose }) {
@@ -41,7 +41,7 @@ export default function NotificacionDetalle({ notif, onClose }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 3000 }}>
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 30000 }}>
       <div className="modal-box modal-box--sm notif-detalle" onClick={e => e.stopPropagation()}>
 
         {/* Header */}

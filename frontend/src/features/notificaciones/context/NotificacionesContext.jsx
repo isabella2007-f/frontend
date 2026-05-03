@@ -59,6 +59,8 @@ const loadFromLS = (key, def) => {
 export function NotificacionesProvider({ children, insumos = [], lotes = [], pedidos = [], compras = [] }) {
 
   const [notificaciones, setNotificaciones] = useState(() => loadFromLS("notificaciones", []));
+  const [user, setLocalUser] = useState(null);
+
   // CA_01_01 — nivel mínimo configurable por insumo (idInsumo → número)
   const [nivelesMinimos, setNivelesMinimos]   = useState(() => loadFromLS("notif_nivelesMinimos", {}));
   // HU_01 — toggle del sistema de alertas automáticas
@@ -71,17 +73,36 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
   useEffect(() => { localStorage.setItem("notif_nivelesMinimos", JSON.stringify(nivelesMinimos)); },  [nivelesMinimos]);
   useEffect(() => { localStorage.setItem("notif_autoActivo",     JSON.stringify(autoActivo)); },      [autoActivo]);
 
+  // Obtener usuario actual para filtrar notificaciones automáticas
+  useEffect(() => {
+    const checkUser = () => {
+      const session = localStorage.getItem("session");
+      if (session) {
+        setLocalUser(JSON.parse(session));
+      } else {
+        setLocalUser(null);
+      }
+    };
+    checkUser();
+    
+    // Escuchar cambios en auth para actualizar el usuario local
+    window.addEventListener("storage", checkUser);
+    // Custom event para cambios de sesión en la misma pestaña
+    window.addEventListener("session-changed", checkUser);
+    
+    return () => {
+      window.removeEventListener("storage", checkUser);
+      window.removeEventListener("session-changed", checkUser);
+    };
+  }, []);
+
   /* ══════════════════════════════════════════════════════
      HU_01 — Generar notificaciones automáticas al detectar
              insumos bajo el nivel mínimo configurado
-             CA_01_01 nivel mínimo por insumo
-             CA_01_02 al alcanzar el mínimo → notificación automática
-             CA_01_03 la notificación indica insumo y motivo
-             CA_01_04 visible en el sistema
-             CA_01_05 no se generan duplicadas si el nivel no cambia
+             (SOLO PARA ADMINISTRADORES)
   ══════════════════════════════════════════════════════ */
   const generarNotifAutomaticas = useCallback(() => {
-    if (!autoActivo) return;
+    if (!autoActivo || user?.rol === 'cliente') return;
 
     const nuevas = [];
 
@@ -101,6 +122,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
             mensaje: `El insumo "${ins.nombre}" tiene stock en 0. Se requiere realizar una compra urgente.`,
             idReferencia: ins.id, refNombre: ins.nombre,
             fecha: fechaHoy(), leida: false,
+            idDestinatario: 'admin' // ✅ Dirigida al admin
           });
         }
       } else if (minimo !== undefined && stock <= minimo) {
@@ -114,6 +136,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
             mensaje: `El insumo "${ins.nombre}" tiene ${stock} ${ins.unidad || "und"} disponibles, por debajo del mínimo configurado de ${minimo}. Se requiere realizar una compra.`,
             idReferencia: ins.id, refNombre: ins.nombre,
             fecha: fechaHoy(), leida: false,
+            idDestinatario: 'admin' // ✅ Dirigida al admin
           });
         }
       }
@@ -137,6 +160,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
             mensaje: `El lote ${lote.id} de "${nombre}" venció el ${lote.fechaVencimiento}. Contiene ${lote.cantidadActual} unidades. Retírelo del inventario.`,
             idReferencia: lote.id, refNombre: nombre,
             fecha: fechaHoy(), leida: false,
+            idDestinatario: 'admin'
           });
         }
       } else if (dias <= 7) {
@@ -148,6 +172,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
             mensaje: `El lote ${lote.id} de "${nombre}" vence en ${dias} día${dias === 1 ? "" : "s"} (${lote.fechaVencimiento}). Contiene ${lote.cantidadActual} unidades.`,
             idReferencia: lote.id, refNombre: nombre,
             fecha: fechaHoy(), leida: false,
+            idDestinatario: 'admin'
           });
         }
       }
@@ -166,6 +191,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
             mensaje: `La compra ${compra.id} lleva ${dias} días en estado pendiente. Verifique su estado con el proveedor.`,
             idReferencia: compra.id, refNombre: compra.id,
             fecha: fechaHoy(), leida: false,
+            idDestinatario: 'admin'
           });
         }
       }
@@ -174,13 +200,13 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
     if (nuevas.length > 0) {
       setNotificaciones(prev => [...nuevas, ...prev]);
     }
-  }, [autoActivo, insumos, lotes, compras, nivelesMinimos, notificaciones]);
+  }, [autoActivo, insumos, lotes, compras, nivelesMinimos, notificaciones, user]);
 
   // Ejecutar al montar y cuando cambien los datos relevantes
   useEffect(() => {
     generarNotifAutomaticas();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoActivo, insumos.length, lotes.length, compras.length]);
+  }, [autoActivo, insumos.length, lotes.length, compras.length, user]);
 
   /* ══════════════════════════════════════════════════════
      HU_05 — Marcar como leída
@@ -192,8 +218,15 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
   }, []);
 
   const marcarTodasLeidas = useCallback(() => {
-    setNotificaciones(prev => prev.map(n => ({ ...n, leida: true })));
-  }, []);
+    setNotificaciones(prev => prev.map(n => {
+      // Solo marcar como leídas las que corresponden al usuario actual
+      const isForCurrent = 
+        (user?.rol === 'administrador' && n.idDestinatario === 'admin') ||
+        (n.idDestinatario === user?.cedula);
+      
+      return isForCurrent ? { ...n, leida: true } : n;
+    }));
+  }, [user]);
 
   /* ══════════════════════════════════════════════════════
      HU_03 — Filtrar por tipo y estado
@@ -205,6 +238,12 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
   ══════════════════════════════════════════════════════ */
   const filtrar = useCallback(({ tipo, estado, texto }) => {
     return notificaciones.filter(n => {
+      // ✅ SEPARACIÓN DE SISTEMAS: Filtrar por destinatario
+      const isForAdmin = user?.rol === 'administrador' && n.idDestinatario === 'admin';
+      const isForClient = user?.rol === 'cliente' && n.idDestinatario === user?.cedula;
+      
+      if (!isForAdmin && !isForClient) return false;
+
       if (tipo   && n.tipo  !== tipo)                                          return false;
       if (estado === "leida"   && !n.leida)                                   return false;
       if (estado === "no_leida" && n.leida)                                   return false;
@@ -212,7 +251,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
                     !n.mensaje.toLowerCase().includes(texto.toLowerCase()))   return false;
       return true;
     }).sort((a, b) => new Date(b.fecha) - new Date(a.fecha)); // CA_02_03 ordenadas por fecha
-  }, [notificaciones]);
+  }, [notificaciones, user]);
 
   /* ── HU_01: configurar nivel mínimo por insumo ───────── */
   const configurarNivelMinimo = useCallback((idInsumo, nivel) => {
@@ -221,7 +260,9 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
 
   /* ── Agregar notificación manual (sistema) ───────────── */
   const agregarNotificacion = useCallback((datos) => {
-    setNotificaciones(prev => [{ id: uid(), fecha: fechaHoy(), leida: false, ...datos }, ...prev]);
+    // Si no trae destinatario, asumimos admin por defecto
+    const destinatario = datos.idDestinatario || 'admin';
+    setNotificaciones(prev => [{ id: uid(), fecha: fechaHoy(), leida: false, ...datos, idDestinatario: destinatario }, ...prev]);
   }, []);
 
   /* ── Eliminar notificación ───────────────────────────── */
@@ -229,10 +270,16 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
     setNotificaciones(prev => prev.filter(n => n.id !== id));
   }, []);
 
-  /* ── Derivados ───────────────────────────────────────── */
-  const noLeidas       = notificaciones.filter(n => !n.leida).length;
-  const criticas       = notificaciones.filter(n => !n.leida && [TIPOS.STOCK_AGOTADO, TIPOS.LOTE_VENCIDO].includes(n.tipo));
-  const notifOrdenadas = [...notificaciones].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+  /* ── Derivados (filtrados por usuario actual) ─────────── */
+  const notifUsuario = notificaciones.filter(n => {
+    const isForAdmin = user?.rol === 'administrador' && n.idDestinatario === 'admin';
+    const isForClient = user?.rol === 'cliente' && n.idDestinatario === user?.cedula;
+    return isForAdmin || isForClient;
+  });
+
+  const noLeidas       = notifUsuario.filter(n => !n.leida).length;
+  const criticas       = notifUsuario.filter(n => !n.leida && [TIPOS.STOCK_AGOTADO, TIPOS.LOTE_VENCIDO].includes(n.tipo));
+  const notifOrdenadas = [...notifUsuario].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
   return (
     <NotificacionesContext.Provider value={{

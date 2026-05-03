@@ -1,8 +1,17 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useApp } from '../../../AppContext.jsx';
 import { getCurrentUser } from '../profile/services/profileService.js';
-import { ShoppingCart, Package, Clock, CheckCircle, UserCircle, Leaf } from 'lucide-react';
+import { Package, Clock, CheckCircle, UserCircle, Leaf } from 'lucide-react';
 import '../../../styles/client.css';
+
+const COP = (n) =>
+  new Intl.NumberFormat('es-CO', {
+    style: 'currency',
+    currency: 'COP',
+    minimumFractionDigits: 0,
+  }).format(n);
+
 
 const InicioPage = () => {
   const { productos, pedidos, categoriasProductos } = useApp();

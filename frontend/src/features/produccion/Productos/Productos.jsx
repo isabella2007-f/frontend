@@ -389,6 +389,7 @@ export default function GestionProductos() {
     toggleActivoProducto,
   } = useApp();
 
+  const location = useLocation();
   const [search,     setSearch]     = useState("");
   const [filterCat,  setFilterCat]  = useState("Todas");
   const [filterEst,  setFilterEst]  = useState("Todos");
@@ -397,6 +398,18 @@ export default function GestionProductos() {
   const [modal,      setModal]      = useState(null);
   const [toast,      setToast]      = useState(null);
   const filterRef = useRef();
+
+  // ✅ DEEP LINKING: Abrir ficha técnica desde otras vistas
+  useEffect(() => {
+    if (location.state?.openFicha && productos.length > 0) {
+      const p = productos.find(prod => prod.id === Number(location.state.openFicha));
+      if (p) {
+        setModal({ type: "ficha", product: p });
+        // Limpiar estado para evitar que se abra de nuevo al recargar
+        window.history.replaceState({}, document.title);
+      }
+    }
+  }, [location.state, productos]);
 
   useEffect(() => {
     const h = e => { if (filterRef.current && !filterRef.current.contains(e.target)) setShowFilter(false); };

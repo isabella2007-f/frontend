@@ -24,6 +24,7 @@ import GestionDomicilios from "../features/ventas/domicilios/Gestiondomicilios";
 
 /* ─── CLIENTE REAL ─── */
 import OrdersPage from "../features/sales/orders/OrdersPage";
+import PedidosClientePage from "../features/sales/orders/PedidosClientePage";
 import ReturnsPage from '../features/sales/returns/ReturnsPage';
 import DeliveryPage from "../features/sales/delivery/DeliveryPage";
 import ProfilePage from "../features/client/profile/ProfilePage";
@@ -96,10 +97,11 @@ const AppRouter = () => {
         <Route element={<ProtectedRoute allowedRoles={["cliente"]} />}>
           <Route path="/cliente" element={<MainLayout />}>
             
-            <Route index element={<InicioPage />} />
+            <Route index element={<LandingPage hideNavbar={true} />} />
 
-            <Route path="inicio" element={<InicioPage />} />
-            <Route path="pedidos" element={<OrdersPage />} />
+            <Route path="inicio" element={<LandingPage hideNavbar={true} />} />
+            <Route path="hacer-pedidos" element={<OrdersPage />} />
+            <Route path="pedidos" element={<PedidosClientePage />} />
             <Route path="domicilios" element={<DeliveryPage />} />
             <Route path="devoluciones" element={<ReturnsPage />} />
             <Route path="perfil" element={<ProfilePage />} />

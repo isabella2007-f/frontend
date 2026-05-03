@@ -815,32 +815,77 @@ export function AppProvider({ children }) {
     const id      = nextOrdenId(prevOrdenes);
     const sinStock = (pedido.productosItems || []).filter(p => !p.stockOk);
     const insumosMap = {};
+    const missingFicha = [];
+
     sinStock.forEach(item => {
       const prod = productosActuales.find(p => p.id === item.idProducto);
-      if (!prod?.ficha?.insumos?.length) return;
+      if (!prod?.ficha?.insumos?.length) {
+        missingFicha.push(item.nombre);
+        return;
+      }
       prod.ficha.insumos.forEach(fi => {
         const ins = insumosActuales.find(i => i.nombre === fi.nombre || i.id === fi.idInsumo);
         if (!ins) return;
         const cantItem = (Number(fi.cantidad) || 0) * item.cantidad;
         if (insumosMap[ins.id]) insumosMap[ins.id].cantidad += cantItem;
-        else insumosMap[ins.id] = { idInsumo: ins.id, nombre: ins.nombre, cantidad: cantItem, unidad: UNIDADES_MEDIDA.find(u => u.id === ins.idUnidad)?.simbolo || "und", stockOk: false };
+        else insumosMap[ins.id] = { 
+          idInsumo: ins.id, 
+          nombre: ins.nombre, 
+          cantidad: cantItem, 
+          unidad: UNIDADES_MEDIDA.find(u => u.id === ins.idUnidad)?.simbolo || "und", 
+          stockOk: false 
+        };
       });
     });
-    Object.values(insumosMap).forEach(ins => { const r = insumosActuales.find(i => i.id === ins.idInsumo); ins.stockOk = (r?.stockActual || 0) >= ins.cantidad; });
-    return { id, idPedido: pedido.id, numeroPedido: pedido.numero, productos: sinStock.map(p => ({ idProducto: p.idProducto, nombre: p.nombre, cantidad: p.cantidad, precio: p.precio })), insumos: Object.values(insumosMap), idEmpleado: null, estado: "Pendiente", fechaInicio: fechaHoy(), fechaEntrega: fechaEntrega || null, fechaCierre: null, costo: sinStock.reduce((acc, p) => acc + (p.precio || 0) * p.cantidad, 0), notas: notas || "" };
+
+    Object.values(insumosMap).forEach(ins => { 
+      const r = insumosActuales.find(i => i.id === ins.idInsumo); 
+      ins.stockOk = (r?.stockActual || 0) >= ins.cantidad; 
+    });
+
+    return { 
+      id, 
+      idPedido: pedido.id, 
+      numeroPedido: pedido.numero, 
+      productos: sinStock.map(p => ({ idProducto: p.idProducto, nombre: p.nombre, cantidad: p.cantidad, precio: p.precio })), 
+      insumos: Object.values(insumosMap), 
+      idEmpleado: null, 
+      estado: "Pendiente", 
+      fechaInicio: fechaHoy(), 
+      fechaEntrega: fechaEntrega || null, 
+      fechaCierre: null, 
+      costo: sinStock.reduce((acc, p) => acc + (p.precio || 0) * p.cantidad, 0), 
+      notas: notas || "",
+      missingFicha // Agregamos reporte de fichas faltantes
+    };
   };
 
   const crearPedido = (payload) => {
     const numero        = nextPedidoNumero(pedidos);
     const estadoInicial = payload.orden_produccion ? "En producción" : "Pendiente";
     const nuevo         = { ...payload, id: Date.now(), numero, estado: estadoInicial, orden_produccion: payload.orden_produccion || false, fecha_pedido: fechaHoy(), idEmpleado: null };
+    
+    // Validación de fichas antes de crear
+    if (nuevo.orden_produccion) {
+      const orden = _buildOrden(nuevo, { fechaEntrega: null, notas: payload.notas || "" }, ordenes, productos, insumos);
+      if (orden.missingFicha.length > 0) {
+        return { error: `No se pudo generar la orden: Los productos [${orden.missingFicha.join(", ")}] no tienen ficha técnica.` };
+      }
+    }
+
     setPedidos(prev => [nuevo, ...prev]);
     setProductos(prev => prev.map(prod => {
       const item = payload.productosItems.find(p => p.idProducto === prod.id && p.stockOk);
       if (!item) return prod;
       return { ...prod, stock: Math.max(0, prod.stock - item.cantidad) };
     }));
-    if (nuevo.orden_produccion) setOrdenes(prev => { const orden = _buildOrden(nuevo, { fechaEntrega: null, notas: payload.notas || "" }, prev, productos, insumos); return [orden, ...prev]; });
+
+    if (nuevo.orden_produccion) {
+      setOrdenes(prev => { 
+        const orden = _buildOrden(nuevo, { fechaEntrega: null, notas: payload.notas || "" }, prev, productos, insumos); 
+        return [orden, ...prev]; 
+      });
+    }
 
     agregarNotifInterna({
       tipo:  NOTIF_TIPOS.PEDIDO_NUEVO,
@@ -848,9 +893,22 @@ export function AppProvider({ children }) {
       titulo: `Nuevo pedido: ${numero}`,
       mensaje: `Se creó el pedido ${numero} para "${payload.cliente?.nombre || "cliente"}". Total: $${(payload.total || 0).toLocaleString("es-CO")}. Estado: ${estadoInicial}.`,
       idReferencia: numero, refNombre: numero,
+      idDestinatario: 'admin' // Para el admin
     });
 
-    return numero;
+    // ✅ Notificación para el CLIENTE
+    if (payload.idCliente) {
+      agregarNotifInterna({
+        tipo:  NOTIF_TIPOS.SISTEMA,
+        clave: `cliente-nuevo-pedido-${numero}`,
+        titulo: `¡Pedido Recibido! #${numero}`,
+        mensaje: `Hemos recibido tu pedido. Actualmente se encuentra en estado "${estadoInicial}". ¡Gracias por tu compra!`,
+        idReferencia: numero, refNombre: numero,
+        idDestinatario: payload.idCliente // Para el cliente específico
+      });
+    }
+
+    return { numero };
   };
 
   const editarPedido = (payload) => {
@@ -894,13 +952,27 @@ export function AppProvider({ children }) {
         }));
       }
       if (["Listo", "En camino", "Entregado"].includes(nuevoEstado)) {
+        // Notificación para el ADMIN
         agregarNotifInterna({
           tipo:  NOTIF_TIPOS.SISTEMA,
           clave: `estado-pedido-${id}-${nuevoEstado}`,
           titulo: `Pedido ${p.numero}: ${nuevoEstado}`,
           mensaje: `El pedido ${p.numero} de "${p.cliente?.nombre || "cliente"}" cambió a estado "${nuevoEstado}".`,
           idReferencia: p.numero, refNombre: p.numero,
+          idDestinatario: 'admin'
         });
+
+        // ✅ Notificación para el CLIENTE
+        if (p.idCliente) {
+          agregarNotifInterna({
+            tipo:  NOTIF_TIPOS.SISTEMA,
+            clave: `cliente-estado-pedido-${id}-${nuevoEstado}`,
+            titulo: `Actualización de Pedido: ${nuevoEstado}`,
+            mensaje: `Tu pedido #${p.numero} ahora está en estado "${nuevoEstado}".`,
+            idReferencia: p.numero, refNombre: p.numero,
+            idDestinatario: p.idCliente
+          });
+        }
       }
       return { ...p, estado: nuevoEstado };
     }));
@@ -934,15 +1006,16 @@ export function AppProvider({ children }) {
   const cambiarEstadoOrden = (ordenId, nuevoEstado) => {
     setOrdenes(prev => prev.map(o => {
       if (o.id !== ordenId) return o;
+      if (o.estado === nuevoEstado) return o;
+
       const fechaCierre = nuevoEstado === "Completada" ? fechaHoy() : o.fechaCierre;
-      if (nuevoEstado === "Completada" && o.estado !== "Completada") {
-        if (!o.idPedido) {
-          setProductos(prods => prods.map(prod => {
-            const item = (o.productos || []).find(p => p.idProducto === prod.id);
-            if (!item) return prod;
-            return { ...prod, stock: prod.stock + item.cantidad };
-          }));
-        }
+      const yaDescontados = o.insumosDescontados || false;
+      const yaSumadosProd = o.productosSumados || false;
+
+      let nextOrden = { ...o, estado: nuevoEstado, fechaCierre };
+
+      // 1. DESCONTAR INSUMOS: Al pasar a "En proceso" o "Completada" (si no se hizo antes)
+      if ((nuevoEstado === "En proceso" || nuevoEstado === "Completada") && !yaDescontados) {
         (o.insumos || []).forEach(ins => {
           registrarSalidaInsumo({
             idInsumo: ins.idInsumo,
@@ -952,32 +1025,84 @@ export function AppProvider({ children }) {
             usuario: "sistema"
           });
         });
-        if (o.idPedido) setPedidos(prevP => prevP.map(p => p.id !== o.idPedido ? p : { ...p, estado: "Listo" }));
+        nextOrden.insumosDescontados = true;
+      }
+
+      // 2. SUMAR STOCK PRODUCTOS: Solo al pasar a "Completada" (si no se hizo antes)
+      if (nuevoEstado === "Completada" && !yaSumadosProd) {
+        // Solo sumamos al stock si no viene de un pedido (los pedidos suelen manejar su stock)
+        // O si el sistema requiere que la producción siempre sume stock.
+        if (!o.idPedido) {
+          setProductos(prods => prods.map(prod => {
+            const item = (o.productos || []).find(p => p.idProducto === prod.id);
+            if (!item) return prod;
+            return { ...prod, stock: prod.stock + item.cantidad };
+          }));
+        }
+        
+        if (o.idPedido) {
+          setPedidos(prevP => prevP.map(p => p.id !== o.idPedido ? p : { ...p, estado: "Listo" }));
+        }
+
         agregarNotifInterna({
           tipo:  NOTIF_TIPOS.SISTEMA,
           clave: `orden-completada-${ordenId}`,
           titulo: `Orden de producción completada: ${ordenId}`,
           mensaje: `La orden ${ordenId} fue marcada como completada. El stock de los productos e insumos fue actualizado.`,
           idReferencia: ordenId, refNombre: ordenId,
+          idDestinatario: 'admin'
         });
+        
+        nextOrden.productosSumados = true;
       }
-      return { ...o, estado: nuevoEstado, fechaCierre };
+
+      // 3. REVERTIR INSUMOS: Si se cancela y ya se habían descontado
+      if (nuevoEstado === "Cancelada" && yaDescontados) {
+        (o.insumos || []).forEach(ins => {
+          // Para revertir, sumamos al stock (una compra ficticia o ajuste positivo)
+          setInsumos(prevI => prevI.map(i => i.id === ins.idInsumo ? { ...i, stockActual: i.stockActual + ins.cantidad } : i));
+          // Y podríamos necesitar revertir lotes, pero FIFO es complejo de revertir exacto sin tracking por lote
+        });
+        nextOrden.insumosDescontados = false;
+      }
+
+      return nextOrden;
     }));
   };
 
   const asignarEmpleadoOrden = (ordenId, empleadoId) => setOrdenes(prev => prev.map(o => o.id === ordenId ? { ...o, idEmpleado: empleadoId } : o));
 
+  const eliminarOrdenProduccion = (id) => {
+    setOrdenes(prev => prev.filter(o => o.id !== id));
+  };
+
   /* ── CRUD devoluciones ──────────────────────────────── */
   const crearDevolucion = (payload) => {
     const numero = nextDevolucionNum(devoluciones);
     setDevoluciones(prev => [{ ...payload, id: numero, numero, estado: "Pendiente", fechaSolicitud: fechaHoy(), fechaAprobacion: null, fechaReembolso: null, motivoRechazo: null }, ...prev]);
+    
+    // Notificación para el ADMIN
     agregarNotifInterna({
       tipo:  NOTIF_TIPOS.DEVOLUCION,
       clave: `devolucion-${numero}`,
       titulo: `Nueva devolución: ${numero}`,
       mensaje: `Se solicitó la devolución ${numero} del pedido ${payload.numeroPedido}. Motivo: ${payload.motivo}.`,
       idReferencia: numero, refNombre: numero,
+      idDestinatario: 'admin'
     });
+
+    // ✅ Notificación para el CLIENTE
+    if (payload.idCliente) {
+      agregarNotifInterna({
+        tipo:  NOTIF_TIPOS.SISTEMA,
+        clave: `cliente-devolucion-${numero}`,
+        titulo: `Solicitud de Devolución Recibida`,
+        mensaje: `Hemos recibido tu solicitud #${numero} para el pedido ${payload.numeroPedido}. La revisaremos pronto.`,
+        idReferencia: numero, refNombre: numero,
+        idDestinatario: payload.idCliente
+      });
+    }
+
     return numero;
   };
   const aprobarDevolucion   = (id) => setDevoluciones(prev => prev.map(d => d.id !== id ? d : { ...d, estado: "Aprobada",    fechaAprobacion: fechaHoy() }));

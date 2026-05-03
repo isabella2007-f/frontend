@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { addReturn }  from '../services/returnService.js';
 import { useApp }     from '../../../../AppContext.jsx';
 import { PackageMinus, AlertCircle, FileText, Hash, Image } from 'lucide-react';
@@ -12,16 +12,22 @@ const MOTIVOS = [
   'Otro',
 ];
 
-const ReturnForm = ({ onSuccess }) => {
-  const { productos } = useApp();
-
+const ReturnForm = ({ onSuccess, defaultIdVenta = '', orderProducts = [] }) => {
   const [form,  setForm]  = useState({
-    idVenta:   '',
+    idVenta:   defaultIdVenta,
     productId: '',
     motivo:    '',
     evidencia: '',
     comentario: '',
   });
+
+  useEffect(() => {
+    setForm(prev => ({
+      ...prev,
+      idVenta: defaultIdVenta || prev.idVenta,
+    }));
+  }, [defaultIdVenta]);
+
   const [error, setError] = useState('');
 
   const set = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
@@ -29,11 +35,11 @@ const ReturnForm = ({ onSuccess }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.idVenta.trim() || !form.productId || !form.motivo) {
-      setError('Completa los campos obligatorios: N° de venta, producto y motivo.');
+      setError('Completa los campos obligatorios: Producto y motivo.');
       return;
     }
 
-    const selectedProduct = productos.find(p => String(p.id) === String(form.productId));
+    const selectedProduct = orderProducts.find(p => String(p.idProducto || p.id) === String(form.productId));
 
     addReturn({
       idVenta:    form.idVenta.trim(),
@@ -49,147 +55,86 @@ const ReturnForm = ({ onSuccess }) => {
     onSuccess();
   };
 
-  const inputStyle = {
-    width: '100%',
-    padding: '11px 14px',
-    background: 'var(--gray-100)',
-    border: '1.5px solid transparent',
-    borderRadius: 'var(--radius-md)',
-    fontFamily: 'var(--font-body)',
-    fontSize: 14,
-    fontWeight: 500,
-    color: 'var(--gray-900)',
-    outline: 'none',
-    transition: 'all .2s',
-    boxSizing: 'border-box',
-  };
-
-  const labelStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    fontSize: 12,
-    fontWeight: 700,
-    color: 'var(--gray-700)',
-    textTransform: 'uppercase',
-    letterSpacing: '.05em',
-    fontFamily: 'var(--font-body)',
-    marginBottom: 6,
-  };
-
-  const fieldWrap = { marginBottom: 18 };
-
   return (
-    <form onSubmit={handleSubmit}>
+    <form onSubmit={handleSubmit} className="space-y-5">
 
-      {/* Error */}
       {error && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          background: '#fee2e2', border: '1px solid #fca5a5',
-          color: '#991b1b', borderRadius: 'var(--radius-md)',
-          padding: '10px 14px', marginBottom: 18,
-          fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-body)',
-        }}>
-          <AlertCircle size={15} /> {error}
+        <div className="flex items-center gap-3 bg-red-50 border border-red-100 p-4 rounded-2xl animate-in fade-in zoom-in duration-300">
+          <AlertCircle size={18} className="text-red-500 shrink-0" />
+          <p className="text-xs font-bold text-red-700">{error}</p>
         </div>
       )}
 
-      {/* N° de Venta */}
-      <div style={fieldWrap}>
-        <label style={labelStyle}>
-          <Hash size={12} /> N° de Venta <span style={{ color: 'var(--accent-red)' }}>*</span>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Producto */}
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">
+            <PackageMinus size={12} className="text-emerald-500" /> Producto <span className="text-red-500">*</span>
+          </label>
+          <select
+            className="w-full bg-gray-50 border-2 border-transparent rounded-2xl py-3.5 px-4 text-xs font-bold text-gray-700 focus:bg-white focus:border-emerald-500 transition-all outline-none appearance-none"
+            value={form.productId}
+            onChange={e => set('productId', e.target.value)}
+          >
+            <option value="">— Elegir producto —</option>
+            {orderProducts.map(p => (
+              <option key={p.idProducto || p.id} value={p.idProducto || p.id}>{p.nombre}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Motivo */}
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">
+            <FileText size={12} className="text-emerald-500" /> Motivo <span className="text-red-500">*</span>
+          </label>
+          <select
+            className="w-full bg-gray-50 border-2 border-transparent rounded-2xl py-3.5 px-4 text-xs font-bold text-gray-700 focus:bg-white focus:border-emerald-500 transition-all outline-none appearance-none"
+            value={form.motivo}
+            onChange={e => set('motivo', e.target.value)}
+          >
+            <option value="">— Elegir motivo —</option>
+            {MOTIVOS.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Evidencia */}
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">
+          <Image size={12} className="text-emerald-500" /> Evidencia
+          <span className="text-[9px] font-bold text-gray-300 normal-case">(Opcional: URL de foto o descripción)</span>
         </label>
         <input
-          style={inputStyle}
           type="text"
-          placeholder="Ej: VTA-001"
-          value={form.idVenta}
-          onChange={e => set('idVenta', e.target.value)}
-          onFocus={e => { e.target.style.background = 'white'; e.target.style.borderColor = 'var(--green-600)'; e.target.style.boxShadow = '0 0 0 4px rgba(42,157,71,.08)'; }}
-          onBlur={e  => { e.target.style.background = 'var(--gray-100)'; e.target.style.borderColor = 'transparent'; e.target.style.boxShadow = 'none'; }}
-        />
-        <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--gray-500)', fontFamily: 'var(--font-body)' }}>
-          Encuéntralo en tu historial de pedidos.
-        </p>
-      </div>
-
-      {/* Producto */}
-      <div style={fieldWrap}>
-        <label style={labelStyle}>
-          <PackageMinus size={12} /> Producto <span style={{ color: 'var(--accent-red)' }}>*</span>
-        </label>
-        <select
-          style={inputStyle}
-          value={form.productId}
-          onChange={e => set('productId', e.target.value)}
-          onFocus={e => { e.target.style.background = 'white'; e.target.style.borderColor = 'var(--green-600)'; }}
-          onBlur={e  => { e.target.style.background = 'var(--gray-100)'; e.target.style.borderColor = 'transparent'; }}
-        >
-          <option value="">— Seleccionar producto —</option>
-          {(productos || []).map(p => (
-            <option key={p.id} value={p.id}>{p.nombre}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Motivo */}
-      <div style={fieldWrap}>
-        <label style={labelStyle}>
-          <FileText size={12} /> Motivo <span style={{ color: 'var(--accent-red)' }}>*</span>
-        </label>
-        <select
-          style={inputStyle}
-          value={form.motivo}
-          onChange={e => set('motivo', e.target.value)}
-          onFocus={e => { e.target.style.background = 'white'; e.target.style.borderColor = 'var(--green-600)'; }}
-          onBlur={e  => { e.target.style.background = 'var(--gray-100)'; e.target.style.borderColor = 'transparent'; }}
-        >
-          <option value="">— Seleccionar motivo —</option>
-          {MOTIVOS.map(m => <option key={m} value={m}>{m}</option>)}
-        </select>
-      </div>
-
-      {/* Evidencia (URL / descripción) */}
-      <div style={fieldWrap}>
-        <label style={labelStyle}>
-          <Image size={12} /> Evidencia
-          <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--gray-500)', textTransform: 'none', letterSpacing: 0 }}>
-            (opcional)
-          </span>
-        </label>
-        <input
-          style={inputStyle}
-          type="text"
-          placeholder="URL de foto o descripción del daño"
+          className="w-full bg-gray-50 border-2 border-transparent rounded-2xl py-3.5 px-4 text-xs font-bold text-gray-700 focus:bg-white focus:border-emerald-500 transition-all outline-none"
+          placeholder="Ej: https://imgur.com/foto-dano"
           value={form.evidencia}
           onChange={e => set('evidencia', e.target.value)}
-          onFocus={e => { e.target.style.background = 'white'; e.target.style.borderColor = 'var(--green-600)'; e.target.style.boxShadow = '0 0 0 4px rgba(42,157,71,.08)'; }}
-          onBlur={e  => { e.target.style.background = 'var(--gray-100)'; e.target.style.borderColor = 'transparent'; e.target.style.boxShadow = 'none'; }}
         />
       </div>
 
-      {/* Comentario adicional */}
-      <div style={fieldWrap}>
-        <label style={labelStyle}>
-          <FileText size={12} /> Comentario adicional
-          <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--gray-500)', textTransform: 'none', letterSpacing: 0 }}>
-            (opcional)
-          </span>
+      {/* Comentario */}
+      <div className="space-y-2">
+        <label className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">
+          <FileText size={12} className="text-emerald-500" /> Descripción detallada
         </label>
         <textarea
-          style={{ ...inputStyle, resize: 'vertical', minHeight: 80 }}
-          placeholder="Cualquier detalle adicional que nos ayude a procesar tu solicitud..."
+          className="w-full bg-gray-50 border-2 border-transparent rounded-2xl py-4 px-4 text-xs font-bold text-gray-700 focus:bg-white focus:border-emerald-500 transition-all outline-none resize-none"
+          rows={3}
+          placeholder="Explícanos brevemente qué sucedió con el producto..."
           value={form.comentario}
           onChange={e => set('comentario', e.target.value)}
-          onFocus={e => { e.target.style.background = 'white'; e.target.style.borderColor = 'var(--green-600)'; e.target.style.boxShadow = '0 0 0 4px rgba(42,157,71,.08)'; }}
-          onBlur={e  => { e.target.style.background = 'var(--gray-100)'; e.target.style.borderColor = 'transparent'; e.target.style.boxShadow = 'none'; }}
         />
       </div>
 
-      <button type="submit" className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '14px' }}>
-        <PackageMinus size={16} />
-        Registrar Devolución
+      <button 
+        type="submit" 
+        className="w-full group relative overflow-hidden flex items-center justify-center gap-3 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-200"
+      >
+        <PackageMinus size={16} strokeWidth={3} />
+        Enviar Solicitud de Devolución
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer"></div>
       </button>
     </form>
   );

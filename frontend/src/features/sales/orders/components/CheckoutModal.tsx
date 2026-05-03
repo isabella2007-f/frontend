@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, CreditCard, Banknote, User, MapPin, ShoppingBag } from 'lucide-react';
+import { X, CreditCard, Banknote, User, MapPin, ShoppingBag, CheckCircle2, Sparkles, ShieldCheck, UploadCloud, ChevronRight } from 'lucide-react';
 import { CartItem } from '../services/cartService';
 import { getUser } from '../../../../services/authService';
 import './CheckoutModal.css';
@@ -9,11 +9,13 @@ interface CheckoutModalProps {
   onClose: () => void;
   orderDetails: {
     address: string;
+    municipio?: string;
+    departamento?: string;
     date: string;
     clientName: string;
     items: CartItem[];
     total: number;
-  };
+  } | null; // ✅ Se acepta null explícitamente
   onConfirm: (paymentMethod: string, onBehalfOf: string, comprobante?: File | null) => void;
 }
 
@@ -21,190 +23,246 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   const [paymentMethod, setPaymentMethod] = useState('digital');
   const [onBehalfOf, setOnBehalfOf] = useState('');
   const [comprobante, setComprobante] = useState<File | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
 
-  // ✅ Cargar datos del usuario logueado cada vez que se abre el modal
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && orderDetails) {
       const user = getUser();
       setOnBehalfOf(user?.nombre || orderDetails.clientName || '');
     }
-  }, [isOpen, orderDetails.clientName]);
+  }, [isOpen, orderDetails]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !orderDetails) return null;
 
-  // ✅ Tomar dirección del usuario logueado si no viene en orderDetails
   const user = getUser();
-  const displayAddress =
-    orderDetails.address ||
-    user?.direccion ||
-    'No registrada';
+  
+  const displayAddress = orderDetails.address
+    ? `${orderDetails.address}${orderDetails.municipio ? ', ' + orderDetails.municipio : ''}${orderDetails.departamento ? ', ' + orderDetails.departamento : ''}`
+    : user?.direccion || 'No registrada';
 
   const displayName =
     user
       ? `${user.nombre}${user.apellidos ? ' ' + user.apellidos : ''}`
       : orderDetails.clientName || 'Cliente';
 
+  const handleFinalConfirm = () => {
+    setIsConfirming(true);
+    setTimeout(() => {
+      onConfirm(paymentMethod, onBehalfOf, comprobante);
+      setIsConfirming(false);
+    }, 800);
+  };
+
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-emerald-950/40 backdrop-blur-md" onClick={onClose} />
+    <div className="modal-overlay">
+      {/* Modal - Usando clases compartidas */}
+      <div className="modal-box relative shadow-2xl overflow-hidden flex flex-col max-h-[95vh] border-none" style={{ maxWidth: '550px', borderRadius: '32px' }}>
 
-      {/* Modal */}
-      <div className="relative bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-
-        {/* Header */}
-        <div className="bg-emerald-600 p-6 text-white relative">
+        {/* Header Compacto con Variables de Marca */}
+        <div className="modal-header shrink-0" style={{ background: 'linear-gradient(135deg, var(--green-800) 0%, var(--green-700) 100%)', padding: '24px' }}>
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-2 hover:bg-white/20 rounded-full transition-colors"
+            className="absolute top-5 right-5 p-2 hover:bg-white/20 rounded-full transition-all text-white/80 hover:text-white z-10"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
-          <div className="flex items-center gap-4">
-            <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm">
-              <ShoppingBag size={24} />
+
+          <div className="relative flex items-center gap-4">
+            <div className="bg-white/10 backdrop-blur-xl p-3 rounded-2xl border border-white/20">
+              <ShoppingBag size={24} className="text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-bold">Confirmar Pedido</h2>
-              <p className="text-emerald-100 text-sm">Resumen de tu compra</p>
+              <h2 className="text-xl font-black tracking-tight leading-none mb-1 text-white">Confirmar Pedido</h2>
+              <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5">
+                <ShieldCheck size={12} /> Pago 100% Seguro
+              </p>
             </div>
           </div>
         </div>
 
-        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+        <div className="modal-body p-5 space-y-5 overflow-y-auto custom-scrollbar flex-1 bg-gray-50/30">
 
-          {/* User Info */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Nombre del cliente (solo lectura) */}
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Cliente</label>
-              <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-xl border border-gray-100">
-                <User size={18} className="text-emerald-500" />
-                <span className="text-sm font-semibold text-gray-700">{displayName}</span>
+          {/* Grid de Información - Más compacto */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm">
+              <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block px-1">Quién recibe</label>
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-emerald-50 rounded-xl text-emerald-600" style={{ background: 'var(--green-50)', color: 'var(--green-700)' }}>
+                  <User size={16} strokeWidth={2.5} />
+                </div>
+                <p className="text-xs font-black text-gray-800 truncate">{displayName}</p>
               </div>
             </div>
 
-            {/* A nombre de (editable) */}
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">A nombre de</label>
-              <div className="relative">
-                <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-emerald-500" />
-                <input
-                  type="text"
-                  value={onBehalfOf}
-                  onChange={(e) => setOnBehalfOf(e.target.value)}
-                  placeholder="Nombre para el pedido"
-                  className="w-full pl-10 pr-4 py-2.5 bg-white border border-emerald-100 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all outline-none"
-                />
-              </div>
+            <div className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm">
+              <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block px-1">A nombre de</label>
+              <input
+                type="text"
+                value={onBehalfOf}
+                onChange={(e) => setOnBehalfOf(e.target.value)}
+                placeholder="Nombre"
+                className="w-full bg-transparent text-xs font-bold text-gray-800 outline-none placeholder:text-gray-300 border-none p-0 focus:ring-0"
+              />
             </div>
-          </div>
 
-          {/* Dirección */}
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Dirección de entrega</label>
-            <div className="flex items-center gap-3 bg-gray-50 p-3 rounded-xl border border-gray-100">
-              <MapPin size={18} className="text-emerald-500" />
-              <span className="text-sm font-semibold text-gray-700">{displayAddress}</span>
-            </div>
-          </div>
-
-          {/* Lista de productos */}
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Productos</label>
-            <div className="border border-emerald-50 rounded-2xl overflow-hidden">
-              <div className="bg-emerald-50/50 px-4 py-2 border-b border-emerald-50 flex justify-between text-[10px] font-bold text-emerald-800 uppercase tracking-widest">
-                <span>Producto</span>
-                <span>Subtotal</span>
-              </div>
-              <div className="divide-y divide-emerald-50 max-h-40 overflow-y-auto">
-                {orderDetails.items.map((item) => (
-                  <div key={item.id} className="px-4 py-3 flex justify-between items-center bg-white">
-                    <div className="flex items-center gap-3">
-                      <span className="bg-emerald-100 text-emerald-700 text-[10px] font-bold h-5 w-5 flex items-center justify-center rounded-md">
-                        {item.cantidad}
-                      </span>
-                      <span className="text-sm font-medium text-gray-700 line-clamp-1">{item.nombre}</span>
-                    </div>
-                    <span className="text-sm font-bold text-gray-800">
-                      ${(item.precio * item.cantidad).toLocaleString('es-CO')}
-                    </span>
-                  </div>
-                ))}
+            {/* Lugar de entrega - Ocupa todo el ancho */}
+            <div className="col-span-2 bg-white p-3 rounded-2xl border border-gray-100 shadow-sm">
+              <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block px-1">Lugar de entrega</label>
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-emerald-50 rounded-xl text-emerald-600 flex-shrink-0" style={{ background: 'var(--green-50)', color: 'var(--green-700)' }}>
+                  <MapPin size={16} strokeWidth={2.5} />
+                </div>
+                <p className="text-[11px] font-bold text-gray-700 leading-snug">{displayAddress}</p>
               </div>
             </div>
           </div>
 
-          {/* Método de pago */}
+          {/* Detalle del Pedido - Simplificado */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-gray-50/50 px-4 py-2 border-b border-gray-100 flex justify-between items-center">
+              <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Resumen</span>
+              <span className="text-[9px] font-black px-2 py-0.5 rounded-full" style={{ background: 'var(--green-50)', color: 'var(--green-700)' }}>
+                {orderDetails.items.length} Items
+              </span>
+            </div>
+            <div className="max-h-32 overflow-y-auto custom-scrollbar px-4 py-2">
+              <table className="w-full">
+                <tbody className="divide-y divide-gray-50">
+                  {orderDetails.items.map((item) => (
+                    <tr key={item.id}>
+                      <td className="py-2 text-[11px] font-bold text-gray-700">{item.nombre}</td>
+                      <td className="py-2 text-[11px] font-black text-gray-400 text-center">x{item.cantidad}</td>
+                      <td className="py-2 text-[11px] font-black text-gray-900 text-right">${(item.precio * item.cantidad).toLocaleString('es-CO')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Métodos de Pago - Botones más pequeños y modernos */}
           <div className="space-y-3">
-            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Método de pago</label>
-            <div className="grid grid-cols-2 gap-4">
+            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-1">Método de pago</label>
+            <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => setPaymentMethod('digital')}
-                className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${
+                className={`flex items-center gap-3 p-3 rounded-2xl border-2 transition-all duration-300 ${
                   paymentMethod === 'digital'
-                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                    : 'border-gray-100 bg-white text-gray-400 hover:border-emerald-100'
+                    ? 'border-green-600 bg-green-50 text-green-800 shadow-md'
+                    : 'border-white bg-white text-gray-400 hover:border-green-100 shadow-sm'
                 }`}
+                style={paymentMethod === 'digital' ? { borderColor: 'var(--green-600)', background: 'var(--green-50)', color: 'var(--green-800)' } : {}}
               >
-                <CreditCard size={24} />
-                <span className="text-sm font-bold">Digital</span>
+                <div className={`p-2 rounded-xl ${paymentMethod === 'digital' ? 'text-white' : 'bg-gray-50'}`} style={paymentMethod === 'digital' ? { background: 'var(--green-600)' } : {}}>
+                  <CreditCard size={18} strokeWidth={2.5} />
+                </div>
+                <span className="text-[11px] font-black tracking-tight">Transferencia</span>
               </button>
+
               <button
                 onClick={() => setPaymentMethod('efectivo')}
-                className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${
+                className={`flex items-center gap-3 p-3 rounded-2xl border-2 transition-all duration-300 ${
                   paymentMethod === 'efectivo'
-                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                    : 'border-gray-100 bg-white text-gray-400 hover:border-emerald-100'
+                    ? 'border-green-600 bg-green-50 text-green-800 shadow-md'
+                    : 'border-white bg-white text-gray-400 hover:border-green-100 shadow-sm'
                 }`}
+                style={paymentMethod === 'efectivo' ? { borderColor: 'var(--green-600)', background: 'var(--green-50)', color: 'var(--green-800)' } : {}}
               >
-                <Banknote size={24} />
-                <span className="text-sm font-bold">Efectivo</span>
+                <div className={`p-2 rounded-xl ${paymentMethod === 'efectivo' ? 'text-white' : 'bg-gray-50'}`} style={paymentMethod === 'efectivo' ? { background: 'var(--green-600)' } : {}}>
+                  <Banknote size={18} strokeWidth={2.5} />
+                </div>
+                <span className="text-[11px] font-black tracking-tight">Efectivo</span>
               </button>
             </div>
 
+            {/* Zona de Comprobante - Compacta */}
             {paymentMethod === 'digital' && (
-              <div className="mt-4 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl">
-                <h3 className="text-sm font-bold text-emerald-800 mb-2">Pago Digital</h3>
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="bg-white p-2 rounded-lg">
-                    <img src="/qr-banco.png" alt="QR Banco" className="w-20 h-20" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-emerald-700">Banco: Bancolombia</p>
-                    <p className="text-sm text-emerald-600">Cuenta: 123-456789-0</p>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Subir Comprobante</label>
-                  <input
-                    type="file"
-                    accept="image/*,application/pdf"
-                    onChange={(e) => setComprobante(e.target.files?.[0] || null)}
-                    className="w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-100 file:text-emerald-700 hover:file:bg-emerald-200"
-                  />
+              <div className="relative group animate-in slide-in-from-top-2 duration-300 mt-2">
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
+                  onChange={(e) => setComprobante(e.target.files?.[0] || null)}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                />
+                <div className="border-2 border-dashed border-emerald-200 bg-white group-hover:bg-emerald-50 transition-all rounded-2xl p-4 text-center">
+                  {comprobante ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <CheckCircle2 size={16} className="text-emerald-500" />
+                      <p className="text-[10px] font-black text-emerald-700 truncate max-w-[150px]">{comprobante.name}</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-1">
+                      <UploadCloud size={20} className="text-emerald-300" />
+                      <p className="text-[10px] font-black text-gray-500">Sube tu comprobante de pago</p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* Total & Acción */}
-        <div className="p-6 border-t border-gray-100 bg-gray-50">
-          <div className="flex items-center justify-between mb-6">
-            <span className="text-lg font-bold text-gray-800">Total a pagar</span>
-            <span className="text-3xl font-extrabold text-emerald-700">
-              ${orderDetails.total.toLocaleString('es-CO')}
-            </span>
+        {/* Footer Compacto */}
+        <div className="modal-footer p-6 bg-white border-t border-gray-100 flex-shrink-0">
+          <div className="flex items-center justify-between mb-5 w-full">
+            <div>
+              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Total a pagar</p>
+              <div className="flex items-baseline gap-0.5">
+                <span className="font-black text-sm" style={{ color: 'var(--green-700)' }}>$</span>
+                <span className="text-3xl font-black text-gray-900 tracking-tighter leading-none">
+                  {orderDetails.total.toLocaleString('es-CO')}
+                </span>
+              </div>
+            </div>
+            <div className="bg-amber-50 p-2.5 rounded-2xl border border-amber-100 text-amber-500">
+              <Sparkles size={20} />
+            </div>
           </div>
+
           <button
-            onClick={() => onConfirm(paymentMethod, onBehalfOf, comprobante)}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-bold text-lg transition-all shadow-xl shadow-emerald-200 flex items-center justify-center gap-2 active:scale-[0.98]"
+            onClick={handleFinalConfirm}
+            disabled={isConfirming}
+            className={`w-full group relative overflow-hidden flex items-center justify-center gap-3 py-4 rounded-2xl font-black text-base transition-all duration-500 shadow-xl ${
+              isConfirming 
+                ? 'bg-emerald-800 text-white' 
+                : 'btn-primary'
+            }`}
+            style={!isConfirming ? { background: 'linear-gradient(135deg, var(--green-800) 0%, var(--green-700) 100%)' } : {}}
           >
-            Confirmar y Pagar
+            {isConfirming ? (
+              <>
+                <div className="w-4 h-4 border-3 border-white/20 border-t-white rounded-full animate-spin"></div>
+                Procesando...
+              </>
+            ) : (
+              <>
+                Confirmar Compra
+                <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
+              </>
+            )}
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer"></div>
           </button>
         </div>
       </div>
+
+      <style>{`
+        @keyframes shimmer {
+          100% { transform: translateX(100%); }
+        }
+        .animate-shimmer {
+          animation: shimmer 1.5s infinite;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #e5e7eb;
+          border-radius: 10px;
+        }
+      `}</style>
     </div>
   );
 };

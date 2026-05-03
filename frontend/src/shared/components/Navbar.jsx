@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { useApp } from "../../AppContext";
 import { getUser, logout } from "../../services/authService";
 import { Menu, X, ShoppingCart, Bell } from "lucide-react";
 import "./Navbar.css";
@@ -27,7 +28,8 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
   const navigate = useNavigate();
 
   // ── Notificaciones context ──
-  const { noLeidas } = useNotificaciones();
+  const { noLeidas, agregarNotificacion } = useNotificaciones();
+  const { crearPedido } = useApp();
 
   useEffect(() => {
     setUser(getUser());
@@ -63,8 +65,42 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
   const handleLoginRequired = () => navigate("/login");
 
   const handleConfirmOrder = (paymentMethod, onBehalfOf, comprobante) => {
-    console.log("Orden confirmada:", { ...orderDetails, paymentMethod, onBehalfOf, comprobante });
-    alert("¡Pedido realizado con éxito! Gracias por tu compra.");
+    const currentUser = getUser();
+    const currentCart = getCart();
+    const total = getTotal();
+
+    const pedido = {
+      idCliente:      currentUser?.cedula || '',
+      cliente: {
+        nombre:   currentUser ? `${currentUser.nombre} ${currentUser.apellidos || ''}`.trim() : onBehalfOf,
+        correo:   currentUser?.correo   || '',
+        telefono: currentUser?.telefono || '',
+      },
+      productosItems: currentCart.map(item => ({
+        idProducto:   item.id,
+        nombre:       item.nombre,
+        precio:       item.precio,
+        cantidad:     item.cantidad,
+        stockOk:      true,
+      })),
+      subtotal:          total,
+      descuento:         0,
+      total:             total,
+      metodo_pago:       paymentMethod === 'digital' ? 'Transferencia' : 'Efectivo',
+      domicilio:         true,
+      direccion_entrega: orderDetails.address,
+      notas:             '',
+      estado:            'Pendiente',
+      orden_produccion:  false,
+      comprobante:       !!comprobante,
+    };
+
+    const res = crearPedido(pedido);
+    if (res && res.error) {
+       alert(res.error);
+       return;
+    }
+
     setIsCheckoutOpen(false);
     localStorage.removeItem('toston_app_cart');
     updateCartCount();
@@ -76,8 +112,9 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
     setMenuOpen(false);
   };
 
-  // La campanita sólo se muestra a usuarios autenticados (no landing, no cliente)
-  const mostrarCampana = !isLanding && user && user.rol !== "cliente";
+  // La campanita se muestra a usuarios autenticados: tanto admin como cliente
+  // PERO no en la landing page según el requerimiento del usuario.
+  const mostrarCampana = !!user && !isLanding;
 
   return (
     <>
@@ -86,7 +123,7 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
 
           {/* LEFT — Hamburger */}
           <div className="nav-left-section">
-            {!isLanding && user && (
+            {!isLanding && user && user.rol !== 'cliente' && (
               <button className="hamburger-toggle" onClick={onToggleSidebar} title="Menu">
                 <Menu size={24} />
               </button>
@@ -99,7 +136,7 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
           </div>
 
           {/* CENTER — Logo */}
-          <div className="logo-wrapper" onClick={() => navigate("/")} style={{ cursor: 'pointer' }}>
+          <div className="logo-wrapper" onClick={() => navigate(user?.rol === 'cliente' ? "/cliente/inicio" : "/")} style={{ cursor: 'pointer' }}>
             <img src="/Logo.png" alt="Logo" className="logo" />
           </div>
 
@@ -107,19 +144,25 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
           <div className="nav-right">
             <div className="links-bell-wrapper">
               <div className="nav-links">
-                {isLanding ? (
+                {isLanding || user?.rol === 'cliente' ? (
                   <>
-                    <button onClick={() => navigate('/')} className="nav-link">Inicio</button>
-                    <button onClick={() => scrollToSection('productos')} className="nav-link">Productos</button>
-                    <button onClick={() => scrollToSection('nosotros')} className="nav-link">Nosotros</button>
+                    <button onClick={() => {
+                      if (isLanding) scrollToSection('inicio');
+                      else navigate('/cliente/inicio');
+                    }} className="nav-link">Inicio</button>
+                    <button onClick={() => {
+                      if (isLanding) scrollToSection('productos');
+                      else navigate('/cliente/inicio#productos');
+                    }} className="nav-link">Productos</button>
+                    <button onClick={() => {
+                      if (isLanding) scrollToSection('nosotros');
+                      else navigate('/cliente/inicio#nosotros');
+                    }} className="nav-link">Nosotros</button>
                   </>
                 ) : (
                   <>
-                    {user?.rol !== 'administrador' && (
-                      <Link to="/cliente/inicio" className="nav-link">Inicio</Link>
-                    )}
                     {user?.rol === 'administrador' && (
-                      <Link to="/" className="nav-link">Dashboard</Link>
+                      <Link to="/admin" className="nav-link">Dashboard</Link>
                     )}
                   </>
                 )}
@@ -161,14 +204,14 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
               </div>
             )}
 
-            {isLanding && (
+            {isLanding && !user && (
               <div className="auth-btns">
                 <button onClick={() => navigate("/login")} className="btn-login-nav">Iniciar sesión</button>
                 <button onClick={() => navigate("/register")} className="btn-register-nav">Registrarse</button>
               </div>
             )}
 
-            {!isLanding && (
+            {user && (
               <button className="logout-btn" title="Cerrar sesión" onClick={handleLogout}>⏏</button>
             )}
           </div>
@@ -177,11 +220,15 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
         {/* Mobile dropdown Landing */}
         {isLanding && menuOpen && (
           <div className="mobile-menu">
-            <button onClick={() => navigate('/')} className="mobile-link">Inicio</button>
+            <button onClick={() => navigate(user?.rol === "cliente" ? '/cliente' : '/')} className="mobile-link">Inicio</button>
             <button onClick={() => scrollToSection('productos')} className="mobile-link">Productos</button>
             <button onClick={() => scrollToSection('nosotros')} className="mobile-link">Nosotros</button>
-            <button onClick={() => navigate("/login")} className="mobile-link">Iniciar sesión</button>
-            <button onClick={() => navigate("/register")} className="mobile-link">Registrarse</button>
+            {!user && (
+              <>
+                <button onClick={() => navigate("/login")} className="mobile-link">Iniciar sesión</button>
+                <button onClick={() => navigate("/register")} className="mobile-link">Registrarse</button>
+              </>
+            )}
           </div>
         )}
       </nav>

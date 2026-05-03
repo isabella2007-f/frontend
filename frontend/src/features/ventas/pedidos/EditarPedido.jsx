@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useApp } from "../../../AppContext.jsx";
+import { DEPARTAMENTOS, getCiudades } from "../../../utils/departamentosYCiudades.js";
 import "./Pedidos.css";
 
 /* ─── Helpers ────────────────────────────────────────────── */
@@ -242,8 +243,12 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
     idCliente:         pedido.idCliente,
     productosItems:    pedido.productosItems || [],
     metodo_pago:       pedido.metodo_pago,
+    comprobante:       pedido.comprobante || null,
+    comprobantePreview: pedido.comprobante || null,
     domicilio:         pedido.domicilio,
     direccion_entrega: pedido.direccion_entrega || "",
+    departamento:      pedido.departamento || "",
+    municipio:         pedido.municipio || "",
     notas:             pedido.notas || "",
     descuento:         pedido.descuento || 0,
     estadoPedido:      pedido.estado,
@@ -273,8 +278,13 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
   const guardarDatosCliente = () => {
     if (!datosCliente) return;
     editarCliente({ ...clienteActual, ...datosCliente });
-    if (form.domicilio && datosCliente.direccion) {
-      setForm(f => ({ ...f, direccion_entrega: datosCliente.direccion }));
+    if (form.domicilio) {
+      setForm(f => ({
+        ...f,
+        direccion_entrega: datosCliente.direccion || f.direccion_entrega,
+        departamento:      datosCliente.departamento || f.departamento,
+        municipio:         datosCliente.municipio || f.municipio,
+      }));
     }
     setEditandoCliente(false);
     setDatosCliente(null);
@@ -297,7 +307,16 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
     if (permisos.cliente && !form.idCliente)                      e.idCliente         = "Selecciona un cliente";
     if (permisos.productos && form.productosItems.length === 0)   e.productos         = "Agrega al menos un producto";
     if (permisos.metodo_pago && !form.metodo_pago)                e.metodo_pago       = "Selecciona método de pago";
-    if (form.domicilio && !form.direccion_entrega.trim())         e.direccion_entrega = "Ingresa la dirección";
+    
+    if (form.metodo_pago === "Transferencia 🏦" && !form.comprobantePreview) {
+      e.comprobante = "El comprobante es obligatorio para transferencias";
+    }
+
+    if (form.domicilio) {
+      if (!form.direccion_entrega.trim()) e.direccion_entrega = "Ingresa la dirección";
+      if (!form.departamento.trim())       e.departamento = "Selecciona el departamento";
+      if (!form.municipio.trim())          e.municipio = "Selecciona el municipio";
+    }
     return e;
   };
 
@@ -318,8 +337,11 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
         : pedido.cliente,
       productosItems:    permisos.productos ? form.productosItems : pedido.productosItems,
       metodo_pago:       permisos.metodo_pago ? form.metodo_pago : pedido.metodo_pago,
+      comprobante:       form.comprobantePreview,
       domicilio:         permisos.domicilio  ? form.domicilio    : pedido.domicilio,
       direccion_entrega: form.direccion_entrega,
+      departamento:      form.departamento,
+      municipio:         form.municipio,
       notas:             form.notas,
       descuento:         permisos.descuento ? descuento : pedido.descuento,
       subtotal:          permisos.productos ? subtotal  : pedido.subtotal,
@@ -327,6 +349,17 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
       orden_produccion:  permisos.productos ? hayProductosSinStock : pedido.orden_produccion,
     };
     setTimeout(() => onSave(payload), 900);
+  };
+
+  const handleFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setForm(f => ({ ...f, comprobante: file, comprobantePreview: ev.target.result }));
+      setErrors(err => ({ ...err, comprobante: "" }));
+    };
+    reader.readAsDataURL(file);
   };
 
   const agregarProducto = (item) =>
@@ -492,8 +525,33 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
                       <input className="field-input" value={datosCliente.telefono || ""} onChange={e => setDato("telefono", e.target.value)} placeholder="300 000 0000" />
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <label className="form-label">Departamento</label>
+                      <div className="select-wrap">
+                        <select
+                          className="field-select"
+                          value={datosCliente.departamento || ""}
+                          onChange={e => setDato("departamento", e.target.value)}
+                        >
+                          <option value="">Seleccione…</option>
+                          {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
+                        </select>
+                        <SelectArrow />
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                       <label className="form-label">Municipio</label>
-                      <input className="field-input" value={datosCliente.municipio || ""} onChange={e => setDato("municipio", e.target.value)} placeholder="Ej. Medellín" />
+                      <div className="select-wrap">
+                        <select
+                          className="field-select"
+                          value={datosCliente.municipio || ""}
+                          onChange={e => setDato("municipio", e.target.value)}
+                          disabled={!datosCliente.departamento}
+                        >
+                          <option value="">Seleccione…</option>
+                          {getCiudades(datosCliente.departamento).map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                        <SelectArrow />
+                      </div>
                     </div>
                     <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 4 }}>
                       <label className="form-label">
@@ -628,23 +686,85 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
             )}
           </div>
 
+          {form.metodo_pago === "Transferencia 🏦" && permisos.metodo_pago && (
+            <div className="field-wrap" style={{ marginTop: 12 }}>
+              <label className="field-label">Comprobante de pago <span className="required">*</span></label>
+              <div className="comprobante-upload">
+                {form.comprobantePreview ? (
+                  <div className="comprobante-preview-wrap">
+                    <img src={form.comprobantePreview} alt="Comprobante" className="comprobante-preview-img" />
+                    <button className="comprobante-remove-btn" onClick={() => setForm(f => ({ ...f, comprobante: null, comprobantePreview: null }))}>✕</button>
+                  </div>
+                ) : (
+                  <label className={`comprobante-dropzone${errors.comprobante ? " error" : ""}`}>
+                    <input type="file" accept="image/*" onChange={handleFile} hidden />
+                    <span style={{ fontSize: 24 }}>📤</span>
+                    <span style={{ fontSize: 12, fontWeight: 600 }}>Subir comprobante</span>
+                    <span style={{ fontSize: 10, color: "#9e9e9e" }}>JPG, PNG o WEBP</span>
+                  </label>
+                )}
+              </div>
+              {errors.comprobante && <span className="field-error">{errors.comprobante}</span>}
+            </div>
+          )}
+
           {/* ── Dirección ── */}
           {(pedido.domicilio || form.domicilio) && (
             permisos.direccion_entrega ? (
-              <div className="field-wrap">
-                <label className="field-label">
-                  Dirección de entrega {form.domicilio && <span className="required">*</span>}
-                </label>
-                <input
-                  className={`field-input${errors.direccion_entrega ? " error" : ""}`}
-                  placeholder="Ej: Cra 5 #12-34, Apto 201, Medellín"
-                  value={form.direccion_entrega}
-                  onChange={e => set("direccion_entrega", e.target.value)}
-                />
-                {errors.direccion_entrega && <span className="field-error">{errors.direccion_entrega}</span>}
-              </div>
+              <>
+                <div className="field-wrap">
+                  <label className="field-label">
+                    Dirección de entrega {form.domicilio && <span className="required">*</span>}
+                  </label>
+                  <input
+                    className={`field-input${errors.direccion_entrega ? " error" : ""}`}
+                    placeholder="Ej: Cra 5 #12-34, Apto 201"
+                    value={form.direccion_entrega}
+                    onChange={e => set("direccion_entrega", e.target.value)}
+                  />
+                  {errors.direccion_entrega && <span className="field-error">{errors.direccion_entrega}</span>}
+                </div>
+
+                <div className="form-grid-2" style={{ marginTop: 12 }}>
+                  <div className="field-wrap">
+                    <label className="field-label">Departamento <span className="required">*</span></label>
+                    <div className="select-wrap">
+                      <select
+                        className={`field-select${errors.departamento ? " error" : ""}`}
+                        value={form.departamento}
+                        onChange={e => {
+                          setForm(f => ({ ...f, departamento: e.target.value, municipio: "" }));
+                          setErrors(err => ({ ...err, departamento: "" }));
+                        }}
+                      >
+                        <option value="">Seleccione…</option>
+                        {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                      <SelectArrow />
+                    </div>
+                    {errors.departamento && <span className="field-error">{errors.departamento}</span>}
+                  </div>
+
+                  <div className="field-wrap">
+                    <label className="field-label">Municipio <span className="required">*</span></label>
+                    <div className="select-wrap">
+                      <select
+                        className={`field-select${errors.municipio ? " error" : ""}`}
+                        value={form.municipio}
+                        onChange={e => set("municipio", e.target.value)}
+                        disabled={!form.departamento}
+                      >
+                        <option value="">Seleccione…</option>
+                        {getCiudades(form.departamento).map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                      <SelectArrow />
+                    </div>
+                    {errors.municipio && <span className="field-error">{errors.municipio}</span>}
+                  </div>
+                </div>
+              </>
             ) : (
-              <FieldReadOnly label="Dirección de entrega" value={pedido.direccion_entrega} />
+              <FieldReadOnly label="Dirección de entrega" value={`${pedido.direccion_entrega}, ${pedido.municipio}, ${pedido.departamento}`} />
             )
           )}
 

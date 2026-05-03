@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useApp } from "../../../AppContext.jsx";
+import { DEPARTAMENTOS, getCiudades } from "../../../utils/departamentosYCiudades.js";
 import "./Pedidos.css";
 
 /* ─── Helpers ────────────────────────────────────────────── */
@@ -12,8 +13,12 @@ const EMPTY_FORM = {
   idCliente:         "",
   productosItems:    [],
   metodo_pago:       "",
+  comprobante:       null,
+  comprobantePreview: null,
   domicilio:         false,
   direccion_entrega: "",
+  departamento:      "",
+  municipio:         "",
   notas:             "",
   descuento:         0,
 };
@@ -213,8 +218,16 @@ export default function CrearPedido({ onClose, onSave }) {
     }
     if (s === 3) {
       if (!form.metodo_pago) e.metodo_pago = "Selecciona método de pago";
-      if (form.domicilio && !form.direccion_entrega.trim())
-        e.direccion_entrega = "Ingresa la dirección";
+      
+      if (form.metodo_pago === "Transferencia 🏦" && !form.comprobantePreview) {
+        e.comprobante = "El comprobante es obligatorio para transferencias";
+      }
+
+      if (form.domicilio) {
+        if (!form.direccion_entrega.trim()) e.direccion_entrega = "Ingresa la dirección";
+        if (!form.departamento.trim())       e.departamento = "Selecciona el departamento";
+        if (!form.municipio.trim())          e.municipio = "Selecciona el municipio";
+      }
     }
     return e;
   };
@@ -243,8 +256,11 @@ export default function CrearPedido({ onClose, onSave }) {
       },
       productosItems:    form.productosItems,
       metodo_pago:       form.metodo_pago,
+      comprobante:       form.comprobantePreview,
       domicilio:         form.domicilio,
       direccion_entrega: form.domicilio ? form.direccion_entrega : null,
+      departamento:      form.domicilio ? form.departamento      : null,
+      municipio:         form.domicilio ? form.municipio         : null,
       notas:             form.notas,
       descuento,
       subtotal,
@@ -253,6 +269,17 @@ export default function CrearPedido({ onClose, onSave }) {
     };
 
     setTimeout(() => onSave(payload), 900);
+  };
+
+  const handleFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setForm(f => ({ ...f, comprobante: file, comprobantePreview: ev.target.result }));
+      setErrors(err => ({ ...err, comprobante: "" }));
+    };
+    reader.readAsDataURL(file);
   };
 
   /* ─── Productos ─── */
@@ -298,14 +325,25 @@ export default function CrearPedido({ onClose, onSave }) {
           {/* ── Paso 1: Cliente ── */}
           {step === 1 && (
             <>
-              <p className="section-label" style={{textTransform: "none", marginTop: 0}}>Seleccionar Cliente</p>
+              <p className="section-label" style={{ textTransform: "none", marginTop: 0 }}>Seleccionar Cliente</p>
               <div className="field-wrap">
                 <label className="field-label">Cliente <span className="required">*</span></label>
                 <div className="select-wrap">
                   <select
                     className={`field-select${errors.idCliente ? " error" : ""}`}
                     value={form.idCliente}
-                    onChange={e => set("idCliente", e.target.value)}
+                    onChange={e => {
+                      const id = e.target.value;
+                      const cli = clientes.find(c => String(c.id) === String(id));
+                      setForm(f => ({
+                        ...f,
+                        idCliente: id,
+                        departamento: cli?.departamento || "",
+                        municipio: cli?.municipio || "",
+                        direccion_entrega: cli?.direccion || ""
+                      }));
+                      setErrors(err => ({ ...err, idCliente: "" }));
+                    }}
                   >
                     <option value="">Seleccione un cliente…</option>
                     {clientes.map(c => (
@@ -334,7 +372,7 @@ export default function CrearPedido({ onClose, onSave }) {
           {/* ── Paso 2: Productos ── */}
           {step === 2 && (
             <>
-              <p className="section-label" style={{textTransform: "none", marginTop: 0}} >Agregar Productos</p>
+              <p className="section-label" style={{ textTransform: "none", marginTop: 0 }}>Agregar Productos</p>
               <BuscadorProducto
                 productosSeleccionados={form.productosItems}
                 onAgregar={agregarProducto}
@@ -370,7 +408,7 @@ export default function CrearPedido({ onClose, onSave }) {
           {/* ── Paso 3: Pago y entrega ── */}
           {step === 3 && (
             <>
-              <p className="section-label" style={{textTransform: "none", marginTop: 0}} >Finalizar Pedido</p>
+              <p className="section-label" style={{ textTransform: "none", marginTop: 0 }}>Finalizar Pedido</p>
               <div className="form-grid-2">
                 <div className="field-wrap">
                   <label className="field-label">Método de pago <span className="required">*</span></label>
@@ -402,8 +440,8 @@ export default function CrearPedido({ onClose, onSave }) {
                         style={{
                           flex: 1, padding: "8px", fontSize: 11,
                           borderColor: form.domicilio === opt.val ? "#2e7d32" : "#e0e0e0",
-                          background: form.domicilio === opt.val ? "#e8f5e9" : "#fff",
-                          color:      form.domicilio === opt.val ? "#2e7d32" : "#616161",
+                          background:  form.domicilio === opt.val ? "#e8f5e9" : "#fff",
+                          color:       form.domicilio === opt.val ? "#2e7d32" : "#616161",
                         }}
                       >
                         {opt.label}
@@ -413,19 +451,85 @@ export default function CrearPedido({ onClose, onSave }) {
                 </div>
               </div>
 
-              {form.domicilio && (
+              {form.metodo_pago === "Transferencia 🏦" && (
                 <div className="field-wrap" style={{ marginTop: 12 }}>
-                  <label className="field-label">Dirección de entrega <span className="required">*</span></label>
-                  <input
-                    className={`field-input${errors.direccion_entrega ? " error" : ""}`}
-                    placeholder="Ej: Cra 5 #12-34..."
-                    value={form.direccion_entrega}
-                    onChange={e => set("direccion_entrega", e.target.value)}
-                  />
-                  {errors.direccion_entrega && (
-                    <span className="field-error">{errors.direccion_entrega}</span>
-                  )}
+                  <label className="field-label">Comprobante de pago <span className="required">*</span></label>
+                  <div className="comprobante-upload">
+                    {form.comprobantePreview ? (
+                      <div className="comprobante-preview-wrap">
+                        <img src={form.comprobantePreview} alt="Comprobante" className="comprobante-preview-img" />
+                        <button className="comprobante-remove-btn" onClick={() => setForm(f => ({ ...f, comprobante: null, comprobantePreview: null }))}>✕</button>
+                      </div>
+                    ) : (
+                      <label className={`comprobante-dropzone${errors.comprobante ? " error" : ""}`}>
+                        <input type="file" accept="image/*" onChange={handleFile} hidden />
+                        <span style={{ fontSize: 24 }}>📤</span>
+                        <span style={{ fontSize: 12, fontWeight: 600 }}>Subir comprobante</span>
+                        <span style={{ fontSize: 10, color: "#9e9e9e" }}>JPG, PNG o WEBP</span>
+                      </label>
+                    )}
+                  </div>
+                  {errors.comprobante && <span className="field-error">{errors.comprobante}</span>}
                 </div>
+              )}
+
+              {form.domicilio && (
+                <>
+                  <div className="field-wrap" style={{ marginTop: 12 }}>
+                    <label className="field-label">Dirección de entrega <span className="required">*</span></label>
+                    <input
+                      className={`field-input${errors.direccion_entrega ? " error" : ""}`}
+                      placeholder="Ej: Cra 5 #12-34..."
+                      value={form.direccion_entrega}
+                      onChange={e => set("direccion_entrega", e.target.value)}
+                    />
+                    {errors.direccion_entrega && (
+                      <span className="field-error">{errors.direccion_entrega}</span>
+                    )}
+                  </div>
+
+                  <div className="form-grid-2" style={{ marginTop: 12 }}>
+                    <div className="field-wrap">
+                      <label className="field-label">Departamento <span className="required">*</span></label>
+                      <div className="select-wrap">
+                        <select
+                          className={`field-select${errors.departamento ? " error" : ""}`}
+                          value={form.departamento}
+                          onChange={e => {
+                            setForm(f => ({ ...f, departamento: e.target.value, municipio: "" }));
+                            setErrors(err => ({ ...err, departamento: "" }));
+                          }}
+                        >
+                          <option value="">Seleccione…</option>
+                          {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
+                        </select>
+                        <SelectArrow />
+                      </div>
+                      {errors.departamento && (
+                        <span className="field-error">{errors.departamento}</span>
+                      )}
+                    </div>
+
+                    <div className="field-wrap">
+                      <label className="field-label">Municipio <span className="required">*</span></label>
+                      <div className="select-wrap">
+                        <select
+                          className={`field-select${errors.municipio ? " error" : ""}`}
+                          value={form.municipio}
+                          onChange={e => set("municipio", e.target.value)}
+                          disabled={!form.departamento}
+                        >
+                          <option value="">Seleccione…</option>
+                          {getCiudades(form.departamento).map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                        <SelectArrow />
+                      </div>
+                      {errors.municipio && (
+                        <span className="field-error">{errors.municipio}</span>
+                      )}
+                    </div>
+                  </div>
+                </>
               )}
 
               <div className="field-wrap" style={{ marginTop: 12 }}>

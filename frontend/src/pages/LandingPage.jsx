@@ -1,377 +1,139 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ShoppingBag, ArrowRight, Leaf, Utensils, Sparkles, Zap,
-  Plus, Minus, Trash2, X, ShoppingCart, CheckCircle2,
-  MapPin, User, CreditCard, Smartphone, Banknote,
-  Upload, ChevronRight, Package, Receipt,
-  AlertCircle, Loader2
+  ShoppingBag, ArrowRight, Leaf, Utensils, Sparkles,
+  Plus, Minus, ShoppingCart, CheckCircle2,
+  ChevronRight, Zap
 } from 'lucide-react';
 import { useApp } from '../AppContext.jsx';
 import { getUser } from '../services/authService.js';
+import { useNotificaciones, TIPOS } from '../features/notificaciones/context/NotificacionesContext.jsx';
 import Navbar from '../shared/components/Navbar.jsx';
 
-/* ═══════════════════════════════════════════
-   MODAL SHELL
-═══════════════════════════════════════════ */
-const ModalShell = ({ children, onClose, title }) => (
-  <>
-    <div
-      className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
-      onClick={onClose}
-    />
-    <div className="fixed inset-x-0 bottom-0 sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 z-50 w-full sm:max-w-lg bg-white rounded-t-[40px] sm:rounded-[32px] shadow-2xl animate-slide-up">
-      <div className="flex justify-center pt-3 sm:hidden">
-        <div className="w-10 h-1.5 bg-[#e8f5e9] rounded-full" />
-      </div>
-      <div className="px-6 pb-8 pt-4">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-[#e8f5e9] rounded-xl flex items-center justify-center">
-              <Package className="w-5 h-5 text-[#1b5e20]" />
-            </div>
-            {title && <h2 className="text-xl font-black text-[#1b5e20]">{title}</h2>}
-          </div>
-          <button
-            onClick={onClose}
-            className="w-10 h-10 bg-[#f7faf8] rounded-xl flex items-center justify-center hover:bg-[#e8f5e9] transition-colors"
-          >
-            <X className="w-5 h-5 text-[#1b5e20]" />
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
-  </>
-);
-
-/* ═══════════════════════════════════════════
-   CHECKOUT MODAL
-═══════════════════════════════════════════ */
-const CheckoutModal = ({ cart, onClose, onSuccess, user }) => {
-  const [step, setStep] = useState('form'); // 'form' | 'processing' | 'success' | 'receipt'
-  const [payMethod, setPayMethod] = useState('digital');
-  const [aliasName, setAliasName] = useState('');
-  const [receiptFile, setReceiptFile] = useState(null);
-  const [receiptPreview, setReceiptPreview] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const fileRef = useRef();
-
-  const total = cart.reduce((s, i) => s + i.product.precio * i.quantity, 0);
-  const canPay = aliasName.trim().length > 0;
-
-  const handleFile = (e) => {
-    const f = e.target.files[0];
-    if (!f) return;
-    setReceiptFile(f);
-    const reader = new FileReader();
-    reader.onload = (ev) => setReceiptPreview(ev.target.result);
-    reader.readAsDataURL(f);
-  };
-
-  const handlePay = async () => {
-    setLoading(true);
-    setStep('processing');
-    await new Promise(r => setTimeout(r, 1800));
-    setLoading(false);
-    if (payMethod === 'efectivo') {
-      setStep('success_cash');
-    } else {
-      setStep('receipt');
-    }
-  };
-
-  /* ── Efectivo: éxito directo ── */
-  if (step === 'success_cash') {
-    return (
-      <ModalShell onClose={onClose}>
-        <div className="flex flex-col items-center justify-center py-12 gap-6">
-          <div className="relative">
-            <div className="w-28 h-28 bg-[#e8f5e9] rounded-full flex items-center justify-center animate-scale-in">
-              <CheckCircle2 className="w-14 h-14 text-[#1b5e20]" strokeWidth={1.5} />
-            </div>
-            <div className="absolute inset-0 rounded-full border-4 border-[#4caf50] animate-ping opacity-20" />
-          </div>
-          <div className="text-center space-y-2">
-            <h3 className="text-3xl font-black text-[#1b5e20]">¡Pedido Confirmado!</h3>
-            <p className="text-[#81c784] font-semibold">Tu pedido está siendo preparado 🍌</p>
-            <p className="text-sm text-[#388e3c] mt-2">Pagarás <span className="font-black">${total.toLocaleString('es-CO')} COP</span> al recibir</p>
-          </div>
-          <button
-            onClick={() => { onSuccess(); onClose(); }}
-            className="mt-2 px-10 py-4 bg-[#1b5e20] text-white font-black rounded-2xl hover:bg-[#0d3300] transition-all shadow-lg shadow-[#1b5e20]/20"
-          >
-            ¡Perfecto!
-          </button>
-        </div>
-      </ModalShell>
-    );
-  }
-
-  /* ── Processing spinner ── */
-  if (step === 'processing') {
-    return (
-      <ModalShell onClose={() => {}}>
-        <div className="flex flex-col items-center justify-center py-16 gap-5">
-          <div className="w-24 h-24 bg-[#e8f5e9] rounded-full flex items-center justify-center">
-            <Loader2 className="w-10 h-10 text-[#1b5e20] animate-spin" />
-          </div>
-          <div className="text-center">
-            <p className="font-black text-[#1b5e20] text-lg">Procesando pedido…</p>
-            <p className="text-sm text-[#81c784] mt-1">Un momento por favor</p>
-          </div>
-        </div>
-      </ModalShell>
-    );
-  }
-
-  /* ── Digital: subir comprobante ── */
-  if (step === 'receipt') {
-    return (
-      <ModalShell onClose={onClose} title="Comprobante">
-        <div className="space-y-5">
-          {/* Success banner */}
-          <div className="flex items-center gap-3 bg-[#e8f5e9] rounded-2xl px-4 py-3">
-            <CheckCircle2 className="w-5 h-5 text-[#1b5e20] flex-shrink-0" />
-            <div>
-              <p className="font-black text-[#1b5e20] text-sm">¡Pedido registrado!</p>
-              <p className="text-xs text-[#388e3c]">Adjunta tu comprobante de pago digital</p>
-            </div>
-          </div>
-
-          <p className="text-xs text-[#81c784] text-center font-semibold leading-relaxed">
-            En caso de que el método de pago sea digital, adjunta el comprobante para confirmar tu pedido.
-          </p>
-
-          {/* Upload area */}
-          <div
-            onClick={() => fileRef.current?.click()}
-            className={`relative cursor-pointer rounded-3xl border-2 border-dashed transition-all duration-300 flex flex-col items-center justify-center gap-3 py-8
-              ${receiptPreview
-                ? 'border-[#4caf50] bg-[#f1f8f1]'
-                : 'border-[#c8e6c9] bg-[#f7faf8] hover:border-[#4caf50] hover:bg-[#f1f8f1]'
-              }`}
-          >
-            {receiptPreview ? (
-              <>
-                <img src={receiptPreview} alt="comprobante" className="w-full max-h-44 object-contain rounded-2xl" />
-                <p className="text-xs text-[#81c784] font-bold truncate max-w-[80%]">{receiptFile?.name}</p>
-                <p className="text-[10px] text-[#4caf50] font-black uppercase tracking-wide">✓ Archivo listo</p>
-              </>
-            ) : (
-              <>
-                <div className="w-14 h-14 bg-[#e8f5e9] rounded-2xl flex items-center justify-center">
-                  <Upload className="w-7 h-7 text-[#1b5e20]" />
-                </div>
-                <p className="font-black text-[#1b5e20] text-sm">Subir comprobante</p>
-                <p className="text-xs text-[#81c784]">PNG, JPG o PDF · máx 5MB</p>
-              </>
-            )}
-            <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden" onChange={handleFile} />
-          </div>
-
-          <div className="flex gap-3">
-            <button
-              onClick={() => { onSuccess(); onClose(); }}
-              className="flex-1 py-4 text-[#388e3c] font-bold rounded-2xl border-2 border-[#e8f5e9] hover:border-[#1b5e20] transition-all text-sm"
-            >
-              Enviar después
-            </button>
-            <button
-              onClick={() => { onSuccess(); onClose(); }}
-              disabled={!receiptFile}
-              className={`flex-1 py-4 font-black rounded-2xl transition-all text-sm flex items-center justify-center gap-2
-                ${receiptFile
-                  ? 'bg-[#1b5e20] text-white hover:bg-[#0d3300] shadow-lg shadow-[#1b5e20]/20'
-                  : 'bg-[#e8f5e9] text-[#81c784] cursor-not-allowed'
-                }`}
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              Confirmar
-            </button>
-          </div>
-        </div>
-      </ModalShell>
-    );
-  }
-
-  /* ── Formulario principal ── */
-  return (
-    <ModalShell onClose={onClose} title="Confirmar Pedido">
-      <div className="space-y-4 overflow-y-auto max-h-[60vh] pr-1">
-
-        {/* Datos del cliente */}
-        <div className="bg-[#f7faf8] rounded-3xl p-5 space-y-3 border border-[#e8f5e9]">
-          <p className="text-[10px] font-black text-[#4caf50] uppercase tracking-widest mb-1">Datos del Cliente</p>
-
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-[#e8f5e9] rounded-xl flex items-center justify-center flex-shrink-0">
-              <User className="w-4 h-4 text-[#1b5e20]" />
-            </div>
-            <div>
-              <p className="text-[10px] text-[#81c784] font-bold uppercase">Nombre</p>
-              <p className="font-black text-[#1b5e20] text-sm">{user?.nombre || user?.name || 'Cliente'}</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-[#e8f5e9] rounded-xl flex items-center justify-center flex-shrink-0">
-              <MapPin className="w-4 h-4 text-[#1b5e20]" />
-            </div>
-            <div>
-              <p className="text-[10px] text-[#81c784] font-bold uppercase">Dirección</p>
-              <p className="font-black text-[#1b5e20] text-sm">{user?.direccion || user?.address || 'No registrada'}</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-[#e8f5e9] rounded-xl flex items-center justify-center flex-shrink-0">
-              <Receipt className="w-4 h-4 text-[#1b5e20]" />
-            </div>
-            <div className="flex-1">
-              <p className="text-[10px] text-[#81c784] font-bold uppercase mb-1">A nombre de</p>
-              <input
-                type="text"
-                value={aliasName}
-                onChange={e => setAliasName(e.target.value)}
-                placeholder="Nombre para el pedido"
-                className="w-full bg-white border border-[#e8f5e9] rounded-xl px-3 py-2 text-sm font-bold text-[#1b5e20] placeholder-[#c8e6c9] focus:outline-none focus:border-[#4caf50] transition-colors"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Productos */}
-        <div className="bg-[#f7faf8] rounded-3xl p-5 border border-[#e8f5e9]">
-          <p className="text-[10px] font-black text-[#4caf50] uppercase tracking-widest mb-4">Productos</p>
-          <div className="space-y-2.5">
-            {cart.map(({ product, quantity }) => (
-              <div key={product.id} className="flex items-center gap-3">
-                <div className="w-2 h-2 rounded-full bg-[#4caf50] flex-shrink-0" />
-                <span className="flex-1 text-sm font-bold text-[#1b5e20] truncate">{product.nombre}</span>
-                <span className="text-xs text-[#81c784] font-bold whitespace-nowrap">${product.precio?.toLocaleString('es-CO')} ud.</span>
-                <span className="text-xs font-black text-[#1b5e20] bg-[#e8f5e9] px-2 py-1 rounded-lg">×{quantity}</span>
-                <span className="text-sm font-black text-[#1b5e20] w-24 text-right whitespace-nowrap">${(product.precio * quantity).toLocaleString('es-CO')}</span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-4 pt-4 border-t border-[#e8f5e9] flex justify-between items-center">
-            <span className="text-sm text-[#388e3c] font-bold">Total a Pagar</span>
-            <span className="text-xl font-black text-[#1b5e20]">${total.toLocaleString('es-CO')} COP</span>
-          </div>
-        </div>
-
-        {/* Método de pago */}
-        <div className="bg-[#f7faf8] rounded-3xl p-5 border border-[#e8f5e9]">
-          <p className="text-[10px] font-black text-[#4caf50] uppercase tracking-widest mb-4">Método de Pago</p>
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { id: 'digital', label: 'Digital', sub: 'Nequi / Bancolombia', icon: Smartphone },
-              { id: 'efectivo', label: 'Efectivo', sub: 'Pago al recibir', icon: Banknote },
-            ].map(({ id, label, sub, icon: Icon }) => (
-              <button
-                key={id}
-                onClick={() => setPayMethod(id)}
-                className={`relative flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all duration-200
-                  ${payMethod === id
-                    ? 'border-[#1b5e20] bg-[#1b5e20] text-white shadow-lg shadow-[#1b5e20]/20'
-                    : 'border-[#e8f5e9] bg-white text-[#1b5e20] hover:border-[#c8e6c9]'
-                  }`}
-              >
-                {payMethod === id && (
-                  <div className="absolute top-2 right-2 w-4 h-4 bg-white rounded-full flex items-center justify-center">
-                    <div className="w-2 h-2 bg-[#1b5e20] rounded-full" />
-                  </div>
-                )}
-                <Icon className="w-6 h-6" />
-                <div className="text-center">
-                  <p className="font-black text-sm">{label}</p>
-                  <p className={`text-[10px] font-semibold ${payMethod === id ? 'text-[#a5d6a7]' : 'text-[#81c784]'}`}>{sub}</p>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* CTA */}
-      <div className="mt-5 space-y-3">
-        {!canPay && (
-          <div className="flex items-center gap-2 text-amber-700 bg-amber-50 rounded-2xl px-4 py-3 border border-amber-100">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <p className="text-xs font-bold">Ingresa el nombre para el pedido</p>
-          </div>
-        )}
-        <button
-          onClick={handlePay}
-          disabled={!canPay}
-          className={`w-full flex items-center justify-center gap-3 py-5 font-black rounded-2xl transition-all text-base relative overflow-hidden
-            ${canPay
-              ? 'bg-[#1b5e20] text-white hover:bg-[#0d3300] shadow-[0_10px_30px_rgba(27,94,32,0.3)] hover:-translate-y-0.5 active:scale-95'
-              : 'bg-[#e8f5e9] text-[#81c784] cursor-not-allowed'
-            }`}
-        >
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full hover:translate-x-full transition-transform duration-700" />
-          Pagar — ${total.toLocaleString('es-CO')} COP
-          <ChevronRight className="w-5 h-5" />
-        </button>
-      </div>
-    </ModalShell>
-  );
-};
-
+// Importar componentes centralizados y servicio
+import CartAside from '../features/sales/orders/components/CartAside';
+import CheckoutModal from '../features/sales/orders/components/CheckoutModal';
+import { 
+  addToCart as addToCartService, 
+  getCart, 
+  getCartCount, 
+  clearCart 
+} from '../features/sales/orders/services/cartService';
 
 /* ═══════════════════════════════════════════
    LANDING PAGE
 ═══════════════════════════════════════════ */
 const LandingPage = ({ hideNavbar = false }) => {
   const navigate = useNavigate();
-  const { productos, getCatProducto } = useApp();
+  const { productos, getCatProducto, crearPedido } = useApp();
+  const { agregarNotificacion } = useNotificaciones();
   const [activeTab, setActiveTab] = useState('Todos');
   const [user, setUser] = useState(null);
 
-  const [cart, setCart] = useState([]);
+  const [cartCount, setCartCount] = useState(0);
   const [cartOpen, setCartOpen] = useState(false);
   const [quantities, setQuantities] = useState({});
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [orderDetails, setOrderDetails] = useState(null);
   const [orderDone, setOrderDone] = useState(false);
 
-  useEffect(() => { setUser(getUser()); }, []);
+  // Sincronizar contador del carrito
+  const syncCartInfo = useCallback(() => {
+    setCartCount(getCartCount());
+  }, []);
+
+  useEffect(() => { 
+    setUser(getUser()); 
+    syncCartInfo();
+    window.addEventListener('cart-updated', syncCartInfo);
+    return () => window.removeEventListener('cart-updated', syncCartInfo);
+  }, [syncCartInfo]);
+
+  /* ── Auto-scroll si hay hash en la URL ── */
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash) {
+      const id = hash.replace('#', '');
+      setTimeout(() => {
+        const el = document.getElementById(id);
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      }, 600);
+    }
+  }, []);
 
   const getQty = (id) => quantities[id] || 1;
   const setQty = (id, v) => setQuantities(prev => ({ ...prev, [id]: Math.max(1, v) }));
 
-  const addToCart = (product) => {
+  const handleAddToCart = (product) => {
     const qty = getQty(product.id);
-    setCart(prev => {
-      const ex = prev.find(i => i.product.id === product.id);
-      if (ex) return prev.map(i => i.product.id === product.id ? { ...i, quantity: i.quantity + qty } : i);
-      return [...prev, { product, quantity: qty }];
-    });
+    // Agregamos la cantidad seleccionada
+    for(let i=0; i<qty; i++) {
+      addToCartService(product);
+    }
     setQuantities(prev => ({ ...prev, [product.id]: 1 }));
     setCartOpen(true);
   };
 
-  const removeFromCart = (id) => setCart(prev => prev.filter(i => i.product.id !== id));
-  const updateCartQty = (id, delta) =>
-    setCart(prev => prev.map(i => i.product.id === id ? { ...i, quantity: i.quantity + delta } : i).filter(i => i.quantity > 0));
-
-  const cartTotal = cart.reduce((s, i) => s + i.product.precio * i.quantity, 0);
-  const cartCount = cart.reduce((s, i) => s + i.quantity, 0);
-
-  /* 🔑 VALIDACIÓN: si no hay sesión → login, si hay → modal checkout */
-  const handleCheckout = () => {
-    if (!user) {
-      navigate('/login');
-      return;
-    }
+  /* 🔑 Manejo de Checkout */
+  const handleStartCheckout = (details) => {
+    const currentUser = getUser();
+    setOrderDetails({
+      ...details,
+      clientName: currentUser?.nombre || '',
+      items: getCart(),
+      total: getCart().reduce((a, i) => a + i.precio * i.cantidad, 0),
+    });
     setCartOpen(false);
     setCheckoutOpen(true);
   };
 
-  const handleOrderSuccess = () => {
-    setCart([]);
+  const handleConfirmOrder = (paymentMethod, onBehalfOf, comprobante) => {
+    const currentUser = getUser();
+    const currentCart = getCart();
+    const total = currentCart.reduce((s, i) => s + i.precio * i.cantidad, 0);
+
+    const pedido = {
+      idCliente: currentUser?.cedula || '',
+      cliente: {
+        nombre:   currentUser ? `${currentUser.nombre} ${currentUser.apellidos || ''}`.trim() : onBehalfOf,
+        correo:   currentUser?.correo   || '',
+        telefono: currentUser?.telefono || '',
+      },
+      productosItems: currentCart.map(item => ({
+        idProducto:   item.id,
+        nombre:       item.nombre,
+        precio:       item.precio,
+        cantidad:     item.cantidad,
+        stockOk:      true,
+      })),
+      subtotal:          total,
+      descuento:         0,
+      total:             total,
+      metodo_pago:       paymentMethod === 'digital' ? 'Transferencia' : 'Efectivo',
+      domicilio:         true,
+      direccion_entrega: orderDetails.address,
+      notas:             '',
+      estado:            'Pendiente',
+      orden_produccion:  false,
+      comprobante:       comprobante ? true : false,
+    };
+
+    const res = crearPedido(pedido);
+    if (res && res.error) {
+       alert(res.error);
+       return;
+    }
+
+    clearCart();
+    setCheckoutOpen(false);
     setOrderDone(true);
+    
+    agregarNotificacion({
+      tipo: TIPOS.PEDIDO_NUEVO,
+      titulo: "¡Pedido registrado!",
+      mensaje: `Hemos recibido tu orden ${res.numero} correctamente.`,
+    });
+
     setTimeout(() => setOrderDone(false), 4000);
   };
 
@@ -389,142 +151,54 @@ const LandingPage = ({ hideNavbar = false }) => {
 
       {/* ── CSS animations ── */}
       <style>{`
-        @keyframes slide-up {
-          from { transform: translateY(60px); opacity: 0; }
-          to { transform: translateY(0); opacity: 1; }
-        }
         @keyframes slide-down-toast {
           from { transform: translateX(-50%) translateY(-20px); opacity: 0; }
           to { transform: translateX(-50%) translateY(0); opacity: 1; }
         }
-        @keyframes scale-in {
-          from { transform: scale(0.4); opacity: 0; }
-          to { transform: scale(1); opacity: 1; }
-        }
-        .animate-slide-up { animation: slide-up 0.45s cubic-bezier(0.32,0.72,0,1) both; }
         .animate-slide-down-toast { animation: slide-down-toast 0.4s ease both; }
-        .animate-scale-in { animation: scale-in 0.5s cubic-bezier(0.34,1.56,0.64,1) both; }
       `}</style>
 
       {/* ── Toast de éxito ── */}
       {orderDone && (
-        <div className="fixed top-6 left-1/2 z-[60] flex items-center gap-3 px-6 py-4 bg-[#1b5e20] text-white rounded-2xl shadow-2xl animate-slide-down-toast">
+        <div className="fixed top-6 left-1/2 z-[10000] flex items-center gap-3 px-6 py-4 bg-[#1b5e20] text-white rounded-2xl shadow-2xl animate-slide-down-toast">
           <CheckCircle2 className="w-5 h-5 text-[#81c784]" />
-          <span className="font-black">¡Pedido registrado con éxito!</span>
+          <span className="font-black">¡Pedido registrado con éxito! 🎉</span>
         </div>
       )}
 
-      {/* ── Checkout Modal ── */}
-      {checkoutOpen && (
-        <CheckoutModal
-          cart={cart}
-          user={user}
-          onClose={() => setCheckoutOpen(false)}
-          onSuccess={handleOrderSuccess}
-        />
-      )}
+      {/* ── Checkout Modal Premium ── */}
+      <CheckoutModal
+        isOpen={checkoutOpen}
+        onClose={() => setCheckoutOpen(false)}
+        orderDetails={orderDetails}
+        onConfirm={handleConfirmOrder}
+      />
+
+      {/* ── Cart Drawer Premium ── */}
+      <CartAside
+        isOpen={cartOpen}
+        onClose={() => setCartOpen(false)}
+        onCheckout={handleStartCheckout}
+        onLoginRequired={() => navigate('/login')}
+      />
 
       {/* ── Floating Cart Button ── */}
       {cartCount > 0 && !cartOpen && (
         <button
           onClick={() => setCartOpen(true)}
-          className="fixed bottom-8 right-8 z-40 flex items-center gap-3 px-6 py-4 bg-[#1b5e20] text-white font-black rounded-2xl shadow-[0_10px_40px_rgba(27,94,32,0.4)] hover:bg-[#0d3300] transition-all hover:-translate-y-1 active:scale-95"
+          className="fixed bottom-8 right-8 z-40 flex items-center gap-3 px-6 py-4 bg-[#1b5e20] text-white font-black rounded-2xl shadow-[0_10px_40px_rgba(27,94,32,0.4)] hover:bg-[#0d3300] transition-all hover:-translate-y-1 active:scale-95 group"
         >
-          <ShoppingCart className="w-5 h-5" />
-          <span>{cartCount} {cartCount === 1 ? 'producto' : 'productos'}</span>
-          <span className="bg-white text-[#1b5e20] px-3 py-1 rounded-xl text-sm font-black">
-            ${cartTotal.toLocaleString('es-CO')}
+          <div className="relative">
+            <ShoppingCart className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+            <span className="absolute -top-2 -right-2 bg-amber-500 text-white text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center border border-[#1b5e20]">
+              {cartCount}
+            </span>
+          </div>
+          <span>Ver Carrito</span>
+          <span className="bg-white/20 backdrop-blur-md text-white px-3 py-1 rounded-xl text-sm font-black border border-white/20">
+            ${getCart().reduce((s, i) => s + i.precio * i.cantidad, 0).toLocaleString('es-CO')}
           </span>
         </button>
-      )}
-
-      {/* ── Cart Drawer ── */}
-      {cartOpen && (
-        <>
-          <div className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" onClick={() => setCartOpen(false)} />
-          <div className="fixed top-0 right-0 h-full w-full max-w-md z-50 bg-white shadow-2xl flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b border-[#e8f5e9]">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-[#e8f5e9] rounded-xl flex items-center justify-center">
-                  <ShoppingCart className="w-5 h-5 text-[#1b5e20]" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-black text-[#1b5e20]">Tu Carrito</h2>
-                  <p className="text-xs text-[#81c784] font-bold">{cartCount} producto{cartCount !== 1 ? 's' : ''}</p>
-                </div>
-              </div>
-              <button onClick={() => setCartOpen(false)} className="w-10 h-10 bg-[#f7faf8] rounded-xl flex items-center justify-center hover:bg-[#e8f5e9] transition-colors">
-                <X className="w-5 h-5 text-[#1b5e20]" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
-              {cart.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full gap-4 text-[#81c784]">
-                  <ShoppingBag className="w-16 h-16 opacity-30" />
-                  <p className="font-bold text-lg">Tu carrito está vacío</p>
-                  <button onClick={() => { setCartOpen(false); scrollToSection('productos'); }} className="px-6 py-3 bg-[#e8f5e9] text-[#1b5e20] font-black rounded-2xl hover:bg-[#c8e6c9] transition-colors">
-                    Ver productos
-                  </button>
-                </div>
-              ) : (
-                cart.map(({ product, quantity }) => {
-                  const cat = getCatProducto(product.idCategoria);
-                  return (
-                    <div key={product.id} className="flex gap-4 p-4 bg-[#f7faf8] rounded-2xl border border-[#e8f5e9]">
-                      <div className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 bg-[#e8f5e9] flex items-center justify-center">
-                        {product.imagenPreview
-                          ? <img src={product.imagenPreview} alt={product.nombre} className="w-full h-full object-cover" />
-                          : <span className="text-3xl">{cat.icon || '🍌'}</span>}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-black text-[#1b5e20] truncate">{product.nombre}</p>
-                        <p className="text-xs text-[#81c784] font-bold mb-3">{cat.nombre}</p>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 bg-white rounded-xl border border-[#e8f5e9] p-1">
-                            <button onClick={() => updateCartQty(product.id, -1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#e8f5e9] transition-colors">
-                              <Minus className="w-3 h-3 text-[#1b5e20]" />
-                            </button>
-                            <span className="w-6 text-center font-black text-sm text-[#1b5e20]">{quantity}</span>
-                            <button onClick={() => updateCartQty(product.id, 1)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#e8f5e9] transition-colors">
-                              <Plus className="w-3 h-3 text-[#1b5e20]" />
-                            </button>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className="font-black text-[#1b5e20]">${(product.precio * quantity).toLocaleString('es-CO')}</span>
-                            <button onClick={() => removeFromCart(product.id)} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-red-50 text-red-400 hover:text-red-600 transition-colors">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {cart.length > 0 && (
-              <div className="p-6 border-t border-[#e8f5e9] space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-[#388e3c] font-bold">Total</span>
-                  <span className="text-2xl font-black text-[#1b5e20]">${cartTotal.toLocaleString('es-CO')} COP</span>
-                </div>
-                <button
-                  onClick={handleCheckout}
-                  className="group w-full flex items-center justify-center gap-3 py-5 bg-[#1b5e20] text-white font-black rounded-2xl hover:bg-[#0d3300] shadow-[0_10px_30px_rgba(27,94,32,0.3)] transition-all hover:-translate-y-0.5 active:scale-95 relative overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-                  Pagar ahora
-                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                </button>
-                <button onClick={() => setCartOpen(false)} className="w-full py-3 text-[#388e3c] font-bold hover:text-[#1b5e20] transition-colors text-sm">
-                  Seguir comprando
-                </button>
-              </div>
-            )}
-          </div>
-        </>
       )}
 
       {/* ─── HERO ─── */}
@@ -603,21 +277,21 @@ const LandingPage = ({ hideNavbar = false }) => {
             {filteredProducts.map((p) => {
               const cat = getCatProducto(p.idCategoria);
               const qty = getQty(p.id);
-              const inCart = cart.find(i => i.product.id === p.id);
+              const inCartItem = getCart().find(i => i.id === p.id);
               return (
                 <div key={p.id} className="group bg-white rounded-[40px] overflow-hidden border border-[#f1f8f1] hover:border-[#c8e6c9] hover:shadow-[0_30px_60px_rgba(27,94,32,0.1)] transition-all duration-500 flex flex-col">
                   <div className="relative h-72 overflow-hidden">
-                    {p.imagenPreview
-                      ? <img src={p.imagenPreview} alt={p.nombre} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                    {p.imagenPreview || p.imagen
+                      ? <img src={p.imagenPreview || p.imagen} alt={p.nombre} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                       : <div className="w-full h-full bg-[#f7faf8] flex items-center justify-center"><span className="text-7xl group-hover:scale-125 transition-transform duration-500">{cat.icon || '🍌'}</span></div>
                     }
                     <div className="absolute top-6 right-6 bg-white/95 backdrop-blur-sm px-5 py-2.5 rounded-2xl font-black text-[#1b5e20] shadow-lg">
                       ${p.precio?.toLocaleString('es-CO')}
                     </div>
-                    {inCart && (
-                      <div className="absolute top-6 left-6 bg-[#1b5e20] text-white px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5">
+                    {inCartItem && (
+                      <div className="absolute top-6 left-6 bg-[#1b5e20] text-white px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-lg border border-white/20">
                         <ShoppingCart className="w-3 h-3" />
-                        {inCart.quantity} en carrito
+                        {inCartItem.cantidad} en carrito
                       </div>
                     )}
                   </div>
@@ -637,7 +311,7 @@ const LandingPage = ({ hideNavbar = false }) => {
                           <Plus className="w-3.5 h-3.5 text-[#1b5e20]" />
                         </button>
                       </div>
-                      <button onClick={() => addToCart(p)} className="flex-1 flex items-center justify-center gap-2 py-4 bg-[#f1f8f1] text-[#1b5e20] font-black rounded-2xl group-hover:bg-[#1b5e20] group-hover:text-white transition-all active:scale-95 shadow-sm">
+                      <button onClick={() => handleAddToCart(p)} className="flex-1 flex items-center justify-center gap-2 py-4 bg-[#f1f8f1] text-[#1b5e20] font-black rounded-2xl group-hover:bg-[#1b5e20] group-hover:text-white transition-all active:scale-95 shadow-sm">
                         <ShoppingCart className="w-4 h-4" />
                         Agregar
                       </button>

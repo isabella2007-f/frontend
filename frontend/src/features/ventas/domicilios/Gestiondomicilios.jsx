@@ -514,8 +514,7 @@ function HistorialDomiciliario({ domicilios, empleados }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {grupos.map(({ emp, total, entregados, enCamino, pedidos }) => (
-        <div key={emp.id} className="hist-emp-card">
+       {grupos.map(({ emp, total, entregados, enCamino, activos, pedidos }) => (        <div key={emp.id} className="hist-emp-card">
           <div className="hist-emp-header" onClick={() => toggle(emp.id)}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{

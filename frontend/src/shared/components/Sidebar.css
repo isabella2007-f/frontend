@@ -40,10 +40,12 @@
   padding: 16px 16px 12px;
   position: relative;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
 }
 
 .search-input {
-  width: 50%;
+  width: 100%;
   padding: 9px 12px 9px 34px;
   border-radius: 10px;
   border: 1.5px solid #e8f0eb;
@@ -60,13 +62,13 @@
 
 .search-icon {
   position: absolute;
-  margin-left: 12px;
-  margin-top: 3px;
+  left: 28px;
   top: 50%;
   transform: translateY(-50%);
   font-size: 14px;
   color: #95a5a6;
   pointer-events: none;
+  line-height: 1;
 }
 
 /* ─── LABEL ──────────────────────────────────────────────── */
