@@ -64,7 +64,7 @@ function Toast({ toast }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   MODAL VER DETALLES (Rediseñado)
+   MODAL VER DETALLES
    ═══════════════════════════════════════════════════════════ */
 function ModalDetallesOrden({ orden, empleados, onClose }) {
   const [activeTab, setActiveTab] = useState("general");
@@ -72,7 +72,6 @@ function ModalDetallesOrden({ orden, empleados, onClose }) {
   if (!orden) return null;
   
   const empleado = empleados.find(e => String(e.id) === String(orden.idEmpleado));
-  const cfg = ESTADO_CONFIG[orden.estado] || {};
 
   const totalUnidades = (orden.productos || []).reduce((acc, x) => acc + (x.cantidad || 0), 0);
 
@@ -84,7 +83,7 @@ function ModalDetallesOrden({ orden, empleados, onClose }) {
     <div className="modal-overlay">
       <div className="modal-box modal-box--wide shadow-2xl overflow-hidden flex flex-col max-h-[95vh] border-none" style={{ borderRadius: '32px' }}>
         
-        {/* Header con Variables de Marca */}
+        {/* Header */}
         <div className="modal-header shrink-0" style={{ background: 'linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 100%)', padding: '24px' }}>
           <div className="flex items-center gap-4">
             <div className="bg-white/10 backdrop-blur-xl p-3 rounded-2xl border border-white/20">
@@ -103,7 +102,7 @@ function ModalDetallesOrden({ orden, empleados, onClose }) {
           </div>
         </div>
 
-        {/* Pestañas Modernas */}
+        {/* Pestañas */}
         <div className="flex bg-gray-50/80 backdrop-blur-sm border-b border-gray-100 px-6">
           {[
             { id: "general", label: "General", icon: <Info size={14} /> },
@@ -128,7 +127,6 @@ function ModalDetallesOrden({ orden, empleados, onClose }) {
 
           {activeTab === "general" && (
             <div className="space-y-6">
-              {/* Resumen KPI */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-green-50 p-4 rounded-2xl border border-green-100">
                   <p className="text-[9px] font-black text-green-600 uppercase tracking-widest mb-1">Unidades</p>
@@ -216,7 +214,6 @@ function ModalDetallesOrden({ orden, empleados, onClose }) {
                         <p className="text-[10px] font-black text-gray-400 uppercase">Cantidad</p>
                         <p className="text-lg font-black text-green-700">×{p.cantidad}</p>
                       </div>
-                      {/* ✅ Botón a Ficha Técnica */}
                       <button 
                         onClick={() => goToFicha(p.idProducto)}
                         className="p-2.5 bg-white hover:bg-green-600 text-green-600 hover:text-white rounded-xl shadow-sm border border-gray-100 hover:border-green-600 transition-all"
@@ -288,7 +285,7 @@ function ModalDetallesOrden({ orden, empleados, onClose }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   MODAL CAMBIAR ESTADO (Confirmación Explícita)
+   MODAL CAMBIAR ESTADO
    ═══════════════════════════════════════════════════════════ */
 function ModalCambiarEstado({ orden, onClose, onConfirm }) {
   const [estadoSel, setEstadoSel] = useState(null);
@@ -306,7 +303,6 @@ function ModalCambiarEstado({ orden, onClose, onConfirm }) {
     <div className="modal-overlay">
       <div className="modal-box relative bg-white shadow-2xl overflow-hidden flex flex-col border-none" style={{ borderRadius: '28px' }}>
         
-        {/* Cabecera */}
         <div className="modal-header shrink-0" style={{ background: 'linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 100%)', padding: '20px 24px' }}>
           <div>
             <h2 className="text-lg font-black text-white leading-none">Cambiar Estado</h2>
@@ -346,7 +342,6 @@ function ModalCambiarEstado({ orden, onClose, onConfirm }) {
               </div>
             </div>
           ) : (
-            /* ✅ PASO DE CONFIRMACIÓN */
             <div className="space-y-6 animate-in zoom-in-95 duration-300">
                <div className="bg-amber-50 border-2 border-amber-200 p-5 rounded-3xl text-center">
                   <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-3 text-amber-600">
@@ -425,7 +420,6 @@ function ModalEliminarOrden({ orden, onClose, onConfirm }) {
             </p>
           </div>
 
-          {/* Resumen rápido */}
           <div style={{ fontSize: 13, color: "#616161", lineHeight: 2 }}>
             <div><strong>Productos:</strong> {(orden.productos || []).map(p => `${p.nombre} ×${p.cantidad}`).join(", ") || "—"}</div>
             <div><strong>Estado actual:</strong> <EstadoBadge estado={orden.estado} /></div>
@@ -451,7 +445,6 @@ function ModalEliminarOrden({ orden, onClose, onConfirm }) {
 /* ═══════════════════════════════════════════════════════════
    MODAL FORMULARIO — CREAR / EDITAR ORDEN
    ═══════════════════════════════════════════════════════════ */
-/* ─── BARRA DE PASOS ─────────────────────────────────────── */
 const STEPS_WIZ = ["Datos Generales", "Productos e Insumos"];
 
 function StepsBarWiz({ current }) {
@@ -548,11 +541,8 @@ function ModalFormOrden({ orden, onClose, onSave }) {
   }, [form.productos, productos, allInsumos, UNIDADES_MEDIDA, calcularCostoProduccion]);
 
   useEffect(() => {
-    // Bloquear scroll cuando el modal está abierto
     document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "auto";
-    };
+    return () => { document.body.style.overflow = "auto"; };
   }, []);
 
   const addProducto = (idStr) => {
@@ -560,7 +550,6 @@ function ModalFormOrden({ orden, onClose, onSave }) {
     const prod = productos.find(x => x.id === id); if (!prod) return;
     if (form.productos.some(x => x.idProducto === id)) return;
     
-    // ADVERTENCIA FICHA TÉCNICA
     if (!prod.ficha) {
       alert(`⚠️ El producto "${prod.nombre}" no tiene una ficha técnica vinculada. No se podrán calcular los insumos necesarios para su fabricación.`);
     }
@@ -604,8 +593,9 @@ function ModalFormOrden({ orden, onClose, onSave }) {
   };
 
   return (
-    <div className="overlay" onClick={onClose}>
-      <div className="modal-card" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+    /* ✅ CORREGIDO: modal-overlay + modal-box en lugar de overlay + modal-card */
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div>
             <p className="modal-header__eyebrow">Producción</p>
@@ -633,6 +623,7 @@ function ModalFormOrden({ orden, onClose, onSave }) {
                 <div className="form-group">
                   <label className="form-label">Entrega <span className="required">*</span></label>
                   <input type="date" className={`field-input${errors.fecha ? " error" : ""}`} value={form.fechaEntrega} onChange={e => setForm(f => ({ ...f, fechaEntrega: e.target.value }))} />
+                  {errors.fecha && <p className="field-error">{errors.fecha}</p>}
                 </div>
                 <div className="form-group">
                   <label className="form-label">Estado</label>
@@ -655,6 +646,7 @@ function ModalFormOrden({ orden, onClose, onSave }) {
                 <option value="">+ Agregar producto...</option>
                 {productos.filter(p => p.activo !== false).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
               </select>
+              {errors.productos && <p className="field-error">{errors.productos}</p>}
               <div className="prod-list-mini" style={{ maxHeight: 120, overflowY: "auto", marginTop: 10 }}>
                 {form.productos.map(p => (
                   <div key={p.idProducto} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid #f5f5f5" }}>
@@ -677,9 +669,15 @@ function ModalFormOrden({ orden, onClose, onSave }) {
         </div>
 
         <div className="modal-footer" style={{ justifyContent: "space-between" }}>
-          {step > 1 ? <button className="btn-ghost" onClick={() => setStep(1)}>← Atrás</button> : <button className="btn-ghost" onClick={onClose}>Cancelar</button>}
+          {step > 1
+            ? <button className="btn-ghost" onClick={() => setStep(1)}>← Atrás</button>
+            : <button className="btn-ghost" onClick={onClose}>Cancelar</button>
+          }
           <div style={{ display: "flex", gap: 10 }}>
-            {step < 2 ? <button className="btn-save" onClick={handleNext}>Siguiente →</button> : <button className="btn-save" onClick={handleSave}>{orden ? "Guardar cambios" : "Crear orden"}</button>}
+            {step < 2
+              ? <button className="btn-save" onClick={handleNext}>Siguiente →</button>
+              : <button className="btn-save" onClick={handleSave}>{orden ? "Guardar cambios" : "Crear orden"}</button>
+            }
           </div>
         </div>
       </div>
@@ -696,7 +694,7 @@ export default function GestionOrdenesProduccion() {
     cambiarEstadoOrden,
     crearOrdenProduccion,
     editarOrdenProduccion,
-    eliminarOrdenProduccion,   // ← nueva función esperada en AppContext
+    eliminarOrdenProduccion,
     usuarios           = [],
     pedidos            = [],
   } = useApp();
@@ -712,7 +710,6 @@ export default function GestionOrdenesProduccion() {
   const [showFilter,   setShowFilter]   = useState(false);
   const [page,         setPage]         = useState(1);
   const [modal,        setModal]        = useState(null);
-  // modal.type: "form" | "detalles" | "estado" | "eliminar"
   const [toast,        setToast]        = useState(null);
   const filterRef = useRef();
 
@@ -745,7 +742,6 @@ export default function GestionOrdenesProduccion() {
   const safePage   = Math.min(page, totalPages);
   const paged      = filtered.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE);
 
-  /* ── Handlers ── */
   const handleSaveOrder = (data) => {
     if (data.id) {
       editarOrdenProduccion(data);
@@ -898,28 +894,21 @@ export default function GestionOrdenesProduccion() {
                       <td><EstadoBadge estado={orden.estado} /></td>
                       <td>
                         <div className="actions-cell">
-                          {/* Ver detalles */}
                           <button
                             className="act-btn act-btn--view"
                             title="Ver detalles"
                             onClick={() => setModal({ type: "detalles", orden })}
                           >👁</button>
-
-                          {/* Editar */}
                           <button
                             className="act-btn act-btn--edit"
                             title="Editar orden"
                             onClick={() => setModal({ type: "form", orden })}
                           >✎</button>
-
-                          {/* Cambiar estado */}
                           <button
                             className="act-btn act-btn--status"
                             title="Cambiar estado"
                             onClick={() => setModal({ type: "estado", orden })}
                           >🔄</button>
-
-                          {/* Eliminar */}
                           <button
                             className="act-btn act-btn--delete"
                             title="Eliminar orden"
@@ -934,7 +923,6 @@ export default function GestionOrdenesProduccion() {
             </table>
           </div>
 
-          {/* Paginación */}
           {totalPages > 1 && (
             <div className="pagination-bar">
               <span className="pagination-count">
@@ -966,7 +954,6 @@ export default function GestionOrdenesProduccion() {
           onSave={handleSaveOrder}
         />
       )}
-
       {modal?.type === "detalles" && (
         <ModalDetallesOrden
           orden={modal.orden}
@@ -975,7 +962,6 @@ export default function GestionOrdenesProduccion() {
           onEdit={(orden) => setModal({ type: "form", orden })}
         />
       )}
-
       {modal?.type === "estado" && (
         <ModalCambiarEstado
           orden={modal.orden}
@@ -983,7 +969,6 @@ export default function GestionOrdenesProduccion() {
           onConfirm={handleCambiarEstado}
         />
       )}
-
       {modal?.type === "eliminar" && (
         <ModalEliminarOrden
           orden={modal.orden}

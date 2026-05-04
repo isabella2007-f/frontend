@@ -122,18 +122,24 @@ export default function CrearCompra({ onClose, onSave }) {
   };
 
   const handleSave = async () => {
+    if (saving) return; // Prevent double click
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaving(true);
-    await new Promise(r => setTimeout(r, 400));
-    const detallesLimpios = detalles.map(d => ({
-      idInsumo:         Number(d.idInsumo),
-      cantidad:         Number(d.cantidad),
-      precioUnd:        Number(d.precioUnd),
-      notas:            d.notas.trim(),
-      fechaVencimiento: d.vencimientoTipo === "dias" ? sumarDias(d.vencimientoValor) : d.fechaVencimiento,
-    }));
-    onSave({ ...form, detalles: detallesLimpios });
+    try {
+      await new Promise(r => setTimeout(r, 400));
+      const detallesLimpios = detalles.map(d => ({
+        idInsumo:         Number(d.idInsumo),
+        cantidad:         Number(d.cantidad),
+        precioUnd:        Number(d.precioUnd),
+        notas:            d.notas.trim(),
+        fechaVencimiento: d.vencimientoTipo === "dias" ? sumarDias(d.vencimientoValor) : d.fechaVencimiento,
+      }));
+      onSave({ ...form, detalles: detallesLimpios });
+    } catch (err) {
+      console.error("Error saving purchase:", err);
+      setSaving(false);
+    }
   };
 
   return (

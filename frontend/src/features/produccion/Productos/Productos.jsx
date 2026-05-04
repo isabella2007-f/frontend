@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import { useApp } from "../../../AppContext.jsx";
 import { Toast } from "./ui.jsx";
 import CrearProducto from "./CrearProducto.jsx";
@@ -198,7 +199,7 @@ function LotesProductoPanel({ idProducto }) {
    VER PRODUCTO
 ══════════════════════════════════════════════════════════ */
 function VerProducto({ product, catObj, onClose }) {
-  const { getLotesProducto, getSalidasProducto, getLotesVencidosProducto } = useApp();
+  const { getSalidasProducto, getLotesVencidosProducto } = useApp();
   const [tab, setTab] = useState("info");
   const [imgIdx, setImgIdx] = useState(0);
 

@@ -715,9 +715,12 @@ export function AppProvider({ children }) {
     const detalles      = form.detalles.map((d, i) => ({ ...d, id: `${id}-D${i + 1}` }));
     const stockAplicado = form.estado === "completada";
     const nueva         = { ...form, id, detalles, stockAplicado };
+
     setCompras(p => [nueva, ...p]);
+
     if (stockAplicado) {
-      setLotes(prev => [...prev, ..._buildLotes(id, detalles, prev)]);
+      // Usamos el estado anterior para generar lotes de forma consistente
+      setLotes(prevLotes => [...prevLotes, ..._buildLotes(id, detalles, prevLotes)]);
       _subirStock(detalles);
     } else {
       agregarNotifInterna({
@@ -732,27 +735,41 @@ export function AppProvider({ children }) {
   };
 
   const editarCompra = (form) => {
-    setCompras(p => p.map(c => {
+    setCompras(prevCompras => prevCompras.map(c => {
       if (c.id !== form.id) return c;
-      if (c.stockAplicado) return { ...c, notas: form.notas, metodoPago: form.metodoPago };
+      
+      // Si ya se aplicó el stock, solo permitir editar notas y método de pago
+      if (c.stockAplicado) {
+        return { ...c, notas: form.notas, metodoPago: form.metodoPago };
+      }
+
+      // Si pasa a completada ahora, aplicar stock
       if (form.estado === "completada") {
         const detallesConId = form.detalles.map((d, i) => ({ ...d, id: d.id || `${c.id}-D${i + 1}` }));
-        setLotes(prev => [...prev, ..._buildLotes(c.id, detallesConId, prev)]);
+        setLotes(prevLotes => [...prevLotes, ..._buildLotes(c.id, detallesConId, prevLotes)]);
         _subirStock(detallesConId);
         return { ...form, detalles: detallesConId, stockAplicado: true };
       }
+
+      // Si sigue pendiente o anulada (pero no aplicada antes)
       return { ...form, stockAplicado: false };
     }));
   };
 
   const completarCompra = (id) => {
-    setCompras(prev => prev.map(c => {
-      if (c.id !== id || c.stockAplicado) return c;
-      const detallesConId = c.detalles.map((d, i) => ({ ...d, id: d.id || `${c.id}-D${i + 1}` }));
-      setLotes(prevL => [...prevL, ..._buildLotes(c.id, detallesConId, prevL)]);
+    setCompras(prevCompras => {
+      const compra = prevCompras.find(c => c.id === id);
+      if (!compra || compra.stockAplicado) return prevCompras;
+
+      const detallesConId = compra.detalles.map((d, i) => ({ ...d, id: d.id || `${compra.id}-D${i + 1}` }));
+      
+      setLotes(prevLotes => [...prevLotes, ..._buildLotes(compra.id, detallesConId, prevLotes)]);
       _subirStock(detallesConId);
-      return { ...c, estado: "completada", detalles: detallesConId, stockAplicado: true };
-    }));
+
+      return prevCompras.map(c => 
+        c.id === id ? { ...c, estado: "completada", detalles: detallesConId, stockAplicado: true } : c
+      );
+    });
   };
 
   // ✅ FIX: anularCompra corregido — siempre retorna { ok: true/false }
