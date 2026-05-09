@@ -9,7 +9,7 @@ import {
 import { getUser } from '../../../services/authService';
 import CartAside from './components/CartAside';
 import CheckoutModal from './components/CheckoutModal';
-import '../../../styles/client.css';
+import '../../../styles/Client.css';
 
 /* ─── OrdersPage principal ────────────────────────────── */
 const OrdersPage = () => {
