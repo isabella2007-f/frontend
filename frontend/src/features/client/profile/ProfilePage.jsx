@@ -4,7 +4,7 @@ import ProfileForm from './components/ProfileForm.jsx';
 import { getCurrentUser, updateUser } from './services/profileService.js';
 import { useApp } from '../../../AppContext.jsx';
 import { UserCircle, Leaf, ShieldCheck, Package } from 'lucide-react';
-import '../../../styles/client.css';
+import '../../../styles/Client.css';
 
 const ProfilePage = () => {
   const { pedidos } = useApp();

@@ -4,7 +4,7 @@ import DeliveryStatus   from './components/DeliveryStatus';
 import DeliveryDetails  from './components/DeliveryDetails';
 import DeliveryTimeline from './components/DeliveryTimeline';
 import { MapPin, Leaf, Clock } from 'lucide-react';
-import '../../../styles/client.css';
+import '../../../styles/Client.css';
 
 const DeliveryPage = () => {
   const [order,   setOrder]   = useState(null);

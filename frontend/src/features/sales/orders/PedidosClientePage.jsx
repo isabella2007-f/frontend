@@ -7,7 +7,7 @@ import {
   ChevronRight, Clock, CheckCircle2, Truck, AlertCircle, 
   XCircle, Filter, ShoppingBag
 } from 'lucide-react';
-import '../../../styles/client.css';
+import '../../../styles/Client.css';
 
 const COP = (n) =>
   new Intl.NumberFormat('es-CO', {

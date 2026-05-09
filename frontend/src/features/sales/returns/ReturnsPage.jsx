@@ -11,7 +11,7 @@ import {
   MapPin, DollarSign, ChevronRight, ArrowRight, History, 
   PackageMinus, AlertCircle, ShoppingBag, Clock
 } from 'lucide-react';
-import '../../../styles/client.css';
+import '../../../styles/Client.css';
 
 const COP = (n) =>
   new Intl.NumberFormat('es-CO', {
