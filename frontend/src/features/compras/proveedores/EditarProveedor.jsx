@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import "./proveedores.css";
+import "./Proveedores.css";
 
 const TIPO_DOCS = [
   { val: "CC",  label: "Cédula de Ciudadanía" },

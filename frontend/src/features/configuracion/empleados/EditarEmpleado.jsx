@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { TIPOS_DOC, ROLES_EMPLEADO, fmtTel, toInputDate, fromInputDate } from "./empleadosUtils.js";
 import { RolBadge, LocationSelects } from "./CrearEmpleado.jsx";
 import { validatePassword } from "../Usuarios/usuariosUtils.js";
-import "./empleados.css";
+import "./Empleados.css";
 
 /* ─── Barra de pasos (reutilizada en Editar) ─────────────── */
 const STEPS_EDITAR = ["Identificación", "Personal", "Ubicación", "Contraseña"];

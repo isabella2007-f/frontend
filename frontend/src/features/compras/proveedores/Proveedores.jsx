@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useApp } from "../../../AppContext.jsx";
-import "./proveedores.css";
+import "./Proveedores.css";
 import CrearProveedor   from "./CrearProveedor";
 import EditarProveedor  from "./EditarProveedor";
 import ModalEliminarValidado from "../../../ModalEliminarValidado";

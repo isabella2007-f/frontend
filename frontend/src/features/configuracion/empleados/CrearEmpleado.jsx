@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { TIPOS_DOC, ROLES_EMPLEADO, uid, fmtTel, toInputDate, fromInputDate } from "./empleadosUtils.js";
-import "./empleados.css";
+import "./Empleados.css";
 
 /* ─── RolBadge ───────────────────────────────────────────── */
 export function RolBadge({ idRol }) {

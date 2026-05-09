@@ -3,7 +3,7 @@ import { ROLES_EMPLEADO, ITEMS_PER_PAGE, INIT_EMPLEADOS } from "./empleadosUtils
 import { RolBadge } from "./CrearEmpleado.jsx";
 import CrearEmpleado from "./CrearEmpleado.jsx";
 import EditarEmpleado, { ModalVerEmpleado, ModalEliminarEmpleado } from "./EditarEmpleado.jsx";
-import "./empleados.css";
+import "./Empleados.css";
 
 /* ─── Toggle ─────────────────────────────────────────────── */
 function Toggle({ value, onChange }) {
