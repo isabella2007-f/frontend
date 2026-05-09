@@ -85,7 +85,7 @@ export default function CrearInsumo({ onClose, onSave, categorias, unidades }) {
   };
 
   return (
-    <div className="overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
 
         {/* Header */}

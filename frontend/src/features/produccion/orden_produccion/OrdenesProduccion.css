@@ -27,7 +27,15 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; color: #1a1a1a; }
    TOOLBAR
    ═══════════════════════════════════════════════════════════ */
 
-.toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.toolbar { 
+  display: flex; 
+  align-items: center; 
+  gap: 12px; 
+  margin-bottom: 16px; 
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 100;
+}
 .search-wrap  { flex: 1; min-width: 200px; position: relative; }
 .search-icon  { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #9e9e9e; font-size: 16px; pointer-events: none; }
 .search-input {

@@ -48,6 +48,12 @@ html, body, #root {
   margin: 0 auto;    
 }
 
+/* ── Toolbar fix para evitar que los filtros se oculten tras la tabla ── */
+.toolbar {
+  position: relative;
+  z-index: 100; /* Suficiente para estar por encima de la tabla y sus headers */
+}
+
 /* ── Estilos de consistencia para tablas ── */
 .card {
   background: #fff;

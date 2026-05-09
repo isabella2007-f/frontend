@@ -41,7 +41,15 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; color: #1a1a1a; }
    TOOLBAR
    ═══════════════════════════════════════════════════════════ */
 
-.toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.toolbar { 
+  display: flex; 
+  align-items: center; 
+  gap: 12px; 
+  margin-bottom: 16px; 
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 100;
+}
 
 /* Búsqueda */
 .search-wrap  { flex: 1; min-width: 200px; position: relative; }

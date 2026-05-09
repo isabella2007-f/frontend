@@ -272,6 +272,8 @@
 .sl-toolbar {
   flex-shrink: 0;
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  position: relative;
+  z-index: 100;
 }
 .sl-filter-btn {
   padding: 9px 16px; border-radius: 10px;

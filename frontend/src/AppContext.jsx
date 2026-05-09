@@ -350,17 +350,9 @@ export function AppProvider({ children }) {
   const [asignacionesDesc,    setAsignacionesDesc]    = useState(() => loadFromLS("asignacionesDesc",    initAsignacionesDescuento));
   const [historialDescuentos, setHistorialDescuentos] = useState(() => loadFromLS("historialDescuentos", initHistorialDescuentos));
 
-  const [notificaciones, setNotificaciones] = useState(() => loadFromLS("notificaciones", []));
-  useEffect(() => { localStorage.setItem("notificaciones", JSON.stringify(notificaciones)); }, [notificaciones]);
-
-  const notificacionesRef = useRef(notificaciones);
-  useEffect(() => { notificacionesRef.current = notificaciones; }, [notificaciones]);
-
+  /* ── Notificaciones — disparar evento para NotificacionesContext ── */
   const agregarNotifInterna = useCallback((datos) => {
-    setNotificaciones(prev => {
-      if (datos.clave && prev.some(n => n.clave === datos.clave && !n.leida)) return prev;
-      return [buildNotif(datos), ...prev];
-    });
+    window.dispatchEvent(new CustomEvent("toston-add-notification", { detail: datos }));
   }, []);
 
   /* ── Persistencia ───────────────────────────────────── */
@@ -995,7 +987,28 @@ export function AppProvider({ children }) {
     }));
   };
 
-  const asignarDomiciliario = (pedidoId, empleadoId) => setPedidos(prev => prev.map(p => p.id === pedidoId ? { ...p, idEmpleado: empleadoId } : p));
+  const asignarDomiciliario = (pedidoId, empleadoId) => {
+    setPedidos(prev => prev.map(p => {
+      if (p.id === pedidoId) {
+        const emp = usuarios.find(u => u.id === empleadoId);
+        
+        // Notificación para el CLIENTE
+        if (p.idCliente) {
+          agregarNotifInterna({
+            tipo:  NOTIF_TIPOS.SISTEMA,
+            clave: `cliente-asignar-domicilio-${pedidoId}`,
+            titulo: `¡Repartidor Asignado!`,
+            mensaje: `Tu pedido #${p.numero} será entregado por ${emp ? emp.nombre : 'un repartidor'}.`,
+            idReferencia: p.numero, refNombre: p.numero,
+            idDestinatario: p.idCliente
+          });
+        }
+        
+        return { ...p, idEmpleado: empleadoId };
+      }
+      return p;
+    }));
+  };
 
   const generarOrdenProduccion = (pedidoId, { fechaEntrega, notas }) => {
     const pedido = pedidos.find(p => p.id === pedidoId); if (!pedido) return;

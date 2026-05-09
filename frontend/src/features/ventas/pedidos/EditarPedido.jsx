@@ -217,7 +217,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
 
   if (!esEditable) {
     return (
-      <div className="overlay" onClick={onClose}>
+      <div className="modal-overlay" onClick={onClose}>
         <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
           <div style={{ padding: "28px 24px", textAlign: "center" }}>
             <div style={{
@@ -377,7 +377,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
   };
 
   return (
-    <div className="overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose}>
       <div
         className="modal-card"
         onClick={e => e.stopPropagation()}

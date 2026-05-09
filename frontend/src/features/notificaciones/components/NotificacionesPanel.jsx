@@ -34,6 +34,19 @@ export default function NotificacionesPanel({ isOpen, onClose }) {
   const [detalle,      setDetalle]      = useState(null); // HU_02 — ver detalle CA_02_04
   const panelRef = useRef(null);
 
+  // Obtener usuario para filtrar las opciones del select
+  const session = localStorage.getItem("session");
+  const user = session ? JSON.parse(session) : null;
+  const rol = user?.rol?.toLowerCase();
+  const isAdmin = rol === 'admin' || rol === 'administrador';
+
+  // Tipos relevantes segun rol
+  const tiposRelevantes = Object.entries(TIPO_LABELS).filter(([tipo]) => {
+    if (isAdmin) return true; // El admin ve todo
+    // El cliente solo ve Pedido y Sistema
+    return [TIPOS.PEDIDO_NUEVO, TIPOS.SISTEMA].includes(tipo);
+  });
+
   // Cerrar con Escape
   useEffect(() => {
     const handler = (e) => { if (e.key === "Escape") onClose(); };
@@ -115,7 +128,7 @@ export default function NotificacionesPanel({ isOpen, onClose }) {
             onChange={e => setFiltroTipo(e.target.value)}
           >
             <option value="">Todos los tipos</option>
-            {Object.entries(TIPO_LABELS).map(([k, v]) => (
+            {tiposRelevantes.map(([k, v]) => (
               <option key={k} value={k}>{TIPO_ICONS[k]} {v}</option>
             ))}
           </select>

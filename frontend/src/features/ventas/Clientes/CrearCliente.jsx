@@ -158,7 +158,7 @@ export default function CrearCliente({ onClose, onSave }) {
   };
 
   return (
-    <div className="overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
 
         <div className="modal-header">

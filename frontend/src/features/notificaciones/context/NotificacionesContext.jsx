@@ -96,37 +96,48 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
     };
   }, []);
 
+  /* ── Listener para agregar notificaciones desde fuera (AppContext) ── */
+  useEffect(() => {
+    const handleExternalNotif = (e) => {
+      if (e.detail) {
+        agregarNotificacion(e.detail);
+      }
+    };
+    window.addEventListener("toston-add-notification", handleExternalNotif);
+    return () => window.removeEventListener("toston-add-notification", handleExternalNotif);
+  }, [notificaciones]);
+
   /* ══════════════════════════════════════════════════════
      HU_01 — Generar notificaciones automáticas al detectar
              insumos bajo el nivel mínimo configurado
              (SOLO PARA ADMINISTRADORES)
   ══════════════════════════════════════════════════════ */
   const generarNotifAutomaticas = useCallback(() => {
-    if (!autoActivo || user?.rol === 'cliente') return;
+    const rol = user?.rol?.toLowerCase();
+    const isAdmin = rol === 'admin' || rol === 'administrador';
+    
+    if (!autoActivo || !isAdmin) return;
 
     const nuevas = [];
 
     insumos.forEach(ins => {
-      // Nivel mínimo: primero el configurado manualmente, sino el del insumo
       const minimo = nivelesMinimos[ins.id] !== undefined ? nivelesMinimos[ins.id] : ins.stockMinimo;
       const stock  = ins.stockActual;
 
       if (stock <= 0) {
-        // Stock agotado — CA_01_03: indica insumo y motivo
         const clave = `${TIPOS.STOCK_AGOTADO}-${ins.id}`;
         const yaExiste = notificaciones.some(n => n.clave === clave && !n.leida);
-        if (!yaExiste) { // CA_01_05: no duplicar
+        if (!yaExiste) {
           nuevas.push({
             id: uid(), clave, tipo: TIPOS.STOCK_AGOTADO,
             titulo: `Stock agotado: ${ins.nombre}`,
             mensaje: `El insumo "${ins.nombre}" tiene stock en 0. Se requiere realizar una compra urgente.`,
             idReferencia: ins.id, refNombre: ins.nombre,
             fecha: fechaHoy(), leida: false,
-            idDestinatario: 'admin' // ✅ Dirigida al admin
+            idDestinatario: 'admin'
           });
         }
       } else if (minimo !== undefined && stock <= minimo) {
-        // Bajo nivel mínimo — CA_01_02
         const clave = `${TIPOS.STOCK_MINIMO}-${ins.id}`;
         const yaExiste = notificaciones.some(n => n.clave === clave && !n.leida);
         if (!yaExiste) {
@@ -136,13 +147,12 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
             mensaje: `El insumo "${ins.nombre}" tiene ${stock} ${ins.unidad || "und"} disponibles, por debajo del mínimo configurado de ${minimo}. Se requiere realizar una compra.`,
             idReferencia: ins.id, refNombre: ins.nombre,
             fecha: fechaHoy(), leida: false,
-            idDestinatario: 'admin' // ✅ Dirigida al admin
+            idDestinatario: 'admin'
           });
         }
       }
     });
 
-    // Lotes por vencer / vencidos
     const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
     lotes.forEach(lote => {
       if (!lote.fechaVencimiento || lote.cantidadActual <= 0) return;
@@ -178,7 +188,6 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
       }
     });
 
-    // Compras pendientes antiguas (> 5 días)
     compras.forEach(compra => {
       if (compra.estado !== "pendiente") return;
       const dias = Math.round((hoy - new Date(compra.fecha + "T00:00:00")) / 86_400_000);
@@ -202,45 +211,31 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
     }
   }, [autoActivo, insumos, lotes, compras, nivelesMinimos, notificaciones, user]);
 
-  // Ejecutar al montar y cuando cambien los datos relevantes
   useEffect(() => {
     generarNotifAutomaticas();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoActivo, insumos.length, lotes.length, compras.length, user]);
 
-  /* ══════════════════════════════════════════════════════
-     HU_05 — Marcar como leída
-             CA_05_01 no elimina la notificación
-             CA_05_02 actualiza lista automáticamente
-  ══════════════════════════════════════════════════════ */
   const marcarLeida = useCallback((id) => {
     setNotificaciones(prev => prev.map(n => n.id === id ? { ...n, leida: true } : n));
   }, []);
 
   const marcarTodasLeidas = useCallback(() => {
     setNotificaciones(prev => prev.map(n => {
-      // Solo marcar como leídas las que corresponden al usuario actual
-      const isForCurrent = 
-        (user?.rol === 'administrador' && n.idDestinatario === 'admin') ||
-        (n.idDestinatario === user?.cedula);
-      
+      const rol = user?.rol?.toLowerCase();
+      const isAdmin = rol === 'admin' || rol === 'administrador';
+      const isForCurrent = (isAdmin && n.idDestinatario === 'admin') || (n.idDestinatario === user?.cedula);
       return isForCurrent ? { ...n, leida: true } : n;
     }));
   }, [user]);
 
-  /* ══════════════════════════════════════════════════════
-     HU_03 — Filtrar por tipo y estado
-             CA_03_01 filtrar por tipo
-             CA_03_02 filtrar por estado (leída/no leída)
-             CA_03_03 combinar filtros
-             CA_03_04 lista se actualiza según filtros
-             CA_03_05 limpiar filtros
-  ══════════════════════════════════════════════════════ */
   const filtrar = useCallback(({ tipo, estado, texto }) => {
     return notificaciones.filter(n => {
-      // ✅ SEPARACIÓN DE SISTEMAS: Filtrar por destinatario
-      const isForAdmin = user?.rol === 'administrador' && n.idDestinatario === 'admin';
-      const isForClient = user?.rol === 'cliente' && n.idDestinatario === user?.cedula;
+      const rol = user?.rol?.toLowerCase();
+      const isAdmin = rol === 'admin' || rol === 'administrador';
+      const isClient = rol === 'cliente';
+
+      const isForAdmin = isAdmin && n.idDestinatario === 'admin';
+      const isForClient = isClient && n.idDestinatario === user?.cedula;
       
       if (!isForAdmin && !isForClient) return false;
 
@@ -250,30 +245,28 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
       if (texto  && !n.titulo.toLowerCase().includes(texto.toLowerCase()) &&
                     !n.mensaje.toLowerCase().includes(texto.toLowerCase()))   return false;
       return true;
-    }).sort((a, b) => new Date(b.fecha) - new Date(a.fecha)); // CA_02_03 ordenadas por fecha
+    }).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
   }, [notificaciones, user]);
 
-  /* ── HU_01: configurar nivel mínimo por insumo ───────── */
   const configurarNivelMinimo = useCallback((idInsumo, nivel) => {
     setNivelesMinimos(prev => ({ ...prev, [idInsumo]: Number(nivel) }));
   }, []);
 
-  /* ── Agregar notificación manual (sistema) ───────────── */
   const agregarNotificacion = useCallback((datos) => {
-    // Si no trae destinatario, asumimos admin por defecto
     const destinatario = datos.idDestinatario || 'admin';
     setNotificaciones(prev => [{ id: uid(), fecha: fechaHoy(), leida: false, ...datos, idDestinatario: destinatario }, ...prev]);
   }, []);
 
-  /* ── Eliminar notificación ───────────────────────────── */
   const eliminarNotificacion = useCallback((id) => {
     setNotificaciones(prev => prev.filter(n => n.id !== id));
   }, []);
 
-  /* ── Derivados (filtrados por usuario actual) ─────────── */
   const notifUsuario = notificaciones.filter(n => {
-    const isForAdmin = user?.rol === 'administrador' && n.idDestinatario === 'admin';
-    const isForClient = user?.rol === 'cliente' && n.idDestinatario === user?.cedula;
+    const rol = user?.rol?.toLowerCase();
+    const isAdmin = rol === 'admin' || rol === 'administrador';
+    const isClient = rol === 'cliente';
+    const isForAdmin = isAdmin && n.idDestinatario === 'admin';
+    const isForClient = isClient && n.idDestinatario === user?.cedula;
     return isForAdmin || isForClient;
   });
 
@@ -290,8 +283,6 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
       nivelesMinimos,
       bannerVisto,
       setBannerVisto,
-
-      // Acciones
       marcarLeida,
       marcarTodasLeidas,
       eliminarNotificacion,

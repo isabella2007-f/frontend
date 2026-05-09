@@ -25,9 +25,9 @@ const TIPOS = [
 const TIPO_MAP = Object.fromEntries(TIPOS.map(t => [t.val, t]));
 
 /* ══════════════════════════════════════════════════════════
-   TAB 1 — REGISTRAR SALIDA
+   TAB 1 — REGISTRAR SALIDA (MODAL)
 ══════════════════════════════════════════════════════════ */
-function RegistrarSalida({ onSalidaRegistrada }) {
+function RegistrarSalida({ onClose, onSalidaRegistrada }) {
   const {
     productos, insumos,
     getCatProducto, getCatInsumo, getUnidad,
@@ -85,8 +85,10 @@ function RegistrarSalida({ onSalidaRegistrada }) {
     }
     if (result?.ok !== false) {
       showToast(`Salida registrada — ${seleccionado.nombre} (-${cantidad} ${unidadLabel})`);
-      onSalidaRegistrada?.();
-      setSeleccionado(null); setBusqueda(""); setCantidad(""); setMotivo(""); setErrors({});
+      setTimeout(() => {
+        onSalidaRegistrada?.();
+        onClose();
+      }, 1500);
     } else {
       showToast(result.razon || "Error al registrar", "error");
     }
@@ -94,142 +96,156 @@ function RegistrarSalida({ onSalidaRegistrada }) {
   };
 
   return (
-    <div className="sl-registrar-grid">
-
-      {/* ── Columna izquierda: selector ── */}
-      <div className="sl-panel">
-        <p className="sl-panel__title">1 · Seleccionar elemento</p>
-
-        <div className="sl-tipo-tabs">
-          <button className={`sl-tipo-tab${entidadTipo === "producto" ? " active" : ""}`}
-            onClick={() => { setEntidadTipo("producto"); setSeleccionado(null); setBusqueda(""); }}>
-            📦 Productos
-          </button>
-          <button className={`sl-tipo-tab${entidadTipo === "insumo" ? " active" : ""}`}
-            onClick={() => { setEntidadTipo("insumo"); setSeleccionado(null); setBusqueda(""); }}>
-            🧺 Insumos
-          </button>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box--wide" onClick={e => e.stopPropagation()} style={{ maxWidth: 850 }}>
+        <div className="modal-header">
+          <div>
+            <p className="modal-header__eyebrow">Logística</p>
+            <h2 className="modal-header__title">Registrar Salida</h2>
+          </div>
+          <button className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
 
-        <div className="sl-search">
-          <span className="sl-search__icon">🔍</span>
-          <input className="sl-search__input" placeholder="Buscar por nombre o categoría…"
-            value={busqueda}
-            onChange={e => { setBusqueda(e.target.value); setErrors(p => ({ ...p, seleccionado: "" })); }} />
-        </div>
+        <div className="modal-body">
+          <div className="sl-registrar-grid">
 
-        {/* Lista con scroll interno */}
-        <div className="sl-lista">
-          {filtrados.length === 0
-            ? <div className="sl-lista__empty">Sin resultados</div>
-            : filtrados.map(item => {
-                const stock = item._stock;
-                const min   = item.stockMinimo ?? 10;
-                const agot  = stock === 0;
-                const bajo  = stock < min && !agot;
-                return (
-                  <button key={`${item._tipo}-${item.id}`}
-                    className={`sl-lista__item${seleccionado?.id === item.id && seleccionado?._tipo === item._tipo ? " selected" : ""}`}
-                    onClick={() => { setSeleccionado(item); setErrors(p => ({ ...p, seleccionado: "" })); }}>
-                    <div className="sl-lista__item-name">{item.nombre}</div>
-                    <div className="sl-lista__item-meta">
-                      <span className="sl-lista__item-cat">{item._label}</span>
-                      <span style={{ fontWeight: 700, fontSize: 12, color: agot ? "#c62828" : bajo ? "#f57f17" : "#2e7d32" }}>
-                        {stock} {item._unidad || "uds."}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })
-          }
-        </div>
-        {errors.seleccionado && <p className="field-error" style={{ marginTop: 6 }}>{errors.seleccionado}</p>}
-      </div>
+            {/* ── Columna izquierda: selector ── */}
+            <div className="sl-panel">
+              <p className="sl-panel__title">1 · Seleccionar elemento</p>
 
-      {/* ── Columna derecha: formulario ── */}
-      <div className="sl-panel sl-panel--form">
-
-        <p className="sl-panel__title">2 · Registrar salida</p>
-
-        {/* Elemento seleccionado */}
-        {seleccionado ? (
-          <div className="sl-seleccionado">
-            <span style={{ fontSize: 22 }}>{seleccionado._tipo === "producto" ? "📦" : "🧺"}</span>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>{seleccionado.nombre}</div>
-              <div style={{ fontSize: 12, color: "#9e9e9e" }}>
-                Stock actual: <strong style={{ color: "#2e7d32" }}>{stockActual} {unidadLabel}</strong>
+              <div className="sl-tipo-tabs">
+                <button className={`sl-tipo-tab${entidadTipo === "producto" ? " active" : ""}`}
+                  onClick={() => { setEntidadTipo("producto"); setSeleccionado(null); setBusqueda(""); }}>
+                  📦 Productos
+                </button>
+                <button className={`sl-tipo-tab${entidadTipo === "insumo" ? " active" : ""}`}
+                  onClick={() => { setEntidadTipo("insumo"); setSeleccionado(null); setBusqueda(""); }}>
+                  🧺 Insumos
+                </button>
               </div>
-            </div>
-            <button onClick={() => { setSeleccionado(null); setCantidad(""); setErrors({}); }}
-              style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#bdbdbd" }}>✕</button>
-          </div>
-        ) : (
-          <div className="sl-seleccionado sl-seleccionado--empty">
-            <span style={{ fontSize: 26, opacity: 0.3 }}>👈</span>
-            <span style={{ fontSize: 13, color: "#bdbdbd" }}>Selecciona un elemento</span>
-          </div>
-        )}
 
-        {/* Tipo de salida */}
-        <div className="form-group" style={{ marginTop: 14 }}>
-          <label className="sl-label">Tipo de salida</label>
-          <div className="sl-tipos-grid">
-            {TIPOS.map(t => (
-              <button key={t.val} onClick={() => setTipoSalida(t.val)}
-                className={`sl-tipo-btn${tipoSalida === t.val ? " active" : ""}`}
-                style={tipoSalida === t.val ? { borderColor: t.border, background: t.bg, color: t.color } : {}}>
-                <span style={{ fontSize: 17 }}>{t.icon}</span>
-                <span>{t.label}</span>
+              <div className="sl-search">
+                <span className="sl-search__icon">🔍</span>
+                <input className="sl-search__input" placeholder="Buscar por nombre o categoría…"
+                  value={busqueda}
+                  onChange={e => { setBusqueda(e.target.value); setErrors(p => ({ ...p, seleccionado: "" })); }} />
+              </div>
+
+              {/* Lista con scroll interno */}
+              <div className="sl-lista">
+                {filtrados.length === 0
+                  ? <div className="sl-lista__empty">Sin resultados</div>
+                  : filtrados.map(item => {
+                      const stock = item._stock;
+                      const min   = item.stockMinimo ?? 10;
+                      const agot  = stock === 0;
+                      const bajo  = stock < min && !agot;
+                      return (
+                        <button key={`${item._tipo}-${item.id}`}
+                          className={`sl-lista__item${seleccionado?.id === item.id && seleccionado?._tipo === item._tipo ? " selected" : ""}`}
+                          onClick={() => { setSeleccionado(item); setErrors(p => ({ ...p, seleccionado: "" })); }}>
+                          <div className="sl-lista__item-name">{item.nombre}</div>
+                          <div className="sl-lista__item-meta">
+                            <span className="sl-lista__item-cat">{item._label}</span>
+                            <span style={{ fontWeight: 700, fontSize: 12, color: agot ? "#c62828" : bajo ? "#f57f17" : "#2e7d32" }}>
+                              {stock} {item._unidad || "uds."}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })
+                }
+              </div>
+              {errors.seleccionado && <p className="field-error" style={{ marginTop: 6 }}>{errors.seleccionado}</p>}
+            </div>
+
+            {/* ── Columna derecha: formulario ── */}
+            <div className="sl-panel sl-panel--form">
+
+              <p className="sl-panel__title">2 · Registrar salida</p>
+
+              {/* Elemento seleccionado */}
+              {seleccionado ? (
+                <div className="sl-seleccionado">
+                  <span style={{ fontSize: 22 }}>{seleccionado._tipo === "producto" ? "📦" : "🧺"}</span>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{seleccionado.nombre}</div>
+                    <div style={{ fontSize: 12, color: "#9e9e9e" }}>
+                      Stock actual: <strong style={{ color: "#2e7d32" }}>{stockActual} {unidadLabel}</strong>
+                    </div>
+                  </div>
+                  <button onClick={() => { setSeleccionado(null); setCantidad(""); setErrors({}); }}
+                    style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "#bdbdbd" }}>✕</button>
+                </div>
+              ) : (
+                <div className="sl-seleccionado sl-seleccionado--empty">
+                  <span style={{ fontSize: 26, opacity: 0.3 }}>👈</span>
+                  <span style={{ fontSize: 13, color: "#bdbdbd" }}>Selecciona un elemento</span>
+                </div>
+              )}
+
+              {/* Tipo de salida */}
+              <div className="form-group" style={{ marginTop: 14 }}>
+                <label className="sl-label">Tipo de salida</label>
+                <div className="sl-tipos-grid">
+                  {TIPOS.map(t => (
+                    <button key={t.val} onClick={() => setTipoSalida(t.val)}
+                      className={`sl-tipo-btn${tipoSalida === t.val ? " active" : ""}`}
+                      style={tipoSalida === t.val ? { borderColor: t.border, background: t.bg, color: t.color } : {}}>
+                      <span style={{ fontSize: 17 }}>{t.icon}</span>
+                      <span>{t.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Cantidad */}
+              <div className="form-group">
+                <label className="sl-label">Cantidad a descontar</label>
+                <div style={{ position: "relative" }}>
+                  <input type="number" min="1" max={stockActual}
+                    className={`sl-input${errors.cantidad ? " sl-input--error" : ""}`}
+                    value={cantidad}
+                    onChange={e => { setCantidad(e.target.value); setErrors(p => ({ ...p, cantidad: "" })); }}
+                    placeholder={seleccionado ? `Máx. ${stockActual}` : "—"}
+                    disabled={!seleccionado} />
+                  <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: "#9e9e9e", pointerEvents: "none" }}>
+                    {unidadLabel}
+                  </span>
+                </div>
+                {errors.cantidad && <p className="field-error">{errors.cantidad}</p>}
+              </div>
+
+              {/* Preview */}
+              {seleccionado && cantidad && !errors.cantidad && (
+                <div style={{ marginBottom: 12, padding: "10px 14px", borderRadius: 10, background: tipoActual.bg, border: `1px solid ${tipoActual.border}` }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontSize: 12 }}>
+                    <span style={{ color: "#9e9e9e" }}>Stock después de la salida</span>
+                    <span style={{ fontWeight: 700, color: tipoActual.color }}>{stockDespues} {unidadLabel}</span>
+                  </div>
+                  <div style={{ height: 5, background: "#e0e0e0", borderRadius: 3, overflow: "hidden" }}>
+                    <div style={{ height: "100%", borderRadius: 3, transition: "width 0.35s", width: pct + "%", background: pct > 50 ? "#43a047" : pct > 20 ? "#ffa726" : "#ef5350" }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Motivo */}
+              <div className="form-group">
+                <label className="sl-label">Motivo <span style={{ color: "#bdbdbd", fontWeight: 400, textTransform: "none" }}>(opcional)</span></label>
+                <input className="sl-input" value={motivo}
+                  onChange={e => setMotivo(e.target.value)}
+                  placeholder="Descripción adicional…" disabled={!seleccionado} />
+              </div>
+
+              {/* Botón */}
+              <button className="sl-btn-registrar" onClick={handleRegistrar}
+                disabled={saving || !seleccionado}
+                style={{ background: tipoActual.color }}>
+                {saving ? "Registrando…" : `${tipoActual.icon} Registrar ${tipoActual.label.toLowerCase()}`}
               </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Cantidad */}
-        <div className="form-group">
-          <label className="sl-label">Cantidad a descontar</label>
-          <div style={{ position: "relative" }}>
-            <input type="number" min="1" max={stockActual}
-              className={`sl-input${errors.cantidad ? " sl-input--error" : ""}`}
-              value={cantidad}
-              onChange={e => { setCantidad(e.target.value); setErrors(p => ({ ...p, cantidad: "" })); }}
-              placeholder={seleccionado ? `Máx. ${stockActual}` : "—"}
-              disabled={!seleccionado} />
-            <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: "#9e9e9e", pointerEvents: "none" }}>
-              {unidadLabel}
-            </span>
-          </div>
-          {errors.cantidad && <p className="field-error">{errors.cantidad}</p>}
-        </div>
-
-        {/* Preview */}
-        {seleccionado && cantidad && !errors.cantidad && (
-          <div style={{ marginBottom: 12, padding: "10px 14px", borderRadius: 10, background: tipoActual.bg, border: `1px solid ${tipoActual.border}` }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontSize: 12 }}>
-              <span style={{ color: "#9e9e9e" }}>Stock después de la salida</span>
-              <span style={{ fontWeight: 700, color: tipoActual.color }}>{stockDespues} {unidadLabel}</span>
-            </div>
-            <div style={{ height: 5, background: "#e0e0e0", borderRadius: 3, overflow: "hidden" }}>
-              <div style={{ height: "100%", borderRadius: 3, transition: "width 0.35s", width: pct + "%", background: pct > 50 ? "#43a047" : pct > 20 ? "#ffa726" : "#ef5350" }} />
             </div>
           </div>
-        )}
-
-        {/* Motivo */}
-        <div className="form-group">
-          <label className="sl-label">Motivo <span style={{ color: "#bdbdbd", fontWeight: 400, textTransform: "none" }}>(opcional)</span></label>
-          <input className="sl-input" value={motivo}
-            onChange={e => setMotivo(e.target.value)}
-            placeholder="Descripción adicional…" disabled={!seleccionado} />
         </div>
-
-        {/* Botón */}
-        <button className="sl-btn-registrar" onClick={handleRegistrar}
-          disabled={saving || !seleccionado}
-          style={{ background: tipoActual.color }}>
-          {saving ? "Registrando…" : `${tipoActual.icon} Registrar ${tipoActual.label.toLowerCase()}`}
-        </button>
       </div>
 
       {toast && (
@@ -244,7 +260,7 @@ function RegistrarSalida({ onSalidaRegistrada }) {
 /* ══════════════════════════════════════════════════════════
    TAB 2 — HISTORIAL
 ══════════════════════════════════════════════════════════ */
-function HistorialSalidas() {
+function HistorialSalidas({ onAgregarClick }) {
   const { productos, insumos, getSalidasProducto, getSalidasInsumo, getCatProducto, getCatInsumo } = useApp();
   const [filtroTipo,    setFiltroTipo]    = useState("todos");
   const [filtroEntidad, setFiltroEntidad] = useState("todos");
@@ -292,7 +308,7 @@ function HistorialSalidas() {
       {/* Stats — métricas funcionales */}
       <div className="sl-stats-row">
         <div className={`sl-stat-card ${filtroTipo === 'todos' && filtroEntidad === 'todos' ? 'active' : ''}`} 
-          onClick={() => { setFiltroTipo('todos'); setFiltroEntidad('todos'); }} style={{ cursor: 'pointer' }}>
+          onClick={() => { setFiltroTipo('todos'); setFiltedEntidad('todos'); }} style={{ cursor: 'pointer' }}>
           <span className="sl-stat-card__num">{todasSalidas.length}</span>
           <span className="sl-stat-card__label">Total salidas</span>
         </div>
@@ -354,6 +370,9 @@ function HistorialSalidas() {
             </div>
           )}
         </div>
+        <button className="btn-agregar" onClick={onAgregarClick}>
+          Registrar Salida <span style={{ fontSize: 18 }}>+</span>
+        </button>
       </div>
 
       {/* Tabla con scroll interno */}
@@ -527,11 +546,11 @@ function Vencidos() {
    PÁGINA PRINCIPAL
 ══════════════════════════════════════════════════════════ */
 export default function GestionSalidas() {
-  const [tab,        setTab]        = useState("registrar");
+  const [tab,        setTab]        = useState("historial");
   const [refreshKey, setRefreshKey] = useState(0);
+  const [showModal,  setShowModal]  = useState(false);
 
   const TABS = [
-    { key: "registrar", label: "🚚 Registrar salida" },
     { key: "historial", label: "📋 Historial"        },
     { key: "vencidos",  label: "⛔ Vencidos"          },
   ];
@@ -558,10 +577,16 @@ export default function GestionSalidas() {
 
       {/* Área de contenido — ocupa el espacio restante */}
       <div className="sl-page__body">
-        {tab === "registrar" && <RegistrarSalida onSalidaRegistrada={() => setRefreshKey(k => k + 1)} />}
-        {tab === "historial" && <HistorialSalidas key={refreshKey} />}
+        {tab === "historial" && <HistorialSalidas onAgregarClick={() => setShowModal(true)} key={refreshKey} />}
         {tab === "vencidos"  && <Vencidos         key={refreshKey} />}
       </div>
+
+      {showModal && (
+        <RegistrarSalida 
+          onClose={() => setShowModal(false)} 
+          onSalidaRegistrada={() => setRefreshKey(k => k + 1)} 
+        />
+      )}
 
     </div>
   );

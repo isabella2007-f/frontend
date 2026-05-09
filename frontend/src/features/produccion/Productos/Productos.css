@@ -13,7 +13,15 @@
 .page-inner { max-width: 1020px; margin: 0 auto; padding: 0 ; }
 
 /* ─── Toolbar ────────────────────────────────────────────── */
-.toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.toolbar { 
+  display: flex; 
+  align-items: center; 
+  gap: 12px; 
+  margin-bottom: 16px; 
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 100;
+}
 
 .search-wrap { flex: 1; min-width: 200px; position: relative; }
 .search-icon {

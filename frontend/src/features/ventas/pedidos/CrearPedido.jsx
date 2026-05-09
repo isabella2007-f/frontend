@@ -302,7 +302,7 @@ export default function CrearPedido({ onClose, onSave }) {
   const clienteSeleccionado = clientes.find(c => String(c.id) === String(form.idCliente));
 
   return (
-    <div className="overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
 
         {/* Header */}
