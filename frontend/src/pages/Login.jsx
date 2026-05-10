@@ -139,6 +139,12 @@ const Login = () => {
             </Link>
           </p>
 
+          <p className="auth-switch" style={{ marginTop: '5px' }}>
+            <Link to="/" className="auth-switch-link" style={{ opacity: 0.7, fontSize: '0.9em' }}>
+              Volver al inicio
+            </Link>
+          </p>
+
         </div>
       </div>
     </div>

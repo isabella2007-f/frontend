@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
+import { 
   ShoppingBag, ArrowRight, Leaf, Utensils, Sparkles,
   Plus, Minus, ShoppingCart, CheckCircle2,
-  ChevronRight, Zap
+  ChevronRight, Zap, Edit3, Save, X as CloseIcon
 } from 'lucide-react';
 import { useApp } from '../AppContext.jsx';
 import { getUser } from '../services/authService.js';
@@ -19,6 +19,16 @@ import {
   getCartCount, 
   clearCart 
 } from '../features/sales/orders/services/cartService';
+
+const DEFAULT_CONTENT = {
+  heroBadge: "SABOR NATURAL 100%",
+  heroTitle: "El poder del Plátano",
+  heroDescription: "Descubre tostones, chips y delicias artesanales que redefinen el sabor de nuestra tierra. Crujientes, frescos y recolectados con amor.",
+  historyTitle: "Desde el campo hasta tu mesa",
+  historyDescription: "En Tostón App celebramos la tierra. Cada plátano es seleccionado para garantizar una experiencia épica y natural.",
+  ctaTitle: "Únete a la Revolución",
+  ctaDescription: "Estamos transformando la forma en que el mundo ve al plátano."
+};
 
 /* ═══════════════════════════════════════════
    LANDING PAGE
@@ -36,6 +46,23 @@ const LandingPage = ({ hideNavbar = false }) => {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [orderDetails, setOrderDetails] = useState(null);
   const [orderDone, setOrderDone] = useState(false);
+
+  // ── Edición Landing (Admin) ──
+  const [isEditing, setIsEditing] = useState(false);
+  const [content, setContent] = useState(() => {
+    const saved = localStorage.getItem('landing_content');
+    return saved ? JSON.parse(saved) : DEFAULT_CONTENT;
+  });
+
+  const handleSaveContent = () => {
+    localStorage.setItem('landing_content', JSON.stringify(content));
+    setIsEditing(false);
+    alert('Contenido guardado correctamente.');
+  };
+
+  const updateContent = (key, val) => {
+    setContent(prev => ({ ...prev, [key]: val }));
+  };
 
   // Sincronizar contador del carrito
   const syncCartInfo = useCallback(() => {
@@ -145,9 +172,44 @@ const LandingPage = ({ hideNavbar = false }) => {
 
   const scrollToSection = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
+  const isAdmin = user?.rol === 'administrador';
+
   return (
     <div className="min-h-screen bg-[#f7faf8] text-[#1b5e20] font-sans overflow-x-hidden">
       {!hideNavbar && <Navbar isLanding={true} />}
+
+      {/* ── Admin Toolbar ── */}
+      {isAdmin && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 p-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl border border-[#c8e6c9]">
+          {!isEditing ? (
+            <button 
+              onClick={() => setIsEditing(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-[#1b5e20] text-white rounded-xl font-bold text-sm hover:bg-[#0d3300] transition-all"
+            >
+              <Edit3 size={16} /> Editar Contenido
+            </button>
+          ) : (
+            <>
+              <button 
+                onClick={handleSaveContent}
+                className="flex items-center gap-2 px-4 py-2 bg-[#4caf50] text-white rounded-xl font-bold text-sm hover:bg-[#388e3c] transition-all"
+              >
+                <Save size={16} /> Guardar Cambios
+              </button>
+              <button 
+                onClick={() => {
+                  setIsEditing(false);
+                  const saved = localStorage.getItem('landing_content');
+                  setContent(saved ? JSON.parse(saved) : DEFAULT_CONTENT);
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-xl font-bold text-sm hover:bg-red-600 transition-all"
+              >
+                <CloseIcon size={16} /> Cancelar
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* ── CSS animations ── */}
       <style>{`
@@ -156,6 +218,13 @@ const LandingPage = ({ hideNavbar = false }) => {
           to { transform: translateX(-50%) translateY(0); opacity: 1; }
         }
         .animate-slide-down-toast { animation: slide-down-toast 0.4s ease both; }
+        
+        .editable-focus:focus {
+          outline: 2px dashed #4caf50;
+          outline-offset: 4px;
+          background: rgba(76, 175, 80, 0.05);
+          border-radius: 8px;
+        }
       `}</style>
 
       {/* ── Toast de éxito ── */}
@@ -210,14 +279,31 @@ const LandingPage = ({ hideNavbar = false }) => {
             <div className="flex-1 text-center lg:text-left space-y-8 max-w-2xl">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#e8f5e9] text-[#1b5e20] rounded-full text-xs font-black tracking-widest shadow-sm border border-[#c8e6c9]">
                 <Sparkles className="w-4 h-4 text-[#4caf50]" />
-                SABOR NATURAL 100%
+                <span 
+                  contentEditable={isEditing} 
+                  onBlur={(e) => updateContent('heroBadge', e.target.innerText)}
+                  className={isEditing ? 'editable-focus' : ''}
+                >
+                  {content.heroBadge}
+                </span>
               </div>
               <h1 className="text-6xl lg:text-8xl font-black text-[#1b5e20] leading-tight tracking-tighter">
-                El poder del <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#1b5e20] via-[#4caf50] to-[#1b5e20]">Plátano</span>
+                <span 
+                  contentEditable={isEditing} 
+                  onBlur={(e) => updateContent('heroTitle', e.target.innerText)}
+                  className={isEditing ? 'editable-focus block' : 'block'}
+                >
+                  {content.heroTitle}
+                </span>
               </h1>
               <p className="text-xl text-[#388e3c] leading-relaxed max-w-xl mx-auto lg:mx-0 font-medium">
-                Descubre tostones, chips y delicias artesanales que redefinen el sabor de nuestra tierra. Crujientes, frescos y recolectados con amor.
+                <span 
+                  contentEditable={isEditing} 
+                  onBlur={(e) => updateContent('heroDescription', e.target.innerText)}
+                  className={isEditing ? 'editable-focus block' : 'block'}
+                >
+                  {content.heroDescription}
+                </span>
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-5">
                 <button onClick={() => scrollToSection('productos')} className="group relative flex items-center gap-3 px-10 py-5 bg-[#1b5e20] text-white font-black rounded-2xl hover:bg-[#0d3300] shadow-[0_10px_30px_rgba(27,94,32,0.3)] transition-all hover:-translate-y-1 active:scale-95 w-full sm:w-auto justify-center overflow-hidden">
@@ -332,18 +418,46 @@ const LandingPage = ({ hideNavbar = false }) => {
               <div className="space-y-4">
                 <h2 className="text-[#81c784] font-black tracking-[0.4em] uppercase text-sm">El origen</h2>
                 <h3 className="text-5xl lg:text-7xl font-black leading-tight tracking-tighter">
-                  Desde el campo <br />hasta tu <span className="text-[#a5d6a7]">mesa</span>
+                  <span 
+                    contentEditable={isEditing} 
+                    onBlur={(e) => updateContent('historyTitle', e.target.innerText)}
+                    className={isEditing ? 'editable-focus block' : 'block'}
+                  >
+                    {content.historyTitle}
+                  </span>
                 </h3>
               </div>
               <p className="text-xl text-[#c8e6c9] leading-relaxed font-medium">
-                En Tostón App celebramos la tierra. Cada plátano es seleccionado para garantizar una experiencia épica y natural.
+                <span 
+                  contentEditable={isEditing} 
+                  onBlur={(e) => updateContent('historyDescription', e.target.innerText)}
+                  className={isEditing ? 'editable-focus block' : 'block'}
+                >
+                  {content.historyDescription}
+                </span>
               </p>
             </div>
             <div className="flex-1">
               <div className="bg-[#0d3300]/30 rounded-[60px] p-20 text-center border-2 border-[#1b5e20] shadow-2xl backdrop-blur-sm">
                 <Leaf className="w-24 h-24 text-[#81c784] mx-auto mb-8 animate-pulse" />
-                <h4 className="text-3xl font-black mb-4">Únete a la Revolución</h4>
-                <p className="text-[#c8e6c9] mb-10">Estamos transformando la forma en que el mundo ve al plátano.</p>
+                <h4 className="text-3xl font-black mb-4">
+                  <span 
+                    contentEditable={isEditing} 
+                    onBlur={(e) => updateContent('ctaTitle', e.target.innerText)}
+                    className={isEditing ? 'editable-focus block' : 'block'}
+                  >
+                    {content.ctaTitle}
+                  </span>
+                </h4>
+                <p className="text-[#c8e6c9] mb-10">
+                  <span 
+                    contentEditable={isEditing} 
+                    onBlur={(e) => updateContent('ctaDescription', e.target.innerText)}
+                    className={isEditing ? 'editable-focus block' : 'block'}
+                  >
+                    {content.ctaDescription}
+                  </span>
+                </p>
                 {!user && (
                   <button onClick={() => navigate('/register')} className="w-full py-5 bg-white text-[#1b5e20] font-black rounded-3xl hover:bg-[#e8f5e9] transition-all shadow-xl">
                     Crear mi cuenta gratis

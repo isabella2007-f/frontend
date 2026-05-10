@@ -54,7 +54,7 @@ function ToggleView({ value, razon }) {
 }
 
 // ─── Secciones del side panel ─────────────────────────────
-const NAV_ITEMS = [
+const NAV_ITEMS_BASE = [
   { id: "personal",  label: "Personal",  icon: "👤" },
   { id: "ubicacion", label: "Ubicación", icon: "📍" },
   { id: "rol",       label: "Rol",       icon: "🎖️" },
@@ -62,8 +62,28 @@ const NAV_ITEMS = [
 
 // ─── MODAL VER USUARIO — SIDE PANEL ──────────────────────
 export function ModalVerUsuario({ user, onClose }) {
-  const { roles } = useApp();
+  const { roles, creditosClientes, clientes, pedidos } = useApp();
   const [activeSection, setActiveSection] = useState("personal");
+
+  const esCliente = user.rol === "Cliente";
+
+  // Buscar el cliente vinculado por correo o cédula
+  const clienteVinculado = esCliente
+    ? clientes.find(c => c.correo === user.correo || c.numDoc === user.cedula)
+    : null;
+
+  const saldoFavor = clienteVinculado
+    ? (creditosClientes[clienteVinculado.id] || 0)
+    : 0;
+
+  // Pedidos del cliente vinculado
+  const pedidosCliente = clienteVinculado
+    ? pedidos.filter(p => p.idCliente === clienteVinculado.id)
+    : [];
+
+  const navItems = esCliente
+    ? [...NAV_ITEMS_BASE, { id: "cliente", label: "Saldo", icon: "💰" }]
+    : NAV_ITEMS_BASE;
 
   const rolObj   = roles.find(r => r.nombre === user.rol);
   const rolStyle = getRolStyle(user.rol);
@@ -73,7 +93,6 @@ export function ModalVerUsuario({ user, onClose }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      {/* Caja más ancha para el layout side panel */}
       <div
         className="modal-box"
         style={{ maxWidth: 600, width: "100%", maxHeight: "calc(100vh - 40px)", display: "flex", flexDirection: "column", overflow: "hidden" }}
@@ -103,12 +122,11 @@ export function ModalVerUsuario({ user, onClose }) {
             padding: "12px 0",
             flexShrink: 0,
           }}>
-            {/* Avatar compacto en la nav */}
             <div style={{ display: "flex", justifyContent: "center", marginBottom: 16, paddingBottom: 12, borderBottom: "1px solid #f0f0f0" }}>
               <Avatar foto={user.foto} size={52} border />
             </div>
 
-            {NAV_ITEMS.map(item => (
+            {navItems.map(item => (
               <button
                 key={item.id}
                 onClick={() => setActiveSection(item.id)}
@@ -136,8 +154,8 @@ export function ModalVerUsuario({ user, onClose }) {
             ))}
           </nav>
 
-          {/* CONTENIDO — sin overflow, cada sección cabe */}
-          <div style={{ flex: 1, padding: "20px 24px", display: "flex", flexDirection: "column", justifyContent: "flex-start" }}>
+          {/* CONTENIDO */}
+          <div style={{ flex: 1, padding: "20px 24px", display: "flex", flexDirection: "column", justifyContent: "flex-start", overflowY: "auto" }}>
 
             {/* ── Sección: Personal ── */}
             {activeSection === "personal" && (
@@ -146,7 +164,7 @@ export function ModalVerUsuario({ user, onClose }) {
                 <div className="form-group">
                   <label className="form-label">Tipo y Número de documento</label>
                   <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <span className="doc-type">CC</span>
+                    <span className="doc-type">{user.tipoDocumento || "CC"}</span>
                     <span style={{ fontSize: 14, fontWeight: 600, color: "#424242" }}>
                       {user.cedula || "—"}
                     </span>
@@ -202,7 +220,6 @@ export function ModalVerUsuario({ user, onClose }) {
                   </div>
                 </div>
 
-                {/* Estado del rol */}
                 {rolObj && (
                   <div className="form-group">
                     <label className="form-label">Estado del rol</label>
@@ -227,6 +244,83 @@ export function ModalVerUsuario({ user, onClose }) {
                 )}
               </>
             )}
+
+            {/* ── Sección: Saldo (solo Clientes) ── */}
+            {activeSection === "cliente" && esCliente && (
+              <>
+                <p className="section-label" style={{ marginTop: 0 }}>Saldo a favor</p>
+
+                {/* Tarjeta de saldo */}
+                <div style={{
+                  background: saldoFavor > 0 ? "#e8f5e9" : "#fafafa",
+                  border: `1.5px solid ${saldoFavor > 0 ? "#c8e6c9" : "#e0e0e0"}`,
+                  borderRadius: 12,
+                  padding: "18px 20px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 14,
+                  marginBottom: 20,
+                }}>
+                  <span style={{ fontSize: 32 }}>{saldoFavor > 0 ? "💰" : "🪙"}</span>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>
+                      Saldo disponible
+                    </div>
+                    <div style={{ fontSize: 26, fontWeight: 800, color: saldoFavor > 0 ? "#2e7d32" : "#9e9e9e", fontFamily: "inherit" }}>
+                      ${saldoFavor.toLocaleString("es-CO")}
+                    </div>
+                    {saldoFavor > 0 && (
+                      <div style={{ fontSize: 11, color: "#66bb6a", marginTop: 2 }}>
+                        Acumulado por devoluciones aprobadas
+                      </div>
+                    )}
+                    {saldoFavor === 0 && (
+                      <div style={{ fontSize: 11, color: "#bdbdbd", marginTop: 2 }}>
+                        Sin saldo a favor actualmente
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Resumen de pedidos del cliente */}
+                {clienteVinculado && (
+                  <>
+                    <p className="section-label">Actividad del cliente</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                      {[
+                        { label: "Total pedidos", value: pedidosCliente.length, icon: "📦" },
+                        { label: "Entregados",    value: pedidosCliente.filter(p => p.estado === "Entregado").length,  icon: "✅" },
+                        { label: "En curso",      value: pedidosCliente.filter(p => !["Entregado","Cancelado"].includes(p.estado)).length, icon: "🔄" },
+                        { label: "Cancelados",    value: pedidosCliente.filter(p => p.estado === "Cancelado").length,  icon: "❌" },
+                      ].map(stat => (
+                        <div key={stat.label} style={{
+                          background: "#fff",
+                          border: "1px solid #f0f0f0",
+                          borderRadius: 10,
+                          padding: "12px 14px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 10,
+                        }}>
+                          <span style={{ fontSize: 20 }}>{stat.icon}</span>
+                          <div>
+                            <div style={{ fontSize: 18, fontWeight: 800, color: "#1a1a1a" }}>{stat.value}</div>
+                            <div style={{ fontSize: 11, color: "#9e9e9e" }}>{stat.label}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {!clienteVinculado && (
+                  <div style={{ textAlign: "center", padding: "24px 0", color: "#9e9e9e", fontSize: 13 }}>
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
+                    No se encontró un registro de cliente vinculado a este usuario.
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
 
@@ -240,7 +334,9 @@ export function ModalVerUsuario({ user, onClose }) {
 }
 
 // ─── MODAL ELIMINAR ───────────────────────────────────────
-export function ModalEliminarUsuario({ user, razon, onClose, onConfirm }) {
+// razon      → bloqueo duro (admin): solo muestra el mensaje y cierra
+// advertencias → lista de consecuencias, pero igual permite confirmar
+export function ModalEliminarUsuario({ user, razon, advertencias = [], onClose, onConfirm }) {
   const [done, setDone] = useState(false);
 
   const handleEliminar = () => {
@@ -248,6 +344,7 @@ export function ModalEliminarUsuario({ user, razon, onClose, onConfirm }) {
     setTimeout(() => { onConfirm(user.id); }, 800);
   };
 
+  // ── Bloqueo duro (ej: admin principal) ──
   if (razon) {
     return (
       <div className="modal-overlay" onClick={onClose}>
@@ -265,6 +362,7 @@ export function ModalEliminarUsuario({ user, razon, onClose, onConfirm }) {
     );
   }
 
+  // ── Confirmación normal (con o sin advertencias) ──
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
@@ -272,15 +370,88 @@ export function ModalEliminarUsuario({ user, razon, onClose, onConfirm }) {
           <div className="delete-icon-wrap">🗑️</div>
           <h3 className="delete-title">Eliminar usuario</h3>
           <p className="delete-body">
-            ¿Está seguro de que desea eliminar permanentemente al usuario <strong>"{user.nombre} {user.apellidos}"</strong>?
+            ¿Está seguro de que desea eliminar permanentemente al usuario{" "}
+            <strong>"{user.nombre} {user.apellidos}"</strong>?
           </p>
-          <p className="delete-warn">Esta operación es definitiva y no podrá ser revertida.</p>
-          <div className="modal-footer modal-footer--center">
-            <button className="btn-cancel-full" onClick={onClose}>Cancelar</button>
-            <button className="btn-danger" onClick={handleEliminar} disabled={done}>
-              {done ? "Eliminando…" : "Confirmar eliminación"}
-            </button>
+
+          {/* Advertencias de elementos asociados */}
+          {advertencias.length > 0 && (
+            <div style={{
+              textAlign: "left",
+              margin: "12px 0 4px",
+              background: "#fff8e1",
+              borderRadius: 10,
+              padding: "12px 16px",
+              border: "1px solid #ffe082",
+            }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#9a6400", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 }}>
+                ⚠️ Ten en cuenta lo siguiente
+              </div>
+              {advertencias.map((adv, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 7, marginBottom: i < advertencias.length - 1 ? 7 : 0 }}>
+                  <span style={{ fontSize: 12, color: "#e65100", marginTop: 1, flexShrink: 0 }}>•</span>
+                  <span style={{ fontSize: 12, color: "#6d4c00", lineHeight: 1.4 }}>{adv}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <p className="delete-warn" style={{ marginTop: advertencias.length ? 8 : 0 }}>
+            Esta operación es definitiva y no podrá ser revertida.
+          </p>
+        </div>
+
+        <div className="modal-footer modal-footer--center">
+          <button className="btn-cancel-full" onClick={onClose}>Cancelar</button>
+          <button className="btn-danger" onClick={handleEliminar} disabled={done}>
+            {done ? "Eliminando…" : "Confirmar eliminación"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── MODAL ADVERTENCIA AL DESACTIVAR ─────────────────────
+export function ModalDesactivarUsuario({ user, advertencias, onClose, onConfirm }) {
+  const [done, setDone] = useState(false);
+
+  const handleConfirm = () => {
+    setDone(true);
+    setTimeout(() => { onConfirm(user.id); onClose(); }, 600);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
+        <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
+          <div className="delete-icon-wrap" style={{ background: "#fff8e1", border: "1px solid #ffe082", color: "#e65100", fontSize: 24 }}>⚠️</div>
+          <h3 className="delete-title">Desactivar usuario</h3>
+          <p className="delete-body">
+            El usuario <strong>"{user.nombre} {user.apellidos}"</strong> tiene elementos asociados. Al desactivarlo ocurrirá lo siguiente:
+          </p>
+
+          <div style={{ textAlign: "left", margin: "12px 0", background: "#fff8e1", borderRadius: 10, padding: "12px 16px", border: "1px solid #ffe082" }}>
+            {advertencias.map((adv, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: i < advertencias.length - 1 ? 8 : 0 }}>
+                <span style={{ fontSize: 14, marginTop: 1 }}>•</span>
+                <span style={{ fontSize: 13, color: "#6d4c00", lineHeight: 1.4 }}>{adv}</span>
+              </div>
+            ))}
           </div>
+
+          <p className="delete-warn">¿Desea continuar de todas formas?</p>
+        </div>
+        <div className="modal-footer modal-footer--center">
+          <button className="btn-cancel-full" onClick={onClose}>Cancelar</button>
+          <button
+            className="btn-danger"
+            style={{ background: "#e65100", boxShadow: "0 3px 10px rgba(230,81,0,0.3)" }}
+            onClick={handleConfirm}
+            disabled={done}
+          >
+            {done ? "Desactivando…" : "Sí, desactivar"}
+          </button>
         </div>
       </div>
     </div>

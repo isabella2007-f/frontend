@@ -10,6 +10,13 @@ import "./Sidebar.css";
 
 const adminMenuItems = [
   {
+    section: "Sitio Web",
+    icon: "🌐",
+    items: [
+      { label: "Ver Landing Page", icon: "🏠", link: "/" },
+    ],
+  },
+  {
     section: "Dashboard",
     icon: "▦",
     items: [
@@ -68,7 +75,7 @@ const clienteMenuItems = [
    COMPONENTE
 ========================= */
 
-export default function Sidebar({ isOpen }) {
+export default function Sidebar({ isOpen, onToggle }) {
   const [openSections, setOpenSections] = useState({
     Dashboard: true,
     Ventas: true,
@@ -103,86 +110,97 @@ export default function Sidebar({ isOpen }) {
 
   return (
     <aside className={`sidebar ${isOpen ? "is-open" : "is-closed"}`}>
-      <div className="sidebar-inner">
+      {/* Botón flotante para colapsar/abrir (visible siempre en el borde) */}
+      <button 
+        className="sidebar-toggle-btn" 
+        onClick={onToggle}
+        title={isOpen ? "Contraer menú" : "Expandir menú"}
+      >
+        {isOpen ? "◀" : "▶"}
+      </button>
 
-        {/* BUSCADOR */}
-        <div className="sidebar-search">
-          <span className="search-icon">🔍</span>
-          <input
-            className="search-input"
-            placeholder="Buscar módulo..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+      <div className="sidebar-content">
+        <div className="sidebar-inner">
 
-        <div className="nav-group-label">Módulos</div>
+          {/* BUSCADOR */}
+          <div className="sidebar-search">
+            <span className="search-icon">🔍</span>
+            <input
+              className="search-input"
+              placeholder="Buscar módulo..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
 
-        {/* NAVEGACIÓN */}
-        <nav className="sidebar-nav">
-          {menuItems.map(({ section, icon, items }) => {
-            const filtered = search
-              ? items.filter((it) =>
-                  it.label.toLowerCase().includes(search.toLowerCase())
-                )
-              : items;
+          <div className="nav-group-label">Módulos</div>
 
-            if (search && filtered.length === 0) return null;
+          {/* NAVEGACIÓN */}
+          <nav className="sidebar-nav">
+            {menuItems.map(({ section, icon, items }) => {
+              const filtered = search
+                ? items.filter((it) =>
+                    it.label.toLowerCase().includes(search.toLowerCase())
+                  )
+                : items;
 
-            const isSectionOpen = openSections[section] || !!search;
+              if (search && filtered.length === 0) return null;
 
-            return (
-              <div key={section}>
-                <button
-                  className={`section-btn ${isSectionOpen ? "open" : ""}`}
-                  onClick={() => toggle(section)}
-                >
-                  <span className="section-icon-wrap">{icon}</span>
-                  <span className="section-label">{section}</span>
-                  <span className={`chevron ${isSectionOpen ? "rotated" : ""}`}>
-                    ▼
-                  </span>
-                </button>
+              const isSectionOpen = openSections[section] || !!search;
 
-                <div className={`submenu ${isSectionOpen ? "open" : ""}`}>
-                  <div className="submenu-inner">
-                    {filtered.map(({ label, icon: subIcon, link }) => (
-                      <Link
-                        key={label}
-                        to={link}
-                        className={`sub-item ${
-                          location.pathname === link ? "active" : ""
-                        }`}
-                      >
-                        <span className="sub-icon">{subIcon}</span>
-                        <span className="sub-label">{label}</span>
-                      </Link>
-                    ))}
+              return (
+                <div key={section}>
+                  <button
+                    className={`section-btn ${isSectionOpen ? "open" : ""}`}
+                    onClick={() => toggle(section)}
+                  >
+                    <span className="section-icon-wrap">{icon}</span>
+                    <span className="section-label">{section}</span>
+                    <span className={`chevron ${isSectionOpen ? "rotated" : ""}`}>
+                      ▼
+                    </span>
+                  </button>
+
+                  <div className={`submenu ${isSectionOpen ? "open" : ""}`}>
+                    <div className="submenu-inner">
+                      {filtered.map(({ label, icon: subIcon, link }) => (
+                        <Link
+                          key={label}
+                          to={link}
+                          className={`sub-item ${
+                            location.pathname === link ? "active" : ""
+                          }`}
+                        >
+                          <span className="sub-icon">{subIcon}</span>
+                          <span className="sub-label">{label}</span>
+                        </Link>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </nav>
+              );
+            })}
+          </nav>
 
-        {/* FOOTER */}
-        <div className="sidebar-footer">
-          <div className="avatar" onClick={() => navigate(user.rol === "cliente" ? "/cliente/perfil" : "/admin/perfil")} style={{ cursor: 'pointer' }}>
-            {user?.nombre?.charAt(0) || "U"}
+          {/* FOOTER */}
+          <div className="sidebar-footer">
+            <div className="avatar" onClick={() => navigate(user.rol === "cliente" ? "/cliente/perfil" : "/admin/perfil")} style={{ cursor: 'pointer' }}>
+              {user?.nombre?.charAt(0) || "U"}
+            </div>
+
+            <div className="footer-info">
+              <div className="user-name">{user?.nombre}</div>
+              <div className="user-role">{user?.rol}</div>
+            </div>
+
+            <button
+              className="logout-btn-sidebar"
+              onClick={handleLogout}
+              title="Cerrar sesión"
+            >
+              ⏏
+            </button>
           </div>
-
-          <div className="footer-info">
-            <div className="user-name">{user?.nombre}</div>
-            <div className="user-role">{user?.rol}</div>
-          </div>
-
-          <button
-            className="logout-btn-sidebar"
-            onClick={handleLogout}
-            title="Cerrar sesión"
-          >
-            ⏏
-          </button>
         </div>
       </div>
       {showLogoutModal && (

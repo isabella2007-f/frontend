@@ -1,16 +1,25 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ModalOverlay } from "./ui.jsx";
 import "./CategoriaInsumos.css";
 
-const ICON_OPTIONS = ["🥬","🥩","🧀","🌾","🧂","🛢️","🥫","📦","🫙","🧈","🥚","🌽","🍋","🧄","🫚","🍅","🥕","🧅","🌶️","🫑"];
+const ICON_OPTIONS = [
+  "🥬","🥩","🧀","🌾","🧂","🛢️","🥫","📦",
+  "🫙","🧈","🥚","🌽","🍋","🧄","🫚","🍅",
+  "🥕","🧅","🌶️","🫑",
+];
 
 export default function EditarCategoriaInsumo({ cat, onClose, onSave }) {
-  const [form, setForm]              = useState({ ...cat });
-  const [errors, setErrors]          = useState({});
-  const [saving, setSaving]          = useState(false);
+  const [form, setForm]               = useState({ ...cat });
+  const [errors, setErrors]           = useState({});
+  const [saving, setSaving]           = useState(false);
   const [pickingIcon, setPickingIcon] = useState(false);
 
-  const set = (k, v) => { setForm(p => ({ ...p, [k]: v })); setErrors(p => ({ ...p, [k]: "" })); };
+  useEffect(() => { if (cat) setForm({ ...cat }); }, [cat]);
+
+  const set = (k, v) => {
+    setForm(p => ({ ...p, [k]: v }));
+    setErrors(p => ({ ...p, [k]: "" }));
+  };
 
   const validate = () => {
     const e = {};
@@ -43,44 +52,68 @@ export default function EditarCategoriaInsumo({ cat, onClose, onSave }) {
         {/* Ícono */}
         <div className="form-group">
           <label className="form-label">Ícono</label>
-          <button className={`icon-picker-trigger${pickingIcon ? " open" : ""}`}
-            onClick={() => setPickingIcon(v => !v)}>{form.icon}</button>
+          <button
+            className={`icon-picker-trigger${pickingIcon ? " open" : ""}`}
+            onClick={() => setPickingIcon(v => !v)}
+          >
+            {form.icon}
+          </button>
           {pickingIcon && (
             <div className="icon-picker-grid">
               {ICON_OPTIONS.map(ic => (
-                <button key={ic} className={`icon-option${form.icon === ic ? " selected" : ""}`}
-                  onClick={() => { set("icon", ic); setPickingIcon(false); }}>{ic}</button>
+                <button
+                  key={ic}
+                  className={`icon-option${form.icon === ic ? " selected" : ""}`}
+                  onClick={() => { set("icon", ic); setPickingIcon(false); }}
+                >
+                  {ic}
+                </button>
               ))}
             </div>
           )}
         </div>
 
-        {/* Nombre */}
+        {/* Nombre — obligatorio */}
         <div className="form-group">
-          <label className="form-label">Nombre</label>
-          <input className={`field-input${errors.nombre ? " field-input--error" : ""}`}
-            value={form.nombre} onChange={e => set("nombre", e.target.value)}
+          <label className="form-label">
+            Nombre <span style={{ color: "#e53935", fontWeight: 800 }}>*</span>
+          </label>
+          <input
+            className={`field-input${errors.nombre ? " field-input--error" : ""}`}
+            value={form.nombre}
+            onChange={e => set("nombre", e.target.value)}
             placeholder="Ej. Vegetales"
-            onFocus={e => e.target.style.borderColor = "#4caf50"}
-            onBlur={e => e.target.style.borderColor = errors.nombre ? "#e53935" : "#e0e0e0"}
+            onFocus={e  => (e.target.style.borderColor = "#4caf50")}
+            onBlur={e   => (e.target.style.borderColor = errors.nombre ? "#e53935" : "#e0e0e0")}
           />
           {errors.nombre && <p className="field-error">{errors.nombre}</p>}
         </div>
 
-        {/* Descripción */}
+        {/* Descripción — obligatoria */}
         <div className="form-group">
-          <label className="form-label">Descripción</label>
-          <textarea className={`field-input${errors.descripcion ? " field-input--error" : ""}`}
-            rows={2} style={{ resize: "none" }}
-            value={form.descripcion} onChange={e => set("descripcion", e.target.value)}
+          <label className="form-label">
+            Descripción <span style={{ color: "#e53935", fontWeight: 800 }}>*</span>
+          </label>
+          <textarea
+            className={`field-input${errors.descripcion ? " field-input--error" : ""}`}
+            rows={2}
+            style={{ resize: "none" }}
+            value={form.descripcion}
+            onChange={e => set("descripcion", e.target.value)}
             placeholder="Describe esta categoría de insumos"
-            onFocus={e => e.target.style.borderColor = "#4caf50"}
-            onBlur={e => e.target.style.borderColor = errors.descripcion ? "#e53935" : "#e0e0e0"}
+            onFocus={e  => (e.target.style.borderColor = "#4caf50")}
+            onBlur={e   => (e.target.style.borderColor = errors.descripcion ? "#e53935" : "#e0e0e0")}
           />
           {errors.descripcion && <p className="field-error">{errors.descripcion}</p>}
         </div>
 
-
+        {/* Fecha de creación */}
+        {cat?.fecha && (
+          <div className="date-info">
+            <span>📅</span>
+            <span>Creada el <strong>{cat.fecha}</strong></span>
+          </div>
+        )}
 
       </div>
 

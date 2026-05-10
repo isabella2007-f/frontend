@@ -303,10 +303,14 @@ export default function GestionInsumos() {
             </span>
             <div className="pagination-btns">
               <button className="pg-btn-arrow"
+                onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
+              <button className="pg-btn-arrow"
                 onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
               <span className="pg-pill">Página {safePage} de {totalPages}</span>
               <button className="pg-btn-arrow"
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
+              <button className="pg-btn-arrow"
+                onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>»</button>
             </div>
           </div>
         </div>

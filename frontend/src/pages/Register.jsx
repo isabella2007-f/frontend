@@ -184,7 +184,11 @@ const Register = () => {
   });
 
   const set = (k) => (e) => {
-    setForm(p => ({ ...p, [k]: e.target.value }));
+    let value = e.target.value;
+    if (k === 'cedula') {
+      value = value.replace(/\D/g, '');
+    }
+    setForm(p => ({ ...p, [k]: value }));
     setErrors(p => { const n = { ...p }; delete n[k]; return n; });
   };
   const setVal = (k, v) => {

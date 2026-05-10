@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import "./Roles.css";
 import PrivilegiosModal, { buildPrivilegios } from "./PrivilegiosModal.jsx";
 
@@ -52,7 +53,8 @@ export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
     setSaving(false);
   };
 
-  return (
+  // ── FIX: portal al document.body para evitar quedar atrapado en stacking contexts ──
+  return createPortal(
     <>
       <div className="modal-overlay" onClick={onClose}>
         <div className="modal-box modal-box--wide" onClick={e => e.stopPropagation()}>
@@ -165,6 +167,7 @@ export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
           onClose={() => setShowPrivilegios(false)}
         />
       )}
-    </>
+    </>,
+    document.body
   );
 }

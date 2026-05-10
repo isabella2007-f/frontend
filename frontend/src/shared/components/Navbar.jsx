@@ -121,18 +121,8 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
       <nav className={`navbar ${isLanding ? 'is-landing' : ''}`}>
         <div className="navbar-inner">
 
-          {/* LEFT — Hamburger */}
+          {/* LEFT — Botones de menú eliminados */}
           <div className="nav-left-section">
-            {!isLanding && user && user.rol !== 'cliente' && (
-              <button className="hamburger-toggle" onClick={onToggleSidebar} title="Menu">
-                <Menu size={24} />
-              </button>
-            )}
-            {isLanding && (
-              <button className="menu-btn" onClick={() => setMenuOpen(!menuOpen)}>
-                {menuOpen ? <X size={20} /> : <Menu size={20} />}
-              </button>
-            )}
           </div>
 
           {/* CENTER — Logo */}
@@ -144,27 +134,30 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
           <div className="nav-right">
             <div className="links-bell-wrapper">
               <div className="nav-links">
-                {isLanding || user?.rol === 'cliente' ? (
+                {/* Links de navegación de la landing */}
+                {(isLanding || user?.rol === 'cliente') && (
                   <>
                     <button onClick={() => {
-                      if (isLanding) scrollToSection('inicio');
-                      else navigate('/cliente/inicio');
+                      if (location.pathname === '/') scrollToSection('inicio');
+                      else if (user?.rol === 'cliente') navigate('/cliente/inicio');
+                      else navigate('/');
                     }} className="nav-link">Inicio</button>
                     <button onClick={() => {
-                      if (isLanding) scrollToSection('productos');
-                      else navigate('/cliente/inicio#productos');
+                      if (location.pathname === '/') scrollToSection('productos');
+                      else if (user?.rol === 'cliente') navigate('/cliente/inicio#productos');
+                      else navigate('/#productos');
                     }} className="nav-link">Productos</button>
                     <button onClick={() => {
-                      if (isLanding) scrollToSection('nosotros');
-                      else navigate('/cliente/inicio#nosotros');
+                      if (location.pathname === '/') scrollToSection('nosotros');
+                      else if (user?.rol === 'cliente') navigate('/cliente/inicio#nosotros');
+                      else navigate('/#nosotros');
                     }} className="nav-link">Nosotros</button>
                   </>
-                ) : (
-                  <>
-                    {user?.rol === 'administrador' && (
-                      <Link to="/admin" className="nav-link">Dashboard</Link>
-                    )}
-                  </>
+                )}
+                
+                {/* Link al Dashboard para el Admin (siempre visible si está logueado) */}
+                {user?.rol === 'administrador' && (
+                  <Link to="/admin" className="nav-link font-bold text-[#2e7d32]">Dashboard</Link>
                 )}
               </div>
             </div>
@@ -217,20 +210,7 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
           </div>
         </div>
 
-        {/* Mobile dropdown Landing */}
-        {isLanding && menuOpen && (
-          <div className="mobile-menu">
-            <button onClick={() => navigate(user?.rol === "cliente" ? '/cliente' : '/')} className="mobile-link">Inicio</button>
-            <button onClick={() => scrollToSection('productos')} className="mobile-link">Productos</button>
-            <button onClick={() => scrollToSection('nosotros')} className="mobile-link">Nosotros</button>
-            {!user && (
-              <>
-                <button onClick={() => navigate("/login")} className="mobile-link">Iniciar sesión</button>
-                <button onClick={() => navigate("/register")} className="mobile-link">Registrarse</button>
-              </>
-            )}
-          </div>
-        )}
+        {/* Menú móvil eliminado */}
       </nav>
 
       {/* ── Panel de notificaciones ── */}

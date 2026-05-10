@@ -36,23 +36,23 @@ const PEDIDOS_SEMANA = [
 ];
 
 const TIEMPO_HOY = [
-  { t: "8am",  actual: 12, anterior: 8,  meta: 20 },
-  { t: "9am",  actual: 28, anterior: 15, meta: 25 },
-  { t: "10am", actual: 19, anterior: 22, meta: 25 },
-  { t: "11am", actual: 35, anterior: 28, meta: 30 },
-  { t: "12pm", actual: 47, anterior: 31, meta: 35 },
-  { t: "1pm",  actual: 31, anterior: 26, meta: 35 },
-  { t: "2pm",  actual: 22, anterior: 18, meta: 30 },
-  { t: "3pm",  actual: 38, anterior: 29, meta: 30 },
+  { t: "8am",  actual: 12, anterior: 8  },
+  { t: "9am",  actual: 28, anterior: 15 },
+  { t: "10am", actual: 19, anterior: 22 },
+  { t: "11am", actual: 35, anterior: 28 },
+  { t: "12pm", actual: 47, anterior: 31 },
+  { t: "1pm",  actual: 31, anterior: 26 },
+  { t: "2pm",  actual: 22, anterior: 18 },
+  { t: "3pm",  actual: 38, anterior: 29 },
 ];
 const TIEMPO_SEMANA = [
-  { t: "Lun", actual: 120, anterior: 95,  meta: 150 },
-  { t: "Mar", actual: 185, anterior: 140, meta: 150 },
-  { t: "Mié", actual: 97,  anterior: 110, meta: 150 },
-  { t: "Jue", actual: 210, anterior: 160, meta: 200 },
-  { t: "Vie", actual: 260, anterior: 195, meta: 200 },
-  { t: "Sáb", actual: 340, anterior: 280, meta: 300 },
-  { t: "Dom", actual: 180, anterior: 150, meta: 200 },
+  { t: "Lun", actual: 120, anterior: 95  },
+  { t: "Mar", actual: 185, anterior: 140 },
+  { t: "Mié", actual: 97,  anterior: 110 },
+  { t: "Jue", actual: 210, anterior: 160 },
+  { t: "Vie", actual: 260, anterior: 195 },
+  { t: "Sáb", actual: 340, anterior: 280 },
+  { t: "Dom", actual: 180, anterior: 150 },
 ];
 
 const KPI = {
@@ -131,7 +131,6 @@ function ChartCard({ title, period, onPeriod, children, defaultOpen = true, clas
       <div className="chart-card__header" onClick={() => setOpen(v => !v)}>
         <h3 className="chart-card__title">{title}</h3>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {/* Evitar que el click del select cierre el card */}
           {onPeriod && (
             <div onClick={e => e.stopPropagation()}>
               <PeriodSelect value={period} onChange={onPeriod} />
@@ -156,20 +155,17 @@ function ChartCard({ title, period, onPeriod, children, defaultOpen = true, clas
 export default function Dashboard() {
   const { productos, insumos } = useApp();
 
-  // ── Estados faltantes ──────────────────────────────────────
   const [animated,  setAnimated]  = useState(false);
   const [pVentas,   setPVentas]   = useState("hoy");
   const [pPedidos,  setPPedidos]  = useState("hoy");
   const [pTiempo,   setPTiempo]   = useState("hoy");
   const [pKpi,      setPKpi]      = useState("hoy");
 
-  // Animación de entrada
   useEffect(() => {
     const t = setTimeout(() => setAnimated(true), 50);
     return () => clearTimeout(t);
   }, []);
 
-  // ── Datos derivados del período ────────────────────────────
   const ventasData  = pVentas  === "hoy"    ? VENTAS_HOY
                     : pVentas  === "semana"  ? VENTAS_SEMANA
                     : VENTAS_MES;
@@ -181,20 +177,16 @@ export default function Dashboard() {
 
   const kpi = KPI[pKpi];
 
-  // ── Inventario crítico ─────────────────────────────────────
   const prodsCriticos = productos.filter(p => p.stock <= (p.stockMinimo || 10));
   const insCriticos   = insumos.filter(i => i.stockActual <= (i.stockMinimo || 5));
   const totalAgotados = [...productos, ...insumos]
     .filter(x => (x.stock ?? x.stockActual) === 0).length;
 
-
   return (
-      
     <div className={`dash-wrapper${animated ? " dash-wrapper--in" : ""}`}>
       <div className="dash-inner">
-        {/* ... Resto de los charts ... */}
 
-        {/* KPI strip — también desplegable */}
+        {/* KPI strip */}
         <div className={`kpi-strip${true ? " kpi-strip--open" : ""}`} style={{ marginBottom: 20 }}>
           <KpiStripInner kpi={kpi} pKpi={pKpi} setPKpi={setPKpi} />
         </div>
@@ -242,7 +234,6 @@ export default function Dashboard() {
         {/* Charts row 2 */}
         <div className="charts-row charts-row--bottom">
 
-          {/* Stat card desplegable */}
           <ChartCard title="Total ventas" className="chart-card--stat">
             <div className="stat-big">
               <div className="stat-amount">{kpi.ventas.valor}</div>
@@ -271,7 +262,6 @@ export default function Dashboard() {
                 <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
                 <Line type="monotone" dataKey="actual"   name="Actual"   stroke="#43a047" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
                 <Line type="monotone" dataKey="anterior" name="Anterior" stroke="#fb8c00" strokeWidth={2}   dot={false} strokeDasharray="5 3" />
-                <Line type="monotone" dataKey="meta"     name="Meta"     stroke="#5c6bc0" strokeWidth={1.5} dot={false} strokeDasharray="3 3" />
               </LineChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -282,7 +272,7 @@ export default function Dashboard() {
   );
 }
 
-/* ── KPI strip inner (separado para evitar re-render del strip) */
+/* ── KPI strip inner ─────────────────────────────────────── */
 function KpiStripInner({ kpi, pKpi, setPKpi }) {
   const [open, setOpen] = useState(true);
   return (

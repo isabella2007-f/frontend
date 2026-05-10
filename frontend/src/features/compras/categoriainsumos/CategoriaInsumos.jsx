@@ -10,10 +10,20 @@ const ITEMS_PER_PAGE = 5;
 
 function Toggle({ value, onChange }) {
   return (
-    <button onClick={() => onChange(!value)} className="toggle-btn"
-      style={{ background: value ? "#43a047" : "#c62828", boxShadow: value ? "0 2px 8px rgba(67,160,71,0.45)" : "0 2px 8px rgba(198,40,40,0.3)" }}>
+    <button
+      onClick={() => onChange(!value)}
+      className="toggle-btn"
+      style={{
+        background: value ? "#43a047" : "#c62828",
+        boxShadow: value
+          ? "0 2px 8px rgba(67,160,71,0.45)"
+          : "0 2px 8px rgba(198,40,40,0.3)",
+      }}
+    >
       <span className="toggle-thumb" style={{ left: value ? 27 : 3 }}>
-        <span className="toggle-label" style={{ color:"black" }}>{value ? "ON" : "OFF"}</span>
+        <span className="toggle-label" style={{ color: "black" }}>
+          {value ? "ON" : "OFF"}
+        </span>
       </span>
     </button>
   );
@@ -21,8 +31,18 @@ function Toggle({ value, onChange }) {
 
 function StatusPill({ active }) {
   return (
-    <span className="status-pill" style={{ background: active ? "#e8f5e9" : "#f5f5f5", color: active ? "#2e7d32" : "#9e9e9e", border: `1px solid ${active ? "#a5d6a7" : "#e0e0e0"}` }}>
-      <span className="status-dot" style={{ background: active ? "#43a047" : "#bdbdbd" }} />
+    <span
+      className="status-pill"
+      style={{
+        background: active ? "#e8f5e9" : "#f5f5f5",
+        color: active ? "#2e7d32" : "#9e9e9e",
+        border: `1px solid ${active ? "#a5d6a7" : "#e0e0e0"}`,
+      }}
+    >
+      <span
+        className="status-dot"
+        style={{ background: active ? "#43a047" : "#bdbdbd" }}
+      />
       {active ? "Activo" : "Inactivo"}
     </span>
   );
@@ -39,10 +59,29 @@ function VerCategoria({ cat, onClose }) {
         <button className="modal-close-btn" onClick={onClose}>✕</button>
       </div>
       <div className="modal-body">
-        <div style={{ display: "grid", gridTemplateColumns: "80px 1fr", gap: 20, marginBottom: 16 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "80px 1fr",
+            gap: 20,
+            marginBottom: 16,
+          }}
+        >
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Ícono</label>
-            <div style={{ width: "100%", height: 46, borderRadius: 10, background: "#f1f8f1", border: "1px solid #c8e6c9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>
+            <div
+              style={{
+                width: "100%",
+                height: 46,
+                borderRadius: 10,
+                background: "#f1f8f1",
+                border: "1px solid #c8e6c9",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 28,
+              }}
+            >
               {cat.icon}
             </div>
           </div>
@@ -54,12 +93,22 @@ function VerCategoria({ cat, onClose }) {
 
         <div className="form-group">
           <label className="form-label">Descripción</label>
-          <div className="field-input field-input--disabled" style={{ minHeight: 60, lineHeight: 1.4, fontSize: 13 }}>
+          <div
+            className="field-input field-input--disabled"
+            style={{ minHeight: 60, lineHeight: 1.4, fontSize: 13 }}
+          >
             {cat.descripcion || "Sin descripción registrada."}
           </div>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8 }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            paddingTop: 8,
+          }}
+        >
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Estado actual</label>
             <StatusPill active={cat.estado} />
@@ -81,7 +130,7 @@ function VerCategoria({ cat, onClose }) {
 
 export default function CategoriaInsumos() {
   const {
-    categoriasInsumos,
+    categoriasInsumos, insumos,
     crearCatInsumo, editarCatInsumo, toggleCatInsumo, eliminarCatInsumo,
     canDeleteCatInsumo,
   } = useApp();
@@ -96,7 +145,8 @@ export default function CategoriaInsumos() {
 
   useEffect(() => {
     const h = e => {
-      if (filterRef.current && !filterRef.current.contains(e.target)) setShowFilter(false);
+      if (filterRef.current && !filterRef.current.contains(e.target))
+        setShowFilter(false);
     };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
@@ -108,20 +158,43 @@ export default function CategoriaInsumos() {
   };
 
   const filtered = categoriasInsumos.filter(c => {
-    const q       = search.toLowerCase();
-    const matchQ  = c.nombre.toLowerCase().includes(q) || c.descripcion.toLowerCase().includes(q);
-    const matchEst = filter === "todos" || (filter === "activo" ? c.estado : !c.estado);
-    return matchQ && matchEst;
+    const q      = search.toLowerCase();
+    const matchQ = c.nombre.toLowerCase().includes(q) || c.descripcion.toLowerCase().includes(q);
+    const matchE = filter === "todos" || (filter === "activo" ? c.estado : !c.estado);
+    return matchQ && matchE;
   });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const safePage   = Math.min(page, totalPages);
-  const paginated  = filtered.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
+  const paginated  = filtered.slice(
+    (safePage - 1) * ITEMS_PER_PAGE,
+    safePage * ITEMS_PER_PAGE
+  );
   useEffect(() => setPage(1), [search, filter]);
 
-  const handleCreate = f  => { crearCatInsumo({ ...f, fecha: new Date().toLocaleDateString("es-CO") }); showToast("Categoría creada");          setModal(null); };
-  const handleEdit   = f  => { editarCatInsumo(f);                                                      showToast("Cambios guardados");         setModal(null); };
-  const handleDelete = () => { eliminarCatInsumo(modal.cat.id);                                         showToast("Categoría eliminada", "error"); setModal(null); };
+  /* ── Toggle con validación de insumos asociados ── */
+  const handleToggle = (cat) => {
+    // Solo validar cuando se intenta DESACTIVAR (estado actual = true)
+    if (cat.estado) {
+      const insumosAsociados = insumos.filter(i => i.idCategoria === cat.id && i.estado);
+      if (insumosAsociados.length > 0) {
+        showToast(
+          `No se puede desactivar "${cat.nombre}": tiene ${insumosAsociados.length} insumo${insumosAsociados.length > 1 ? "s" : ""} activo${insumosAsociados.length > 1 ? "s" : ""} asociado${insumosAsociados.length > 1 ? "s" : ""}.`,
+          "error"
+        );
+        return;
+      }
+    }
+    toggleCatInsumo(cat.id);
+  };
+
+  const handleCreate = f => {
+    crearCatInsumo({ ...f, fecha: new Date().toLocaleDateString("es-CO") });
+    showToast("Categoría creada");
+    setModal(null);
+  };
+  const handleEdit   = f  => { editarCatInsumo(f);                showToast("Cambios guardados");          setModal(null); };
+  const handleDelete = () => { eliminarCatInsumo(modal.cat.id);   showToast("Categoría eliminada", "error"); setModal(null); };
 
   const filterOptions = [
     { val: "todos",    label: "Todos",     dot: "#bdbdbd" },
@@ -141,9 +214,11 @@ export default function CategoriaInsumos() {
           <div className="search-wrap">
             <span className="search-icon">🔍</span>
             <input
-              type="text" className="search-input"
+              type="text"
+              className="search-input"
               placeholder="Buscar por nombre o descripción…"
-              value={search} onChange={e => setSearch(e.target.value)}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
             />
           </div>
 
@@ -160,7 +235,8 @@ export default function CategoriaInsumos() {
                     className={`filter-option${filter === f.val ? " active" : ""}`}
                     onClick={() => { setFilter(f.val); setShowFilter(false); }}
                   >
-                    <span className="filter-dot" style={{ background: f.dot }} />{f.label}
+                    <span className="filter-dot" style={{ background: f.dot }} />
+                    {f.label}
                   </button>
                 ))}
               </div>
@@ -212,19 +288,26 @@ export default function CategoriaInsumos() {
                       <span className="cat-desc">{cat.descripcion}</span>
                     </td>
                     <td>
-                      <Toggle value={cat.estado} onChange={() => toggleCatInsumo(cat.id)} />
+                      {/* Toggle con validación inline */}
+                      <Toggle value={cat.estado} onChange={() => handleToggle(cat)} />
                     </td>
                     <td>
                       <span className="cat-date">{cat.fecha}</span>
                     </td>
                     <td>
                       <div className="actions-cell">
-                        <button className="act-btn act-btn--view"
-                          onClick={() => setModal({ type: "ver", cat })}>👁</button>
-                        <button className="act-btn act-btn--edit"
-                          onClick={() => setModal({ type: "editar", cat })}>✎</button>
-                        <button className="act-btn act-btn--delete"
-                          onClick={() => setModal({ type: "eliminar", cat })}>🗑️</button>
+                        <button
+                          className="act-btn act-btn--view"
+                          onClick={() => setModal({ type: "ver", cat })}
+                        >👁</button>
+                        <button
+                          className="act-btn act-btn--edit"
+                          onClick={() => setModal({ type: "editar", cat })}
+                        >✎</button>
+                        <button
+                          className="act-btn act-btn--delete"
+                          onClick={() => setModal({ type: "eliminar", cat })}
+                        >🗑️</button>
                       </div>
                     </td>
                   </tr>
@@ -238,13 +321,27 @@ export default function CategoriaInsumos() {
               {filtered.length} {filtered.length === 1 ? "categoría" : "categorías"} en total
             </span>
             <div className="pagination-btns">
-              <button className="pg-btn-arrow"
+              <button
+                className="pg-btn-arrow"
+                onClick={() => setPage(1)}
+                disabled={safePage === 1}
+              >«</button>
+              <button
+                className="pg-btn-arrow"
                 onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={safePage === 1}>‹</button>
+                disabled={safePage === 1}
+              >‹</button>
               <span className="pg-pill">Página {safePage} de {totalPages}</span>
-              <button className="pg-btn-arrow"
+              <button
+                className="pg-btn-arrow"
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={safePage === totalPages}>›</button>
+                disabled={safePage === totalPages}
+              >›</button>
+              <button
+                className="pg-btn-arrow"
+                onClick={() => setPage(totalPages)}
+                disabled={safePage === totalPages}
+              >»</button>
             </div>
           </div>
         </div>

@@ -14,12 +14,9 @@ const MainLayout = () => {
     }
   }, [location]);
 
-  // Detectar si estamos en la landing page del cliente
-  const isLandingPage = location.pathname === "/cliente" || location.pathname === "/cliente/inicio";
-
   return (
       <div className="app-layout">
-        <Navbar onToggleSidebar={() => setSidebarOpen(v => !v)} isLanding={isLandingPage} />
+        <Navbar onToggleSidebar={() => setSidebarOpen(v => !v)} isLanding={false} />
 
         {sidebarOpen && (
           <div
@@ -29,7 +26,7 @@ const MainLayout = () => {
         )}
 
         <div className="app-body">
-          <Sidebar isOpen={sidebarOpen} />
+          <Sidebar isOpen={sidebarOpen} onToggle={() => setSidebarOpen(v => !v)} />
 
           <main className="main-content">
             <Outlet />

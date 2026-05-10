@@ -24,6 +24,7 @@ export const updateUser = (updatedData) => {
 
   const newProfile = { ...currentUser, ...editable };
   localStorage.setItem('session', JSON.stringify(newProfile));
+  sessionStorage.setItem('session', JSON.stringify(newProfile));
 
   return newProfile;
 };

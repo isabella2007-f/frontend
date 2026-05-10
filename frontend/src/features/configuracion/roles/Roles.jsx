@@ -327,6 +327,7 @@ export default function GestionRoles() {
               {filtered.length} {filtered.length === 1 ? "rol" : "roles"} en total
             </span>
             <div className="pagination-btns">
+              <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
               <button
                 className="pg-btn-arrow"
                 onClick={() => setPage(p => Math.max(1, p - 1))}
@@ -342,6 +343,7 @@ export default function GestionRoles() {
               >
                 ›
               </button>
+              <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>»</button>
             </div>
           </div>
         </div>

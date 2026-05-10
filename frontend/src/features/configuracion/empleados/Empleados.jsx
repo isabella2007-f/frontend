@@ -175,9 +175,11 @@ export default function GestionEmpleados() {
           <div className="pagination-bar">
             <span className="pagination-count">{filtered.length} {filtered.length === 1 ? "empleado" : "empleados"} en total</span>
             <div className="pagination-btns">
+              <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
               <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1,p-1))} disabled={safePage===1}>‹</button>
               <span className="pg-pill">Página {safePage} de {totalPages}</span>
               <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages,p+1))} disabled={safePage===totalPages}>›</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>»</button>
             </div>
           </div>
         </div>

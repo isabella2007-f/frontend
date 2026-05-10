@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useApp } from "../../../AppContext.jsx";
 import "./Devoluciones.css";
 
@@ -52,36 +52,148 @@ function StepsBar({ current }) {
   );
 }
 
-export default function CrearDevolucion({ onClose, onSave }) {
-  const { pedidos, clientes, getCliente } = useApp();
+/* ─── UPLOAD DE EVIDENCIA ────────────────────────────────── */
+function EvidenciaUpload({ evidencia, onEvidencia }) {
+  const fileRef = useRef();
+  const [dragging, setDragging] = useState(false);
 
-  /* Solo pedidos entregados */
-  const pedidosEntregados = pedidos.filter(p => p.estado === "Entregado");
+  const processFile = (file) => {
+    if (!file) return;
+    const r = new FileReader();
+    r.onload = (ev) =>
+      onEvidencia({ nombre: file.name, base64: ev.target.result, tipo: file.type });
+    r.readAsDataURL(file);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragging(false);
+    processFile(e.dataTransfer.files[0]);
+  };
+
+  const isImage = evidencia?.tipo?.startsWith("image/");
+
+  if (evidencia) {
+    return (
+      <div className="evidencia-preview">
+        {isImage ? (
+          <img src={evidencia.base64} alt="evidencia" className="evidencia-preview__img" />
+        ) : (
+          <div className="evidencia-preview__file">
+            <span className="evidencia-preview__file-icon">
+              {evidencia.tipo?.startsWith("video/") ? "🎥" : "📄"}
+            </span>
+            <span className="evidencia-preview__file-name">{evidencia.nombre}</span>
+          </div>
+        )}
+        <div className="evidencia-preview__bar">
+          <span className="evidencia-preview__name">📎 {evidencia.nombre}</span>
+          <button
+            className="evidencia-preview__remove"
+            onClick={() => onEvidencia(null)}
+            title="Quitar evidencia"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`evidencia-dropzone${dragging ? " dragging" : ""}`}
+      onClick={() => fileRef.current?.click()}
+      onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={handleDrop}
+    >
+      <span className="evidencia-dropzone__icon">📎</span>
+      <span className="evidencia-dropzone__text">
+        Arrastra un archivo o <strong>haz clic para seleccionar</strong>
+      </span>
+      <span className="evidencia-dropzone__hint">Imágenes, PDF, video · Opcional</span>
+      <input
+        ref={fileRef}
+        type="file"
+        style={{ display: "none" }}
+        accept="image/*,application/pdf,video/*"
+        onChange={(e) => processFile(e.target.files[0])}
+      />
+    </div>
+  );
+}
+
+/* ─── ITEM DE PRODUCTO ───────────────────────────────────── */
+function ProdItem({ item, idx, onSet }) {
+  return (
+    <div className="prod-dev-row">
+      <div className="prod-dev-row__info">
+        <div className="prod-dev-row__name">{item.nombre}</div>
+        <div className="prod-dev-row__meta">
+          {fmt(item.precio)} c/u · disponibles: {item.cantMax}
+        </div>
+      </div>
+
+      <div className="prod-dev-row__qty-wrap">
+        <button
+          className="qty-btn"
+          onClick={() => onSet(idx, item.cantidad - 1)}
+          disabled={item.cantidad === 0}
+        >−</button>
+        <input
+          className="qty-input"
+          type="number"
+          min={0}
+          max={item.cantMax}
+          value={item.cantidad}
+          onChange={(e) => onSet(idx, e.target.value)}
+        />
+        <button
+          className="qty-btn"
+          onClick={() => onSet(idx, item.cantidad + 1)}
+          disabled={item.cantidad >= item.cantMax}
+        >+</button>
+      </div>
+
+      <div className="prod-dev-row__sub">
+        {item.cantidad > 0 ? fmt(item.precio * item.cantidad) : "—"}
+      </div>
+    </div>
+  );
+}
+
+/* ─── COMPONENTE PRINCIPAL ───────────────────────────────── */
+export default function CrearDevolucion({ onClose, onSave }) {
+  const { pedidos } = useApp();
+
+  const pedidosEntregados = pedidos.filter((p) => p.estado === "Entregado");
 
   const [idPedido,   setIdPedido]   = useState("");
   const [motivo,     setMotivo]     = useState("");
   const [comentario, setComentario] = useState("");
-  const [evidencia,  setEvidencia]  = useState(null);  /* { nombre, base64, tipo } */
+  const [evidencia,  setEvidencia]  = useState(null);
   const [items,      setItems]      = useState([]);
   const [errors,     setErrors]     = useState({});
   const [saved,      setSaved]      = useState(false);
   const [step,       setStep]       = useState(1);
 
-  const pedidoSel = pedidosEntregados.find(p => String(p.id) === String(idPedido));
+  const pedidoSel = pedidosEntregados.find((p) => String(p.id) === String(idPedido));
 
-  /* Al seleccionar pedido → cargar productos con cantidad 0 */
   const handleSelectPedido = (val) => {
     setIdPedido(val);
-    setErrors(e => ({ ...e, idPedido: "" }));
-    const ped = pedidosEntregados.find(p => String(p.id) === String(val));
+    setErrors((e) => ({ ...e, idPedido: "" }));
+    const ped = pedidosEntregados.find((p) => String(p.id) === String(val));
     if (ped) {
-      setItems((ped.productosItems || []).map(p => ({
-        idProducto: p.idProducto,
-        nombre:     p.nombre,
-        precio:     p.precio,
-        cantMax:    p.cantidad,
-        cantidad:   0,
-      })));
+      setItems(
+        (ped.productosItems || []).map((p) => ({
+          idProducto: p.idProducto,
+          nombre:     p.nombre,
+          precio:     p.precio,
+          cantMax:    p.cantidad,
+          cantidad:   0,
+        }))
+      );
     } else {
       setItems([]);
     }
@@ -89,22 +201,23 @@ export default function CrearDevolucion({ onClose, onSave }) {
 
   const setCantidad = (idx, val) => {
     const n = Math.max(0, Math.min(items[idx].cantMax, Number(val) || 0));
-    setItems(prev => { const arr = [...prev]; arr[idx] = { ...arr[idx], cantidad: n }; return arr; });
-    setErrors(e => ({ ...e, items: "" }));
+    setItems((prev) => {
+      const arr = [...prev];
+      arr[idx] = { ...arr[idx], cantidad: n };
+      return arr;
+    });
+    setErrors((e) => ({ ...e, items: "" }));
   };
 
-  /* Cálculos */
-  const itemsSeleccionados = items.filter(i => i.cantidad > 0);
+  const itemsSeleccionados = items.filter((i) => i.cantidad > 0);
   const totalDevolucion    = itemsSeleccionados.reduce((a, i) => a + i.precio * i.cantidad, 0);
 
   const validateStep = (s) => {
     const e = {};
-    if (s === 1) {
-      if (!idPedido) e.idPedido = "Selecciona un pedido";
-    }
+    if (s === 1 && !idPedido) e.idPedido = "Selecciona un pedido";
     if (s === 2) {
       if (!motivo) e.motivo = "Selecciona un motivo";
-      if (itemsSeleccionados.length === 0) e.items = "Agrega productos";
+      if (itemsSeleccionados.length === 0) e.items = "Selecciona al menos un producto";
     }
     return e;
   };
@@ -112,34 +225,32 @@ export default function CrearDevolucion({ onClose, onSave }) {
   const handleNext = () => {
     const e = validateStep(step);
     if (Object.keys(e).length) { setErrors(e); return; }
-    setStep(s => s + 1);
+    setStep((s) => s + 1);
   };
 
-  const handleBack = () => setStep(s => s - 1);
+  const handleBack = () => setStep((s) => s - 1);
 
   const handleSave = () => {
     const e = validateStep(2);
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaved(true);
 
-    const cliente = pedidoSel?.cliente;
-
     const payload = {
-      idPedido:       pedidoSel.id,
-      numeroPedido:   pedidoSel.numero,
-      idCliente:      pedidoSel.idCliente,
-      cliente,
+      idPedido:     pedidoSel.id,
+      numeroPedido: pedidoSel.numero,
+      idCliente:    pedidoSel.idCliente,
+      cliente:      pedidoSel.cliente,
       motivo,
       comentario,
-      productos:      itemsSeleccionados.map(i => ({
+      productos:    itemsSeleccionados.map((i) => ({
         idProducto:     i.idProducto,
         nombre:         i.nombre,
         cantidad:       i.cantidad,
         precioUnitario: i.precio,
         subtotal:       i.precio * i.cantidad,
       })),
-      totalDevuelto:  totalDevolucion,
-      evidencia:      evidencia || null,
+      totalDevuelto: totalDevolucion,
+      evidencia:     evidencia || null,
     };
 
     setTimeout(() => onSave(payload), 900);
@@ -147,13 +258,15 @@ export default function CrearDevolucion({ onClose, onSave }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+      <div className="modal-card" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
 
         {/* Header */}
         <div className="modal-header">
           <div>
             <p className="modal-header__eyebrow">Devoluciones</p>
-            <h2 className="modal-header__title" style={{ color: "#c62828" }}>Registrar devolución</h2>
+            <h2 className="modal-header__title" style={{ color: "#c62828" }}>
+              Registrar devolución
+            </h2>
           </div>
           <button className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
@@ -163,22 +276,26 @@ export default function CrearDevolucion({ onClose, onSave }) {
           <StepsBar current={step} />
         </div>
 
-        <div className="modal-body" style={{ overflowY: "auto", minHeight: 280 }}>
+        <div className="modal-body" style={{ overflowY: "auto" }}>
 
           {/* ── Paso 1: Pedido ── */}
           {step === 1 && (
             <>
-              <p className="section-label" style={{textTransform: "none", marginTop: 0}} >Seleccionar Pedido</p>
+              <p className="section-label" style={{ textTransform: "none", marginTop: 0 }}>
+                Seleccionar Pedido
+              </p>
               <div className="field-wrap">
-                <label className="field-label">Pedido entregado <span className="required">*</span></label>
+                <label className="field-label">
+                  Pedido entregado <span className="required">*</span>
+                </label>
                 <div className="select-wrap">
                   <select
                     className={`field-select${errors.idPedido ? " error" : ""}`}
                     value={idPedido}
-                    onChange={e => handleSelectPedido(e.target.value)}
+                    onChange={(e) => handleSelectPedido(e.target.value)}
                   >
                     <option value="">Seleccione un pedido…</option>
-                    {pedidosEntregados.map(p => (
+                    {pedidosEntregados.map((p) => (
                       <option key={p.id} value={String(p.id)}>
                         {p.numero} — {p.cliente?.nombre}
                       </option>
@@ -186,14 +303,18 @@ export default function CrearDevolucion({ onClose, onSave }) {
                   </select>
                   <SelectArrow />
                 </div>
-                {errors.idPedido && <span className="field-error">{errors.idPedido}</span>}
+                {errors.idPedido && (
+                  <span className="field-error">{errors.idPedido}</span>
+                )}
               </div>
 
               {pedidoSel && (
                 <div className="info-box info-box--info" style={{ marginTop: 16 }}>
                   <span className="info-box__icon">📦</span>
                   <div className="info-box__text">
-                    <span className="info-box__label">{pedidoSel.numero} · {pedidoSel.cliente?.nombre}</span>
+                    <span className="info-box__label">
+                      {pedidoSel.numero} · {pedidoSel.cliente?.nombre}
+                    </span>
                     Total pagado: {fmt(pedidoSel.total)} · {pedidoSel.metodo_pago}
                   </div>
                 </div>
@@ -204,72 +325,108 @@ export default function CrearDevolucion({ onClose, onSave }) {
           {/* ── Paso 2: Detalles ── */}
           {step === 2 && (
             <>
-              <p className="section-label" style={{textTransform: "none", marginTop: 0}}>Productos a devolver</p>
-              <div className="productos-devolucion" style={{ maxHeight: 180, overflowY: "auto", border: "1.5px solid #eee", borderRadius: 10, padding: 8 }}>
+              {/* Productos */}
+              <p className="section-label" style={{ textTransform: "none", marginTop: 0 }}>
+                Productos a devolver
+              </p>
+
+              <div className="prod-dev-list">
+                {/* Encabezado de columnas */}
+                <div className="prod-dev-list__header">
+                  <span>Producto</span>
+                  <span style={{ textAlign: "center" }}>Cantidad</span>
+                  <span style={{ textAlign: "right" }}>Subtotal</span>
+                </div>
+
                 {items.map((item, idx) => (
-                  <div key={idx} className="prod-dev-item" style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: idx < items.length - 1 ? "1px solid #f5f5f5" : "none" }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>{item.nombre}</div>
-                      <div style={{ fontSize: 11, color: "#9e9e9e" }}>{fmt(item.precio)} c/u</div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <button className="qty-btn" onClick={() => setCantidad(idx, item.cantidad - 1)}>−</button>
-                      <input className="qty-input" type="number" value={item.cantidad} onChange={e => setCantidad(idx, e.target.value)} style={{ width: 36, textAlign: "center" }} />
-                      <button className="qty-btn" onClick={() => setCantidad(idx, item.cantidad + 1)}>+</button>
-                    </div>
-                  </div>
+                  <ProdItem key={idx} item={item} idx={idx} onSet={setCantidad} />
                 ))}
               </div>
-              {errors.items && <p className="field-error">{errors.items}</p>}
 
-              <div className="form-grid-2" style={{ marginTop: 12 }}>
+              {errors.items && (
+                <p className="field-error" style={{ marginTop: 6 }}>{errors.items}</p>
+              )}
+
+              {/* Total + Motivo */}
+              <div className="form-grid-2" style={{ marginTop: 16 }}>
                 <div className="field-wrap">
-                  <label className="field-label">Motivo <span className="required">*</span></label>
+                  <label className="field-label">
+                    Motivo <span className="required">*</span>
+                  </label>
                   <div className="select-wrap">
-                    <select className={`field-select${errors.motivo ? " error" : ""}`} value={motivo} onChange={e => setMotivo(e.target.value)}>
+                    <select
+                      className={`field-select${errors.motivo ? " error" : ""}`}
+                      value={motivo}
+                      onChange={(e) => setMotivo(e.target.value)}
+                    >
                       <option value="">Seleccione…</option>
-                      {MOTIVOS.map(m => <option key={m} value={m}>{m}</option>)}
+                      {MOTIVOS.map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
                     </select>
                     <SelectArrow />
                   </div>
+                  {errors.motivo && (
+                    <span className="field-error">{errors.motivo}</span>
+                  )}
                 </div>
+
                 <div className="field-wrap">
                   <label className="field-label">Total a devolver</label>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: "#c62828", paddingTop: 8 }}>{fmt(totalDevolucion)}</div>
+                  <div className="total-devolucion-val">
+                    {fmt(totalDevolucion)}
+                  </div>
                 </div>
               </div>
 
+              {/* Comentario */}
+              <div className="field-wrap" style={{ marginTop: 12 }}>
+                <label className="field-label">Comentario (opcional)</label>
+                <textarea
+                  className="field-textarea"
+                  rows={2}
+                  placeholder="Describe el problema con más detalle…"
+                  value={comentario}
+                  onChange={(e) => setComentario(e.target.value)}
+                />
+              </div>
+
+              {/* Evidencia */}
               <div className="field-wrap" style={{ marginTop: 12 }}>
                 <label className="field-label">Evidencia (opcional)</label>
-                <input type="file" style={{ fontSize: 12 }} onChange={e => {
-                  const file = e.target.files[0]; if (!file) return;
-                  const r = new FileReader(); r.onload = ev => setEvidencia({ nombre: file.name, base64: ev.target.result }); r.readAsDataURL(file);
-                }} />
+                <EvidenciaUpload evidencia={evidencia} onEvidencia={setEvidencia} />
               </div>
             </>
           )}
-
         </div>
 
         {/* Footer */}
         <div className="modal-footer" style={{ justifyContent: "space-between" }}>
-          {step > 1
-            ? <button className="btn-ghost" onClick={handleBack}>← Atrás</button>
-            : <button className="btn-ghost" onClick={onClose}>Cancelar</button>
-          }
+          {step > 1 ? (
+            <button className="btn-ghost" onClick={handleBack}>← Atrás</button>
+          ) : (
+            <button className="btn-ghost" onClick={onClose}>Cancelar</button>
+          )}
           <div style={{ display: "flex", gap: 10 }}>
-            {step < 2
-              ? <button className="btn-save" onClick={handleNext}>Siguiente →</button>
-              : <button className="btn-save" style={{ background: "#c62828" }} onClick={handleSave} disabled={saved || totalDevolucion === 0}>
-                  {saved ? "Guardando…" : "Registrar"}
-                </button>
-            }
+            {step < 2 ? (
+              <button className="btn-save" onClick={handleNext}>Siguiente →</button>
+            ) : (
+              <button
+                className="btn-save"
+                style={{ background: "#c62828" }}
+                onClick={handleSave}
+                disabled={saved || totalDevolucion === 0}
+              >
+                {saved ? "Guardando…" : "Registrar"}
+              </button>
+            )}
           </div>
         </div>
 
         {saved && (
           <div className="modal-success-toast">
-            <span>✓</span><span>Devolución exitosa</span>
+            <span>✓</span>
+            <span>Devolución exitosa</span>
           </div>
         )}
       </div>

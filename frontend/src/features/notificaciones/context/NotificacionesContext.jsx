@@ -76,22 +76,38 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
   // Obtener usuario actual para filtrar notificaciones automáticas
   useEffect(() => {
     const checkUser = () => {
-      const session = localStorage.getItem("session");
+      const session = sessionStorage.getItem("session") || localStorage.getItem("session");
       if (session) {
         setLocalUser(JSON.parse(session));
       } else {
         setLocalUser(null);
       }
     };
+    
+    const syncNotifs = (e) => {
+      if (e.key === "notificaciones" && e.newValue) {
+        setNotificaciones(JSON.parse(e.newValue));
+      }
+      if (e.key === "notif_nivelesMinimos" && e.newValue) {
+        setNivelesMinimos(JSON.parse(e.newValue));
+      }
+      if (e.key === "notif_autoActivo" && e.newValue) {
+        setAutoActivo(JSON.parse(e.newValue));
+      }
+    };
+
     checkUser();
     
     // Escuchar cambios en auth para actualizar el usuario local
     window.addEventListener("storage", checkUser);
+    // Escuchar cambios en otros datos para sincronizar pestañas
+    window.addEventListener("storage", syncNotifs);
     // Custom event para cambios de sesión en la misma pestaña
     window.addEventListener("session-changed", checkUser);
     
     return () => {
       window.removeEventListener("storage", checkUser);
+      window.removeEventListener("storage", syncNotifs);
       window.removeEventListener("session-changed", checkUser);
     };
   }, []);
@@ -213,7 +229,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
 
   useEffect(() => {
     generarNotifAutomaticas();
-  }, [autoActivo, insumos.length, lotes.length, compras.length, user]);
+  }, [autoActivo, insumos, lotes, compras, user, generarNotifAutomaticas]);
 
   const marcarLeida = useCallback((id) => {
     setNotificaciones(prev => prev.map(n => n.id === id ? { ...n, leida: true } : n));
@@ -221,21 +237,25 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
 
   const marcarTodasLeidas = useCallback(() => {
     setNotificaciones(prev => prev.map(n => {
-      const rol = user?.rol?.toLowerCase();
+      const session = sessionStorage.getItem("session") || localStorage.getItem("session");
+      const currentUser = session ? JSON.parse(session) : user;
+      const rol = currentUser?.rol?.toLowerCase();
       const isAdmin = rol === 'admin' || rol === 'administrador';
-      const isForCurrent = (isAdmin && n.idDestinatario === 'admin') || (n.idDestinatario === user?.cedula);
+      const isForCurrent = (isAdmin && n.idDestinatario === 'admin') || (n.idDestinatario === currentUser?.cedula);
       return isForCurrent ? { ...n, leida: true } : n;
     }));
   }, [user]);
 
   const filtrar = useCallback(({ tipo, estado, texto }) => {
     return notificaciones.filter(n => {
-      const rol = user?.rol?.toLowerCase();
+      const session = sessionStorage.getItem("session") || localStorage.getItem("session");
+      const currentUser = session ? JSON.parse(session) : user;
+      const rol = currentUser?.rol?.toLowerCase();
       const isAdmin = rol === 'admin' || rol === 'administrador';
       const isClient = rol === 'cliente';
 
       const isForAdmin = isAdmin && n.idDestinatario === 'admin';
-      const isForClient = isClient && n.idDestinatario === user?.cedula;
+      const isForClient = isClient && n.idDestinatario === currentUser?.cedula;
       
       if (!isForAdmin && !isForClient) return false;
 

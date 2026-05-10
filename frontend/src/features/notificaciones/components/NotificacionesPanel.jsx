@@ -35,7 +35,7 @@ export default function NotificacionesPanel({ isOpen, onClose }) {
   const panelRef = useRef(null);
 
   // Obtener usuario para filtrar las opciones del select
-  const session = localStorage.getItem("session");
+  const session = sessionStorage.getItem("session") || localStorage.getItem("session");
   const user = session ? JSON.parse(session) : null;
   const rol = user?.rol?.toLowerCase();
   const isAdmin = rol === 'admin' || rol === 'administrador';

@@ -15,11 +15,21 @@ const fmtFecha = (iso) => {
 const PER_PAGE = 5;
 
 const ESTADO_CONFIG = {
-  "Listo":     { dot: "#43a047", label: "Listo", desc: "Pedido listo para entregar" },
+  "Listo":     { dot: "#43a047", label: "Listo",     desc: "Pedido listo para entregar" },
   "En camino": { dot: "#8e24aa", label: "En camino", desc: "Domiciliario en trayecto" },
   "Entregado": { dot: "#009688", label: "Entregado", desc: "Pedido entregado al cliente" },
   "Pendiente": { dot: "#f9a825", label: "Pendiente", desc: "Pedido pendiente de salida" },
 };
+
+/* ─── Opciones de filtro con colores correctos ───────────── */
+const FILTER_OPTIONS = [
+  { val: "todos",       label: "Todos",          dot: "#bdbdbd" },
+  { val: "activos",     label: "Activos",        dot: "#43a047" }, // verde — agrupa Listo + En camino
+  { val: "Listo",       label: "Listo",          dot: "#baffbd" }, // verde
+  { val: "En camino",   label: "En camino",      dot: "#8e24aa" }, // morado
+  { val: "Entregado",   label: "Entregados",     dot: "#009688" }, // teal
+  { val: "sin-asignar", label: "Sin asignar",    dot: "#e53935" }, // rojo
+];
 
 /* ─── Componentes pequeños ───────────────────────────────── */
 function EstadoBadge({ estado }) {
@@ -35,8 +45,7 @@ function EstadoBadge({ estado }) {
 
 function AlertaEstado({ pedido, empleados }) {
   const emp = empleados.find(e => e.id === pedido.idEmpleado);
-  
-  // Sin domiciliario asignado
+
   if (!emp && !["Entregado", "Cancelado"].includes(pedido.estado)) {
     return (
       <div style={{
@@ -49,8 +58,7 @@ function AlertaEstado({ pedido, empleados }) {
       </div>
     );
   }
-  
-  // Pedido entregado
+
   if (pedido.estado === "Entregado") {
     return (
       <div style={{
@@ -63,8 +71,7 @@ function AlertaEstado({ pedido, empleados }) {
       </div>
     );
   }
-  
-  // En camino
+
   if (pedido.estado === "En camino") {
     return (
       <div style={{
@@ -77,13 +84,16 @@ function AlertaEstado({ pedido, empleados }) {
       </div>
     );
   }
-  
+
   return null;
 }
 
 function Toast({ toast }) {
   if (!toast) return null;
-  const bg = toast.type === "error" ? "#c62828" : toast.type === "warn" ? "#e65100" : "#2e7d32";
+  const bg =
+    toast.type === "error" ? "#c62828" :
+    toast.type === "warn"  ? "#e65100" :
+    "#2e7d32";
   return (
     <div className="toast" style={{ background: bg }}>
       <span style={{ fontSize: 15 }}>
@@ -105,6 +115,62 @@ function SelectArrow() {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   MODAL CONFIRMAR DESACTIVAR DOMICILIARIO
+   ═══════════════════════════════════════════════════════════ */
+function ModalConfirmarDesactivar({ usuario, pedidosActivos, onConfirm, onClose }) {
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <p className="modal-header__eyebrow">Advertencia</p>
+            <h2 className="modal-header__title">Desactivar domiciliario</h2>
+          </div>
+          <button className="modal-close-btn" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="modal-body" style={{ overflow: "visible" }}>
+          <div className="info-box info-box--warn">
+            <span className="info-box__icon">⚠️</span>
+            <div className="info-box__text">
+              <span className="info-box__label">
+                {usuario.nombre} {usuario.apellidos} tiene {pedidosActivos.length}{" "}
+                domicilio{pedidosActivos.length !== 1 ? "s" : ""} activo
+                {pedidosActivos.length !== 1 ? "s" : ""}
+              </span>
+              Al desactivarlo, estos pedidos quedarán sin domiciliario asignado.
+            </div>
+          </div>
+
+          {/* Lista de pedidos afectados */}
+          <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6, maxHeight: 220, overflowY: "auto" }}>
+            {pedidosActivos.map(p => (
+              <div key={p.id} className="hist-pedido-row">
+                <span className="hist-pedido-num">{p.numero}</span>
+                <span className="hist-pedido-dir">{p.direccion_entrega}</span>
+                <EstadoBadge estado={p.estado} />
+                <span className="hist-pedido-fecha">{fmtFecha(p.fecha_pedido)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn-cancel" onClick={onClose}>Cancelar</button>
+          <button
+            className="btn-save"
+            style={{ background: "#c62828", boxShadow: "0 3px 10px rgba(198,40,40,0.35)" }}
+            onClick={onConfirm}
+          >
+            Desactivar de todas formas
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
    MODAL VER DETALLE — Side panel
    ═══════════════════════════════════════════════════════════ */
 const NAV_VER = [
@@ -119,16 +185,17 @@ function ModalVerDomicilio({ pedido, emp, domicilios, onClose, onReasignar, onOb
   const activo = !["Entregado", "Cancelado"].includes(pedido.estado);
   const cfg = ESTADO_CONFIG[pedido.estado] || { dot: "#bdbdbd", label: pedido.estado, desc: "" };
   const pedidosAsignados = domicilios.filter(d => d.idEmpleado === emp?.id);
-  const pendientes = pedidosAsignados.filter(d => !["Entregado", "Cancelado"].includes(d.estado)).length;
-  const enCamino = pedidosAsignados.filter(d => d.estado === "En camino").length;
-  const entregados = pedidosAsignados.filter(d => d.estado === "Entregado").length;
+  const pendientes  = pedidosAsignados.filter(d => !["Entregado", "Cancelado"].includes(d.estado)).length;
+  const enCamino    = pedidosAsignados.filter(d => d.estado === "En camino").length;
+  const entregados  = pedidosAsignados.filter(d => d.estado === "Entregado").length;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
         className="modal-box modal-box--wide"
         onClick={e => e.stopPropagation()}
-        style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}      >
+        style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}
+      >
         {/* Header */}
         <div className="modal-header">
           <div>
@@ -161,8 +228,10 @@ function ModalVerDomicilio({ pedido, emp, domicilios, onClose, onReasignar, onOb
             width: 150, borderRight: "1px solid #f0f0f0", background: "#fafdf9",
             display: "flex", flexDirection: "column", padding: "12px 0", flexShrink: 0,
           }}>
-            {/* Avatar domicilio */}
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: 16, paddingBottom: 12, borderBottom: "1px solid #f0f0f0" }}>
+            <div style={{
+              display: "flex", justifyContent: "center",
+              marginBottom: 16, paddingBottom: 12, borderBottom: "1px solid #f0f0f0"
+            }}>
               <div style={{
                 width: 48, height: 48, borderRadius: "50%", background: "#e8f5e9",
                 border: "1.5px solid #a5d6a7", display: "flex", alignItems: "center",
@@ -214,8 +283,7 @@ function ModalVerDomicilio({ pedido, emp, domicilios, onClose, onReasignar, onOb
                     {fmt(pedido.total)}
                   </div>
                 </div>
-                
-                {/* Estado del pedido */}
+
                 <p className="section-label">Estado del pedido</p>
                 <div style={{
                   background: cfg.dot + "11",
@@ -227,10 +295,7 @@ function ModalVerDomicilio({ pedido, emp, domicilios, onClose, onReasignar, onOb
                     display: "flex", alignItems: "center", gap: 8,
                     marginBottom: 6, fontSize: 14, fontWeight: 700, color: cfg.dot
                   }}>
-                    <span style={{
-                      width: 12, height: 12, borderRadius: "50%",
-                      background: cfg.dot
-                    }} />
+                    <span style={{ width: 12, height: 12, borderRadius: "50%", background: cfg.dot }} />
                     {cfg.label}
                   </div>
                   <div style={{ fontSize: 12, color: "#666" }}>
@@ -248,7 +313,7 @@ function ModalVerDomicilio({ pedido, emp, domicilios, onClose, onReasignar, onOb
                   <span className="info-box__icon">📍</span>
                   <span className="info-box__text">{pedido.direccion_entrega || "—"}</span>
                 </div>
-                {pedido.obs_domicilio && (
+                {pedido.obs_domicilio ? (
                   <>
                     <p className="section-label">Observaciones</p>
                     <div className="info-box info-box--warn">
@@ -256,8 +321,7 @@ function ModalVerDomicilio({ pedido, emp, domicilios, onClose, onReasignar, onOb
                       <span className="info-box__text">{pedido.obs_domicilio}</span>
                     </div>
                   </>
-                )}
-                {!pedido.obs_domicilio && (
+                ) : (
                   <p style={{ fontSize: 12, color: "#bdbdbd", marginTop: 12 }}>Sin observaciones registradas.</p>
                 )}
               </>
@@ -286,23 +350,22 @@ function ModalVerDomicilio({ pedido, emp, domicilios, onClose, onReasignar, onOb
                       </div>
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 10, marginTop: 14 }}>
-                      <div style={{ background: "#fff8e1", border: "1px solid #ffe082", borderRadius: 10, padding: 12 }}>
-                        <div style={{ fontSize: 12, color: "#795548", marginBottom: 4 }}>Asignados</div>
-                        <div style={{ fontSize: 18, fontWeight: 700, color: "#6d4c41" }}>{pedidosAsignados.length}</div>
-                      </div>
-                      <div style={{ background: "#e3f2fd", border: "1px solid #90caf9", borderRadius: 10, padding: 12 }}>
-                        <div style={{ fontSize: 12, color: "#1565c0", marginBottom: 4 }}>Pendientes</div>
-                        <div style={{ fontSize: 18, fontWeight: 700, color: "#1565c0" }}>{pendientes}</div>
-                      </div>
-                      <div style={{ background: "#f3e5f5", border: "1px solid #ce93d8", borderRadius: 10, padding: 12 }}>
-                        <div style={{ fontSize: 12, color: "#6a1b9a", marginBottom: 4 }}>En camino</div>
-                        <div style={{ fontSize: 18, fontWeight: 700, color: "#6a1b9a" }}>{enCamino}</div>
-                      </div>
-                      <div style={{ background: "#e0f2f1", border: "1px solid #80cbc4", borderRadius: 10, padding: 12 }}>
-                        <div style={{ fontSize: 12, color: "#00695c", marginBottom: 4 }}>Entregados</div>
-                        <div style={{ fontSize: 18, fontWeight: 700, color: "#00695c" }}>{entregados}</div>
-                      </div>
+                    <div style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+                      gap: 10, marginTop: 14
+                    }}>
+                      {[
+                        { label: "Asignados",  val: pedidosAsignados.length, bg: "#fff8e1", border: "#ffe082", color: "#6d4c41" },
+                        { label: "Pendientes", val: pendientes,              bg: "#e3f2fd", border: "#90caf9", color: "#1565c0" },
+                        { label: "En camino",  val: enCamino,               bg: "#f3e5f5", border: "#ce93d8", color: "#6a1b9a" },
+                        { label: "Entregados", val: entregados,             bg: "#e0f2f1", border: "#80cbc4", color: "#00695c" },
+                      ].map(s => (
+                        <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, padding: 12 }}>
+                          <div style={{ fontSize: 12, color: s.color, marginBottom: 4 }}>{s.label}</div>
+                          <div style={{ fontSize: 18, fontWeight: 700, color: s.color }}>{s.val}</div>
+                        </div>
+                      ))}
                     </div>
                   </>
                 ) : (
@@ -371,7 +434,6 @@ function ModalReasignar({ pedido, empleados, onClose, onConfirm }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box" onClick={e => e.stopPropagation()}>
-
         <div className="modal-header">
           <div>
             <p className="modal-header__eyebrow">Logística</p>
@@ -440,7 +502,6 @@ function ModalObservaciones({ pedido, onClose, onConfirm }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box" onClick={e => e.stopPropagation()}>
-
         <div className="modal-header">
           <div>
             <p className="modal-header__eyebrow">Domicilio</p>
@@ -487,7 +548,7 @@ function ModalObservaciones({ pedido, onClose, onConfirm }) {
 /* ═══════════════════════════════════════════════════════════
    HISTORIAL POR DOMICILIARIO
    ═══════════════════════════════════════════════════════════ */
-function HistorialDomiciliario({ domicilios, empleados }) {
+function HistorialDomiciliario({ domicilios, empleados, onDesactivar }) {
   const [abiertos, setAbiertos] = useState({});
   const toggle = (id) => setAbiertos(p => ({ ...p, [id]: !p[id] }));
 
@@ -514,7 +575,8 @@ function HistorialDomiciliario({ domicilios, empleados }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-       {grupos.map(({ emp, total, entregados, enCamino, activos, pedidos }) => (        <div key={emp.id} className="hist-emp-card">
+      {grupos.map(({ emp, total, entregados, enCamino, activos, pedidos }) => (
+        <div key={emp.id} className="hist-emp-card">
           <div className="hist-emp-header" onClick={() => toggle(emp.id)}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{
@@ -534,6 +596,22 @@ function HistorialDomiciliario({ domicilios, empleados }) {
                 {enCamino   > 0 && <span className="hist-stat hist-stat--camino">🛵 {enCamino}</span>}
                 {entregados > 0 && <span className="hist-stat hist-stat--entregado">✓ {entregados}</span>}
               </div>
+              {/* ── Botón desactivar con advertencia si tiene activos ── */}
+              {onDesactivar && (
+                <button
+                  className="act-btn"
+                  title={activos > 0 ? `Tiene ${activos} domicilio(s) activo(s)` : "Desactivar domiciliario"}
+                  style={{
+                    background: activos > 0 ? "#fff8e1" : "#ffebee",
+                    border: `1.5px solid ${activos > 0 ? "#ffe082" : "#ef9a9a"}`,
+                    color:   activos > 0 ? "#f9a825" : "#c62828",
+                    fontSize: 14,
+                  }}
+                  onClick={e => { e.stopPropagation(); onDesactivar(emp, pedidos.filter(p => !["Entregado", "Cancelado"].includes(p.estado))); }}
+                >
+                  {activos > 0 ? "⚠️" : "🚫"}
+                </button>
+              )}
               <span style={{
                 color: "#9e9e9e", fontSize: 16,
                 transform: abiertos[emp.id] ? "rotate(90deg)" : "none",
@@ -564,7 +642,7 @@ function HistorialDomiciliario({ domicilios, empleados }) {
    COMPONENTE PRINCIPAL
    ═══════════════════════════════════════════════════════════ */
 export default function GestionDomicilios() {
-  const { pedidos, editarPedido, asignarDomiciliario, usuarios } = useApp();
+  const { pedidos, editarPedido, asignarDomiciliario, toggleUsuarioEstado, usuarios } = useApp();
 
   const empleados  = usuarios.filter(u => u.rol === "Empleado" && u.estado);
   const domicilios = pedidos.filter(p => p.domicilio);
@@ -593,7 +671,7 @@ export default function GestionDomicilios() {
     setTimeout(() => setToast(null), 3200);
   };
 
-  /* Filtrado */
+  /* ── Filtrado ── */
   const filtered = domicilios.filter(p => {
     const q   = search.toLowerCase();
     const emp = empleados.find(e => e.id === p.idEmpleado);
@@ -606,9 +684,9 @@ export default function GestionDomicilios() {
     const matchE =
       filterEstado === "todos"       ? true :
       filterEstado === "activos"     ? ["Listo", "En camino"].includes(p.estado) :
-      filterEstado === "entregados"  ? p.estado === "Entregado" :
-      filterEstado === "sin-asignar" ? !p.idEmpleado :
-      p.estado === filterEstado;
+      filterEstado === "Entregado"   ? p.estado === "Entregado" :
+      filterEstado === "sin-asignar" ? !p.idEmpleado && !["Entregado", "Cancelado"].includes(p.estado) :
+      p.estado === filterEstado;   // cubre "Listo" y "En camino" exactos
 
     return matchQ && matchE;
   });
@@ -620,7 +698,7 @@ export default function GestionDomicilios() {
 
   const hasFilter = filterEstado !== "todos";
 
-  /* Handlers */
+  /* ── Handlers ── */
   const handleReasignar = (pedidoId, empId) => {
     asignarDomiciliario(pedidoId, empId);
     const emp = empleados.find(e => e.id === empId);
@@ -648,12 +726,31 @@ export default function GestionDomicilios() {
     setModal({ type: "obs", pedido: ped });
   };
 
-  /* Stats */
-  const totalDom      = domicilios.length;
-  const enCamino      = domicilios.filter(p => p.estado === "En camino").length;
-  const entregados    = domicilios.filter(p => p.estado === "Entregado").length;
-  const conAsignar    = domicilios.filter(p => p.idEmpleado).length;
-  const sinAsignar    = domicilios.filter(p => !p.idEmpleado && !["Entregado", "Cancelado"].includes(p.estado)).length;
+  /* ── Handler desactivar domiciliario con advertencia ── */
+  const handleSolicitarDesactivar = (emp, pedidosActivos) => {
+    if (pedidosActivos.length > 0) {
+      // Mostrar modal de confirmación con lista de pedidos afectados
+      setModal({ type: "confirmar-desactivar", usuario: emp, pedidosActivos });
+    } else {
+      // Sin pedidos activos → desactivar directo
+      if (toggleUsuarioEstado) toggleUsuarioEstado(emp.id);
+      showToast(`${emp.nombre} ${emp.apellidos} desactivado`);
+    }
+  };
+
+  const handleConfirmarDesactivar = () => {
+    const { usuario } = modal;
+    if (toggleUsuarioEstado) toggleUsuarioEstado(usuario.id);
+    showToast(`${usuario.nombre} ${usuario.apellidos} desactivado`, "warn");
+    setModal(null);
+  };
+
+  /* ── Stats ── */
+  const totalDom   = domicilios.length;
+  const enCamino   = domicilios.filter(p => p.estado === "En camino").length;
+  const entregados = domicilios.filter(p => p.estado === "Entregado").length;
+  const conAsignar = domicilios.filter(p => p.idEmpleado).length;
+  const sinAsignar = domicilios.filter(p => !p.idEmpleado && !["Entregado", "Cancelado"].includes(p.estado)).length;
 
   return (
     <div className="page-wrapper">
@@ -671,7 +768,14 @@ export default function GestionDomicilios() {
             { label: "Asignados",        val: conAsignar, color: "#1565c0", bg: "#e3f2fd", border: "#90caf9", icon: "📌" },
             { label: "En camino",        val: enCamino,   color: "#6a1b9a", bg: "#f3e5f5", border: "#ce93d8", icon: "🚴" },
             { label: "Entregados",       val: entregados, color: "#00695c", bg: "#e0f2f1", border: "#80cbc4", icon: "✅" },
-            { label: "Sin asignar",      val: sinAsignar, color: sinAsignar > 0 ? "#c62828" : "#9e9e9e", bg: sinAsignar > 0 ? "#ffebee" : "#fafafa", border: sinAsignar > 0 ? "#ef9a9a" : "#e0e0e0", icon: sinAsignar > 0 ? "⚠️" : "—" },
+            {
+              label: "Sin asignar",
+              val: sinAsignar,
+              color:  sinAsignar > 0 ? "#c62828" : "#9e9e9e",
+              bg:     sinAsignar > 0 ? "#ffebee" : "#fafafa",
+              border: sinAsignar > 0 ? "#ef9a9a" : "#e0e0e0",
+              icon:   sinAsignar > 0 ? "⚠️" : "—",
+            },
           ].map(s => (
             <div key={s.label} style={{
               background: s.bg, border: `1.5px solid ${s.border}`, borderRadius: 12,
@@ -703,16 +807,18 @@ export default function GestionDomicilios() {
           ))}
         </div>
 
-        {/* ── TAB: Tabla ── */}
+        {/* ══ TAB: Tabla ══ */}
         {tab === "tabla" && (
           <>
             <div className="toolbar">
               <div className="search-wrap">
                 <span className="search-icon">🔍</span>
                 <input
-                  type="text" className="search-input"
+                  type="text"
+                  className="search-input"
                   placeholder="Buscar por pedido, cliente, dirección o domiciliario…"
-                  value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
+                  value={search}
+                  onChange={e => { setSearch(e.target.value); setPage(1); }}
                 />
               </div>
 
@@ -724,29 +830,25 @@ export default function GestionDomicilios() {
                 {showFilter && (
                   <div className="filter-dropdown" style={{ minWidth: 185 }}>
                     <p className="filter-section-title">Estado</p>
-                    {[
-                      { val: "todos",        label: "Todos",            dot: "#bdbdbd" },
-                      { val: "activos",      label: "Activos",          dot: "#8e24aa" },
-                      { val: "En camino",    label: "En camino",        dot: "#8e24aa" },
-                      { val: "Listo",        label: "Listo (por salir)", dot: "#43a047" },
-                      { val: "entregados",   label: "Entregados",       dot: "#009688" },
-                      { val: "sin-asignar",  label: "Sin asignar",      dot: "#e53935" },
-                    ].map(f => (
-                      <button key={f.val}
+                    {FILTER_OPTIONS.map(f => (
+                      <button
+                        key={f.val}
                         className={`filter-option${filterEstado === f.val ? " active" : ""}`}
                         onClick={() => { setFilterEstado(f.val); setPage(1); setShowFilter(false); }}
                       >
-                        <span className="filter-dot" style={{ background: f.dot }} />{f.label}
+                        <span className="filter-dot" style={{ background: f.dot }} />
+                        {f.label}
                       </button>
                     ))}
                   </div>
                 )}
               </div>
             </div>
-{/* TABLA */}
-<div className="card">
-  <div className="tbl-wrapper">
-    <table className="tbl">
+
+            {/* TABLA */}
+            <div className="card">
+              <div className="tbl-wrapper">
+                <table className="tbl">
                   <thead>
                     <tr>
                       <th className="col-num">Nº</th>
@@ -775,7 +877,11 @@ export default function GestionDomicilios() {
                       const activo = !["Entregado", "Cancelado"].includes(ped.estado);
                       const sinAsignado = !emp && activo;
                       return (
-                        <tr key={ped.id} className="tbl-row" style={{ background: sinAsignado ? "#fffbf0" : "transparent" }}>
+                        <tr
+                          key={ped.id}
+                          className="tbl-row"
+                          style={{ background: sinAsignado ? "#fffbf0" : "transparent" }}
+                        >
                           <td>
                             <span className="row-num">
                               {String((safePage - 1) * PER_PAGE + idx + 1).padStart(2, "0")}
@@ -790,12 +896,17 @@ export default function GestionDomicilios() {
                             <div className="client-phone">{ped.cliente?.telefono || ""}</div>
                           </td>
                           <td>
-                            <div className="dir-main" style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <div
+                              className="dir-main"
+                              style={{ maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                            >
                               {ped.direccion_entrega || "—"}
                             </div>
                             {ped.obs_domicilio && (
                               <div className="dir-sub" title={ped.obs_domicilio}>
-                                📝 {ped.obs_domicilio.length > 30 ? ped.obs_domicilio.slice(0, 30) + "…" : ped.obs_domicilio}
+                                📝 {ped.obs_domicilio.length > 30
+                                  ? ped.obs_domicilio.slice(0, 30) + "…"
+                                  : ped.obs_domicilio}
                               </div>
                             )}
                           </td>
@@ -804,14 +915,17 @@ export default function GestionDomicilios() {
                               <div>
                                 <div className="emp-name">🛵 {emp.nombre} {emp.apellidos}</div>
                                 <div style={{ fontSize: 11, color: "#616161", marginTop: 2 }}>
-                                  {pedidosPorEmpleado[emp.id] || 0} pedido{pedidosPorEmpleado[emp.id] === 1 ? "" : "s"}
+                                  {pedidosPorEmpleado[emp.id] || 0} pedido
+                                  {pedidosPorEmpleado[emp.id] === 1 ? "" : "s"}
                                 </div>
                               </div>
                             ) : (
                               <div className="emp-none">Sin asignar</div>
                             )}
                           </td>
-                          <td><span className="date-badge">{fmtFecha(ped.fecha_pedido)}</span></td>
+                          <td>
+                            <span className="date-badge">{fmtFecha(ped.fecha_pedido)}</span>
+                          </td>
                           <td>
                             <span className={`date-badge${!ped.fecha_entrega_real ? " date-badge--none" : ""}`}>
                               {ped.fecha_entrega_real ? fmtFecha(ped.fecha_entrega_real) : "—"}
@@ -825,21 +939,23 @@ export default function GestionDomicilios() {
                           </td>
                           <td>
                             <div className="actions-cell">
-                              <button className="act-btn act-btn--view"
+                              <button
+                                className="act-btn act-btn--view"
                                 title="Ver detalle"
-                                onClick={() => setModal({ type: "ver", pedido: ped })}>👁</button>
-                              <button className="act-btn act-btn--reasignar"
+                                onClick={() => setModal({ type: "ver", pedido: ped })}
+                              >👁</button>
+                              <button
+                                className="act-btn act-btn--reasignar"
                                 title="Reasignar domiciliario"
                                 onClick={() => abrirReasignar(ped)}
-                                style={{ opacity: activo ? 1 : 0.35, cursor: activo ? "pointer" : "default" }}>
-                                🛵
-                              </button>
-                              <button className="act-btn act-btn--obs"
+                                style={{ opacity: activo ? 1 : 0.35, cursor: activo ? "pointer" : "default" }}
+                              >🛵</button>
+                              <button
+                                className="act-btn act-btn--obs"
                                 title="Observaciones"
                                 onClick={() => abrirObservaciones(ped)}
-                                style={{ opacity: activo ? 1 : 0.35, cursor: activo ? "pointer" : "default" }}>
-                                📝
-                              </button>
+                                style={{ opacity: activo ? 1 : 0.35, cursor: activo ? "pointer" : "default" }}
+                              >📝</button>
                             </div>
                           </td>
                         </tr>
@@ -854,26 +970,38 @@ export default function GestionDomicilios() {
                   {filtered.length} {filtered.length === 1 ? "domicilio" : "domicilios"} en total
                 </span>
                 <div className="pagination-btns">
-                  <button className="pg-btn-arrow"
-                    onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
+                  <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
+                  <button
+                    className="pg-btn-arrow"
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                    disabled={safePage === 1}
+                  >‹</button>
                   <span className="pg-pill">Página {safePage} de {totalPages}</span>
-                  <button className="pg-btn-arrow"
-                    onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
+                  <button
+                    className="pg-btn-arrow"
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                    disabled={safePage === totalPages}
+                  >›</button>
+                  <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>»</button>
                 </div>
               </div>
             </div>
           </>
         )}
 
-        {/* ── TAB: Historial ── */}
+        {/* ══ TAB: Historial ══ */}
         {tab === "historial" && (
           <div className="card" style={{ padding: 20 }}>
-            <HistorialDomiciliario domicilios={domicilios} empleados={empleados} />
+            <HistorialDomiciliario
+              domicilios={domicilios}
+              empleados={empleados}
+              onDesactivar={toggleUsuarioEstado ? handleSolicitarDesactivar : undefined}
+            />
           </div>
         )}
       </div>
 
-      {/* Modales */}
+      {/* ── Modales ── */}
       {modal?.type === "ver" && (
         <ModalVerDomicilio
           pedido={modal.pedido}
@@ -897,6 +1025,14 @@ export default function GestionDomicilios() {
           pedido={modal.pedido}
           onClose={() => setModal(null)}
           onConfirm={handleObservaciones}
+        />
+      )}
+      {modal?.type === "confirmar-desactivar" && (
+        <ModalConfirmarDesactivar
+          usuario={modal.usuario}
+          pedidosActivos={modal.pedidosActivos}
+          onClose={() => setModal(null)}
+          onConfirm={handleConfirmarDesactivar}
         />
       )}
 

@@ -108,7 +108,14 @@ export default function CrearCliente({ onClose, onSave }) {
   const [step, setStep]         = useState(1);
   const fotoRef = useRef();
 
-  const set = (k, v) => { setForm(p => ({ ...p, [k]: v })); setErrors(p => ({ ...p, [k]: "" })); };
+  const set = (k, v) => {
+    let val = v;
+    if (k === 'numDoc') {
+      val = v.replace(/\D/g, '');
+    }
+    setForm(p => ({ ...p, [k]: val }));
+    setErrors(p => ({ ...p, [k]: "" }));
+  };
 
   const handleFoto = e => {
     const file = e.target.files[0]; if (!file) return;

@@ -8,17 +8,9 @@ const fmt = (n) =>
 
 const PER_PAGE = 5;
 
-const ESTADO_CONFIG = {
-  "Pendiente":   { bg: "#fff8e1", color: "#f9a825", border: "#ffe082", dot: "#f9a825"  },
-  "Aprobada":    { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7", dot: "#43a047"  },
-  "Rechazada":   { bg: "#ffebee", color: "#c62828", border: "#ef9a9a", dot: "#e53935"  },
-  "Reembolsada": { bg: "#e0f2f1", color: "#00695c", border: "#80cbc4", dot: "#009688"  },
-};
-
 function EstadoBadge({ estado }) {
-  const cls = `estado-badge estado--${estado}`;
   return (
-    <span className={cls}>
+    <span className={`estado-badge estado--${estado}`}>
       <span className="estado-badge__dot" />
       {estado}
     </span>
@@ -46,6 +38,47 @@ function SelectArrow() {
   );
 }
 
+/* ─── Evidencia inline en modal detalle ─────────────────── */
+function EvidenciaVer({ evidencia }) {
+  if (!evidencia) return null;
+  const isImage = evidencia.tipo?.startsWith("image/");
+  const isVideo = evidencia.tipo?.startsWith("video/");
+
+  return (
+    <div className="evidencia-ver">
+      {isImage ? (
+        <>
+          <img src={evidencia.base64} alt="evidencia" className="evidencia-ver__img" />
+          <div className="evidencia-ver__footer">
+            <span className="evidencia-ver__icon">🖼️</span>
+            <span className="evidencia-ver__name">{evidencia.nombre}</span>
+          </div>
+        </>
+      ) : isVideo ? (
+        <>
+          <video
+            src={evidencia.base64}
+            controls
+            style={{ width: "100%", maxHeight: 200, display: "block", background: "#000" }}
+          />
+          <div className="evidencia-ver__footer">
+            <span className="evidencia-ver__icon">🎥</span>
+            <span className="evidencia-ver__name">{evidencia.nombre}</span>
+          </div>
+        </>
+      ) : (
+        <div className="evidencia-ver__file">
+          <span className="evidencia-ver__file-icon">📄</span>
+          <div className="evidencia-ver__file-info">
+            <div className="evidencia-ver__file-name">{evidencia.nombre}</div>
+            <div className="evidencia-ver__file-sub">Archivo adjunto</div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════
    MODAL VER DETALLE
    ═══════════════════════════════════════════════════════════ */
@@ -54,7 +87,7 @@ function ModalVerDevolucion({ dev, creditoCliente, onClose }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box--wide" onClick={e => e.stopPropagation()}>
+      <div className="modal-box modal-box--wide" onClick={(e) => e.stopPropagation()}>
 
         <div className="modal-header modal-header--red">
           <div>
@@ -67,21 +100,16 @@ function ModalVerDevolucion({ dev, creditoCliente, onClose }) {
           </div>
         </div>
 
-        {/* Tabs */}
         <div style={{ padding: "16px 24px 0", borderBottom: "1px solid #e0e0e0" }}>
           <div className="modal-tabs">
             <button
               className={`modal-tab-btn ${tab === "informacion" ? "active" : ""}`}
               onClick={() => setTab("informacion")}
-            >
-              Información
-            </button>
+            >Información</button>
             <button
               className={`modal-tab-btn ${tab === "productos" ? "active" : ""}`}
               onClick={() => setTab("productos")}
-            >
-              Productos y evidencia
-            </button>
+            >Productos y evidencia</button>
           </div>
         </div>
 
@@ -89,7 +117,6 @@ function ModalVerDevolucion({ dev, creditoCliente, onClose }) {
 
           {tab === "informacion" && (
             <>
-              {/* Cliente y pedido */}
               <p className="section-label">Información general</p>
               <div className="form-grid-2">
                 <div>
@@ -112,7 +139,6 @@ function ModalVerDevolucion({ dev, creditoCliente, onClose }) {
                 </div>
               </div>
 
-              {/* Motivo */}
               <p className="section-label">Motivo</p>
               <div className="info-box info-box--warn">
                 <span className="info-box__icon">📋</span>
@@ -122,9 +148,8 @@ function ModalVerDevolucion({ dev, creditoCliente, onClose }) {
                 </div>
               </div>
 
-              {/* Crédito generado */}
               {dev.estado === "Reembolsada" && (
-                <div className="credito-box">
+                <div className="credito-box" style={{ marginTop: 12 }}>
                   <span className="credito-box__icon">💳</span>
                   <div>
                     <div className="credito-box__label">Crédito aplicado</div>
@@ -136,9 +161,8 @@ function ModalVerDevolucion({ dev, creditoCliente, onClose }) {
                 </div>
               )}
 
-              {/* Rechazo */}
               {dev.estado === "Rechazada" && dev.motivoRechazo && (
-                <div className="info-box info-box--danger">
+                <div className="info-box info-box--danger" style={{ marginTop: 12 }}>
                   <span className="info-box__icon">🚫</span>
                   <div className="info-box__text">
                     <span className="info-box__label">Motivo de rechazo</span>
@@ -151,7 +175,6 @@ function ModalVerDevolucion({ dev, creditoCliente, onClose }) {
 
           {tab === "productos" && (
             <>
-              {/* Productos devueltos */}
               <p className="section-label">Productos devueltos</p>
               <div style={{ borderRadius: 10, border: "1px solid #e8f5e9", overflow: "hidden" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -180,36 +203,10 @@ function ModalVerDevolucion({ dev, creditoCliente, onClose }) {
                 </div>
               </div>
 
-              {/* Evidencia */}
               {dev.evidencia && (
                 <>
-                  <p className="section-label">Evidencia</p>
-                  {dev.evidencia.tipo?.startsWith("image/") ? (
-                    <div style={{ borderRadius: 10, overflow: "hidden", border: "1.5px solid #c8e6c9" }}>
-                      <img
-                        src={dev.evidencia.base64}
-                        alt="evidencia"
-                        style={{ width: "100%", maxHeight: 240, objectFit: "cover", display: "block" }}
-                      />
-                      <div style={{ padding: "8px 12px", background: "#f9fdf9", fontSize: 12, color: "#9e9e9e" }}>
-                        📎 {dev.evidencia.nombre}
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{
-                      display: "flex", alignItems: "center", gap: 12,
-                      padding: "12px 14px", borderRadius: 10,
-                      border: "1.5px solid #c8e6c9", background: "#f9fdf9",
-                    }}>
-                      <span style={{ fontSize: 28 }}>
-                        {dev.evidencia.tipo?.startsWith("video/") ? "🎥" : "📄"}
-                      </span>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: "#1a1a1a" }}>{dev.evidencia.nombre}</div>
-                        <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 2 }}>Archivo adjunto</div>
-                      </div>
-                    </div>
-                  )}
+                  <p className="section-label" style={{ marginTop: 16 }}>Evidencia</p>
+                  <EvidenciaVer evidencia={dev.evidencia} />
                 </>
               )}
             </>
@@ -231,7 +228,7 @@ function ModalAprobar({ dev, onClose, onConfirm }) {
   const [done, setDone] = useState(false);
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box--md" onClick={e => e.stopPropagation()}>
+      <div className="modal-box modal-box--md" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div>
             <p className="modal-header__eyebrow">APROBAR</p>
@@ -243,14 +240,14 @@ function ModalAprobar({ dev, onClose, onConfirm }) {
           <p style={{ margin: 0, fontSize: 13, color: "#616161" }}>
             ¿Aprobar la devolución <strong>{dev.numero}</strong> de <strong>{dev.cliente?.nombre}</strong>?
           </p>
-          <div className="info-box info-box--success">
+          <div className="info-box info-box--success" style={{ marginTop: 12 }}>
             <span className="info-box__icon">✅</span>
             <div className="info-box__text">
               <span className="info-box__label">Al aprobar</span>
-              La devolución se marcará como aprobada y se realizará el **reembolso automático** al crédito del cliente.
+              La devolución se marcará como aprobada y se realizará el reembolso automático al crédito del cliente.
             </div>
           </div>
-          <div className="credito-box">
+          <div className="credito-box" style={{ marginTop: 12 }}>
             <span className="credito-box__icon">💳</span>
             <div>
               <div className="credito-box__label">Monto a reembolsar</div>
@@ -260,7 +257,11 @@ function ModalAprobar({ dev, onClose, onConfirm }) {
         </div>
         <div className="modal-footer">
           <button className="btn-cancel" onClick={onClose}>Cancelar</button>
-          <button className="btn-approve" disabled={done} onClick={() => { setDone(true); setTimeout(() => onConfirm(dev.id), 700); }}>
+          <button
+            className="btn-approve"
+            disabled={done}
+            onClick={() => { setDone(true); setTimeout(() => onConfirm(dev.id), 700); }}
+          >
             {done ? "Aprobando…" : "✅ Aprobar y Reembolsar"}
           </button>
         </div>
@@ -285,7 +286,7 @@ function ModalRechazar({ dev, onClose, onConfirm }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box--md" onClick={e => e.stopPropagation()}>
+      <div className="modal-box modal-box--md" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header modal-header--red">
           <div>
             <p className="modal-header__eyebrow">RECHAZAR</p>
@@ -297,18 +298,18 @@ function ModalRechazar({ dev, onClose, onConfirm }) {
           <p style={{ margin: 0, fontSize: 13, color: "#616161" }}>
             ¿Rechazar la devolución <strong>{dev.numero}</strong>?
           </p>
-          <div className="info-box info-box--danger">
+          <div className="info-box info-box--danger" style={{ marginTop: 12 }}>
             <span className="info-box__icon">⚠️</span>
             <span className="info-box__text">Esta acción notificará al cliente que su devolución fue rechazada.</span>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 12 }}>
             <label className="form-label">Motivo del rechazo <span className="required">*</span></label>
             <textarea
               className={`field-textarea${error ? " error" : ""}`}
               rows={3}
               placeholder="Explica por qué se rechaza la devolución…"
               value={motivo}
-              onChange={e => { setMotivo(e.target.value); setError(""); }}
+              onChange={(e) => { setMotivo(e.target.value); setError(""); }}
               style={{ borderColor: error ? "#e53935" : undefined }}
             />
             {error && <span className="field-error">{error}</span>}
@@ -334,7 +335,7 @@ function ModalEliminar({ dev, onClose, onConfirm }) {
   if (dev.estado === "Reembolsada") {
     return (
       <div className="modal-overlay" onClick={onClose}>
-        <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
+        <div className="modal-box modal-box--sm" onClick={(e) => e.stopPropagation()}>
           <div style={{ padding: "28px 24px", textAlign: "center" }}>
             <div className="delete-icon-wrap">🚫</div>
             <h3 className="delete-title">No se puede eliminar</h3>
@@ -350,7 +351,7 @@ function ModalEliminar({ dev, onClose, onConfirm }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
+      <div className="modal-box modal-box--sm" onClick={(e) => e.stopPropagation()}>
         <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
           <div className="delete-icon-wrap">🗑️</div>
           <h3 className="delete-title">Eliminar devolución</h3>
@@ -359,8 +360,11 @@ function ModalEliminar({ dev, onClose, onConfirm }) {
         </div>
         <div className="modal-footer modal-footer--center" style={{ padding: "0 24px 20px" }}>
           <button className="btn-cancel-full" onClick={onClose}>Cancelar</button>
-          <button className="btn-danger" disabled={done}
-            onClick={() => { setDone(true); setTimeout(() => onConfirm(dev.id), 700); }}>
+          <button
+            className="btn-danger"
+            disabled={done}
+            onClick={() => { setDone(true); setTimeout(() => onConfirm(dev.id), 700); }}
+          >
             {done ? "Eliminando…" : "Eliminar"}
           </button>
         </div>
@@ -388,7 +392,7 @@ export default function GestionDevoluciones() {
   const filterRef = useRef();
 
   useEffect(() => {
-    const h = e => { if (filterRef.current && !filterRef.current.contains(e.target)) setShowFilter(false); };
+    const h = (e) => { if (filterRef.current && !filterRef.current.contains(e.target)) setShowFilter(false); };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
@@ -398,11 +402,10 @@ export default function GestionDevoluciones() {
     setTimeout(() => setToast(null), 3200);
   };
 
-  /* Filtrado */
-  const filtered = devoluciones.filter(d => {
+  const filtered = devoluciones.filter((d) => {
     const q = search.toLowerCase();
     const matchQ = [d.numero, d.numeroPedido, d.cliente?.nombre, d.motivo]
-      .filter(Boolean).some(v => v.toLowerCase().includes(q));
+      .filter(Boolean).some((v) => v.toLowerCase().includes(q));
     const matchE = filterEstado === "todos" || d.estado === filterEstado;
     return matchQ && matchE;
   });
@@ -414,7 +417,6 @@ export default function GestionDevoluciones() {
 
   const hasFilter = filterEstado !== "todos";
 
-  /* Handlers */
   const handleCrear = (payload) => {
     const numero = crearDevolucion(payload);
     showToast(`Devolución ${numero} registrada`);
@@ -423,7 +425,7 @@ export default function GestionDevoluciones() {
 
   const handleAprobar = (id) => {
     aprobarDevolucion(id);
-    reembolsarDevolucion(id); // Reembolso automático
+    reembolsarDevolucion(id);
     showToast("Devolución aprobada y crédito aplicado");
     setModal(null);
   };
@@ -440,21 +442,19 @@ export default function GestionDevoluciones() {
     setModal(null);
   };
 
-  /* Reporte de métricas */
   const counts = {
     todos:       devoluciones.length,
-    Pendiente:   devoluciones.filter(d => d.estado === "Pendiente").length,
-    Aprobada:    devoluciones.filter(d => d.estado === "Aprobada").length,
-    Reembolsada: devoluciones.filter(d => d.estado === "Reembolsada").length,
-    Rechazada:   devoluciones.filter(d => d.estado === "Rechazada").length,
+    Pendiente:   devoluciones.filter((d) => d.estado === "Pendiente").length,
+    Aprobada:    devoluciones.filter((d) => d.estado === "Aprobada").length,
+    Reembolsada: devoluciones.filter((d) => d.estado === "Reembolsada").length,
+    Rechazada:   devoluciones.filter((d) => d.estado === "Rechazada").length,
   };
 
   const toggleFilter = (est) => {
-    setFilterEstado(prev => prev === est ? "todos" : est);
+    setFilterEstado((prev) => (prev === est ? "todos" : est));
     setPage(1);
   };
 
-  /* Validaciones al abrir modales */
   const abrirAprobar = (dev) => {
     if (dev.estado !== "Pendiente") { showToast("Solo se pueden aprobar devoluciones pendientes", "warn"); return; }
     setModal({ type: "aprobar", dev });
@@ -465,9 +465,6 @@ export default function GestionDevoluciones() {
     setModal({ type: "rechazar", dev });
   };
 
-  /* ═══════════════════════════════════════════════════════
-     RENDER
-  ═══════════════════════════════════════════════════════ */
   return (
     <div className="page-wrapper">
       <div className="page-header">
@@ -477,14 +474,14 @@ export default function GestionDevoluciones() {
 
       <div className="page-inner">
 
-        {/* Mallas de Reporte (Botones de Filtro) */}
+        {/* Métricas */}
         <div className="metrics-row">
           {[
-            { val: "todos",       label: "Total",       count: counts.todos,       color: "#2e7d32", icon: "📊" },
-            { val: "Pendiente",   label: "Pendientes",  count: counts.Pendiente,   color: "#f9a825", icon: "⏳" },
-            { val: "Reembolsada", label: "Reembolsadas",count: counts.Reembolsada, color: "#009688", icon: "💳" },
-            { val: "Rechazada",   label: "Rechazadas",  count: counts.Rechazada,   color: "#c62828", icon: "🚫" },
-          ].map(m => (
+            { val: "todos",       label: "Total",        count: counts.todos,       color: "#2e7d32", icon: "📊" },
+            { val: "Pendiente",   label: "Pendientes",   count: counts.Pendiente,   color: "#f9a825", icon: "⏳" },
+            { val: "Reembolsada", label: "Reembolsadas", count: counts.Reembolsada, color: "#009688", icon: "💳" },
+            { val: "Rechazada",   label: "Rechazadas",   count: counts.Rechazada,   color: "#c62828", icon: "🚫" },
+          ].map((m) => (
             <button
               key={m.val}
               className={`metric-card-btn ${filterEstado === m.val ? "active" : ""}`}
@@ -507,14 +504,14 @@ export default function GestionDevoluciones() {
             <input
               type="text" className="search-input"
               placeholder="Buscar por número, cliente, pedido o motivo…"
-              value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
+              value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             />
           </div>
 
           <div ref={filterRef} style={{ position: "relative" }}>
             <button
               className={`filter-icon-btn${hasFilter ? " has-filter" : ""}`}
-              onClick={() => setShowFilter(v => !v)}
+              onClick={() => setShowFilter((v) => !v)}
             >▼</button>
             {showFilter && (
               <div className="filter-dropdown" style={{ minWidth: 175 }}>
@@ -525,8 +522,9 @@ export default function GestionDevoluciones() {
                   { val: "Aprobada",    label: "Aprobada",    dot: "#43a047" },
                   { val: "Rechazada",   label: "Rechazada",   dot: "#e53935" },
                   { val: "Reembolsada", label: "Reembolsada", dot: "#009688" },
-                ].map(f => (
-                  <button key={f.val}
+                ].map((f) => (
+                  <button
+                    key={f.val}
                     className={`filter-option${filterEstado === f.val ? " active" : ""}`}
                     onClick={() => { setFilterEstado(f.val); setPage(1); setShowFilter(false); }}
                   >
@@ -575,20 +573,14 @@ export default function GestionDevoluciones() {
                         {String((safePage - 1) * PER_PAGE + idx + 1).padStart(2, "0")}
                       </span>
                     </td>
-
-                    {/* Devolución */}
                     <td>
                       <div className="dev-num">{dev.numero}</div>
                       <div className="dev-pedido">📦 {dev.numeroPedido}</div>
                     </td>
-
-                    {/* Cliente */}
                     <td>
                       <div className="client-name">{dev.cliente?.nombre || "—"}</div>
                       <div className="client-email">{dev.cliente?.correo || ""}</div>
                     </td>
-
-                    {/* Motivo */}
                     <td>
                       <div style={{ fontSize: 13, color: "#424242", fontWeight: 500 }}>{dev.motivo}</div>
                       {dev.comentario && (
@@ -597,42 +589,27 @@ export default function GestionDevoluciones() {
                         </div>
                       )}
                     </td>
-
-                    {/* Fecha */}
                     <td><span className="date-badge">{dev.fechaSolicitud}</span></td>
-
-                    {/* Total */}
                     <td>
                       <div className="monto-val">{fmt(dev.totalDevuelto)}</div>
                       <div className="monto-met">Crédito</div>
                     </td>
-
-                    {/* Estado */}
                     <td><EstadoBadge estado={dev.estado} /></td>
-
-                    {/* Acciones */}
                     <td>
                       <div className="actions-cell">
-                        <button className="act-btn act-btn--view"
-                          title="Ver detalle"
+                        <button className="act-btn act-btn--view" title="Ver detalle"
                           onClick={() => setModal({ type: "ver", dev })}>👁</button>
-
-                        <button className="act-btn act-btn--approve"
-                          title="Aprobar y Reembolsar"
+                        <button className="act-btn act-btn--approve" title="Aprobar y Reembolsar"
                           onClick={() => abrirAprobar(dev)}
                           style={{ opacity: dev.estado === "Pendiente" ? 1 : 0.35, cursor: dev.estado === "Pendiente" ? "pointer" : "default" }}>
                           ✅
                         </button>
-
-                        <button className="act-btn act-btn--reject"
-                          title="Rechazar"
+                        <button className="act-btn act-btn--reject" title="Rechazar"
                           onClick={() => abrirRechazar(dev)}
                           style={{ opacity: dev.estado === "Pendiente" ? 1 : 0.35, cursor: dev.estado === "Pendiente" ? "pointer" : "default" }}>
                           🚫
                         </button>
-
-                        <button className="act-btn act-btn--delete"
-                          title="Eliminar"
+                        <button className="act-btn act-btn--delete" title="Eliminar"
                           onClick={() => setModal({ type: "eliminar", dev })}>🗑️</button>
                       </div>
                     </td>
@@ -642,34 +619,34 @@ export default function GestionDevoluciones() {
             </table>
           </div>
 
-          {/* Paginación */}
           <div className="pagination-bar">
             <span className="pagination-count">
               {filtered.length} {filtered.length === 1 ? "devolución" : "devoluciones"} en total
             </span>
             <div className="pagination-btns">
+              <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
               <button className="pg-btn-arrow"
-                onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
+                onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
               <span className="pg-pill">Página {safePage} de {totalPages}</span>
               <button className="pg-btn-arrow"
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>››</button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Modales */}
-      {modal?.type === "crear"      && <CrearDevolucion onClose={() => setModal(null)} onSave={handleCrear} />}
-      {modal?.type === "ver"        && (
+      {modal?.type === "crear"    && <CrearDevolucion onClose={() => setModal(null)} onSave={handleCrear} />}
+      {modal?.type === "ver"      && (
         <ModalVerDevolucion
           dev={modal.dev}
           creditoCliente={creditosClientes[modal.dev.idCliente] || 0}
           onClose={() => setModal(null)}
         />
       )}
-      {modal?.type === "aprobar"    && <ModalAprobar    dev={modal.dev} onClose={() => setModal(null)} onConfirm={handleAprobar} />}
-      {modal?.type === "rechazar"   && <ModalRechazar   dev={modal.dev} onClose={() => setModal(null)} onConfirm={handleRechazar} />}
-      {modal?.type === "eliminar"   && <ModalEliminar   dev={modal.dev} onClose={() => setModal(null)} onConfirm={handleEliminar} />}
+      {modal?.type === "aprobar"  && <ModalAprobar  dev={modal.dev} onClose={() => setModal(null)} onConfirm={handleAprobar} />}
+      {modal?.type === "rechazar" && <ModalRechazar dev={modal.dev} onClose={() => setModal(null)} onConfirm={handleRechazar} />}
+      {modal?.type === "eliminar" && <ModalEliminar dev={modal.dev} onClose={() => setModal(null)} onConfirm={handleEliminar} />}
 
       <Toast toast={toast} />
     </div>

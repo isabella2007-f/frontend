@@ -71,6 +71,7 @@ export function Field({ label, value, onChange, type = "text", placeholder = "",
           onChange={onChange}
           placeholder={placeholder}
           readOnly={readOnly}
+          autoComplete="new-password"
           className={`field-input${error ? " error" : ""}${readOnly ? " readonly" : ""}`}
           onFocus={e => { if (!readOnly) e.target.style.borderColor = GB; }}
           onBlur={e  => { e.target.style.borderColor = error ? "#e03030" : "#e0e0e0"; }}
@@ -139,7 +140,8 @@ function LocationSelects({
   };
 
   return (
-    <div className="field-grid-2">
+    <>
+      {/* Departamento */}
       <div className="field-wrap">
         <label className="field-label">Departamento <span className="required">*</span></label>
         <div className="select-wrap">
@@ -161,6 +163,7 @@ function LocationSelects({
         {errDepto && <span className="field-error">{errDepto}</span>}
       </div>
 
+      {/* Municipio */}
       <div className="field-wrap">
         <label className="field-label">Municipio <span className="required">*</span></label>
         <div className="select-wrap">
@@ -183,7 +186,7 @@ function LocationSelects({
         </div>
         {errMunicipio && <span className="field-error">{errMunicipio}</span>}
       </div>
-    </div>
+    </>
   );
 }
 
@@ -248,15 +251,25 @@ export default function CrearUsuario({ user, onClose, onSave }) {
   const { roles } = useApp();
   const rolesDisponibles = roles.filter(r => r.estado);
 
-  const [form, setForm]     = useState(
-    isEdit ? { ...user, contrasena: "", confirmar: "" } : { ...EMPTY_FORM }
-  );
+  // Al editar: contrasena y confirmar SIEMPRE vacíos (nunca mostrar hash/valor guardado)
+  const [form, setForm] = useState(() => {
+    if (isEdit) {
+      const { contrasena: _c, confirmar: _cf, ...rest } = user;
+      return { ...rest, contrasena: "", confirmar: "" };
+    }
+    return { ...EMPTY_FORM };
+  });
+
   const [errors, setErrors] = useState({});
   const [saved,  setSaved]  = useState(false);
   const [step,   setStep]   = useState(1);
 
   const set = (k, v) => {
-    setForm(f => ({ ...f, [k]: v }));
+    let val = v;
+    if (k === 'cedula' && typeof v === 'string') {
+      val = v.replace(/\D/g, '');
+    }
+    setForm(f => ({ ...f, [k]: val }));
     setErrors(e => ({ ...e, [k]: "" }));
   };
 
@@ -273,15 +286,16 @@ export default function CrearUsuario({ user, onClose, onSave }) {
     }
 
     if (s === 2) {
-      if (!form.direccion.trim()) e.direccion    = "Campo obligatorio";
       if (!form.departamento)     e.departamento = "Selecciona un departamento";
       if (!form.municipio)        e.municipio    = "Selecciona un municipio";
+      if (!form.direccion.trim()) e.direccion    = "Campo obligatorio";
     }
 
     if (s === 3) {
       if (!form.rol) e.rol = "Seleccione un rol";
 
       if (isEdit) {
+        // Contraseña opcional en edición: solo validar si se ingresó algo
         if (form.contrasena) {
           const passError = validatePassword(form.contrasena, form.confirmar);
           if (passError) e.contrasena = passError;
@@ -309,6 +323,7 @@ export default function CrearUsuario({ user, onClose, onSave }) {
     setSaved(true);
 
     const payload = { ...form };
+    // En edición: si no ingresó contraseña nueva, no la enviamos
     if (isEdit && !form.contrasena) {
       delete payload.contrasena;
       delete payload.confirmar;
@@ -335,6 +350,7 @@ export default function CrearUsuario({ user, onClose, onSave }) {
 
         <div className="modal-body" style={{ overflowY: "hidden", overflowX: "hidden", minHeight: 280 }}>
 
+          {/* ── Step 1: Datos personales ── */}
           {step === 1 && (
             <>
               <div style={{ display: "flex", gap: 18, alignItems: "flex-start" }}>
@@ -363,32 +379,63 @@ export default function CrearUsuario({ user, onClose, onSave }) {
                     </div>
                   </div>
                 </Field>
-                <Field required label="Cédula"   placeholder="Ej: 1023456789" value={form.cedula}   onChange={e => set("cedula",   e.target.value)} error={errors.cedula} />
+                <Field required label="Cédula" placeholder="Ej: 1023456789" value={form.cedula} onChange={e => set("cedula", e.target.value)} error={errors.cedula} />
               </div>
               <Field required label="Teléfono" placeholder="Ej: 3001234567" value={form.telefono} onChange={e => set("telefono", e.target.value)} error={errors.telefono} />
             </>
           )}
 
+          {/* ── Step 2: Ubicación — Depto → Municipio → Dirección ── */}
           {step === 2 && (
             <>
-              <Field required label="Dirección" placeholder="Ej: Cra 5 #12-34, Apto 201"
-                value={form.direccion} onChange={e => set("direccion", e.target.value)} error={errors.direccion} />
-              <LocationSelects
-                departamento={form.departamento}
-                municipio={form.municipio}
-                onDepto={v => set("departamento", v)}
-                onMunicipio={v => set("municipio", v)}
-                errDepto={errors.departamento}
-                errMunicipio={errors.municipio}
-                initialDepto={isEdit ? user.departamento : ""}
-                initialMunicipio={isEdit ? user.municipio : ""}
-              />
+              <div className="field-grid-2">
+                <LocationSelects
+                  departamento={form.departamento}
+                  municipio={form.municipio}
+                  onDepto={v => set("departamento", v)}
+                  onMunicipio={v => set("municipio", v)}
+                  errDepto={errors.departamento}
+                  errMunicipio={errors.municipio}
+                  initialDepto={isEdit ? user.departamento : ""}
+                  initialMunicipio={isEdit ? user.municipio : ""}
+                />
+              </div>
+              {/* Dirección se muestra debajo, después de seleccionar depto y municipio */}
+              <div style={{ marginTop: 4 }}>
+                <Field
+                  required
+                  label="Dirección"
+                  placeholder={
+                    !form.departamento
+                      ? "Primero seleccione un departamento"
+                      : !form.municipio
+                      ? "Primero seleccione un municipio"
+                      : "Ej: Cra 5 #12-34, Apto 201"
+                  }
+                  value={form.direccion}
+                  onChange={e => set("direccion", e.target.value)}
+                  error={errors.direccion}
+                  readOnly={!form.departamento || !form.municipio}
+                />
+              </div>
             </>
           )}
 
+          {/* ── Step 3: Acceso y Rol ── */}
           {step === 3 && (
             <>
+              {isEdit && (
+                <div style={{ marginBottom: 16, padding: '10px 14px', background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
+                  <h4 style={{ margin: 0, fontSize: 13, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Ic.LockSvg /> Cambio de contraseña
+                  </h4>
+                  <p style={{ margin: '4px 0 0', fontSize: 11, color: '#64748b' }}>
+                    Complete estos campos solo si desea actualizar la contraseña del usuario.
+                  </p>
+                </div>
+              )}
               <div className="field-grid-2">
+                {/* autocomplete="new-password" evita que el browser rellene la contraseña */}
                 <Field
                   required={!isEdit}
                   label={isEdit ? "Nueva contraseña (opcional)" : "Contraseña"}

@@ -26,10 +26,8 @@ const TODAS_ACCIONES = {
   cambiar_estado: { key: "cambiar_estado", label: "Cambiar Estado", icon: "🔄",   color: "#f57f17", bg: "#fff8e1", border: "#ffe082" },
 };
 
-// Acciones estándar (la mayoría de módulos)
 const STD = ["ver", "crear", "editar", "eliminar"];
 
-// ── Definición de grupos y módulos con sus acciones propias ─────────────────
 const GRUPOS_MODULOS = [
   {
     grupo: "Configuración",
@@ -38,7 +36,7 @@ const GRUPOS_MODULOS = [
       { key: "Dashboard",       label: "Dashboard",       icon: "📊", acciones: ["ver"] },
       { key: "Roles",           label: "Roles",           icon: "🛡️", acciones: STD },
       { key: "Usuarios",        label: "Usuarios",        icon: "👥", acciones: STD },
-      { key: "GestionSalidas",  label: "Gestión Salidas", icon: "📤", acciones: ["ver" , "crear"] },
+      { key: "GestionSalidas",  label: "Gestión Salidas", icon: "📤", acciones: ["ver", "crear"] },
     ],
   },
   {
@@ -73,11 +71,8 @@ const GRUPOS_MODULOS = [
 ];
 
 const MODULOS = GRUPOS_MODULOS.flatMap(g => g.modulos);
-
-// Cuenta cuántos privilegios existen en total (para la advertencia de "todos activos")
 const TOTAL_PRIVILEGIOS = MODULOS.reduce((acc, m) => acc + m.acciones.length, 0);
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
 export function buildPrivilegios(overrides = []) {
   const map = {};
   overrides.forEach(p => { if (p.modulo) map[p.id] = p.estado; });
@@ -100,18 +95,18 @@ function tieneTodosLosPrivilegios(privilegios) {
   return privilegios.filter(p => p.estado).length >= TOTAL_PRIVILEGIOS;
 }
 
-// ── Estilos inline reutilizables ────────────────────────────────────────────
 const S = {
+  // ── FIX: zIndex subido a 9999 para salir del stacking context del modal padre ──
   overlay: {
     position: "fixed", inset: 0,
-    background: "rgba(0,0,0,0.45)",
+    background: "rgba(0,0,0,0.55)",
     display: "flex", alignItems: "center", justifyContent: "center",
-    zIndex: 3000,
+    zIndex: 30000,
   },
   box: {
     background: "#fff",
     borderRadius: 14,
-    boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
+    boxShadow: "0 8px 40px rgba(0,0,0,0.22)",
     display: "flex",
     flexDirection: "column",
     width: "min(740px, 96vw)",
@@ -173,7 +168,6 @@ const S = {
     gap: 14,
     overflow: "auto",
   },
-  // Grid dinámico según cantidad de acciones
   accionesGrid: (n) => ({
     display: "grid",
     gridTemplateColumns: `repeat(${Math.min(n, 4)}, 1fr)`,
@@ -205,7 +199,6 @@ const S = {
   },
 };
 
-// ── Componente principal ─────────────────────────────────────────────────────
 export default function PrivilegiosModal({
   privilegios,
   esAdmin   = false,
@@ -236,7 +229,6 @@ export default function PrivilegiosModal({
     setLocal(prev => prev.map(p => p.modulo === moduloKey ? { ...p, estado: valor } : p));
   };
 
-  // Meta del módulo activo
   const grupoActual = GRUPOS_MODULOS.find(g => g.grupo === grupo);
   const modMeta     = MODULOS.find(m => m.key === modKey);
   const modItems    = local.filter(p => p.modulo === modKey);
@@ -262,11 +254,10 @@ export default function PrivilegiosModal({
     <div style={S.overlay} onClick={onClose}>
       <div style={S.box} onClick={e => e.stopPropagation()}>
 
-        {/* ── Cabecera ── */}
+        {/* Cabecera */}
         <div style={S.header}>
           <div>
-            <p style={{ margin: 0, fontSize: 10, color: "#9e9e9e",
-              textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            <p style={{ margin: 0, fontSize: 10, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: "0.08em" }}>
               Gestión de privilegios
             </p>
             <h2 style={{ margin: "2px 0 0", fontSize: 17, fontWeight: 700, color: "#212121" }}>
@@ -274,37 +265,21 @@ export default function PrivilegiosModal({
             </h2>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{
-              fontSize: 11, fontWeight: 700,
-              padding: "3px 10px", borderRadius: 12,
-              background: "#f5f5f5", color: "#757575",
-              border: "1px solid #e0e0e0",
-            }}>
+            <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 12, background: "#f5f5f5", color: "#757575", border: "1px solid #e0e0e0" }}>
               {totalActivos}/{local.length} activos
             </span>
-            <button onClick={onClose} style={{
-              background: "none", border: "none", fontSize: 18,
-              color: "#9e9e9e", cursor: "pointer", lineHeight: 1,
-            }}>✕</button>
+            <button onClick={onClose} style={{ background: "none", border: "none", fontSize: 18, color: "#9e9e9e", cursor: "pointer", lineHeight: 1 }}>✕</button>
           </div>
         </div>
 
-        {/* ── Advertencia todos los privilegios ── */}
+        {/* Advertencia todos los privilegios */}
         {advertencia && (
-          <div style={{
-            margin: "8px 20px 0",
-            padding: "8px 12px",
-            borderRadius: 8,
-            background: "#fff8e1", border: "1px solid #ffe082",
-            color: "#f57f17", fontSize: 12,
-            display: "flex", gap: 7, alignItems: "center",
-            flexShrink: 0,
-          }}>
+          <div style={{ margin: "8px 20px 0", padding: "8px 12px", borderRadius: 8, background: "#fff8e1", border: "1px solid #ffe082", color: "#f57f17", fontSize: 12, display: "flex", gap: 7, alignItems: "center", flexShrink: 0 }}>
             ⚠️ <span>Este rol no es administrador pero tiene <strong>todos los privilegios</strong> activos.</span>
           </div>
         )}
 
-        {/* ── Nivel 1: chips de grupo ── */}
+        {/* Nivel 1: chips de grupo */}
         <div style={S.gruposBar}>
           {GRUPOS_MODULOS.map(g => {
             const activos  = activosPorGrupo(g.grupo);
@@ -314,12 +289,7 @@ export default function PrivilegiosModal({
                 <span style={{ fontSize: 14 }}>{g.icon}</span>
                 <span>{g.grupo}</span>
                 {activos > 0 && (
-                  <span style={{
-                    fontSize: 10, fontWeight: 700,
-                    background: esActivo ? "#c8e6c9" : "#eeeeee",
-                    color: esActivo ? "#2e7d32" : "#9e9e9e",
-                    borderRadius: 10, padding: "0 5px", marginLeft: 2,
-                  }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, background: esActivo ? "#c8e6c9" : "#eeeeee", color: esActivo ? "#2e7d32" : "#9e9e9e", borderRadius: 10, padding: "0 5px", marginLeft: 2 }}>
                     {activos}
                   </span>
                 )}
@@ -328,7 +298,7 @@ export default function PrivilegiosModal({
           })}
         </div>
 
-        {/* ── Nivel 2: tabs de módulo ── */}
+        {/* Nivel 2: tabs de módulo */}
         <div style={{ ...S.modulosBar, borderBottom: "1px solid #f0f0f0", paddingBottom: 0 }}>
           {grupoActual?.modulos.map(m => {
             const { activos, total } = activosPorModulo(m.key);
@@ -338,13 +308,7 @@ export default function PrivilegiosModal({
                 <span style={{ fontSize: 13 }}>{m.icon}</span>
                 <span>{m.label}</span>
                 {activos > 0 && (
-                  <span style={{
-                    fontSize: 10, fontWeight: 700,
-                    background: activos === total ? "#e8f5e9" : "#fff3e0",
-                    color:      activos === total ? "#2e7d32" : "#e65100",
-                    border:    `1px solid ${activos === total ? "#c8e6c9" : "#ffcc80"}`,
-                    borderRadius: 10, padding: "0 5px",
-                  }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, background: activos === total ? "#e8f5e9" : "#fff3e0", color: activos === total ? "#2e7d32" : "#e65100", border: `1px solid ${activos === total ? "#c8e6c9" : "#ffcc80"}`, borderRadius: 10, padding: "0 5px" }}>
                     {activos}/{total}
                   </span>
                 )}
@@ -353,22 +317,17 @@ export default function PrivilegiosModal({
           })}
         </div>
 
-        {/* ── Panel de acciones ── */}
+        {/* Panel de acciones */}
         <div style={S.panelBody}>
 
           {/* Sub-cabecera del módulo */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-              <span style={{
-                fontSize: 24, lineHeight: 1,
-                background: "#f5f5f5", borderRadius: 8, padding: "5px 7px",
-              }}>
+              <span style={{ fontSize: 24, lineHeight: 1, background: "#f5f5f5", borderRadius: 8, padding: "5px 7px" }}>
                 {modMeta?.icon}
               </span>
               <div>
-                <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#212121" }}>
-                  {modMeta?.label}
-                </p>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#212121" }}>{modMeta?.label}</p>
                 <p style={{ margin: 0, fontSize: 11, color: "#9e9e9e" }}>
                   {isView
                     ? `${modActivos} acciones habilitadas`
@@ -379,13 +338,7 @@ export default function PrivilegiosModal({
             {!isView && accionesMod.length > 0 && (
               <button
                 onClick={() => toggleAll(modKey, !todosOn)}
-                style={{
-                  padding: "5px 12px", borderRadius: 7,
-                  border:      todosOn ? "1px solid #ef9a9a" : "1px solid #a5d6a7",
-                  background:  todosOn ? "#ffebee" : "#e8f5e9",
-                  color:       todosOn ? "#c62828" : "#2e7d32",
-                  fontSize: 12, fontWeight: 600, cursor: "pointer",
-                }}
+                style={{ padding: "5px 12px", borderRadius: 7, border: todosOn ? "1px solid #ef9a9a" : "1px solid #a5d6a7", background: todosOn ? "#ffebee" : "#e8f5e9", color: todosOn ? "#c62828" : "#2e7d32", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
               >
                 {todosOn ? "Desactivar todo" : "Activar todo"}
               </button>
@@ -406,12 +359,7 @@ export default function PrivilegiosModal({
                     style={{ ...S.accionCard(on, accion), cursor: isView ? "default" : "pointer" }}
                     onClick={() => toggle(permiso.id)}
                   >
-                    <div style={{
-                      width: 44, height: 44, borderRadius: 10,
-                      background: on ? accion.bg : "#f5f5f5",
-                      border: `1.5px solid ${on ? accion.border : "#e8e8e8"}`,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 10, background: on ? accion.bg : "#f5f5f5", border: `1.5px solid ${on ? accion.border : "#e8e8e8"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <span style={{ fontSize: 22 }}>{accion.icon}</span>
                     </div>
                     <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: on ? accion.color : "#9e9e9e" }}>
@@ -424,12 +372,8 @@ export default function PrivilegiosModal({
                 );
               })}
 
-            {/* Placeholder modo view sin acciones activas */}
             {isView && accionesMod.filter(a => modItems.find(p => p.accion === a.key)?.estado).length === 0 && (
-              <div style={{
-                gridColumn: "1 / -1", textAlign: "center",
-                padding: "28px 0", color: "#bdbdbd", fontSize: 13,
-              }}>
+              <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "28px 0", color: "#bdbdbd", fontSize: 13 }}>
                 <div style={{ fontSize: 28, marginBottom: 6 }}>🔒</div>
                 Sin acciones habilitadas para este módulo
               </div>
@@ -437,26 +381,18 @@ export default function PrivilegiosModal({
           </div>
         </div>
 
-        {/* ── Footer ── */}
+        {/* Footer */}
         <div style={S.footer}>
           <button
             onClick={onClose}
-            style={{
-              padding: "7px 18px", borderRadius: 8,
-              border: "1px solid #e0e0e0", background: "#fff",
-              color: "#555", fontSize: 13, cursor: "pointer",
-            }}
+            style={{ padding: "7px 18px", borderRadius: 8, border: "1px solid #e0e0e0", background: "#fff", color: "#555", fontSize: 13, cursor: "pointer" }}
           >
             {isView ? "Cerrar" : "Cancelar"}
           </button>
           {!isView && (
             <button
               onClick={() => { onChange(local); onClose(); }}
-              style={{
-                padding: "7px 18px", borderRadius: 8,
-                border: "none", background: "#4caf50",
-                color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
-              }}
+              style={{ padding: "7px 18px", borderRadius: 8, border: "none", background: "#4caf50", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
             >
               Aplicar privilegios
             </button>

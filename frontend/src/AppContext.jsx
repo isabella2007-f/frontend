@@ -377,6 +377,38 @@ export function AppProvider({ children }) {
   useEffect(() => { localStorage.setItem("asignacionesDesc",    JSON.stringify(asignacionesDesc)); },    [asignacionesDesc]);
   useEffect(() => { localStorage.setItem("historialDescuentos", JSON.stringify(historialDescuentos)); }, [historialDescuentos]);
 
+  // Sincronización entre pestañas
+  useEffect(() => {
+    const handleStorage = (e) => {
+      if (!e.newValue) return;
+      const data = JSON.parse(e.newValue);
+      switch (e.key) {
+        case "categoriasProductos": setCategoriasProductos(data); break;
+        case "categoriasInsumos":   setCategoriasInsumos(data);   break;
+        case "insumos":             setInsumos(data);             break;
+        case "lotes":               setLotes(data);               break;
+        case "salidas":             setSalidas(data);             break;
+        case "productos":           setProductos(data);           break;
+        case "lotesProductos":      setLotesProductos(data);      break;
+        case "salidasProductos":    setSalidasProductos(data);    break;
+        case "roles":               setRoles(data);               break;
+        case "usuarios":            setUsuarios(data);            break;
+        case "proveedores":         setProveedores(data);         break;
+        case "compras":             setCompras(data);             break;
+        case "clientes":            setClientes(data);            break;
+        case "pedidos":             setPedidos(data);             break;
+        case "ordenes":             setOrdenes(data);             break;
+        case "devoluciones":        setDevoluciones(data);        break;
+        case "creditosClientes":    setCreditosClientes(data);    break;
+        case "descuentos":          setDescuentos(data);          break;
+        case "asignacionesDesc":    setAsignacionesDesc(data);    break;
+        case "historialDescuentos": setHistorialDescuentos(data); break;
+      }
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
+
   /* ── Derivados ──────────────────────────────────────── */
   const categoriasProductosActivas = categoriasProductos.filter(c => c.estado);
   const categoriasInsumosActivas   = categoriasInsumos.filter(c => c.estado);

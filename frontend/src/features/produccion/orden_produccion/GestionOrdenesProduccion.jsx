@@ -42,11 +42,22 @@ const urgenciaFecha = (fechaISO) => {
 
 /* ─── Componentes ────────────────────────────────────────── */
 function EstadoBadge({ estado }) {
-  const c   = ESTADO_CONFIG[estado] || { bg: "bg-gray-50", color: "text-gray-700", border: "border-gray-200", dot: "#bdbdbd" };
-  const cls = `estado-badge ${c.bg} ${c.color} border ${c.border} px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5`;
+  const COLORS = {
+    "Pendiente":  { bg: "#fff8e1", color: "#f9a825", border: "#ffe082" },
+    "En proceso": { bg: "#e3f2fd", color: "#1565c0", border: "#90caf9" },
+    "Pausada":    { bg: "#f3e5f5", color: "#6a1b9a", border: "#ce93d8" },
+    "Completada": { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7" },
+    "Cancelada":  { bg: "#ffebee", color: "#c62828", border: "#ef9a9a" },
+  };
+  const c = COLORS[estado] || { bg: "#f5f5f5", color: "#757575", border: "#e0e0e0" };
   return (
-    <span className={cls}>
-      <span className="w-1.5 h-1.5 rounded-full" style={{ background: c.dot }} />
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 5,
+      background: c.bg, color: c.color, border: `1px solid ${c.border}`,
+      borderRadius: 20, padding: "3px 10px",
+      fontSize: 11, fontWeight: 700, whiteSpace: "nowrap",
+    }}>
+      <span style={{ width: 7, height: 7, borderRadius: "50%", background: c.color, flexShrink: 0 }} />
       {estado}
     </span>
   );
@@ -54,230 +65,207 @@ function EstadoBadge({ estado }) {
 
 function Toast({ toast }) {
   if (!toast) return null;
-  const bg = toast.type === "error" ? "bg-red-600" : toast.type === "warn" ? "bg-orange-600" : "bg-green-600";
   return (
-    <div className={`fixed bottom-8 right-8 ${bg} text-white px-6 py-3 rounded-xl shadow-2xl z-[30000] flex items-center gap-3 animate-in slide-in-from-right`}>
-      {toast.type === "error" ? <X size={18} /> : toast.type === "warn" ? <AlertCircle size={18} /> : <CheckCircle2 size={18} />}
-      <span className="font-bold text-sm">{toast.message}</span>
+    <div style={{
+      position: "fixed", bottom: 28, right: 28, zIndex: 3000,
+      padding: "12px 20px", borderRadius: 12, color: "#fff",
+      background: toast.type === "error" ? "#c62828" : toast.type === "warn" ? "#e65100" : "#2e7d32",
+      fontWeight: 600, fontSize: 13,
+      boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+      display: "flex", alignItems: "center", gap: 8,
+      animation: "slideInRight 0.32s cubic-bezier(0.34,1.4,0.64,1)",
+    }}>
+      <span style={{ fontSize: 15 }}>{toast.type === "error" ? "✕" : toast.type === "warn" ? "⚠️" : "✓"}</span>
+      {toast.message}
     </div>
   );
 }
 
 /* ═══════════════════════════════════════════════════════════
-   MODAL VER DETALLES
+   MODAL VER DETALLES — diseño unificado con el resto del sistema
    ═══════════════════════════════════════════════════════════ */
 function ModalDetallesOrden({ orden, empleados, onClose }) {
   const [activeTab, setActiveTab] = useState("general");
   const navigate = useNavigate();
   if (!orden) return null;
-  
-  const empleado = empleados.find(e => String(e.id) === String(orden.idEmpleado));
 
+  const empleado = empleados.find(e => String(e.id) === String(orden.idEmpleado));
   const totalUnidades = (orden.productos || []).reduce((acc, x) => acc + (x.cantidad || 0), 0);
 
-  const goToFicha = (productId) => {
-    navigate('/admin/products', { state: { openFicha: productId } });
-  };
+  const TABS = [
+    { id: "general",   label: "General",   icon: "📋" },
+    { id: "productos", label: "Productos", icon: "📦" },
+    { id: "insumos",   label: "Insumos",   icon: "🗂️" },
+  ];
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-box modal-box--wide shadow-2xl overflow-hidden flex flex-col max-h-[95vh] border-none" style={{ borderRadius: '32px' }}>
-        
-        {/* Header */}
-        <div className="modal-header shrink-0" style={{ background: 'linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 100%)', padding: '24px' }}>
-          <div className="flex items-center gap-4">
-            <div className="bg-white/10 backdrop-blur-xl p-3 rounded-2xl border border-white/20">
-              <ClipboardList size={24} className="text-white" />
-            </div>
-            <div>
-              <h2 className="text-xl font-black tracking-tight leading-none mb-1 text-white">Orden {orden.id}</h2>
-              <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">Resumen Detallado</p>
-            </div>
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal-box"
+        style={{ maxWidth: 580, width: "100%", maxHeight: "calc(100vh - 40px)", display: "flex", flexDirection: "column", overflow: "hidden" }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* HEADER */}
+        <div className="modal-header">
+          <div>
+            <p className="modal-header__eyebrow">Producción</p>
+            <h2 className="modal-header__title">Orden {orden.id}</h2>
           </div>
-          <div className="flex items-center gap-3">
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <EstadoBadge estado={orden.estado} />
-            <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-all text-white/70">
-              <X size={20} />
-            </button>
+            <button className="modal-close-btn" onClick={onClose}>✕</button>
           </div>
         </div>
 
-        {/* Pestañas */}
-        <div className="flex bg-gray-50/80 backdrop-blur-sm border-b border-gray-100 px-6">
-          {[
-            { id: "general", label: "General", icon: <Info size={14} /> },
-            { id: "productos", label: "Productos", icon: <Package size={14} /> },
-            { id: "insumos", label: "Insumos", icon: <FileText size={14} /> },
-          ].map(tab => (
+        {/* PESTAÑAS */}
+        <div style={{ display: "flex", borderBottom: "1px solid #f0f0f0", background: "#fafafa", padding: "0 24px" }}>
+          {TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-6 py-4 text-xs font-black uppercase tracking-widest transition-all border-b-2 ${
-                activeTab === tab.id 
-                  ? 'border-green-600 text-green-700 bg-white' 
-                  : 'border-transparent text-gray-400 hover:text-gray-600'
-              }`}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "12px 18px", fontSize: 12, fontWeight: 700,
+                border: "none", borderBottom: activeTab === tab.id ? "2.5px solid #2e7d32" : "2.5px solid transparent",
+                background: "transparent",
+                color: activeTab === tab.id ? "#2e7d32" : "#9e9e9e",
+                cursor: "pointer", fontFamily: "inherit",
+                transition: "all 0.15s",
+                textTransform: "uppercase", letterSpacing: "0.5px",
+              }}
             >
-              {tab.icon} {tab.label}
+              <span>{tab.icon}</span> {tab.label}
             </button>
           ))}
         </div>
 
-        <div className="modal-body p-6 overflow-y-auto custom-scrollbar flex-1 bg-white">
+        {/* CONTENIDO */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
 
           {activeTab === "general" && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-green-50 p-4 rounded-2xl border border-green-100">
-                  <p className="text-[9px] font-black text-green-600 uppercase tracking-widest mb-1">Unidades</p>
-                  <p className="text-2xl font-black text-green-900 leading-none">{totalUnidades}</p>
-                </div>
-                <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
-                  <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-1">Productos</p>
-                  <p className="text-2xl font-black text-blue-900 leading-none">{(orden.productos || []).length}</p>
-                </div>
-                <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
-                  <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Insumos</p>
-                  <p className="text-2xl font-black text-emerald-900 leading-none">{(orden.insumos || []).length}</p>
-                </div>
-                <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100">
-                  <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest mb-1">Costo</p>
-                  <p className="text-2xl font-black text-amber-900 leading-none">{fmt(orden.costo)}</p>
-                </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Stats */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+                {[
+                  { label: "Unidades",  value: totalUnidades,              bg: "#e8f5e9", color: "#2e7d32" },
+                  { label: "Productos", value: (orden.productos||[]).length, bg: "#e3f2fd", color: "#1565c0" },
+                  { label: "Insumos",   value: (orden.insumos||[]).length,   bg: "#f3e5f5", color: "#6a1b9a" },
+                  { label: "Costo",     value: fmt(orden.costo),             bg: "#fff8e1", color: "#f9a825" },
+                ].map(s => (
+                  <div key={s.label} style={{ background: s.bg, borderRadius: 12, padding: "12px 14px" }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: s.color, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>{s.label}</div>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: s.color }}>{s.value}</div>
+                  </div>
+                ))}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Información de Gestión</h4>
-                  <div className="bg-gray-50/50 p-5 rounded-[24px] border border-gray-100 space-y-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-green-700 shadow-sm border border-gray-100">
-                        <User size={18} />
-                      </div>
-                      <div>
-                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Responsable</p>
-                        <p className="text-sm font-bold text-gray-800">{empleado ? `${empleado.nombre} ${empleado.apellidos || ""}` : "Sin asignar"}</p>
-                      </div>
+              {/* Gestión */}
+              <div>
+                <p className="section-label">Información de gestión</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div className="field-input field-input--disabled" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 16 }}>👤</span>
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: 1 }}>Responsable</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "#1a1a1a" }}>{empleado ? `${empleado.nombre} ${empleado.apellidos || ""}` : "Sin asignar"}</div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-blue-700 shadow-sm border border-gray-100">
-                        <Calendar size={18} />
-                      </div>
-                      <div>
-                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Entrega Prometida</p>
-                        <p className="text-sm font-bold text-gray-800">{orden.fechaEntrega ? fmtFecha(orden.fechaEntrega) : "—"}</p>
-                      </div>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    <div className="field-input field-input--disabled" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: 1 }}>Entrega</div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{orden.fechaEntrega ? fmtFecha(orden.fechaEntrega) : "—"}</div>
                     </div>
                     {orden.numeroPedido && (
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-indigo-700 shadow-sm border border-gray-100">
-                          <ClipboardList size={18} />
-                        </div>
-                        <div>
-                          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Pedido Venta</p>
-                          <p className="text-sm font-bold text-indigo-700">#{orden.numeroPedido}</p>
-                        </div>
+                      <div className="field-input field-input--disabled" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: 1 }}>Pedido vinculado</div>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "#1565c0" }}>#{orden.numeroPedido}</div>
                       </div>
                     )}
                   </div>
-                </div>
-
-                <div className="space-y-4">
-                  <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Notas e Instrucciones</h4>
-                  <div className="bg-gray-50/50 p-5 rounded-[24px] border border-gray-100 h-full">
-                    {orden.notas ? (
-                      <p className="text-xs text-gray-600 leading-relaxed italic">"{orden.notas}"</p>
-                    ) : (
-                      <div className="h-full flex items-center justify-center text-gray-300 italic text-xs">Sin notas adicionales</div>
-                    )}
-                  </div>
+                  {orden.notas && (
+                    <div className="field-input field-input--disabled" style={{ display: "flex", flexDirection: "column", gap: 4, minHeight: 50 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: 1 }}>Notas</div>
+                      <div style={{ fontSize: 13, color: "#616161", fontStyle: "italic" }}>"{orden.notas}"</div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           )}
 
           {activeTab === "productos" && (
-            <div className="space-y-4">
-               {orden.productos.map((p, i) => (
-                 <div key={i} className="group bg-gray-50/50 hover:bg-white p-4 rounded-2xl border border-gray-100 hover:border-green-200 transition-all flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-green-700 shadow-sm border border-gray-100 group-hover:scale-105 transition-transform">
-                        <Package size={22} />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-black text-gray-800">{p.nombre}</h4>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Costo unit: {fmt(p.precio)}</p>
-                      </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <p className="section-label" style={{ marginTop: 0 }}>Productos a fabricar</p>
+              {(orden.productos || []).map((p, i) => (
+                <div key={i} style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "12px 14px", background: "#fafafa", borderRadius: 10,
+                  border: "1px solid #e0e0e0",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 20 }}>📦</span>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1a1a" }}>{p.nombre}</div>
+                      <div style={{ fontSize: 11, color: "#9e9e9e" }}>Costo unit: {fmt(p.precio)}</div>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <p className="text-[10px] font-black text-gray-400 uppercase">Cantidad</p>
-                        <p className="text-lg font-black text-green-700">×{p.cantidad}</p>
-                      </div>
-                      <button 
-                        onClick={() => goToFicha(p.idProducto)}
-                        className="p-2.5 bg-white hover:bg-green-600 text-green-600 hover:text-white rounded-xl shadow-sm border border-gray-100 hover:border-green-600 transition-all"
-                        title="Ver Ficha Técnica"
-                      >
-                        <FileText size={16} />
-                      </button>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase" }}>Cantidad</div>
+                      <div style={{ fontSize: 16, fontWeight: 800, color: "#2e7d32" }}>×{p.cantidad}</div>
                     </div>
-                 </div>
-               ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
           {activeTab === "insumos" && (
-            <div className="space-y-6">
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {orden.missingFicha && orden.missingFicha.length > 0 && (
-                <div className="bg-orange-50 border border-orange-200 p-4 rounded-2xl flex items-start gap-3">
-                  <AlertCircle className="text-orange-600 shrink-0 mt-0.5" size={18} />
+                <div style={{ background: "#fff8e1", border: "1px solid #ffe082", borderRadius: 10, padding: "12px 14px", display: "flex", gap: 10 }}>
+                  <span style={{ fontSize: 16, flexShrink: 0 }}>⚠️</span>
                   <div>
-                    <p className="text-[11px] font-black text-orange-900 uppercase tracking-tight">Advertencia: Fichas Faltantes</p>
-                    <p className="text-xs text-orange-700 mt-1">Los productos <span className="font-bold">[{orden.missingFicha.join(", ")}]</span> no tienen ficha técnica. Los cálculos pueden estar incompletos.</p>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#f9a825", textTransform: "uppercase", marginBottom: 4 }}>Fichas faltantes</div>
+                    <div style={{ fontSize: 12, color: "#6d4c00" }}>Los productos <strong>[{orden.missingFicha.join(", ")}]</strong> no tienen ficha técnica. Los cálculos pueden estar incompletos.</div>
                   </div>
                 </div>
               )}
-
-              <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-                <table className="w-full">
-                  <thead className="bg-gray-50/50">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-[9px] font-black text-gray-400 uppercase tracking-widest">Insumo</th>
-                      <th className="px-6 py-4 text-center text-[9px] font-black text-gray-400 uppercase tracking-widest">Requerido</th>
-                      <th className="px-6 py-4 text-center text-[9px] font-black text-gray-400 uppercase tracking-widest">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {orden.insumos.map((ins, i) => (
-                      <tr key={i} className="hover:bg-gray-50/30">
-                        <td className="px-6 py-4 text-xs font-bold text-gray-800">{ins.nombre}</td>
-                        <td className="px-6 py-4 text-center text-xs font-black text-gray-600">{ins.cantidad} {ins.unidad}</td>
-                        <td className="px-6 py-4 text-center">
-                          {ins.stockOk ? (
-                            <span className="text-[10px] font-black text-green-600 bg-green-50 px-2 py-0.5 rounded-lg border border-green-100">OK</span>
-                          ) : (
-                            <span className="text-[10px] font-black text-red-600 bg-red-50 px-2 py-0.5 rounded-lg border border-red-100">Stock Insuficiente</span>
-                          )}
-                        </td>
-                      </tr>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ background: "#f1f8f1" }}>
+                    {["Insumo", "Requerido", "Estado"].map(h => (
+                      <th key={h} style={{ padding: "10px 12px", fontSize: 11, fontWeight: 700, color: "#2e7d32", textAlign: h === "Estado" ? "center" : "left", textTransform: "uppercase", letterSpacing: 0.5 }}>{h}</th>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-
+                  </tr>
+                </thead>
+                <tbody>
+                  {(orden.insumos || []).map((ins, i) => (
+                    <tr key={i} style={{ borderTop: "1px solid #f1f8f1" }}>
+                      <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600 }}>{ins.nombre}</td>
+                      <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 700, color: "#424242" }}>{ins.cantidad} {ins.unidad}</td>
+                      <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                        {ins.stockOk
+                          ? <span style={{ fontSize: 10, fontWeight: 700, color: "#2e7d32", background: "#e8f5e9", padding: "2px 8px", borderRadius: 6, border: "1px solid #c8e6c9" }}>OK</span>
+                          : <span style={{ fontSize: 10, fontWeight: 700, color: "#c62828", background: "#ffebee", padding: "2px 8px", borderRadius: 6, border: "1px solid #ef9a9a" }}>Sin stock</span>
+                        }
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
               {orden.insumosDescontados && (
-                <div className="bg-green-600 p-4 rounded-2xl flex items-center justify-center gap-3 text-white shadow-lg shadow-green-200/50">
-                  <CheckCircle2 size={18} />
-                  <span className="text-xs font-black uppercase tracking-widest">Inventario actualizado con éxito</span>
+                <div style={{ background: "#e8f5e9", border: "1px solid #c8e6c9", borderRadius: 10, padding: "12px 14px", display: "flex", alignItems: "center", gap: 8, color: "#2e7d32", fontWeight: 700, fontSize: 13 }}>
+                  ✓ Inventario descontado correctamente
                 </div>
               )}
             </div>
           )}
         </div>
 
-        <div className="modal-footer p-6 bg-gray-50/50 border-t border-gray-100 shrink-0">
-          <button onClick={onClose} className="btn-secondary w-full py-4 text-xs font-black uppercase tracking-widest">Cerrar Detalle</button>
+        {/* FOOTER — botón no ocupa todo el ancho */}
+        <div className="modal-footer" style={{ justifyContent: "flex-end" }}>
+          <button className="btn-ghost" onClick={onClose}>Cerrar</button>
         </div>
       </div>
     </div>
@@ -290,97 +278,89 @@ function ModalDetallesOrden({ orden, empleados, onClose }) {
 function ModalCambiarEstado({ orden, onClose, onConfirm }) {
   const [estadoSel, setEstadoSel] = useState(null);
   const [confirmStep, setConfirmStep] = useState(false);
-
   if (!orden) return null;
 
-  const handleInitialClick = (est) => {
-    if (est === orden.estado) return;
-    setEstadoSel(est);
-    setConfirmStep(true);
-  };
-
   return (
-    <div className="modal-overlay">
-      <div className="modal-box relative bg-white shadow-2xl overflow-hidden flex flex-col border-none" style={{ borderRadius: '28px' }}>
-        
-        <div className="modal-header shrink-0" style={{ background: 'linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 100%)', padding: '20px 24px' }}>
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
           <div>
-            <h2 className="text-lg font-black text-white leading-none">Cambiar Estado</h2>
-            <p className="text-white/60 text-[9px] font-bold uppercase tracking-widest mt-1">Orden #{orden.id}</p>
+            <p className="modal-header__eyebrow">Producción</p>
+            <h2 className="modal-header__title">Cambiar Estado</h2>
           </div>
-          <button onClick={onClose} className="text-white/70 hover:text-white"><X size={18} /></button>
+          <button className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
 
-        <div className="modal-body p-6">
+        <div className="modal-body">
           {!confirmStep ? (
-            <div className="space-y-3">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Selecciona el nuevo estado</p>
-              <div className="grid gap-2">
+            <>
+              <p className="section-label" style={{ marginTop: 0 }}>Orden {orden.id} — selecciona el nuevo estado</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {ESTADOS_ORDEN.map(est => {
-                  const cfg = ESTADO_CONFIG[est] || {};
+                  const COLORS = {
+                    "Pendiente":  { bg: "#fff8e1", color: "#f9a825", border: "#ffe082" },
+                    "En proceso": { bg: "#e3f2fd", color: "#1565c0", border: "#90caf9" },
+                    "Pausada":    { bg: "#f3e5f5", color: "#6a1b9a", border: "#ce93d8" },
+                    "Completada": { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7" },
+                    "Cancelada":  { bg: "#ffebee", color: "#c62828", border: "#ef9a9a" },
+                  };
+                  const c = COLORS[est] || {};
                   const isCurrent = est === orden.estado;
                   return (
                     <button
                       key={est}
-                      onClick={() => handleInitialClick(est)}
                       disabled={isCurrent}
-                      className={`flex items-center gap-3 p-3.5 rounded-2xl border-2 transition-all text-left ${
-                        isCurrent 
-                          ? 'border-gray-100 bg-gray-50 opacity-60 cursor-default' 
-                          : 'border-white bg-white hover:border-green-200 hover:bg-green-50 shadow-sm'
-                      }`}
+                      onClick={() => { setEstadoSel(est); setConfirmStep(true); }}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 10,
+                        padding: "11px 14px", borderRadius: 10,
+                        border: `1.5px solid ${isCurrent ? c.border : "#e0e0e0"}`,
+                        background: isCurrent ? c.bg : "#fff",
+                        cursor: isCurrent ? "default" : "pointer",
+                        opacity: isCurrent ? 0.7 : 1,
+                        fontFamily: "inherit", width: "100%", textAlign: "left",
+                        transition: "all 0.15s",
+                      }}
                     >
-                      <div className="w-2.5 h-2.5 rounded-full" style={{ background: cfg.dot || '#ccc' }} />
-                      <div className="flex-1">
-                        <p className={`text-xs font-black ${isCurrent ? 'text-gray-400' : 'text-gray-800'}`}>{est}</p>
-                        {isCurrent && <span className="text-[9px] font-bold uppercase text-green-600">Estado Actual</span>}
-                      </div>
-                      {!isCurrent && <ChevronRight size={14} className="text-gray-300" />}
+                      <span style={{ width: 10, height: 10, borderRadius: "50%", background: c.color, flexShrink: 0 }} />
+                      <span style={{ fontSize: 13, fontWeight: 700, color: isCurrent ? c.color : "#1a1a1a", flex: 1 }}>{est}</span>
+                      {isCurrent && <span style={{ fontSize: 10, fontWeight: 700, color: "#2e7d32", textTransform: "uppercase" }}>Actual</span>}
+                      {!isCurrent && <span style={{ color: "#bdbdbd", fontSize: 16 }}>›</span>}
                     </button>
                   );
                 })}
               </div>
-            </div>
+            </>
           ) : (
-            <div className="space-y-6 animate-in zoom-in-95 duration-300">
-               <div className="bg-amber-50 border-2 border-amber-200 p-5 rounded-3xl text-center">
-                  <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center mx-auto mb-3 text-amber-600">
-                    <AlertCircle size={28} />
-                  </div>
-                  <h3 className="text-sm font-black text-amber-900 uppercase tracking-tight">¿Confirmar Cambio de Estado?</h3>
-                  <p className="text-xs text-amber-700/80 mt-2 font-medium">Estás a punto de mover esta orden a un nuevo estado en el flujo de producción.</p>
-               </div>
-
-               <div className="flex items-center justify-between px-6 py-4 bg-gray-50 rounded-2xl border border-gray-100 relative overflow-hidden">
-                  <div className="text-center flex-1">
-                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Actual</p>
-                    <EstadoBadge estado={orden.estado} />
-                  </div>
-                  <div className="px-4 text-gray-300 animate-pulse">
-                    <ArrowRight size={20} strokeWidth={3} />
-                  </div>
-                  <div className="text-center flex-1">
-                    <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1">Nuevo</p>
-                    <EstadoBadge estado={estadoSel} />
-                  </div>
-               </div>
-
-               <div className="space-y-2">
-                 <button 
-                  onClick={() => onConfirm(orden.id, estadoSel)}
-                  className="btn-primary w-full py-4 text-xs font-black uppercase tracking-widest shadow-lg shadow-green-200"
-                 >
-                   Confirmar y Aplicar
-                 </button>
-                 <button 
-                  onClick={() => setConfirmStep(false)}
-                  className="w-full py-3 text-[10px] font-black text-gray-400 hover:text-gray-600 uppercase tracking-widest transition-colors"
-                 >
-                   Regresar
-                 </button>
-               </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ background: "#fff8e1", border: "1px solid #ffe082", borderRadius: 12, padding: "16px", textAlign: "center" }}>
+                <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: "#6d4c00", marginBottom: 4 }}>¿Confirmar cambio de estado?</div>
+                <div style={{ fontSize: 12, color: "#9a6400" }}>Esta acción actualizará el flujo de producción.</div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around", background: "#fafafa", borderRadius: 10, padding: "14px", border: "1px solid #e0e0e0" }}>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", marginBottom: 6 }}>Actual</div>
+                  <EstadoBadge estado={orden.estado} />
+                </div>
+                <span style={{ fontSize: 20, color: "#bdbdbd" }}>→</span>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", marginBottom: 6 }}>Nuevo</div>
+                  <EstadoBadge estado={estadoSel} />
+                </div>
+              </div>
             </div>
           )}
+        </div>
+
+        <div className="modal-footer" style={{ justifyContent: confirmStep ? "space-between" : "flex-end" }}>
+          {confirmStep
+            ? <>
+                <button className="btn-ghost" onClick={() => setConfirmStep(false)}>← Volver</button>
+                <button className="btn-save" onClick={() => onConfirm(orden.id, estadoSel)}>Confirmar cambio</button>
+              </>
+            : <button className="btn-ghost" onClick={onClose}>Cancelar</button>
+          }
         </div>
       </div>
     </div>
@@ -388,53 +368,50 @@ function ModalCambiarEstado({ orden, onClose, onConfirm }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   MODAL CONFIRMAR ELIMINACIÓN
+   MODAL ELIMINAR ORDEN
    ═══════════════════════════════════════════════════════════ */
 function ModalEliminarOrden({ orden, onClose, onConfirm }) {
+  const [done, setDone] = useState(false);
   if (!orden) return null;
+
+  const handleConfirm = () => {
+    setDone(true);
+    setTimeout(() => onConfirm(orden.id), 800);
+  };
+
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
-
-        <div className="modal-header">
-          <div>
-            <p className="modal-header__eyebrow">Confirmar eliminación</p>
-            <h2 className="modal-header__title" style={{ color: "#c62828" }}>Eliminar orden</h2>
-          </div>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
-        </div>
-
-        <div className="modal-body">
+      <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
+        <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
           <div style={{
-            background: "#ffebee",
-            border: "1px solid #ef9a9a",
-            borderRadius: 10,
-            padding: "14px 16px",
-            marginBottom: 16,
-          }}>
-            <p style={{ fontWeight: 700, color: "#c62828", marginBottom: 6, fontSize: 14 }}>
-              ¿Eliminar la orden <strong>{orden.id}</strong>?
-            </p>
-            <p style={{ fontSize: 13, color: "#e57373", margin: 0, lineHeight: 1.5 }}>
-              Esta acción es irreversible. Se perderán todos los datos de esta orden de producción.
-            </p>
-          </div>
-
-          <div style={{ fontSize: 13, color: "#616161", lineHeight: 2 }}>
+            width: 52, height: 52, borderRadius: 14,
+            background: "#ffebee", border: "1px solid #ef9a9a",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 24, margin: "0 auto 14px",
+          }}>🗑️</div>
+          <h3 style={{ margin: "0 0 8px", fontSize: 17, fontWeight: 700, color: "#1a1a1a" }}>Eliminar orden</h3>
+          <p style={{ margin: "0 0 4px", fontSize: 14, color: "#616161" }}>
+            ¿Estás seguro de que deseas eliminar la orden <strong>{orden.id}</strong>?
+          </p>
+          <p style={{ margin: "0 0 16px", fontSize: 12, color: "#9e9e9e" }}>Esta operación es definitiva y no podrá ser revertida.</p>
+          <div style={{ fontSize: 13, color: "#616161", textAlign: "left", background: "#fafafa", borderRadius: 8, padding: "10px 12px", marginBottom: 4 }}>
             <div><strong>Productos:</strong> {(orden.productos || []).map(p => `${p.nombre} ×${p.cantidad}`).join(", ") || "—"}</div>
-            <div><strong>Estado actual:</strong> <EstadoBadge estado={orden.estado} /></div>
-            <div><strong>Costo estimado:</strong> {fmt(orden.costo)}</div>
+            <div style={{ marginTop: 4 }}><strong>Estado:</strong> <EstadoBadge estado={orden.estado} /></div>
           </div>
         </div>
-
-        <div className="modal-footer">
+        <div className="modal-footer modal-footer--center">
           <button className="btn-ghost" onClick={onClose}>Cancelar</button>
           <button
-            className="btn-save"
-            style={{ background: "#c62828" }}
-            onClick={() => onConfirm(orden.id)}
+            onClick={handleConfirm}
+            disabled={done}
+            style={{
+              padding: "9px 20px", borderRadius: 9, border: "none",
+              background: "#c62828", color: "#fff",
+              fontWeight: 700, fontSize: 13, cursor: done ? "default" : "pointer",
+              fontFamily: "inherit", opacity: done ? 0.7 : 1,
+            }}
           >
-            Sí, eliminar orden
+            {done ? "Eliminando…" : "Sí, eliminar orden"}
           </button>
         </div>
       </div>
@@ -443,19 +420,19 @@ function ModalEliminarOrden({ orden, onClose, onConfirm }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   MODAL FORMULARIO — CREAR / EDITAR ORDEN
+   BARRA DE PASOS (wizard) — alineada con el sistema global
    ═══════════════════════════════════════════════════════════ */
 const STEPS_WIZ = ["Datos Generales", "Productos e Insumos"];
 
 function StepsBarWiz({ current }) {
   return (
-    <div className="wizard-steps-bar">
+    <div className="wizard-steps-bar" style={{ padding: "0 24px" }}>
       {STEPS_WIZ.map((label, i) => {
         const idx    = i + 1;
         const done   = idx < current;
         const active = idx === current;
         return (
-          <div key={label} className="wizard-step-item">
+          <div key={label} className="wizard-step-item" style={{ flex: 1, justifyContent: i === 0 ? "flex-start" : "flex-end" }}>
             <div className={`wizard-step-circle${done ? " done" : active ? " active" : ""}`}>
               {done ? "✓" : idx}
             </div>
@@ -463,7 +440,7 @@ function StepsBarWiz({ current }) {
               {label}
             </span>
             {i < STEPS_WIZ.length - 1 && (
-              <div className={`wizard-step-line${done ? " done" : ""}`} />
+              <div className={`wizard-step-line${done ? " done" : ""}`} style={{ flex: 1 }} />
             )}
           </div>
         );
@@ -472,6 +449,9 @@ function StepsBarWiz({ current }) {
   );
 }
 
+/* ═══════════════════════════════════════════════════════════
+   MODAL FORMULARIO — CREAR / EDITAR ORDEN
+   ═══════════════════════════════════════════════════════════ */
 function ModalFormOrden({ orden, onClose, onSave }) {
   const {
     productos   = [],
@@ -501,59 +481,38 @@ function ModalFormOrden({ orden, onClose, onSave }) {
       setForm(p => ({ ...p, insumos: [], costo: 0 }));
       return;
     }
-
     const insumosMap = {};
     let totalCosto   = 0;
-
     form.productos.forEach(item => {
       const prod = productos.find(p => p.id === item.idProducto);
       if (!prod) return;
-
       totalCosto += calcularCostoProduccion(prod, item.cantidad);
-
       (prod.ficha?.insumos || []).forEach(fi => {
         const ins = allInsumos.find(i => i.id === fi.idInsumo || i.nombre === fi.nombre);
         if (!ins) return;
-
         const cantNecesaria = (Number(fi.cantidad) || 0) * item.cantidad;
-
         if (insumosMap[ins.id]) {
           insumosMap[ins.id].cantidad += cantNecesaria;
         } else {
           const unidad = UNIDADES_MEDIDA.find(u => u.id === ins.idUnidad)?.simbolo || "und";
-          insumosMap[ins.id] = {
-            idInsumo: ins.id,
-            nombre:   ins.nombre,
-            cantidad: cantNecesaria,
-            unidad,
-            stockOk:  false,
-          };
+          insumosMap[ins.id] = { idInsumo: ins.id, nombre: ins.nombre, cantidad: cantNecesaria, unidad, stockOk: false };
         }
       });
     });
-
     const insumosArray = Object.values(insumosMap).map(ins => {
       const real = allInsumos.find(i => i.id === ins.idInsumo);
       return { ...ins, stockOk: (real?.stockActual || 0) >= ins.cantidad };
     });
-
     setForm(p => ({ ...p, insumos: insumosArray, costo: totalCosto }));
   }, [form.productos, productos, allInsumos, UNIDADES_MEDIDA, calcularCostoProduccion]);
-
-  useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = "auto"; };
-  }, []);
 
   const addProducto = (idStr) => {
     const id = Number(idStr); if (!id) return;
     const prod = productos.find(x => x.id === id); if (!prod) return;
     if (form.productos.some(x => x.idProducto === id)) return;
-    
     if (!prod.ficha) {
-      alert(`⚠️ El producto "${prod.nombre}" no tiene una ficha técnica vinculada. No se podrán calcular los insumos necesarios para su fabricación.`);
+      alert(`⚠️ "${prod.nombre}" no tiene ficha técnica. No se podrán calcular insumos.`);
     }
-
     setForm(f => ({
       ...f,
       productos: [...f.productos, { idProducto: prod.id, nombre: prod.nombre, cantidad: 1, precio: prod.precio || 0 }],
@@ -571,12 +530,8 @@ function ModalFormOrden({ orden, onClose, onSave }) {
 
   const validateStep = (s) => {
     const e = {};
-    if (s === 1) {
-      if (!form.fechaEntrega) e.fecha = "Requerido";
-    }
-    if (s === 2) {
-      if (form.productos.length === 0) e.productos = "Agrega productos";
-    }
+    if (s === 1 && !form.fechaEntrega) e.fecha = "Campo obligatorio";
+    if (s === 2 && form.productos.length === 0) e.productos = "Agrega al menos un producto";
     return e;
   };
 
@@ -593,7 +548,6 @@ function ModalFormOrden({ orden, onClose, onSave }) {
   };
 
   return (
-    /* ✅ CORREGIDO: modal-overlay + modal-box en lugar de overlay + modal-card */
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
@@ -604,7 +558,8 @@ function ModalFormOrden({ orden, onClose, onSave }) {
           <button className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
 
-        <div style={{ padding: "16px 24px 0" }}>
+        {/* Barra de pasos — separada del header, dentro del padding correcto */}
+        <div style={{ padding: "16px 0 0", borderTop: "1px solid #f0f0f0" }}>
           <StepsBarWiz current={step} />
         </div>
 
@@ -614,27 +569,65 @@ function ModalFormOrden({ orden, onClose, onSave }) {
               <p className="section-label" style={{ marginTop: 0 }}>Datos Generales</p>
               <div className="form-group">
                 <label className="form-label">Responsable</label>
-                <select className="field-input" value={form.idEmpleado} onChange={e => setForm(f => ({ ...f, idEmpleado: Number(e.target.value) }))}>
-                  <option value="">— Sin asignar —</option>
-                  {empleados.map(emp => <option key={emp.id} value={emp.id}>{emp.nombre} {emp.apellidos}</option>)}
-                </select>
+                <div className="select-wrap">
+                  <select
+                    className="field-input"
+                    style={{ appearance: "none", paddingRight: 32 }}
+                    value={form.idEmpleado}
+                    onChange={e => setForm(f => ({ ...f, idEmpleado: Number(e.target.value) }))}
+                  >
+                    <option value="">— Sin asignar —</option>
+                    {empleados.map(emp => (
+                      <option key={emp.id} value={emp.id}>{emp.nombre} {emp.apellidos}</option>
+                    ))}
+                  </select>
+                  <div className="select-arrow">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </div>
+                </div>
               </div>
               <div className="form-grid-2">
                 <div className="form-group">
-                  <label className="form-label">Entrega <span className="required">*</span></label>
-                  <input type="date" className={`field-input${errors.fecha ? " error" : ""}`} value={form.fechaEntrega} onChange={e => setForm(f => ({ ...f, fechaEntrega: e.target.value }))} />
-                  {errors.fecha && <p className="field-error">{errors.fecha}</p>}
+                  <label className="form-label">Fecha de entrega <span className="required">*</span></label>
+                  <input
+                    type="date"
+                    className={`field-input${errors.fecha ? " error" : ""}`}
+                    value={form.fechaEntrega}
+                    onChange={e => setForm(f => ({ ...f, fechaEntrega: e.target.value }))}
+                  />
+                  {errors.fecha && <span className="field-error">{errors.fecha}</span>}
                 </div>
                 <div className="form-group">
                   <label className="form-label">Estado</label>
-                  <select className="field-input" value={form.estado} onChange={e => setForm(f => ({ ...f, estado: e.target.value }))}>
-                    {ESTADOS_ORDEN.map(est => <option key={est} value={est}>{est}</option>)}
-                  </select>
+                  <div className="select-wrap">
+                    <select
+                      className="field-input"
+                      style={{ appearance: "none", paddingRight: 32 }}
+                      value={form.estado}
+                      onChange={e => setForm(f => ({ ...f, estado: e.target.value }))}
+                    >
+                      {ESTADOS_ORDEN.map(est => <option key={est} value={est}>{est}</option>)}
+                    </select>
+                    <div className="select-arrow">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5">
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div className="form-group">
                 <label className="form-label">Notas</label>
-                <textarea className="field-input" rows={2} value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} placeholder="Instrucciones..." />
+                <textarea
+                  className="field-input"
+                  rows={2}
+                  style={{ resize: "vertical" }}
+                  value={form.notas}
+                  onChange={e => setForm(f => ({ ...f, notas: e.target.value }))}
+                  placeholder="Instrucciones especiales..."
+                />
               </div>
             </>
           )}
@@ -642,32 +635,70 @@ function ModalFormOrden({ orden, onClose, onSave }) {
           {step === 2 && (
             <>
               <p className="section-label" style={{ marginTop: 0 }}>Productos a fabricar</p>
-              <select className="field-input" onChange={e => { addProducto(e.target.value); e.target.value = ""; }}>
-                <option value="">+ Agregar producto...</option>
-                {productos.filter(p => p.activo !== false).map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-              </select>
-              {errors.productos && <p className="field-error">{errors.productos}</p>}
-              <div className="prod-list-mini" style={{ maxHeight: 120, overflowY: "auto", marginTop: 10 }}>
+              <div className="select-wrap">
+                <select
+                  className="field-input"
+                  style={{ appearance: "none", paddingRight: 32 }}
+                  onChange={e => { addProducto(e.target.value); e.target.value = ""; }}
+                >
+                  <option value="">+ Agregar producto…</option>
+                  {productos.filter(p => p.activo !== false).map(p => (
+                    <option key={p.id} value={p.id}>{p.nombre}</option>
+                  ))}
+                </select>
+                <div className="select-arrow">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5">
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </div>
+              </div>
+              {errors.productos && <span className="field-error">{errors.productos}</span>}
+
+              <div style={{ maxHeight: 130, overflowY: "auto", marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
                 {form.productos.map(p => (
-                  <div key={p.idProducto} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: "1px solid #f5f5f5" }}>
-                    <span style={{ flex: 1, fontSize: 13 }}>{p.nombre}</span>
-                    <input type="number" className="qty-input" value={p.cantidad} onChange={e => updateCant(p.idProducto, e.target.value)} style={{ width: 50 }} />
-                    <button onClick={() => removeProd(p.idProducto)} className="btn-ghost" style={{ padding: "2px 6px" }}>✕</button>
+                  <div key={p.idProducto} style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "8px 10px", background: "#fafafa",
+                    border: "1px solid #e0e0e0", borderRadius: 8,
+                  }}>
+                    <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{p.nombre}</span>
+                    <input
+                      type="number"
+                      value={p.cantidad}
+                      min={1}
+                      onChange={e => updateCant(p.idProducto, e.target.value)}
+                      style={{ width: 54, padding: "4px 6px", border: "1.5px solid #e0e0e0", borderRadius: 6, textAlign: "center", fontWeight: 700, fontSize: 13 }}
+                    />
+                    <button
+                      onClick={() => removeProd(p.idProducto)}
+                      style={{ background: "#ffebee", color: "#c62828", border: "none", width: 26, height: 26, borderRadius: "50%", cursor: "pointer", fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}
+                    >✕</button>
                   </div>
                 ))}
               </div>
-              <p className="section-label">Insumos necesarios</p>
-              <div className="insumos-grid-mini" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, maxHeight: 100, overflowY: "auto" }}>
-                {form.insumos.map(ins => (
-                  <div key={ins.idInsumo} style={{ fontSize: 11, padding: 4, background: ins.stockOk ? "#f1f8f1" : "#fff5f5", borderRadius: 6 }}>
-                    {ins.nombre}: <strong>{ins.cantidad} {ins.unidad}</strong>
+
+              {form.insumos.length > 0 && (
+                <>
+                  <p className="section-label">Insumos calculados automáticamente</p>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, maxHeight: 110, overflowY: "auto" }}>
+                    {form.insumos.map(ins => (
+                      <div key={ins.idInsumo} style={{
+                        fontSize: 11, padding: "6px 8px", borderRadius: 6,
+                        background: ins.stockOk ? "#f1f8f1" : "#fff5f5",
+                        border: `1px solid ${ins.stockOk ? "#c8e6c9" : "#ef9a9a"}`,
+                        color: ins.stockOk ? "#2e7d32" : "#c62828",
+                      }}>
+                        <strong>{ins.nombre}</strong><br />{ins.cantidad} {ins.unidad}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </>
+              )}
             </>
           )}
         </div>
 
+        {/* Footer — botones NO full-width */}
         <div className="modal-footer" style={{ justifyContent: "space-between" }}>
           {step > 1
             ? <button className="btn-ghost" onClick={() => setStep(1)}>← Atrás</button>
@@ -700,10 +731,8 @@ export default function GestionOrdenesProduccion() {
   } = useApp();
 
   const empleados = usuarios.filter(u => u.rol === "Empleado" && u.estado);
-
-  const location = useLocation();
-  const queryParams = new URLSearchParams(location.search);
-  const initialSearch = queryParams.get("search") || "";
+  const location  = useLocation();
+  const initialSearch = new URLSearchParams(location.search).get("search") || "";
 
   const [search,       setSearch]       = useState(initialSearch);
   const [filterEstado, setFilterEstado] = useState("todos");
@@ -760,9 +789,7 @@ export default function GestionOrdenesProduccion() {
   };
 
   const handleEliminar = (idOrden) => {
-    if (eliminarOrdenProduccion) {
-      eliminarOrdenProduccion(idOrden);
-    }
+    if (eliminarOrdenProduccion) eliminarOrdenProduccion(idOrden);
     showToast("Orden eliminada", "warn");
     setModal(null);
   };
@@ -782,19 +809,20 @@ export default function GestionOrdenesProduccion() {
             <input
               type="text"
               className="search-input"
-              placeholder="Buscar orden, producto, empleado..."
+              placeholder="Buscar orden, producto, empleado…"
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
             />
           </div>
 
-          <div ref={filterRef} style={{ position: "relative" }}>
+          {/* Filtro con z-index alto para que no quede detrás de la tabla */}
+          <div ref={filterRef} style={{ position: "relative", zIndex: 200 }}>
             <button
               className={`filter-icon-btn${filterEstado !== "todos" ? " has-filter" : ""}`}
               onClick={() => setShowFilter(v => !v)}
             >▼</button>
             {showFilter && (
-              <div className="filter-dropdown" style={{ minWidth: 180 }}>
+              <div className="filter-dropdown" style={{ minWidth: 180, zIndex: 200 }}>
                 <p className="filter-section-title">Estado</p>
                 {["todos", ...ESTADOS_ORDEN].map(f => (
                   <button
@@ -803,7 +831,7 @@ export default function GestionOrdenesProduccion() {
                     onClick={() => { setFilterEstado(f); setPage(1); setShowFilter(false); }}
                   >
                     <span className="filter-dot" style={{ background: ESTADO_CONFIG[f]?.dot || "#bdbdbd" }} />
-                    {f.charAt(0).toUpperCase() + f.slice(1)}
+                    {f === "todos" ? "Todos" : f}
                   </button>
                 ))}
               </div>
@@ -825,7 +853,7 @@ export default function GestionOrdenesProduccion() {
                   <th>Orden</th>
                   <th>Productos</th>
                   <th>Responsable</th>
-                  <th>Fecha entrega</th>
+                  <th>Entrega</th>
                   <th>Costo</th>
                   <th>Estado</th>
                   <th>Acciones</th>
@@ -836,6 +864,7 @@ export default function GestionOrdenesProduccion() {
                   <tr>
                     <td colSpan={8}>
                       <div className="empty-state">
+                        <div className="empty-state__icon">🏭</div>
                         <p className="empty-state__text">No se encontraron órdenes.</p>
                       </div>
                     </td>
@@ -852,22 +881,10 @@ export default function GestionOrdenesProduccion() {
                       <td>
                         <div className="orden-num">{orden.id}</div>
                         {orden.numeroPedido && (
-                          <div style={{ fontSize: 10, color: "#1565c0", fontWeight: 700 }}>
-                            {orden.numeroPedido}
-                          </div>
+                          <div style={{ fontSize: 10, color: "#1565c0", fontWeight: 700 }}>#{orden.numeroPedido}</div>
                         )}
-                        {orden.missingFicha && orden.missingFicha.length > 0 && (
-                          <div style={{ 
-                            fontSize: 9, 
-                            color: "#e65100", 
-                            fontWeight: 900, 
-                            background: "#fff3e0", 
-                            padding: "2px 4px", 
-                            borderRadius: 4, 
-                            display: "inline-block",
-                            marginTop: 4,
-                            border: "1px solid #ffcc02"
-                          }}>
+                        {orden.missingFicha?.length > 0 && (
+                          <div style={{ fontSize: 9, color: "#e65100", fontWeight: 900, background: "#fff3e0", padding: "2px 4px", borderRadius: 4, display: "inline-block", marginTop: 4, border: "1px solid #ffcc02" }}>
                             ⚠️ FICHA FALTANTE
                           </div>
                         )}
@@ -886,34 +903,19 @@ export default function GestionOrdenesProduccion() {
                         }
                       </td>
                       <td>
-                        <span className={`date-badge ${urgenciaFecha(orden.fechaEntrega)}`}>
+                        <span className={`date-badge${urgenciaFecha(orden.fechaEntrega) === "urgente" ? " date-badge--urgente" : urgenciaFecha(orden.fechaEntrega) === "pronto" ? " date-badge--pronto" : ""}`}>
                           {fmtFecha(orden.fechaEntrega)}
                         </span>
                       </td>
-                      <td>{fmt(orden.costo)}</td>
+                      <td style={{ fontSize: 13, fontWeight: 700 }}>{fmt(orden.costo)}</td>
                       <td><EstadoBadge estado={orden.estado} /></td>
                       <td>
                         <div className="actions-cell">
-                          <button
-                            className="act-btn act-btn--view"
-                            title="Ver detalles"
-                            onClick={() => setModal({ type: "detalles", orden })}
-                          >👁</button>
-                          <button
-                            className="act-btn act-btn--edit"
-                            title="Editar orden"
-                            onClick={() => setModal({ type: "form", orden })}
-                          >✎</button>
-                          <button
-                            className="act-btn act-btn--status"
-                            title="Cambiar estado"
-                            onClick={() => setModal({ type: "estado", orden })}
-                          >🔄</button>
-                          <button
-                            className="act-btn act-btn--delete"
-                            title="Eliminar orden"
-                            onClick={() => setModal({ type: "eliminar", orden })}
-                          >🗑</button>
+                          <button className="act-btn act-btn--view"   title="Ver detalles"    onClick={() => setModal({ type: "detalles", orden })}>👁</button>
+                          <button className="act-btn act-btn--edit"   title="Editar"          onClick={() => setModal({ type: "form", orden })}>✎</button>
+                          <button className="act-btn act-btn--status" title="Cambiar estado"  onClick={() => setModal({ type: "estado", orden })}>🔄</button>
+                          {/* ícono eliminar consistente con el resto */}
+                          <button className="act-btn act-btn--delete" title="Eliminar orden"  onClick={() => setModal({ type: "eliminar", orden })}>🗑️</button>
                         </div>
                       </td>
                     </tr>
@@ -923,58 +925,33 @@ export default function GestionOrdenesProduccion() {
             </table>
           </div>
 
-          {totalPages > 1 && (
-            <div className="pagination-bar">
-              <span className="pagination-count">
-                {filtered.length} órdenes · página {safePage} de {totalPages}
-              </span>
-              <div className="pagination-btns">
-                <button
-                  className="pg-btn-arrow"
-                  disabled={safePage === 1}
-                  onClick={() => setPage(p => p - 1)}
-                >‹</button>
-                <span className="pg-pill">{safePage}</span>
-                <button
-                  className="pg-btn-arrow"
-                  disabled={safePage === totalPages}
-                  onClick={() => setPage(p => p + 1)}
-                >›</button>
-              </div>
+          <div className="pagination-bar">
+            <span className="pagination-count">
+              {filtered.length} {filtered.length === 1 ? "orden" : "órdenes"} en total
+            </span>
+            <div className="pagination-btns">
+              <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
+              <span className="pg-pill">Página {safePage} de {totalPages}</span>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>»</button>
             </div>
-          )}
+          </div>
         </div>
       </div>
 
       {/* ── Modales ── */}
       {modal?.type === "form" && (
-        <ModalFormOrden
-          orden={modal.orden}
-          onClose={() => setModal(null)}
-          onSave={handleSaveOrder}
-        />
+        <ModalFormOrden orden={modal.orden} onClose={() => setModal(null)} onSave={handleSaveOrder} />
       )}
       {modal?.type === "detalles" && (
-        <ModalDetallesOrden
-          orden={modal.orden}
-          empleados={empleados}
-          onClose={() => setModal(null)}
-          onEdit={(orden) => setModal({ type: "form", orden })}
-        />
+        <ModalDetallesOrden orden={modal.orden} empleados={empleados} onClose={() => setModal(null)} />
       )}
       {modal?.type === "estado" && (
-        <ModalCambiarEstado
-          orden={modal.orden}
-          onClose={() => setModal(null)}
-          onConfirm={handleCambiarEstado}
-        />
+        <ModalCambiarEstado orden={modal.orden} onClose={() => setModal(null)} onConfirm={handleCambiarEstado} />
       )}
       {modal?.type === "eliminar" && (
-        <ModalEliminarOrden
-          orden={modal.orden}
-          onClose={() => setModal(null)}
-          onConfirm={handleEliminar}
-        />
+        <ModalEliminarOrden orden={modal.orden} onClose={() => setModal(null)} onConfirm={handleEliminar} />
       )}
 
       <Toast toast={toast} />
