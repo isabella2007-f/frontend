@@ -12,8 +12,13 @@ function formatFecha(f) {
   const [y, m, d] = f.split("-");
   return `${d}/${m}/${y}`;
 }
-function estaVencido(fv)      { return fv ? fv < hoyISO() : false; }
-function diasParaVencer(fv)   { if (!fv) return null; return Math.ceil((new Date(fv + "T00:00:00") - new Date(hoyISO() + "T00:00:00")) / 86400000); }
+function estaVencido(fv)    { return fv ? fv < hoyISO() : false; }
+function diasParaVencer(fv) { if (!fv) return null; return Math.ceil((new Date(fv + "T00:00:00") - new Date(hoyISO() + "T00:00:00")) / 86400000); }
+
+// Una salida es manual (editable/eliminable) si NO fue generada por el sistema
+function esSalidaManual(s) {
+  return s.usuario !== "sistema" && s.tipo !== "produccion" && s.origen !== "sistema";
+}
 
 const TIPOS = [
   { val: "vencido",    label: "Vencido",    icon: "🕒", color: "#e65100", bg: "#fff3e0", border: "#ffcc80" },
@@ -23,6 +28,210 @@ const TIPOS = [
   { val: "devolucion", label: "Devolución", icon: "↩️", color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7" },
 ];
 const TIPO_MAP = Object.fromEntries(TIPOS.map(t => [t.val, t]));
+
+/* ══════════════════════════════════════════════════════════
+   MODAL CONFIRMAR ELIMINACIÓN
+══════════════════════════════════════════════════════════ */
+function ModalConfirmarEliminar({ salida, onConfirmar, onCancelar }) {
+  const tc = TIPO_MAP[salida.tipo] || { color: "#757575", bg: "#f5f5f5", border: "#e0e0e0", icon: "📋", label: salida.tipo };
+  return (
+    <div className="modal-overlay" onClick={onCancelar}>
+      <div className="modal-box" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <p className="modal-header__eyebrow">Confirmar acción</p>
+            <h2 className="modal-header__title">Eliminar salida</h2>
+          </div>
+          <button className="modal-close-btn" onClick={onCancelar}>✕</button>
+        </div>
+        <div className="modal-body" style={{ padding: "20px 24px 24px" }}>
+          <div className="sl-confirm-card">
+            <div className="sl-confirm-card__icon">🗑️</div>
+            <p className="sl-confirm-card__text">
+              ¿Estás seguro de que deseas eliminar esta salida? El stock será <strong>reintegrado automáticamente</strong>.
+            </p>
+            <div className="sl-confirm-card__detail" style={{ borderColor: tc.border, background: tc.bg }}>
+              <span style={{ fontSize: 18 }}>{salida.entidadTipo === "producto" ? "📦" : "🧺"}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, color: "#1a1a1a" }}>{salida.entidadNombre}</div>
+                <div style={{ display: "flex", gap: 8, marginTop: 3, flexWrap: "wrap" }}>
+                  <span className="sl-tipo-badge" style={{ color: tc.color, background: "#fff", border: `1px solid ${tc.border}`, fontSize: 11 }}>
+                    {tc.icon} {tc.label}
+                  </span>
+                  <span style={{ fontSize: 12, color: "#c62828", fontWeight: 700 }}>-{salida.cantidad} uds.</span>
+                  <span style={{ fontSize: 12, color: "#9e9e9e" }}>{salida.fecha}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+            <button className="sl-btn-cancel" onClick={onCancelar}>Cancelar</button>
+            <button className="sl-btn-delete" onClick={onConfirmar}>Sí, eliminar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════
+   MODAL EDITAR SALIDA
+══════════════════════════════════════════════════════════ */
+function EditarSalida({ salida, onClose, onGuardado }) {
+  const { productos, insumos, editarSalidaInsumo, editarSalidaProducto, getUnidad } = useApp();
+
+  const [tipoSalida, setTipoSalida] = useState(salida.tipo);
+  const [cantidad,   setCantidad]   = useState(String(salida.cantidad));
+  const [motivo,     setMotivo]     = useState(salida.motivo || "");
+  const [errors,     setErrors]     = useState({});
+  const [saving,     setSaving]     = useState(false);
+
+  // Stock actual del elemento (sin contar la salida original, para calcular el máx disponible)
+  const entidad = salida.entidadTipo === "producto"
+    ? productos.find(p => p.id === salida.entidadId)
+    : insumos.find(i => i.id === salida.entidadId);
+
+  const unidadLabel = salida.entidadTipo === "insumo"
+    ? (getUnidad(entidad?.idUnidad)?.simbolo || "uds.")
+    : "uds.";
+
+  // Stock disponible = stock actual + cantidad original de la salida (lo que se reintegraría)
+  const stockDisponible = salida.entidadTipo === "producto"
+    ? (entidad?.stock ?? 0) + salida.cantidad
+    : (entidad?.stockActual ?? 0) + salida.cantidad;
+
+  const tipoActual   = TIPO_MAP[tipoSalida];
+  const stockDespues = Math.max(0, stockDisponible - (Number(cantidad) || 0));
+  const pct          = stockDisponible > 0 ? Math.min(100, Math.round((stockDespues / stockDisponible) * 100)) : 0;
+
+  const validate = () => {
+    const e = {};
+    if (!cantidad || isNaN(cantidad) || Number(cantidad) <= 0) e.cantidad = "Ingresa una cantidad válida";
+    else if (Number(cantidad) > stockDisponible)               e.cantidad = `Máximo: ${stockDisponible} ${unidadLabel}`;
+    return e;
+  };
+
+  const handleGuardar = async () => {
+    const e = validate();
+    if (Object.keys(e).length) { setErrors(e); return; }
+    setSaving(true);
+
+    let result;
+    if (salida.entidadTipo === "insumo") {
+      result = editarSalidaInsumo({
+        id: salida.id,
+        tipo: tipoSalida,
+        cantidad: Number(cantidad),
+        motivo: motivo.trim() || tipoActual.label,
+        fecha: salida.fecha,
+      });
+    } else {
+      result = editarSalidaProducto({
+        idProducto: salida.entidadId,
+        id: salida.id,
+        tipo: tipoSalida,
+        cantidad: Number(cantidad),
+        motivo: motivo.trim() || tipoActual.label,
+        fecha: salida.fecha,
+      });
+    }
+
+    setSaving(false);
+    if (result?.ok !== false) {
+      onGuardado?.();
+      onClose();
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <p className="modal-header__eyebrow">Logística</p>
+            <h2 className="modal-header__title">Editar Salida</h2>
+          </div>
+          <button className="modal-close-btn" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="modal-body" style={{ padding: "20px 24px 24px" }}>
+          {/* Info del elemento (solo lectura) */}
+          <div className="sl-seleccionado" style={{ marginBottom: 18 }}>
+            <span style={{ fontSize: 22 }}>{salida.entidadTipo === "producto" ? "📦" : "🧺"}</span>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>{salida.entidadNombre}</div>
+              <div style={{ fontSize: 12, color: "#9e9e9e" }}>
+                Stock disponible: <strong style={{ color: "#2e7d32" }}>{stockDisponible} {unidadLabel}</strong>
+                <span style={{ marginLeft: 8, color: "#bdbdbd" }}>(incluye la cantidad actual de esta salida)</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Tipo */}
+          <div className="form-group">
+            <label className="sl-label">Tipo de salida</label>
+            <div className="sl-tipos-grid">
+              {TIPOS.map(t => (
+                <button key={t.val} onClick={() => setTipoSalida(t.val)}
+                  className={`sl-tipo-btn${tipoSalida === t.val ? " active" : ""}`}
+                  style={tipoSalida === t.val ? { borderColor: t.border, background: t.bg, color: t.color } : {}}>
+                  <span style={{ fontSize: 17 }}>{t.icon}</span>
+                  <span>{t.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Cantidad */}
+          <div className="form-group">
+            <label className="sl-label">Cantidad</label>
+            <div style={{ position: "relative" }}>
+              <input type="number" min="1" max={stockDisponible}
+                className={`sl-input${errors.cantidad ? " sl-input--error" : ""}`}
+                value={cantidad}
+                onChange={e => { setCantidad(e.target.value); setErrors(p => ({ ...p, cantidad: "" })); }} />
+              <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: "#9e9e9e", pointerEvents: "none" }}>
+                {unidadLabel}
+              </span>
+            </div>
+            {errors.cantidad && <p className="field-error">{errors.cantidad}</p>}
+          </div>
+
+          {/* Preview */}
+          {cantidad && !errors.cantidad && (
+            <div style={{ marginBottom: 14, padding: "10px 14px", borderRadius: 10, background: tipoActual.bg, border: `1px solid ${tipoActual.border}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontSize: 12 }}>
+                <span style={{ color: "#9e9e9e" }}>Stock después de la salida</span>
+                <span style={{ fontWeight: 700, color: tipoActual.color }}>{stockDespues} {unidadLabel}</span>
+              </div>
+              <div style={{ height: 5, background: "#e0e0e0", borderRadius: 3, overflow: "hidden" }}>
+                <div style={{ height: "100%", borderRadius: 3, transition: "width 0.35s", width: pct + "%", background: pct > 50 ? "#43a047" : pct > 20 ? "#ffa726" : "#ef5350" }} />
+              </div>
+            </div>
+          )}
+
+          {/* Motivo */}
+          <div className="form-group">
+            <label className="sl-label">Motivo <span style={{ color: "#bdbdbd", fontWeight: 400, textTransform: "none" }}>(opcional)</span></label>
+            <input className="sl-input" value={motivo}
+              onChange={e => setMotivo(e.target.value)}
+              placeholder="Descripción adicional…" />
+          </div>
+
+          {/* Botones */}
+          <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+            <button className="sl-btn-cancel" onClick={onClose}>Cancelar</button>
+            <button className="sl-btn-registrar" onClick={handleGuardar}
+              disabled={saving}
+              style={{ background: tipoActual.color, flex: 1 }}>
+              {saving ? "Guardando…" : "✅ Guardar cambios"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* ══════════════════════════════════════════════════════════
    TAB 1 — REGISTRAR SALIDA (MODAL)
@@ -50,8 +259,8 @@ function RegistrarSalida({ onClose, onSalidaRegistrada }) {
   };
 
   const lista = entidadTipo === "producto"
-    ? productos.map(p => ({ ...p, _tipo: "producto", _stock: p.stock,        _label: getCatProducto(p.idCategoria)?.nombre }))
-    : insumos.map(i  => ({ ...i,  _tipo: "insumo",   _stock: i.stockActual,  _label: getCatInsumo(i.idCategoria)?.nombre, _unidad: getUnidad(i.idUnidad)?.simbolo }));
+    ? productos.map(p => ({ ...p, _tipo: "producto", _stock: p.stock,       _label: getCatProducto(p.idCategoria)?.nombre }))
+    : insumos.map(i  => ({ ...i, _tipo: "insumo",   _stock: i.stockActual, _label: getCatInsumo(i.idCategoria)?.nombre, _unidad: getUnidad(i.idUnidad)?.simbolo }));
 
   const filtrados = lista.filter(e =>
     e.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
@@ -131,7 +340,6 @@ function RegistrarSalida({ onClose, onSalidaRegistrada }) {
                   onChange={e => { setBusqueda(e.target.value); setErrors(p => ({ ...p, seleccionado: "" })); }} />
               </div>
 
-              {/* Lista con scroll interno */}
               <div className="sl-lista">
                 {filtrados.length === 0
                   ? <div className="sl-lista__empty">Sin resultados</div>
@@ -164,7 +372,6 @@ function RegistrarSalida({ onClose, onSalidaRegistrada }) {
 
               <p className="sl-panel__title">2 · Registrar salida</p>
 
-              {/* Elemento seleccionado */}
               {seleccionado ? (
                 <div className="sl-seleccionado">
                   <span style={{ fontSize: 22 }}>{seleccionado._tipo === "producto" ? "📦" : "🧺"}</span>
@@ -184,7 +391,6 @@ function RegistrarSalida({ onClose, onSalidaRegistrada }) {
                 </div>
               )}
 
-              {/* Tipo de salida */}
               <div className="form-group" style={{ marginTop: 14 }}>
                 <label className="sl-label">Tipo de salida</label>
                 <div className="sl-tipos-grid">
@@ -199,7 +405,6 @@ function RegistrarSalida({ onClose, onSalidaRegistrada }) {
                 </div>
               </div>
 
-              {/* Cantidad */}
               <div className="form-group">
                 <label className="sl-label">Cantidad a descontar</label>
                 <div style={{ position: "relative" }}>
@@ -216,7 +421,6 @@ function RegistrarSalida({ onClose, onSalidaRegistrada }) {
                 {errors.cantidad && <p className="field-error">{errors.cantidad}</p>}
               </div>
 
-              {/* Preview */}
               {seleccionado && cantidad && !errors.cantidad && (
                 <div style={{ marginBottom: 12, padding: "10px 14px", borderRadius: 10, background: tipoActual.bg, border: `1px solid ${tipoActual.border}` }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontSize: 12 }}>
@@ -229,7 +433,6 @@ function RegistrarSalida({ onClose, onSalidaRegistrada }) {
                 </div>
               )}
 
-              {/* Motivo */}
               <div className="form-group">
                 <label className="sl-label">Motivo <span style={{ color: "#bdbdbd", fontWeight: 400, textTransform: "none" }}>(opcional)</span></label>
                 <input className="sl-input" value={motivo}
@@ -237,7 +440,6 @@ function RegistrarSalida({ onClose, onSalidaRegistrada }) {
                   placeholder="Descripción adicional…" disabled={!seleccionado} />
               </div>
 
-              {/* Botón */}
               <button className="sl-btn-registrar" onClick={handleRegistrar}
                 disabled={saving || !seleccionado}
                 style={{ background: tipoActual.color }}>
@@ -261,12 +463,27 @@ function RegistrarSalida({ onClose, onSalidaRegistrada }) {
    TAB 2 — HISTORIAL
 ══════════════════════════════════════════════════════════ */
 function HistorialSalidas({ onAgregarClick }) {
-  const { productos, insumos, getSalidasProducto, getSalidasInsumo, getCatProducto, getCatInsumo } = useApp();
-  const [filtroTipo,    setFiltroTipo]    = useState("todos");
-  const [filtroEntidad, setFiltroEntidad] = useState("todos");
-  const [busqueda,      setBusqueda]      = useState("");
-  const [showFilter,    setShowFilter]    = useState(false);
+  const {
+    productos, insumos,
+    getSalidasProducto, getSalidasInsumo,
+    getCatProducto, getCatInsumo,
+    eliminarSalidaInsumo, eliminarSalidaProducto,
+  } = useApp();
+
+  const [filtroTipo,       setFiltroTipo]       = useState("todos");
+  const [filtroEntidad,    setFiltroEntidad]     = useState("todos");
+  const [busqueda,         setBusqueda]          = useState("");
+  const [showFilter,       setShowFilter]        = useState(false);
+  const [salidaAEliminar,  setSalidaAEliminar]   = useState(null); // { salida }
+  const [salidaAEditar,    setSalidaAEditar]     = useState(null); // { salida }
+  const [toast,            setToast]             = useState(null);
+  const [refreshKey,       setRefreshKey]        = useState(0);
   const filterRef = useRef();
+
+  const showToast = (msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   useEffect(() => {
     const h = e => { if (filterRef.current && !filterRef.current.contains(e.target)) setShowFilter(false); };
@@ -274,14 +491,23 @@ function HistorialSalidas({ onAgregarClick }) {
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
+  // Construir lista completa enriquecida con entidadId para edit/delete
   const todasSalidas = [
     ...productos.flatMap(p => (getSalidasProducto?.(p.id) || []).map(s => ({
-      ...s, entidadTipo: "producto", entidadNombre: p.nombre,
-      entidadCat: getCatProducto(p.idCategoria)?.nombre || "—", unidad: "uds.",
+      ...s,
+      entidadId:     p.id,
+      entidadTipo:   "producto",
+      entidadNombre: p.nombre,
+      entidadCat:    getCatProducto(p.idCategoria)?.nombre || "—",
+      unidad:        "uds.",
     }))),
     ...insumos.flatMap(i => (getSalidasInsumo?.(i.id) || []).map(s => ({
-      ...s, entidadTipo: "insumo", entidadNombre: i.nombre,
-      entidadCat: getCatInsumo(i.idCategoria)?.nombre || "—", unidad: "uds.",
+      ...s,
+      entidadId:     i.id,
+      entidadTipo:   "insumo",
+      entidadNombre: i.nombre,
+      entidadCat:    getCatInsumo(i.idCategoria)?.nombre || "—",
+      unidad:        "uds.",
     }))),
   ].sort((a, b) => {
     const fa = a.fecha?.split("/").reverse().join("-") || "";
@@ -299,16 +525,33 @@ function HistorialSalidas({ onAgregarClick }) {
 
   const totalUnidades = todasSalidas.reduce((acc, s) => acc + s.cantidad, 0);
 
-  const toggleFiltroTipo = (val) => {
-    setFiltroTipo(prev => prev === val ? "todos" : val);
+  const toggleFiltroTipo = (val) => setFiltroTipo(prev => prev === val ? "todos" : val);
+
+  // Confirmar eliminación
+  const handleConfirmarEliminar = () => {
+    if (!salidaAEliminar) return;
+    const s = salidaAEliminar;
+    let result;
+    if (s.entidadTipo === "insumo") {
+      result = eliminarSalidaInsumo(s.id);
+    } else {
+      result = eliminarSalidaProducto({ idProducto: s.entidadId, id: s.id });
+    }
+    setSalidaAEliminar(null);
+    if (result?.ok !== false) {
+      showToast(`Salida eliminada — stock reintegrado ✔`);
+      setRefreshKey(k => k + 1);
+    } else {
+      showToast(result?.razon || "Error al eliminar", "error");
+    }
   };
 
   return (
-    <div className="sl-tab-content">
-      {/* Stats — métricas funcionales */}
+    <div className="sl-tab-content" key={refreshKey}>
+      {/* Stats */}
       <div className="sl-stats-row">
-        <div className={`sl-stat-card ${filtroTipo === 'todos' && filtroEntidad === 'todos' ? 'active' : ''}`} 
-          onClick={() => { setFiltroTipo('todos'); setFiltedEntidad('todos'); }} style={{ cursor: 'pointer' }}>
+        <div className={`sl-stat-card ${filtroTipo === 'todos' && filtroEntidad === 'todos' ? 'active' : ''}`}
+          onClick={() => { setFiltroTipo('todos'); setFiltroEntidad('todos'); }} style={{ cursor: 'pointer' }}>
           <span className="sl-stat-card__num">{todasSalidas.length}</span>
           <span className="sl-stat-card__label">Total salidas</span>
         </div>
@@ -319,7 +562,7 @@ function HistorialSalidas({ onAgregarClick }) {
         {TIPOS.map(t => {
           const count = todasSalidas.filter(s => s.tipo === t.val).length;
           return (
-            <div key={t.val} className={`sl-stat-card ${filtroTipo === t.val ? 'active' : ''}`} 
+            <div key={t.val} className={`sl-stat-card ${filtroTipo === t.val ? 'active' : ''}`}
               style={{ borderColor: count > 0 ? (filtroTipo === t.val ? t.color : t.border) : "#e0e0e0", cursor: "pointer" }}
               onClick={() => toggleFiltroTipo(t.val)}>
               <span style={{ fontSize: 18 }}>{t.icon}</span>
@@ -338,7 +581,7 @@ function HistorialSalidas({ onAgregarClick }) {
             value={busqueda} onChange={e => setBusqueda(e.target.value)} />
         </div>
         <div ref={filterRef} style={{ position: "relative" }}>
-          <button className={`sl-filter-btn ${filtroTipo !== 'todos' || filtroEntidad !== 'todos' ? 'has-filter' : ''}`} 
+          <button className={`sl-filter-btn ${filtroTipo !== 'todos' || filtroEntidad !== 'todos' ? 'has-filter' : ''}`}
             onClick={() => setShowFilter(v => !v)}>▼ Filtrar</button>
           {showFilter && (
             <div className="sl-filter-dropdown sl-filter-dropdown--wide">
@@ -375,7 +618,7 @@ function HistorialSalidas({ onAgregarClick }) {
         </button>
       </div>
 
-      {/* Tabla con scroll interno */}
+      {/* Tabla */}
       <div className="sl-table-wrap">
         {filtradas.length === 0 ? (
           <div className="sl-empty">
@@ -388,11 +631,13 @@ function HistorialSalidas({ onAgregarClick }) {
               <tr>
                 <th>Tipo</th><th>Elemento</th><th>Categoría</th>
                 <th>Cantidad</th><th>Motivo</th><th>Fecha</th>
+                <th style={{ width: 100, textAlign: "center" }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {filtradas.map((s, idx) => {
-                const tc = TIPO_MAP[s.tipo] || { color: "#757575", bg: "#f5f5f5", border: "#e0e0e0", icon: "📋", label: s.tipo };
+                const tc      = TIPO_MAP[s.tipo] || { color: "#757575", bg: "#f5f5f5", border: "#e0e0e0", icon: "📋", label: s.tipo };
+                const manual  = esSalidaManual(s);
                 return (
                   <tr key={s.id || idx} className="sl-table__row">
                     <td>
@@ -413,6 +658,30 @@ function HistorialSalidas({ onAgregarClick }) {
                     <td><span style={{ fontWeight: 700, color: "#c62828", fontSize: 14 }}>-{s.cantidad} <span style={{ fontWeight: 400, fontSize: 11, color: "#9e9e9e" }}>{s.unidad}</span></span></td>
                     <td><span style={{ fontSize: 13, color: "#424242" }}>{s.motivo || "—"}</span></td>
                     <td><span style={{ fontSize: 12, color: "#9e9e9e" }}>{s.fecha || "—"}</span></td>
+                    <td>
+                      <div className="sl-table-actions">
+                        {manual ? (
+                          <>
+                            <button
+                              className="sl-action-btn sl-action-btn--edit"
+                              title="Editar salida"
+                              onClick={() => setSalidaAEditar(s)}>
+                              ✏️
+                            </button>
+                            <button
+                              className="sl-action-btn sl-action-btn--delete"
+                              title="Eliminar salida"
+                              onClick={() => setSalidaAEliminar(s)}>
+                              🗑️
+                            </button>
+                          </>
+                        ) : (
+                          <span className="sl-action-locked" title="Generada por el sistema — no editable">
+                            🔒
+                          </span>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -420,6 +689,35 @@ function HistorialSalidas({ onAgregarClick }) {
           </table>
         )}
       </div>
+
+      {/* Modal eliminar */}
+      {salidaAEliminar && (
+        <ModalConfirmarEliminar
+          salida={salidaAEliminar}
+          onConfirmar={handleConfirmarEliminar}
+          onCancelar={() => setSalidaAEliminar(null)}
+        />
+      )}
+
+      {/* Modal editar */}
+      {salidaAEditar && (
+        <EditarSalida
+          salida={salidaAEditar}
+          onClose={() => setSalidaAEditar(null)}
+          onGuardado={() => {
+            setSalidaAEditar(null);
+            showToast("Salida actualizada correctamente ✔");
+            setRefreshKey(k => k + 1);
+          }}
+        />
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="sl-toast" style={{ background: toast.type === "error" ? "#c62828" : "#2e7d32" }}>
+          <span>{toast.type === "error" ? "❌" : "✅"}</span> {toast.msg}
+        </div>
+      )}
     </div>
   );
 }
@@ -458,21 +756,18 @@ function Vencidos() {
     : filtro === "insumo"   ? lotesInsumosVencidos
     : todosVencidos;
 
-  const toggleFiltroVencidos = (val) => {
-    setFiltro(prev => prev === val ? "todos" : val);
-  };
+  const toggleFiltroVencidos = (val) => setFiltro(prev => prev === val ? "todos" : val);
 
   return (
     <div className="sl-tab-content">
-      {/* Stats — métricas funcionales */}
       <div className="sl-stats-row">
         {[
-          { val: "todos",      label: "Lotes vencidos",    num: todosVencidos.length,          color: "#c62828", border: "#ef9a9a", icon: "⛔" },
-          { val: "producto",   label: "Productos",         num: lotesProductosVencidos.length,  color: "#c62828", border: "#ef9a9a", icon: "📦" },
-          { val: "insumo",     label: "Insumos",           num: lotesInsumosVencidos.length,    color: "#c62828", border: "#ef9a9a", icon: "🧺" },
-          { val: "por-vencer", label: "Por vencer (≤7d)",  num: lotesPorVencer.length,          color: "#e65100", border: "#ffcc80", icon: "⚠️" },
+          { val: "todos",      label: "Lotes vencidos",   num: todosVencidos.length,          color: "#c62828", border: "#ef9a9a", icon: "⛔" },
+          { val: "producto",   label: "Productos",         num: lotesProductosVencidos.length, color: "#c62828", border: "#ef9a9a", icon: "📦" },
+          { val: "insumo",     label: "Insumos",           num: lotesInsumosVencidos.length,   color: "#c62828", border: "#ef9a9a", icon: "🧺" },
+          { val: "por-vencer", label: "Por vencer (≤7d)",  num: lotesPorVencer.length,         color: "#e65100", border: "#ffcc80", icon: "⚠️" },
         ].map(s => (
-          <div key={s.label} className={`sl-stat-card ${filtro === s.val ? 'active' : ''}`} 
+          <div key={s.label} className={`sl-stat-card ${filtro === s.val ? 'active' : ''}`}
             style={{ borderColor: s.num > 0 ? (filtro === s.val ? s.color : s.border) : "#e0e0e0", cursor: "pointer" }}
             onClick={() => toggleFiltroVencidos(s.val)}>
             <span style={{ fontSize: 18 }}>{s.icon}</span>
@@ -482,7 +777,6 @@ function Vencidos() {
         ))}
       </div>
 
-      {/* Filtros pills */}
       <div className="sl-toolbar">
         {[
           { val: "todos",      label: "Todos",       icon: "📋" },
@@ -498,7 +792,6 @@ function Vencidos() {
         ))}
       </div>
 
-      {/* Grid con scroll interno */}
       <div className="sl-vencidos-scroll">
         {mostrar.length === 0 ? (
           <div className="sl-empty">
@@ -551,20 +844,17 @@ export default function GestionSalidas() {
   const [showModal,  setShowModal]  = useState(false);
 
   const TABS = [
-    { key: "historial", label: "📋 Historial"        },
-    { key: "vencidos",  label: "⛔ Vencidos"          },
+    { key: "historial", label: "📋 Historial"  },
+    { key: "vencidos",  label: "⛔ Vencidos"   },
   ];
 
   return (
     <div className="sl-page">
-
-      {/* Header fijo */}
       <div className="sl-page__header">
         <h1 className="sl-page__title">Gestión de Salidas</h1>
         <div className="sl-page__line" />
       </div>
 
-      {/* Tabs fijos */}
       <div className="sl-page__tabs">
         {TABS.map(t => (
           <button key={t.key}
@@ -575,19 +865,17 @@ export default function GestionSalidas() {
         ))}
       </div>
 
-      {/* Área de contenido — ocupa el espacio restante */}
       <div className="sl-page__body">
         {tab === "historial" && <HistorialSalidas onAgregarClick={() => setShowModal(true)} key={refreshKey} />}
-        {tab === "vencidos"  && <Vencidos         key={refreshKey} />}
+        {tab === "vencidos"  && <Vencidos key={refreshKey} />}
       </div>
 
       {showModal && (
-        <RegistrarSalida 
-          onClose={() => setShowModal(false)} 
-          onSalidaRegistrada={() => setRefreshKey(k => k + 1)} 
+        <RegistrarSalida
+          onClose={() => setShowModal(false)}
+          onSalidaRegistrada={() => setRefreshKey(k => k + 1)}
         />
       )}
-
     </div>
   );
 }

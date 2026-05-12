@@ -1,11 +1,13 @@
 import { useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import "./Roles.css";
+import { useApp } from "../../../AppContext.jsx";
 import PrivilegiosModal, { buildPrivilegios } from "./PrivilegiosModal.jsx";
 
 const ICON_OPTIONS = ["👤","👑","🛡️","🔧","📦","💼","🧑‍💻","📊","🔑","⚙️","👷","🧑‍🍳"];
 
 export default function CrearRol({ onClose, onSave }) {
+  const { roles: existing } = useApp();
   const [form, setForm] = useState({
     nombre: "",
     icono: "👤",
@@ -37,8 +39,18 @@ export default function CrearRol({ onClose, onSave }) {
 
   const handleSave = async () => {
     const newErrors = {};
-    if (!form.nombre.trim()) newErrors.nombre = "Campo requerido";
-    if (activosCount === 0)  newErrors.privilegios = "El rol debe tener al menos un privilegio activo.";
+    const roles = existing || [];
+
+    if (!form.nombre.trim()) {
+      newErrors.nombre = "El nombre del rol es obligatorio";
+    } else if (roles.some(r => r.nombre.toLowerCase() === form.nombre.toLowerCase())) {
+      newErrors.nombre = "Este nombre de rol ya existe";
+    }
+
+    if (activosCount === 0) {
+      newErrors.privilegios = "El rol debe tener al menos un privilegio activo";
+    }
+
     if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
     setSaving(true);
     await new Promise(r => setTimeout(r, 500));

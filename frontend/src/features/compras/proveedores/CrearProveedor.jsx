@@ -155,6 +155,7 @@ function FieldSelect({ label, value, onChange, options, required }) {
 
 /* ─── Componente principal ───────────────────────────────── */
 export default function CrearProveedor({ onClose, onSave }) {
+  const { proveedores: existing } = useApp();
   const [form, setForm] = useState({
     tipo:          "natural",
     tipoDoc:       "CC",
@@ -195,13 +196,24 @@ export default function CrearProveedor({ onClose, onSave }) {
 
   const validateStep = (s) => {
     const e = {};
+    const provs = existing || [];
+
     if (s === 1) {
-      if (!form.responsable.trim()) e.responsable = "Campo obligatorio";
-      if (!form.documento.trim())   e.documento   = "Campo obligatorio";
+      if (!form.responsable.trim()) e.responsable = "El nombre/razón social es obligatorio";
+      
+      if (!form.documento.trim())   e.documento   = "El número de documento es obligatorio";
+      else if (provs.some(p => p.documento === form.documento)) {
+        e.documento = "Este documento ya está registrado para otro proveedor";
+      }
     }
     if (s === 2) {
-      if (!form.celular.trim())     e.celular     = "Campo obligatorio";
-      if (!form.correo.trim() || !/\S+@\S+\.\S+/.test(form.correo)) e.correo = "Correo inválido";
+      if (!form.celular.trim())     e.celular     = "El celular es obligatorio";
+      
+      if (!form.correo.trim())      e.correo = "El correo es obligatorio";
+      else if (!/\S+@\S+\.\S+/.test(form.correo)) e.correo = "Formato de correo inválido";
+      else if (provs.some(p => p.correo.toLowerCase() === form.correo.toLowerCase())) {
+        e.correo = "Este correo ya está registrado";
+      }
     }
     return e;
   };

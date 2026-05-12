@@ -7,22 +7,18 @@
 @keyframes slideInRight { from { transform: translateX(60px); opacity: 0 } to { transform: translateX(0); opacity: 1 } }
 
 /* ══════════════════════════════════════════════════════════
-   LAYOUT PRINCIPAL — sin scroll de página
-   La página ocupa exactamente 100dvh.
-   header + tabs son fijos; body llena lo que queda.
+   LAYOUT PRINCIPAL
 ══════════════════════════════════════════════════════════ */
-
 .sl-page {
   display: flex;
   flex-direction: column;
-  height: 100dvh;          /* ocupa toda la ventana */
-  overflow: hidden;        /* NUNCA scroll de página */
+  height: 100dvh;
+  overflow: hidden;
   background: linear-gradient(180deg, #e8f5e9 0%, #f5fbf5 14%, #ffffff 36%);
   font-family: 'DM Sans', sans-serif;
   color: #1a1a1a;
 }
 
-/* ─── Header ─────────────────────────────────────────────── */
 .sl-page__header {
   flex-shrink: 0;
   text-align: center;
@@ -43,7 +39,6 @@
   margin: 0 auto;
 }
 
-/* ─── Tabs ────────────────────────────────────────────────── */
 .sl-page__tabs {
   flex-shrink: 0;
   display: flex;
@@ -70,10 +65,9 @@
 .sl-tab:hover  { color: #424242; background: #f5f5f5; }
 .sl-tab.active { color: #2e7d32; border-bottom-color: #2e7d32; font-weight: 700; background: #f9fdf9; }
 
-/* ─── Body — llena el espacio restante ───────────────────── */
 .sl-page__body {
   flex: 1;
-  overflow: hidden;        /* el scroll lo manejan los hijos */
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   padding: 16px 24px;
@@ -84,17 +78,16 @@
 }
 
 /* ══════════════════════════════════════════════════════════
-   TAB REGISTRAR — grid 2 columnas, altura fija
+   TAB REGISTRAR — grid 2 columnas
 ══════════════════════════════════════════════════════════ */
 .sl-registrar-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
-  height: 100%;            /* ocupa todo el body */
+  height: 100%;
   overflow: hidden;
 }
 
-/* ─── Panel ──────────────────────────────────────────────── */
 .sl-panel {
   display: flex;
   flex-direction: column;
@@ -103,7 +96,7 @@
   border: 1.5px solid #c8e6c9;
   padding: 18px;
   box-shadow: 0 2px 12px rgba(46,125,50,0.07);
-  overflow: hidden;        /* hijos controlan su propio scroll */
+  overflow: hidden;
   min-height: 0;
 }
 .sl-panel__title {
@@ -112,15 +105,10 @@
   font-size: 14px; font-weight: 800;
   color: #2e7d32; margin: 0 0 12px;
 }
-
-/* Panel derecho: scroll si el contenido desborda */
-.sl-panel--form {
-  overflow-y: hidden;
-}
+.sl-panel--form { overflow-y: hidden; }
 .sl-panel--form::-webkit-scrollbar       { width: 3px; }
 .sl-panel--form::-webkit-scrollbar-thumb { background: #c8e6c9; border-radius: 3px; }
 
-/* ─── Tipo tabs producto/insumo ──────────────────────────── */
 .sl-tipo-tabs {
   flex-shrink: 0;
   display: flex; gap: 8px; margin-bottom: 12px;
@@ -133,7 +121,6 @@
 }
 .sl-tipo-tab.active { border-color: #2e7d32; background: #e8f5e9; color: #2e7d32; font-weight: 700; }
 
-/* ─── Search ─────────────────────────────────────────────── */
 .sl-search {
   flex-shrink: 0;
   position: relative; margin-bottom: 10px;
@@ -151,13 +138,12 @@
 }
 .sl-search__input:focus { border-color: #4caf50; }
 
-/* ─── Lista con scroll interno ───────────────────────────── */
 .sl-lista {
   flex: 1;
   overflow-y: hidden;
   display: flex; flex-direction: column; gap: 5px;
   min-height: 0;
-  padding: 2px 4px 4px 4px; /* evita corte de hover/shadow en los items */
+  padding: 2px 4px 4px 4px;
 }
 .sl-lista::-webkit-scrollbar       { width: 3px; }
 .sl-lista::-webkit-scrollbar-thumb { background: #c8e6c9; border-radius: 3px; }
@@ -176,7 +162,6 @@
 .sl-lista__item-meta { display: flex; justify-content: space-between; margin-top: 3px; }
 .sl-lista__item-cat  { font-size: 11px; color: #9e9e9e; }
 
-/* ─── Seleccionado preview ───────────────────────────────── */
 .sl-seleccionado {
   flex-shrink: 0;
   display: flex; align-items: center; gap: 10px;
@@ -190,7 +175,6 @@
   padding: 16px;
 }
 
-/* ─── Labels e inputs del formulario ─────────────────────── */
 .sl-label {
   display: block; font-size: 11px; font-weight: 700;
   color: #616161; letter-spacing: 0.8px;
@@ -207,7 +191,6 @@
 .sl-input--error   { border-color: #e53935 !important; }
 .field-error { margin: 4px 0 0; font-size: 11px; color: #e53935; }
 
-/* ─── Tipos de salida grid ───────────────────────────────── */
 .sl-tipos-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -224,7 +207,6 @@
 .sl-tipo-btn.active { font-weight: 700; }
 .sl-tipo-btn:hover  { border-color: #c8e6c9; }
 
-/* ─── Botón registrar ────────────────────────────────────── */
 .sl-btn-registrar {
   flex-shrink: 0;
   width: 100%; padding: 11px; border-radius: 10px; border: none;
@@ -237,7 +219,7 @@
 .sl-btn-registrar:disabled { background: #bdbdbd !important; box-shadow: none; cursor: not-allowed; transform: none; }
 
 /* ══════════════════════════════════════════════════════════
-   TABs HISTORIAL Y VENCIDOS — contenedor flex column
+   TABs HISTORIAL Y VENCIDOS
 ══════════════════════════════════════════════════════════ */
 .sl-tab-content {
   display: flex;
@@ -248,11 +230,10 @@
   min-height: 0;
 }
 
-/* ─── Stats row compacta ─────────────────────────────────── */
 .sl-stats-row {
   flex-shrink: 0;
   display: flex; flex-wrap: wrap; gap: 10px;
-  padding: 4px 2px; /* evita corte del transform hover en las cards */
+  padding: 4px 2px;
 }
 .sl-stat-card {
   display: flex; flex-direction: column; align-items: center; gap: 3px;
@@ -268,7 +249,6 @@
 .sl-stat-card__num   { font-family: 'Nunito', sans-serif; font-size: 20px; font-weight: 800; color: #1a1a1a; line-height: 1; }
 .sl-stat-card__label { font-size: 10px; font-weight: 600; color: #9e9e9e; text-transform: uppercase; letter-spacing: 0.4px; text-align: center; }
 
-/* ─── Toolbar ────────────────────────────────────────────── */
 .sl-toolbar {
   flex-shrink: 0;
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -281,9 +261,9 @@
   color: #616161; font-weight: 600; font-size: 13px;
   cursor: pointer; font-family: inherit; transition: all 0.15s; white-space: nowrap;
 }
-.sl-filter-btn:hover { border-color: #4caf50; color: #2e7d32; }
+.sl-filter-btn:hover      { border-color: #4caf50; color: #2e7d32; }
+.sl-filter-btn.has-filter { border-color: #4caf50; color: #2e7d32; background: #f1f8f1; }
 
-/* ─── Filter dropdown ────────────────────────────────────── */
 .sl-filter-dropdown {
   position: absolute; top: calc(100% + 6px); right: 0;
   background: #fff; border-radius: 10px;
@@ -307,11 +287,11 @@
 .sl-filter-opt:hover  { background: #f5f5f5; }
 .sl-filter-opt.active { background: #f1f8f1; color: #2e7d32; font-weight: 700; }
 
-/* ─── Tabla con scroll interno ───────────────────────────── */
+/* ── Tabla ────────────────────────────────────────────── */
 .sl-table-wrap {
   flex: 1;
   overflow-y: hidden;
-  overflow-x: hidden; /* separado para no crear stacking context que corte hovers */
+  overflow-x: hidden;
   min-height: 0;
   border-radius: 12px;
   border: 1.5px solid #c8e6c9;
@@ -321,7 +301,7 @@
 .sl-table-wrap::-webkit-scrollbar       { width: 4px; }
 .sl-table-wrap::-webkit-scrollbar-thumb { background: #c8e6c9; border-radius: 4px; }
 
-.sl-table { width: 100%; border-collapse: collapse; min-width: 680px; }
+.sl-table { width: 100%; border-collapse: collapse; min-width: 760px; }
 .sl-table thead tr { background: #2e7d32; position: sticky; top: 0; z-index: 1; }
 .sl-table th {
   padding: 13px 16px; font-size: 13px; font-weight: 700;
@@ -338,14 +318,135 @@
   font-size: 12px; font-weight: 700; white-space: nowrap;
 }
 
-/* ─── Empty state ────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════
+   ACCIONES EN TABLA (editar / eliminar / bloqueado)
+══════════════════════════════════════════════════════════ */
+.sl-table-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.sl-action-btn {
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  border: 1.5px solid transparent;
+  background: #f5f5f5;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+  line-height: 1;
+  padding: 0;
+}
+
+.sl-action-btn--edit {
+  border-color: #90caf9;
+  background: #e3f2fd;
+}
+.sl-action-btn--edit:hover {
+  background: #1565c0;
+  border-color: #1565c0;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(21,101,192,0.25);
+}
+
+.sl-action-btn--delete {
+  border-color: #ef9a9a;
+  background: #ffebee;
+}
+.sl-action-btn--delete:hover {
+  background: #c62828;
+  border-color: #c62828;
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(198,40,40,0.25);
+}
+
+.sl-action-locked {
+  font-size: 14px;
+  opacity: 0.35;
+  cursor: default;
+  user-select: none;
+}
+
+/* ══════════════════════════════════════════════════════════
+   BOTONES MODAL CONFIRMAR / CANCELAR
+══════════════════════════════════════════════════════════ */
+.sl-btn-cancel {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1.5px solid #e0e0e0;
+  background: #fafafa;
+  color: #616161;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.sl-btn-cancel:hover { border-color: #bdbdbd; background: #f5f5f5; }
+
+.sl-btn-delete {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  border: none;
+  background: #c62828;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: 0 4px 14px rgba(198,40,40,0.28);
+  transition: all 0.18s;
+}
+.sl-btn-delete:hover { filter: brightness(1.1); transform: translateY(-1px); }
+
+/* ══════════════════════════════════════════════════════════
+   MODAL CONFIRMAR ELIMINAR — tarjeta de detalle
+══════════════════════════════════════════════════════════ */
+.sl-confirm-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+.sl-confirm-card__icon {
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  background: #ffebee;
+  border: 2px solid #ef9a9a;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+}
+.sl-confirm-card__text {
+  font-size: 14px;
+  color: #424242;
+  line-height: 1.5;
+  margin: 0;
+}
+.sl-confirm-card__detail {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1.5px solid;
+  text-align: left;
+}
+
+/* ── Empty state ────────────────────────────────────────── */
 .sl-empty {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   height: 100%; padding: 40px 20px;
   text-align: center; color: #9e9e9e; font-size: 14px;
 }
 
-/* ─── Pills filtro vencidos ──────────────────────────────── */
+/* ── Pills filtro vencidos ──────────────────────────────── */
 .sl-pill {
   padding: 7px 14px; border-radius: 20px;
   border: 1.5px solid #e0e0e0; background: #fafafa;
@@ -355,12 +456,12 @@
 .sl-pill:hover  { border-color: #a5d6a7; color: #2e7d32; }
 .sl-pill.active { border-color: #2e7d32; background: #e8f5e9; color: #2e7d32; font-weight: 700; }
 
-/* ─── Vencidos: área scrolleable ─────────────────────────── */
+/* ── Vencidos ───────────────────────────────────────────── */
 .sl-vencidos-scroll {
   flex: 1;
   overflow-y: hidden;
   min-height: 0;
-  padding: 4px 4px 8px 4px; /* evita corte del transform hover en las tarjetas */
+  padding: 4px 4px 8px 4px;
 }
 .sl-vencidos-scroll::-webkit-scrollbar       { width: 4px; }
 .sl-vencidos-scroll::-webkit-scrollbar-thumb { background: #c8e6c9; border-radius: 4px; }
@@ -372,17 +473,16 @@
   padding-bottom: 4px;
 }
 
-/* ─── Tarjeta vencido ────────────────────────────────────── */
 .sl-vencido-card {
   border-radius: 12px; border: 1.5px solid;
-  overflow: visible; /* permite que box-shadow y transform se vean completos */
+  overflow: visible;
   transition: transform 0.15s;
 }
 .sl-vencido-card:hover { transform: translateY(-2px); }
 .sl-vencido-card__header {
   display: flex; justify-content: space-between; align-items: flex-start;
   padding: 12px 12px 8px; gap: 8px;
-  border-radius: 12px 12px 0 0; /* mantiene las esquinas redondeadas sin overflow:hidden */
+  border-radius: 12px 12px 0 0;
 }
 .sl-vencido-card__badge {
   padding: 3px 9px; border-radius: 20px;
@@ -392,12 +492,12 @@
   display: grid; grid-template-columns: 1fr 1fr;
   gap: 6px; padding: 8px 12px 12px;
   border-top: 1px solid rgba(0,0,0,0.06); font-size: 12px;
-  border-radius: 0 0 12px 12px; /* mantiene las esquinas redondeadas sin overflow:hidden */
+  border-radius: 0 0 12px 12px;
 }
 .sl-vencido-card__key { display: block; color: #9e9e9e; font-weight: 600; margin-bottom: 1px; }
 .sl-vencido-card__val { font-weight: 700; color: #1a1a1a; }
 
-/* ─── Toast ──────────────────────────────────────────────── */
+/* ── Toast ──────────────────────────────────────────────── */
 .sl-toast {
   position: fixed; bottom: 24px; right: 24px; z-index: 3000;
   padding: 11px 18px; border-radius: 12px; color: #fff;
@@ -408,7 +508,7 @@
   font-family: 'DM Sans', sans-serif;
 }
 
-/* ─── Responsive ─────────────────────────────────────────── */
+/* ── Responsive ─────────────────────────────────────────── */
 @media (max-width: 860px) {
   .sl-registrar-grid { grid-template-columns: 1fr; overflow-y: hidden; }
   .sl-tipos-grid     { grid-template-columns: repeat(3, 1fr); }

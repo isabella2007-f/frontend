@@ -24,6 +24,9 @@ const TODAS_ACCIONES = {
   generar_salida: { key: "generar_salida", label: "Generar Salida", icon: "📤",   color: "#00695c", bg: "#e0f2f1", border: "#80cbc4" },
   ver_detalles:   { key: "ver_detalles",   label: "Ver Detalles",   icon: "🔍",   color: "#1565c0", bg: "#e3f2fd", border: "#90caf9" },
   cambiar_estado: { key: "cambiar_estado", label: "Cambiar Estado", icon: "🔄",   color: "#f57f17", bg: "#fff8e1", border: "#ffe082" },
+  aprobar:        { key: "aprobar",        label: "Aprobar",        icon: "✅",   color: "#1b5e20", bg: "#e8f5e9", border: "#81c784" },
+  desaprobar:     { key: "desaprobar",     label: "Desaprobar",     icon: "❌",   color: "#b71c1c", bg: "#ffebee", border: "#ef5350" },
+
 };
 
 const STD = ["ver", "crear", "editar", "eliminar"];
@@ -36,7 +39,7 @@ const GRUPOS_MODULOS = [
       { key: "Dashboard",       label: "Dashboard",       icon: "📊", acciones: ["ver"] },
       { key: "Roles",           label: "Roles",           icon: "🛡️", acciones: STD },
       { key: "Usuarios",        label: "Usuarios",        icon: "👥", acciones: STD },
-      { key: "GestionSalidas",  label: "Gestión Salidas", icon: "📤", acciones: ["ver", "crear"] },
+      { key: "GestionSalidas",  label: "Gestión Salidas", icon: "📤", acciones: STD },
     ],
   },
   {
@@ -55,7 +58,7 @@ const GRUPOS_MODULOS = [
     modulos: [
       { key: "CategoriaProductos", label: "Cat. Productos", icon: "📦", acciones: ["ver", "crear", "editar", "eliminar"] },
       { key: "GestionProductos",   label: "Gestión Prod.",  icon: "📋", acciones: ["ver", "crear", "editar", "eliminar", "generar_salida"] },
-      { key: "OrdenesProduccion",  label: "Órdenes Prod.",  icon: "🏭", acciones: ["crear", "editar"] },
+      { key: "OrdenesProduccion",  label: "Órdenes Prod.",  icon: "🏭", acciones: STD },
     ],
   },
   {
@@ -64,7 +67,7 @@ const GRUPOS_MODULOS = [
     modulos: [
       { key: "Pedidos",       label: "Pedidos",        icon: "🛒", acciones: STD },
       { key: "GestionVentas", label: "Gestión Ventas", icon: "💰", acciones: STD },
-      { key: "Devoluciones",  label: "Devoluciones",   icon: "↩️", acciones: STD },
+      { key: "Devoluciones",  label: "Devoluciones",   icon: "↩️", acciones: ["ver", "crear", "editar", "eliminar", "aprobar", "desaprobar"] },
       { key: "Domicilios",    label: "Domicilios",     icon: "🏍️", acciones: ["ver", "ver_detalles", "cambiar_estado"] },
     ],
   },

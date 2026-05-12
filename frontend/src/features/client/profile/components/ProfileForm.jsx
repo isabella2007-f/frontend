@@ -130,10 +130,19 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
 
   const validate = () => {
     const e = {};
-    if (!form.correo.trim())   e.correo   = 'Campo obligatorio';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo)) e.correo = 'Formato inválido';
-    if (!form.telefono.trim()) e.telefono = 'Campo obligatorio';
-    if (!form.direccion.trim()) e.direccion = 'Campo obligatorio';
+    const users = JSON.parse(localStorage.getItem('users')) || [];
+
+    if (!form.correo.trim())   e.correo   = 'El correo es obligatorio';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo)) e.correo = 'Formato de correo inválido';
+    else if (users.some(u => u.correo.toLowerCase() === form.correo.toLowerCase() && u.id !== user.id)) {
+      e.correo = 'Este correo ya está en uso por otra cuenta';
+    }
+
+    if (!form.telefono.trim()) e.telefono = 'El teléfono es obligatorio';
+    else if (form.telefono.replace(/\D/g, '').length < 7) e.telefono = 'Número de teléfono inválido';
+
+    if (!form.direccion.trim()) e.direccion = 'La dirección de entrega es obligatoria';
+    
     setErrors(e);
     return Object.keys(e).length === 0;
   };

@@ -78,8 +78,13 @@ export default function CrearProducto({ onClose, onSave }) {
 
   const validateStep = (s) => {
     const e = {};
+    const existing = productos || [];
+
     if (s === 1) {
-      if (!form.nombre.trim()) e.nombre      = "Campo requerido";
+      if (!form.nombre.trim()) e.nombre      = "El nombre es obligatorio";
+      else if (existing.some(p => p.nombre.toLowerCase() === form.nombre.toLowerCase())) {
+        e.nombre = "Este nombre ya existe en el catálogo";
+      }
       if (!form.idCategoria)   e.idCategoria = "Selecciona una categoría";
     }
     if (s === 2) {

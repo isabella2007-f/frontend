@@ -211,22 +211,24 @@ export default function CrearPedido({ onClose, onSave }) {
   const validateStep = (s) => {
     const e = {};
     if (s === 1) {
-      if (!form.idCliente) e.idCliente = "Selecciona un cliente";
+      if (!form.idCliente) e.idCliente = "Selecciona un cliente para continuar";
     }
     if (s === 2) {
-      if (form.productosItems.length === 0) e.productos = "Agrega al menos un producto";
+      if (form.productosItems.length === 0) {
+        e.productos = "Debes agregar al menos un producto al pedido";
+      }
     }
     if (s === 3) {
-      if (!form.metodo_pago) e.metodo_pago = "Selecciona método de pago";
+      if (!form.metodo_pago) e.metodo_pago = "Selecciona un método de pago";
       
       if (form.metodo_pago === "Transferencia 🏦" && !form.comprobantePreview) {
-        e.comprobante = "El comprobante es obligatorio para transferencias";
+        e.comprobante = "Es obligatorio adjuntar el comprobante de transferencia";
       }
 
       if (form.domicilio) {
-        if (!form.direccion_entrega.trim()) e.direccion_entrega = "Ingresa la dirección";
-        if (!form.departamento.trim())       e.departamento = "Selecciona el departamento";
-        if (!form.municipio.trim())          e.municipio = "Selecciona el municipio";
+        if (!form.direccion_entrega.trim()) e.direccion_entrega = "Ingresa la dirección de entrega";
+        if (!form.departamento.trim())       e.departamento = "El departamento es obligatorio";
+        if (!form.municipio.trim())          e.municipio = "El municipio es obligatorio";
       }
     }
     return e;
@@ -243,6 +245,15 @@ export default function CrearPedido({ onClose, onSave }) {
   const handleSave = () => {
     const e = validateStep(3);
     if (Object.keys(e).length) { setErrors(e); return; }
+
+    // Alerta si hay productos sin stock - Se creará orden de producción automáticamente
+    if (hayProductosSinStock) {
+      const confirmProd = window.confirm(
+        "Algunos productos no tienen stock suficiente. Se generará una orden de producción automáticamente. ¿Deseas continuar?"
+      );
+      if (!confirmProd) return;
+    }
+
     setSaved(true);
 
     const cliente = clientes.find(c => String(c.id) === String(form.idCliente));
@@ -265,6 +276,8 @@ export default function CrearPedido({ onClose, onSave }) {
       descuento,
       subtotal,
       total,
+      estado:            "Pendiente",
+      fecha_pedido:      new Date().toLocaleDateString("es-CO"),
       orden_produccion:  hayProductosSinStock,
     };
 

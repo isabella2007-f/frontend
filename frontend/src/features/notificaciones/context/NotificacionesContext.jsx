@@ -59,7 +59,10 @@ const loadFromLS = (key, def) => {
 export function NotificacionesProvider({ children, insumos = [], lotes = [], pedidos = [], compras = [] }) {
 
   const [notificaciones, setNotificaciones] = useState(() => loadFromLS("notificaciones", []));
-  const [user, setLocalUser] = useState(null);
+  const [user, setLocalUser] = useState(() => {
+    const session = sessionStorage.getItem("session") || localStorage.getItem("session");
+    return session ? JSON.parse(session) : null;
+  });
 
   // CA_01_01 — nivel mínimo configurable por insumo (idInsumo → número)
   const [nivelesMinimos, setNivelesMinimos]   = useState(() => loadFromLS("notif_nivelesMinimos", {}));
@@ -77,11 +80,8 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
   useEffect(() => {
     const checkUser = () => {
       const session = sessionStorage.getItem("session") || localStorage.getItem("session");
-      if (session) {
-        setLocalUser(JSON.parse(session));
-      } else {
-        setLocalUser(null);
-      }
+      const u = session ? JSON.parse(session) : null;
+      setLocalUser(u);
     };
     
     const syncNotifs = (e) => {
@@ -94,22 +94,27 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
       if (e.key === "notif_autoActivo" && e.newValue) {
         setAutoActivo(JSON.parse(e.newValue));
       }
+      if (e.key === "session") {
+        checkUser();
+      }
     };
 
-    checkUser();
-    
-    // Escuchar cambios en auth para actualizar el usuario local
-    window.addEventListener("storage", checkUser);
-    // Escuchar cambios en otros datos para sincronizar pestañas
     window.addEventListener("storage", syncNotifs);
-    // Custom event para cambios de sesión en la misma pestaña
     window.addEventListener("session-changed", checkUser);
     
     return () => {
-      window.removeEventListener("storage", checkUser);
       window.removeEventListener("storage", syncNotifs);
       window.removeEventListener("session-changed", checkUser);
     };
+  }, []);
+
+  const agregarNotificacion = useCallback((datos) => {
+    const destinatario = datos.idDestinatario || 'admin';
+    setNotificaciones(prev => {
+      // Evitar duplicados exactos si la clave existe
+      if (datos.clave && prev.some(n => n.clave === datos.clave && !n.leida)) return prev;
+      return [{ id: uid(), fecha: fechaHoy(), leida: false, ...datos, idDestinatario: destinatario }, ...prev];
+    });
   }, []);
 
   /* ── Listener para agregar notificaciones desde fuera (AppContext) ── */
@@ -121,7 +126,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
     };
     window.addEventListener("toston-add-notification", handleExternalNotif);
     return () => window.removeEventListener("toston-add-notification", handleExternalNotif);
-  }, [notificaciones]);
+  }, [agregarNotificacion]);
 
   /* ══════════════════════════════════════════════════════
      HU_01 — Generar notificaciones automáticas al detectar
@@ -134,98 +139,102 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
     
     if (!autoActivo || !isAdmin) return;
 
-    const nuevas = [];
+    setNotificaciones(prev => {
+      const nuevas = [];
+      const notificacionesActuales = prev;
 
-    insumos.forEach(ins => {
-      const minimo = nivelesMinimos[ins.id] !== undefined ? nivelesMinimos[ins.id] : ins.stockMinimo;
-      const stock  = ins.stockActual;
+      insumos.forEach(ins => {
+        const minimo = nivelesMinimos[ins.id] !== undefined ? nivelesMinimos[ins.id] : ins.stockMinimo;
+        const stock  = ins.stockActual;
 
-      if (stock <= 0) {
-        const clave = `${TIPOS.STOCK_AGOTADO}-${ins.id}`;
-        const yaExiste = notificaciones.some(n => n.clave === clave && !n.leida);
-        if (!yaExiste) {
-          nuevas.push({
-            id: uid(), clave, tipo: TIPOS.STOCK_AGOTADO,
-            titulo: `Stock agotado: ${ins.nombre}`,
-            mensaje: `El insumo "${ins.nombre}" tiene stock en 0. Se requiere realizar una compra urgente.`,
-            idReferencia: ins.id, refNombre: ins.nombre,
-            fecha: fechaHoy(), leida: false,
-            idDestinatario: 'admin'
-          });
+        if (stock <= 0) {
+          const clave = `${TIPOS.STOCK_AGOTADO}-${ins.id}`;
+          const yaExiste = notificacionesActuales.some(n => n.clave === clave && !n.leida);
+          if (!yaExiste) {
+            nuevas.push({
+              id: uid(), clave, tipo: TIPOS.STOCK_AGOTADO,
+              titulo: `Stock agotado: ${ins.nombre}`,
+              mensaje: `El insumo "${ins.nombre}" tiene stock en 0. Se requiere realizar una compra urgente.`,
+              idReferencia: ins.id, refNombre: ins.nombre,
+              fecha: fechaHoy(), leida: false,
+              idDestinatario: 'admin'
+            });
+          }
+        } else if (minimo !== undefined && stock <= minimo) {
+          const clave = `${TIPOS.STOCK_MINIMO}-${ins.id}`;
+          const yaExiste = notificacionesActuales.some(n => n.clave === clave && !n.leida);
+          if (!yaExiste) {
+            nuevas.push({
+              id: uid(), clave, tipo: TIPOS.STOCK_MINIMO,
+              titulo: `Stock bajo mínimo: ${ins.nombre}`,
+              mensaje: `El insumo "${ins.nombre}" tiene ${stock} ${ins.unidad || "und"} disponibles, por debajo del mínimo configurado de ${minimo}. Se requiere realizar una compra.`,
+              idReferencia: ins.id, refNombre: ins.nombre,
+              fecha: fechaHoy(), leida: false,
+              idDestinatario: 'admin'
+            });
+          }
         }
-      } else if (minimo !== undefined && stock <= minimo) {
-        const clave = `${TIPOS.STOCK_MINIMO}-${ins.id}`;
-        const yaExiste = notificaciones.some(n => n.clave === clave && !n.leida);
-        if (!yaExiste) {
-          nuevas.push({
-            id: uid(), clave, tipo: TIPOS.STOCK_MINIMO,
-            titulo: `Stock bajo mínimo: ${ins.nombre}`,
-            mensaje: `El insumo "${ins.nombre}" tiene ${stock} ${ins.unidad || "und"} disponibles, por debajo del mínimo configurado de ${minimo}. Se requiere realizar una compra.`,
-            idReferencia: ins.id, refNombre: ins.nombre,
-            fecha: fechaHoy(), leida: false,
-            idDestinatario: 'admin'
-          });
+      });
+
+      const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+      lotes.forEach(lote => {
+        if (!lote.fechaVencimiento || lote.cantidadActual <= 0) return;
+        const fv   = new Date(lote.fechaVencimiento + "T00:00:00");
+        const dias = Math.round((fv - hoy) / 86_400_000);
+        const insumo = insumos.find(i => i.id === lote.idInsumo);
+        const nombre = insumo?.nombre || `Insumo #${lote.idInsumo}`;
+
+        if (dias < 0) {
+          const clave = `${TIPOS.LOTE_VENCIDO}-${lote.id}`;
+          if (!notificacionesActuales.some(n => n.clave === clave && !n.leida)) {
+            nuevas.push({
+              id: uid(), clave, tipo: TIPOS.LOTE_VENCIDO,
+              titulo: `Lote vencido: ${nombre}`,
+              mensaje: `El lote ${lote.id} de "${nombre}" venció el ${lote.fechaVencimiento}. Contiene ${lote.cantidadActual} unidades. Retírelo del inventario.`,
+              idReferencia: lote.id, refNombre: nombre,
+              fecha: fechaHoy(), leida: false,
+              idDestinatario: 'admin'
+            });
+          }
+        } else if (dias <= 7) {
+          const clave = `${TIPOS.LOTE_POR_VENCER}-${lote.id}`;
+          if (!notificacionesActuales.some(n => n.clave === clave && !n.leida)) {
+            nuevas.push({
+              id: uid(), clave, tipo: TIPOS.LOTE_POR_VENCER,
+              titulo: `Lote próximo a vencer: ${nombre}`,
+              mensaje: `El lote ${lote.id} de "${nombre}" vence en ${dias} día${dias === 1 ? "" : "s"} (${lote.fechaVencimiento}). Contiene ${lote.cantidadActual} unidades.`,
+              idReferencia: lote.id, refNombre: nombre,
+              fecha: fechaHoy(), leida: false,
+              idDestinatario: 'admin'
+            });
+          }
         }
+      });
+
+      compras.forEach(compra => {
+        if (compra.estado !== "pendiente") return;
+        const dias = Math.round((hoy - new Date(compra.fecha + "T00:00:00")) / 86_400_000);
+        if (dias >= 5) {
+          const clave = `${TIPOS.COMPRA_PENDIENTE}-${compra.id}`;
+          if (!notificacionesActuales.some(n => n.clave === clave && !n.leida)) {
+            nuevas.push({
+              id: uid(), clave, tipo: TIPOS.COMPRA_PENDIENTE,
+              titulo: `Compra pendiente: ${compra.id}`,
+              mensaje: `La compra ${compra.id} lleva ${dias} días en estado pendiente. Verifique su estado con el proveedor.`,
+              idReferencia: compra.id, refNombre: compra.id,
+              fecha: fechaHoy(), leida: false,
+              idDestinatario: 'admin'
+            });
+          }
+        }
+      });
+
+      if (nuevas.length > 0) {
+        return [...nuevas, ...prev];
       }
+      return prev;
     });
-
-    const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
-    lotes.forEach(lote => {
-      if (!lote.fechaVencimiento || lote.cantidadActual <= 0) return;
-      const fv   = new Date(lote.fechaVencimiento + "T00:00:00");
-      const dias = Math.round((fv - hoy) / 86_400_000);
-      const insumo = insumos.find(i => i.id === lote.idInsumo);
-      const nombre = insumo?.nombre || `Insumo #${lote.idInsumo}`;
-
-      if (dias < 0) {
-        const clave = `${TIPOS.LOTE_VENCIDO}-${lote.id}`;
-        if (!notificaciones.some(n => n.clave === clave && !n.leida)) {
-          nuevas.push({
-            id: uid(), clave, tipo: TIPOS.LOTE_VENCIDO,
-            titulo: `Lote vencido: ${nombre}`,
-            mensaje: `El lote ${lote.id} de "${nombre}" venció el ${lote.fechaVencimiento}. Contiene ${lote.cantidadActual} unidades. Retírelo del inventario.`,
-            idReferencia: lote.id, refNombre: nombre,
-            fecha: fechaHoy(), leida: false,
-            idDestinatario: 'admin'
-          });
-        }
-      } else if (dias <= 7) {
-        const clave = `${TIPOS.LOTE_POR_VENCER}-${lote.id}`;
-        if (!notificaciones.some(n => n.clave === clave && !n.leida)) {
-          nuevas.push({
-            id: uid(), clave, tipo: TIPOS.LOTE_POR_VENCER,
-            titulo: `Lote próximo a vencer: ${nombre}`,
-            mensaje: `El lote ${lote.id} de "${nombre}" vence en ${dias} día${dias === 1 ? "" : "s"} (${lote.fechaVencimiento}). Contiene ${lote.cantidadActual} unidades.`,
-            idReferencia: lote.id, refNombre: nombre,
-            fecha: fechaHoy(), leida: false,
-            idDestinatario: 'admin'
-          });
-        }
-      }
-    });
-
-    compras.forEach(compra => {
-      if (compra.estado !== "pendiente") return;
-      const dias = Math.round((hoy - new Date(compra.fecha + "T00:00:00")) / 86_400_000);
-      if (dias >= 5) {
-        const clave = `${TIPOS.COMPRA_PENDIENTE}-${compra.id}`;
-        if (!notificaciones.some(n => n.clave === clave && !n.leida)) {
-          nuevas.push({
-            id: uid(), clave, tipo: TIPOS.COMPRA_PENDIENTE,
-            titulo: `Compra pendiente: ${compra.id}`,
-            mensaje: `La compra ${compra.id} lleva ${dias} días en estado pendiente. Verifique su estado con el proveedor.`,
-            idReferencia: compra.id, refNombre: compra.id,
-            fecha: fechaHoy(), leida: false,
-            idDestinatario: 'admin'
-          });
-        }
-      }
-    });
-
-    if (nuevas.length > 0) {
-      setNotificaciones(prev => [...nuevas, ...prev]);
-    }
-  }, [autoActivo, insumos, lotes, compras, nivelesMinimos, notificaciones, user]);
+  }, [autoActivo, insumos, lotes, compras, nivelesMinimos, user]);
 
   useEffect(() => {
     generarNotifAutomaticas();
@@ -270,11 +279,6 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
 
   const configurarNivelMinimo = useCallback((idInsumo, nivel) => {
     setNivelesMinimos(prev => ({ ...prev, [idInsumo]: Number(nivel) }));
-  }, []);
-
-  const agregarNotificacion = useCallback((datos) => {
-    const destinatario = datos.idDestinatario || 'admin';
-    setNotificaciones(prev => [{ id: uid(), fecha: fechaHoy(), leida: false, ...datos, idDestinatario: destinatario }, ...prev]);
   }, []);
 
   const eliminarNotificacion = useCallback((id) => {

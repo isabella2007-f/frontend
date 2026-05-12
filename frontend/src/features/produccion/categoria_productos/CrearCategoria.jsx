@@ -4,6 +4,7 @@ import { FieldInput, ModalOverlay } from "./ui.jsx";
 import "./Categoriaproductos.css";
 
 export default function CrearCategoria({ onClose, onSave }) {
+  const { categoriasProductos } = useApp();
   const [form, setForm] = useState({ nombre: "", descripcion: "", estado: true, icon: "🍌" });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -11,8 +12,14 @@ export default function CrearCategoria({ onClose, onSave }) {
 
   const validate = () => {
     const e = {};
-    if (!form.nombre.trim())      e.nombre      = "Campo requerido";
-    if (!form.descripcion.trim()) e.descripcion = "Campo requerido";
+    const existing = categoriasProductos || [];
+    
+    if (!form.nombre.trim())      e.nombre      = "El nombre es obligatorio";
+    else if (existing.some(c => c.nombre.toLowerCase() === form.nombre.toLowerCase())) {
+      e.nombre = "Esta categoría ya existe";
+    }
+    
+    if (!form.descripcion.trim()) e.descripcion = "La descripción es obligatoria";
     return e;
   };
 

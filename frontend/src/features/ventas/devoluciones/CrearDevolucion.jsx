@@ -214,10 +214,16 @@ export default function CrearDevolucion({ onClose, onSave }) {
 
   const validateStep = (s) => {
     const e = {};
-    if (s === 1 && !idPedido) e.idPedido = "Selecciona un pedido";
+    if (s === 1 && !idPedido) {
+      e.idPedido = "Debes seleccionar un pedido para registrar la devolución";
+    }
     if (s === 2) {
-      if (!motivo) e.motivo = "Selecciona un motivo";
-      if (itemsSeleccionados.length === 0) e.items = "Selecciona al menos un producto";
+      if (!motivo) {
+        e.motivo = "Selecciona el motivo de la devolución";
+      }
+      if (itemsSeleccionados.length === 0) {
+        e.items = "Selecciona al menos un producto y la cantidad a devolver";
+      }
     }
     return e;
   };

@@ -39,14 +39,28 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
 
   const validate = () => {
     const e = {};
-    if (!form.producto.trim())      e.producto      = "Campo requerido";
-    if (!form.procedimiento.trim()) e.procedimiento = "El procedimiento es requerido";
+    if (!form.producto.trim())      e.producto      = "El nombre del producto es obligatorio";
+    
+    // Validar insumos
+    const insumosValidos = form.insumos.filter(i => i.idCategoria && i.nombre && i.cantidad && i.unidad);
+    if (form.insumos.length === 0 || insumosValidos.length === 0) {
+      e.insumos = "Debes agregar al menos un insumo completo (categoría, nombre, cantidad y unidad)";
+    } else if (insumosValidos.length < form.insumos.length) {
+      e.insumos = "Hay insumos incompletos en la lista. Por favor complétalos o elimínalos.";
+    }
+
+    if (!form.procedimiento.trim()) e.procedimiento = "Debes describir el procedimiento de fabricación";
     return e;
   };
 
   const handleSave = async () => {
     const e = validate();
-    if (Object.keys(e).length) { setErrors(e); if (e.procedimiento) setTab("procedimiento"); return; }
+    if (Object.keys(e).length) { 
+      setErrors(e); 
+      if (e.insumos) setTab("insumos");
+      else if (e.procedimiento) setTab("procedimiento"); 
+      return; 
+    }
     setSaving(true);
     await new Promise(r => setTimeout(r, 500));
     onSave({ ...form, id: Date.now() });

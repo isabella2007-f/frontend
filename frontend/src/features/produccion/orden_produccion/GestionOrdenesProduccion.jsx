@@ -783,6 +783,13 @@ export default function GestionOrdenesProduccion() {
   };
 
   const handleCambiarEstado = (idOrden, nuevoEstado) => {
+    if (nuevoEstado === "Completada") {
+      const confirmComp = window.confirm(
+        "Al marcar la orden como 'Completada', se sumarán los productos al stock disponible y se descontarán los insumos correspondientes. ¿Deseas continuar?"
+      );
+      if (!confirmComp) return;
+    }
+
     cambiarEstadoOrden(idOrden, nuevoEstado);
     showToast(`Estado cambiado a "${nuevoEstado}"`);
     setModal(null);

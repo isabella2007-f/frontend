@@ -295,75 +295,75 @@ const PedidosClientePage = () => {
       {/* ── Modal Detalle Refinado ── */}
       {selectedPedido && (
         <div className="modal-overlay">
-          <div className="modal-box relative bg-white w-full max-w-2xl rounded-[40px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 max-h-[90vh] flex flex-col border-none">
+          <div className="modal-box relative bg-white w-full max-w-lg rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 max-h-[90vh] flex flex-col border-none">
             {/* Modal Header */}
-            <div className="modal-header p-8 flex justify-between items-center shrink-0 border-none" style={{ background: 'linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 100%)' }}>
+            <div className="modal-header p-6 flex justify-between items-center shrink-0 border-none" style={{ background: 'linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 100%)' }}>
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="px-2 py-0.5 bg-white/10 rounded-lg text-[10px] font-black uppercase tracking-widest text-white border border-white/10">
+                  <span className="px-1.5 py-0.5 bg-white/10 rounded-lg text-[9px] font-black uppercase tracking-widest text-white border border-white/10">
                     Pedido #{selectedPedido.numero}
                   </span>
                 </div>
-                <h2 className="text-2xl font-black tracking-tight leading-none text-white">Detalle de Compra</h2>
+                <h2 className="text-xl font-black tracking-tight leading-none text-white">Detalle de Compra</h2>
               </div>
               <button 
                 onClick={() => setSelectedPedido(null)}
-                className="p-3 hover:bg-white/10 rounded-full transition-all text-white/70 hover:text-white"
+                className="p-2 hover:bg-white/10 rounded-full transition-all text-white/70 hover:text-white"
               >
-                <XCircle size={24} />
+                <XCircle size={20} />
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="modal-body p-8 overflow-y-auto custom-scrollbar flex-1 bg-gray-50/50 space-y-8">
+            <div className="modal-body p-5 overflow-y-auto custom-scrollbar flex-1 bg-gray-50/30 space-y-6">
               {/* Status Banner */}
-              <div className={`p-4 rounded-[24px] ${ESTADO_CONFIG[selectedPedido.estado]?.bg} border border-white flex items-center gap-4 shadow-sm`}>
-                <div className={`w-12 h-12 rounded-2xl ${ESTADO_CONFIG[selectedPedido.estado]?.badge} flex items-center justify-center shadow-inner`}>
+              <div className={`p-3.5 rounded-2xl ${ESTADO_CONFIG[selectedPedido.estado]?.bg} border border-white flex items-center gap-3.5 shadow-sm`}>
+                <div className={`w-10 h-10 rounded-xl ${ESTADO_CONFIG[selectedPedido.estado]?.badge} flex items-center justify-center shadow-inner`}>
                    {(() => {
                      const Icon = ESTADO_CONFIG[selectedPedido.estado]?.icon || AlertCircle;
-                     return <Icon size={24} strokeWidth={2.5} />;
+                     return <Icon size={20} strokeWidth={2.5} />;
                    })()}
                 </div>
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-0.5">Estado actual</p>
-                  <p className={`text-lg font-black ${ESTADO_CONFIG[selectedPedido.estado]?.text}`}>{selectedPedido.estado}</p>
+                  <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-0.5">Estado actual</p>
+                  <p className={`text-base font-black ${ESTADO_CONFIG[selectedPedido.estado]?.text}`}>{selectedPedido.estado}</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                   <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Información General</h4>
-                   <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center text-green-600" style={{ background: 'var(--green-50)', color: 'var(--green-600)' }}>
-                          <Calendar size={18} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-3">
+                   <h4 className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-1">Información General</h4>
+                   <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center text-green-600" style={{ background: 'var(--green-50)', color: 'var(--green-600)' }}>
+                          <Calendar size={14} />
                         </div>
                         <div>
-                          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Fecha</p>
-                          <p className="text-sm font-bold text-gray-800">{new Date(selectedPedido.fecha_pedido).toLocaleString('es-CO')}</p>
+                          <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Fecha</p>
+                          <p className="text-xs font-bold text-gray-800">{new Date(selectedPedido.fecha_pedido).toLocaleString('es-CO')}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center text-green-600" style={{ background: 'var(--green-50)', color: 'var(--green-600)' }}>
-                          <DollarSign size={18} />
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center text-green-600" style={{ background: 'var(--green-50)', color: 'var(--green-600)' }}>
+                          <DollarSign size={14} />
                         </div>
                         <div>
-                          <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Método de pago</p>
-                          <p className="text-sm font-bold text-gray-800">{selectedPedido.metodo_pago}</p>
+                          <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Método de pago</p>
+                          <p className="text-xs font-bold text-gray-800">{selectedPedido.metodo_pago}</p>
                         </div>
                       </div>
                    </div>
                 </div>
 
-                <div className="space-y-4">
-                   <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Entrega</h4>
-                   <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex items-start gap-4 h-full">
-                      <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center text-green-600 shrink-0" style={{ background: 'var(--green-50)', color: 'var(--green-600)' }}>
-                        <MapPin size={18} />
+                <div className="space-y-3">
+                   <h4 className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-1">Entrega</h4>
+                   <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-start gap-3 h-full">
+                      <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center text-green-600 shrink-0" style={{ background: 'var(--green-50)', color: 'var(--green-600)' }}>
+                        <MapPin size={14} />
                       </div>
                       <div>
-                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Dirección de entrega</p>
-                        <p className="text-sm font-bold text-gray-800 leading-relaxed">
+                        <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Dirección de entrega</p>
+                        <p className="text-xs font-bold text-gray-800 leading-relaxed">
                           {selectedPedido.direccion_entrega || 'Recogida en local comercial'}
                         </p>
                       </div>
@@ -372,36 +372,35 @@ const PedidosClientePage = () => {
               </div>
 
               {/* Items List */}
-              <div className="space-y-4">
-                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Resumen de productos</h4>
-                <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden">
+              <div className="space-y-3">
+                <h4 className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-1">Resumen de productos</h4>
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                    <table className="w-full">
                       <thead className="bg-gray-50/50">
                         <tr className="border-b border-gray-100">
-                          <th className="px-6 py-4 text-left text-[9px] font-black text-gray-400 uppercase tracking-widest">Producto</th>
-                          <th className="px-6 py-4 text-center text-[9px] font-black text-gray-400 uppercase tracking-widest">Cant.</th>
-                          <th className="px-6 py-4 text-right text-[9px] font-black text-gray-400 uppercase tracking-widest">Precio</th>
-                          <th className="px-6 py-4 text-right text-[9px] font-black text-gray-400 uppercase tracking-widest">Subtotal</th>
+                          <th className="px-4 py-3 text-left text-[8px] font-black text-gray-400 uppercase tracking-widest">Producto</th>
+                          <th className="px-4 py-3 text-center text-[8px] font-black text-gray-400 uppercase tracking-widest">Cant.</th>
+                          <th className="px-4 py-3 text-right text-[8px] font-black text-gray-400 uppercase tracking-widest">Subtotal</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
                          {selectedPedido.productosItems.map((item, idx) => (
                            <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
-                              <td className="px-6 py-4">
-                                <p className="text-xs font-black text-gray-800">{item.nombre}</p>
+                              <td className="px-4 py-2.5">
+                                <p className="text-[11px] font-black text-gray-800 leading-tight">{item.nombre}</p>
+                                <p className="text-[9px] font-bold text-gray-400">{COP(item.precio)} c/u</p>
                               </td>
-                              <td className="px-6 py-4 text-center">
-                                <span className="px-2 py-1 bg-gray-100 rounded-lg text-[10px] font-black text-gray-600">x{item.cantidad}</span>
+                              <td className="px-4 py-2.5 text-center">
+                                <span className="px-1.5 py-0.5 bg-gray-100 rounded-md text-[9px] font-black text-gray-600">x{item.cantidad}</span>
                               </td>
-                              <td className="px-6 py-4 text-right text-xs font-bold text-gray-500">{COP(item.precio)}</td>
-                              <td className="px-6 py-4 text-right text-xs font-black" style={{ color: 'var(--green-700)' }}>{COP(item.precio * item.cantidad)}</td>
+                              <td className="px-4 py-2.5 text-right text-[11px] font-black" style={{ color: 'var(--green-700)' }}>{COP(item.precio * item.cantidad)}</td>
                            </tr>
                          ))}
                       </tbody>
                       <tfoot className="bg-green-50/30" style={{ background: 'var(--green-50)' }}>
                          <tr>
-                            <td colSpan={3} className="px-6 py-4 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest">Total a pagar</td>
-                            <td className="px-6 py-4 text-right text-lg font-black text-green-800" style={{ color: 'var(--green-800)' }}>{COP(selectedPedido.total)}</td>
+                            <td colSpan={2} className="px-4 py-3 text-right text-[9px] font-black text-gray-400 uppercase tracking-widest">Total pagado</td>
+                            <td className="px-4 py-3 text-right text-base font-black text-green-800" style={{ color: 'var(--green-800)' }}>{COP(selectedPedido.total)}</td>
                          </tr>
                       </tfoot>
                    </table>
@@ -410,16 +409,16 @@ const PedidosClientePage = () => {
             </div>
 
             {/* Modal Footer */}
-            <div className="modal-footer p-8 bg-white border-t border-gray-100 shrink-0 flex gap-3">
+            <div className="modal-footer p-6 bg-white border-t border-gray-100 shrink-0 flex gap-3">
               <button
-                className="btn-secondary flex-1"
+                className="btn-secondary flex-1 py-3 text-[11px] font-black uppercase tracking-widest"
                 onClick={() => setSelectedPedido(null)}
               >
                 Cerrar
               </button>
               {selectedPedido.estado === 'Entregado' && (
                 <button
-                  className="btn-primary flex-1"
+                  className="btn-primary flex-1 py-3 text-[11px] font-black uppercase tracking-widest"
                   onClick={() => handleRequestReturn(selectedPedido)}
                 >
                   Solicitar devolución

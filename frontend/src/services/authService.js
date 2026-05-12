@@ -13,6 +13,7 @@ export const login = (email, password) => {
     
     // Actually, I'll use sessionStorage for the SESSION but keep users in localStorage.
     sessionStorage.setItem("session", JSON.stringify(user));
+    window.dispatchEvent(new CustomEvent("session-changed"));
     return user;
   }
   throw new Error("Credenciales inválidas");
@@ -21,6 +22,7 @@ export const login = (email, password) => {
 export const logout = () => {
   sessionStorage.removeItem("session");
   localStorage.removeItem("session"); // Clear both just in case
+  window.dispatchEvent(new CustomEvent("session-changed"));
   window.location.href = "/login";
 };
 

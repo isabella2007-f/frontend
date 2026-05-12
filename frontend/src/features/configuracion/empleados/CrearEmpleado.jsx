@@ -119,6 +119,7 @@ function StepsBar({ current }) {
 
 /* ─── CrearEmpleado ──────────────────────────────────────── */
 export default function CrearEmpleado({ onClose, onSave }) {
+  const { usuarios: existing } = useApp();
   const empty = {
     tipoDoc:"CC", numDoc:"", nombre:"", apellidos:"", correo:"",
     telefono:"", direccion:"", departamento:"", municipio:"",
@@ -145,25 +146,37 @@ export default function CrearEmpleado({ onClose, onSave }) {
   // Validación por paso
   const validateStep = (s) => {
     const e = {};
+    const users = existing || [];
+
     if (s === 1) {
       if (!form.tipoDoc)       e.tipoDoc = "Requerido";
-      if (!form.numDoc.trim()) e.numDoc  = "Requerido";
+      if (!form.numDoc.trim()) e.numDoc  = "El número de documento es obligatorio";
+      else if (users.some(u => u.cedula === form.numDoc)) e.numDoc = "Este documento ya está registrado";
+      
       if (!form.idRol)         e.idRol   = "Selecciona un rol";
     }
     if (s === 2) {
-      if (!form.nombre.trim())    e.nombre       = "Requerido";
-      if (!form.apellidos.trim()) e.apellidos    = "Requerido";
-      if (!form.correo.trim() || !/\S+@\S+\.\S+/.test(form.correo)) e.correo = "Correo inválido";
-      if (!form.telefono.trim())  e.telefono     = "Requerido";
-      if (!form.fechaIngreso)     e.fechaIngreso = "Requerido";
+      if (!form.nombre.trim())    e.nombre       = "El nombre es obligatorio";
+      if (!form.apellidos.trim()) e.apellidos    = "Los apellidos son obligatorios";
+      
+      if (!form.correo.trim())    e.correo = "El correo es obligatorio";
+      else if (!/\S+@\S+\.\S+/.test(form.correo)) e.correo = "Formato de correo inválido";
+      else if (users.some(u => u.correo.toLowerCase() === form.correo.toLowerCase())) e.correo = "Este correo ya está en uso";
+
+      if (!form.telefono.trim())  e.telefono     = "El teléfono es obligatorio";
+      if (!form.fechaIngreso)     e.fechaIngreso = "La fecha de ingreso es obligatoria";
     }
     if (s === 3) {
-      if (!form.departamento) e.departamento = "Requerido";
-      if (!form.municipio)    e.municipio    = "Requerido";
+      if (!form.departamento) e.departamento = "Selecciona un departamento";
+      if (!form.municipio)    e.municipio    = "Selecciona un municipio";
     }
     if (s === 4) {
-      if (form.contrasena.length < 6)         e.contrasena = "Mínimo 6 caracteres";
-      if (form.contrasena !== form.confirmar) e.confirmar  = "No coinciden";
+      if (!form.contrasena) e.contrasena = "La contraseña es obligatoria";
+      else if (form.contrasena.length < 8) e.contrasena = "Mínimo 8 caracteres";
+      else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(form.contrasena)) 
+        e.contrasena = "Debe incluir mayúsculas, minúsculas y números";
+        
+      if (form.contrasena !== form.confirmar) e.confirmar  = "Las contraseñas no coinciden";
     }
     return e;
   };

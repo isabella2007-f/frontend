@@ -30,6 +30,7 @@ function StepsBar({ current }) {
 }
 
 export default function CrearInsumo({ onClose, onSave, categorias, unidades }) {
+  const { insumos } = useApp();
   const [form, setForm] = useState({
     nombre: "", idCategoria: "", idUnidad: "",
     stockMinimo: "",
@@ -49,13 +50,19 @@ export default function CrearInsumo({ onClose, onSave, categorias, unidades }) {
   // Validación por paso
   const validateStep = (s) => {
     const e = {};
+    const existing = insumos || [];
+
     if (s === 1) {
-      if (!form.nombre.trim()) e.nombre      = "Campo requerido";
+      if (!form.nombre.trim()) e.nombre      = "El nombre es obligatorio";
+      else if (existing.some(i => i.nombre.toLowerCase() === form.nombre.toLowerCase())) {
+        e.nombre = "Este insumo ya existe en el inventario";
+      }
       if (!form.idCategoria)   e.idCategoria = "Selecciona una categoría";
       if (!form.idUnidad)      e.idUnidad    = "Selecciona una unidad";
     }
     if (s === 2) {
-      if (form.stockMinimo === "") e.stockMinimo = "Campo requerido";
+      if (form.stockMinimo === "" || isNaN(form.stockMinimo) || Number(form.stockMinimo) < 0)
+        e.stockMinimo = "Valor válido requerido";
     }
     return e;
   };

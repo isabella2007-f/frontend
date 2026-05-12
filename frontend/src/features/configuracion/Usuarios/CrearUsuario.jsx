@@ -275,20 +275,30 @@ export default function CrearUsuario({ user, onClose, onSave }) {
 
   const validateStep = (s) => {
     const e = {};
+    const { usuarios: existing } = useApp();
 
     if (s === 1) {
-      if (!form.nombre.trim())    e.nombre    = "Campo obligatorio";
-      if (!form.apellidos.trim()) e.apellidos = "Campo obligatorio";
-      if (!form.correo.trim())    e.correo    = "Campo obligatorio";
-      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo)) e.correo = "Formato inválido";
-      if (!form.cedula.trim())    e.cedula    = "Campo obligatorio";
-      if (!form.telefono.trim())  e.telefono  = "Campo obligatorio";
+      if (!form.nombre.trim())    e.nombre    = "El nombre es obligatorio";
+      if (!form.apellidos.trim()) e.apellidos = "Los apellidos son obligatorios";
+      
+      if (!form.correo.trim())    e.correo    = "El correo es obligatorio";
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo)) e.correo = "Formato de correo inválido";
+      else if (existing.some(u => u.correo.toLowerCase() === form.correo.toLowerCase() && u.id !== form.id)) {
+        e.correo = "Este correo ya está registrado";
+      }
+
+      if (!form.cedula.trim())    e.cedula    = "La cédula es obligatoria";
+      else if (existing.some(u => u.cedula === form.cedula && u.id !== form.id)) {
+        e.cedula = "Esta cédula ya está registrada";
+      }
+
+      if (!form.telefono.trim())  e.telefono  = "El teléfono es obligatorio";
     }
 
     if (s === 2) {
       if (!form.departamento)     e.departamento = "Selecciona un departamento";
       if (!form.municipio)        e.municipio    = "Selecciona un municipio";
-      if (!form.direccion.trim()) e.direccion    = "Campo obligatorio";
+      if (!form.direccion.trim()) e.direccion    = "La dirección es obligatoria";
     }
 
     if (s === 3) {

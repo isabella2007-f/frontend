@@ -199,24 +199,35 @@ const Register = () => {
   // ── Validación por paso ──
   const validate = () => {
     const e = {};
+    const users = JSON.parse(localStorage.getItem('users')) || [];
+
     if (step === 1) {
-      if (!form.nombre.trim())    e.nombre    = 'Campo obligatorio';
-      if (!form.apellidos.trim()) e.apellidos = 'Campo obligatorio';
-      if (!form.cedula.trim())    e.cedula    = 'Campo obligatorio';
+      if (!form.nombre.trim())    e.nombre    = 'El nombre es obligatorio';
+      if (!form.apellidos.trim()) e.apellidos = 'Los apellidos son obligatorios';
+      if (!form.cedula.trim())    e.cedula    = 'La cédula es obligatoria';
+      else if (form.cedula.length < 6) e.cedula = 'Cédula muy corta';
+      else if (users.some(u => u.cedula === form.cedula)) e.cedula = 'Esta cédula ya está registrada';
     }
     if (step === 2) {
-      if (!form.correo.trim())   e.correo   = 'Campo obligatorio';
-      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo)) e.correo = 'Formato inválido';
-      if (!form.telefono.trim()) e.telefono = 'Campo obligatorio';
+      if (!form.correo.trim())   e.correo   = 'El correo es obligatorio';
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo)) e.correo = 'Formato de correo inválido';
+      else if (users.some(u => u.correo.toLowerCase() === form.correo.toLowerCase())) e.correo = 'Este correo ya está en uso';
+      
+      if (!form.telefono.trim()) e.telefono = 'El teléfono es obligatorio';
+      else if (form.telefono.replace(/\D/g, '').length < 7) e.telefono = 'Número de teléfono inválido';
     }
     if (step === 3) {
-      if (!form.direccion.trim()) e.direccion = 'Campo obligatorio';
+      if (!form.direccion.trim()) e.direccion = 'La dirección es obligatoria';
       if (!form.departamento)     e.departamento = 'Selecciona un departamento';
       if (!form.municipio)        e.municipio    = 'Selecciona un municipio';
     }
     if (step === 4) {
-      const passError = validatePassword(form.password, form.confirmar);
-      if (passError) e.password = passError;
+      if (!form.password) e.password = 'La contraseña es obligatoria';
+      else if (form.password.length < 8) e.password = 'Mínimo 8 caracteres';
+      else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(form.password)) 
+        e.password = 'Debe incluir mayúsculas, minúsculas y números';
+      
+      if (form.password !== form.confirmar) e.confirmar = 'Las contraseñas no coinciden';
     }
     setErrors(e);
     return Object.keys(e).length === 0;
