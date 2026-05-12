@@ -5,6 +5,9 @@ import "./Salidas.css";
 /* ══════════════════════════════════════════════════════════
    HELPERS
 ══════════════════════════════════════════════════════════ */
+
+const ITEMS_PER_PAGE = 5;
+
 function hoyISO() { return new Date().toISOString().split("T")[0]; }
 function formatFecha(f) {
   if (!f) return "—";
@@ -15,7 +18,6 @@ function formatFecha(f) {
 function estaVencido(fv)    { return fv ? fv < hoyISO() : false; }
 function diasParaVencer(fv) { if (!fv) return null; return Math.ceil((new Date(fv + "T00:00:00") - new Date(hoyISO() + "T00:00:00")) / 86400000); }
 
-// Una salida es manual (editable/eliminable) si NO fue generada por el sistema
 function esSalidaManual(s) {
   return s.usuario !== "sistema" && s.tipo !== "produccion" && s.origen !== "sistema";
 }
@@ -28,6 +30,70 @@ const TIPOS = [
   { val: "devolucion", label: "Devolución", icon: "↩️", color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7" },
 ];
 const TIPO_MAP = Object.fromEntries(TIPOS.map(t => [t.val, t]));
+
+/* ══════════════════════════════════════════════════════════
+   PAGINACIÓN
+══════════════════════════════════════════════════════════ */
+function Paginacion({ totalItems, itemsPerPage, currentPage, onPageChange }) {
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  if (totalPages <= 1) return null;
+
+  const inicio = (currentPage - 1) * itemsPerPage + 1;
+  const fin    = Math.min(currentPage * itemsPerPage, totalItems);
+
+  return (
+    <div className="sl-pagination">
+      <span className="sl-pagination__info">
+        Mostrando <strong>{inicio}–{fin}</strong> de <strong>{totalItems}</strong> salidas
+      </span>
+      <div className="sl-pagination__btns">
+        <button
+          className="sl-pg-btn"
+          onClick={() => onPageChange(1)}
+          disabled={currentPage === 1}
+          title="Primera página"
+        >«</button>
+        <button
+          className="sl-pg-btn"
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          title="Página anterior"
+        >‹</button>
+
+        {Array.from({ length: totalPages }, (_, i) => i + 1)
+          .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+          .reduce((acc, p, idx, arr) => {
+            if (idx > 0 && p - arr[idx - 1] > 1) acc.push("…");
+            acc.push(p);
+            return acc;
+          }, [])
+          .map((item, idx) =>
+            item === "…"
+              ? <span key={`ellipsis-${idx}`} className="sl-pg-ellipsis">…</span>
+              : <button
+                  key={item}
+                  className={`sl-pg-btn sl-pg-btn--num${currentPage === item ? " active" : ""}`}
+                  onClick={() => onPageChange(item)}
+                >{item}</button>
+          )
+        }
+
+        <button
+          className="sl-pg-btn"
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          title="Página siguiente"
+        >›</button>
+        <button
+          className="sl-pg-btn"
+          onClick={() => onPageChange(totalPages)}
+          disabled={currentPage === totalPages}
+          title="Última página"
+        >»</button>
+      </div>
+    </div>
+  );
+}
 
 /* ══════════════════════════════════════════════════════════
    MODAL CONFIRMAR ELIMINACIÓN
@@ -86,7 +152,6 @@ function EditarSalida({ salida, onClose, onGuardado }) {
   const [errors,     setErrors]     = useState({});
   const [saving,     setSaving]     = useState(false);
 
-  // Stock actual del elemento (sin contar la salida original, para calcular el máx disponible)
   const entidad = salida.entidadTipo === "producto"
     ? productos.find(p => p.id === salida.entidadId)
     : insumos.find(i => i.id === salida.entidadId);
@@ -95,7 +160,6 @@ function EditarSalida({ salida, onClose, onGuardado }) {
     ? (getUnidad(entidad?.idUnidad)?.simbolo || "uds.")
     : "uds.";
 
-  // Stock disponible = stock actual + cantidad original de la salida (lo que se reintegraría)
   const stockDisponible = salida.entidadTipo === "producto"
     ? (entidad?.stock ?? 0) + salida.cantidad
     : (entidad?.stockActual ?? 0) + salida.cantidad;
@@ -155,7 +219,6 @@ function EditarSalida({ salida, onClose, onGuardado }) {
         </div>
 
         <div className="modal-body" style={{ padding: "20px 24px 24px" }}>
-          {/* Info del elemento (solo lectura) */}
           <div className="sl-seleccionado" style={{ marginBottom: 18 }}>
             <span style={{ fontSize: 22 }}>{salida.entidadTipo === "producto" ? "📦" : "🧺"}</span>
             <div>
@@ -167,7 +230,6 @@ function EditarSalida({ salida, onClose, onGuardado }) {
             </div>
           </div>
 
-          {/* Tipo */}
           <div className="form-group">
             <label className="sl-label">Tipo de salida</label>
             <div className="sl-tipos-grid">
@@ -182,7 +244,6 @@ function EditarSalida({ salida, onClose, onGuardado }) {
             </div>
           </div>
 
-          {/* Cantidad */}
           <div className="form-group">
             <label className="sl-label">Cantidad</label>
             <div style={{ position: "relative" }}>
@@ -197,7 +258,6 @@ function EditarSalida({ salida, onClose, onGuardado }) {
             {errors.cantidad && <p className="field-error">{errors.cantidad}</p>}
           </div>
 
-          {/* Preview */}
           {cantidad && !errors.cantidad && (
             <div style={{ marginBottom: 14, padding: "10px 14px", borderRadius: 10, background: tipoActual.bg, border: `1px solid ${tipoActual.border}` }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontSize: 12 }}>
@@ -210,7 +270,6 @@ function EditarSalida({ salida, onClose, onGuardado }) {
             </div>
           )}
 
-          {/* Motivo */}
           <div className="form-group">
             <label className="sl-label">Motivo <span style={{ color: "#bdbdbd", fontWeight: 400, textTransform: "none" }}>(opcional)</span></label>
             <input className="sl-input" value={motivo}
@@ -218,7 +277,6 @@ function EditarSalida({ salida, onClose, onGuardado }) {
               placeholder="Descripción adicional…" />
           </div>
 
-          {/* Botones */}
           <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
             <button className="sl-btn-cancel" onClick={onClose}>Cancelar</button>
             <button className="sl-btn-registrar" onClick={handleGuardar}
@@ -317,11 +375,8 @@ function RegistrarSalida({ onClose, onSalidaRegistrada }) {
 
         <div className="modal-body">
           <div className="sl-registrar-grid">
-
-            {/* ── Columna izquierda: selector ── */}
             <div className="sl-panel">
               <p className="sl-panel__title">1 · Seleccionar elemento</p>
-
               <div className="sl-tipo-tabs">
                 <button className={`sl-tipo-tab${entidadTipo === "producto" ? " active" : ""}`}
                   onClick={() => { setEntidadTipo("producto"); setSeleccionado(null); setBusqueda(""); }}>
@@ -332,14 +387,12 @@ function RegistrarSalida({ onClose, onSalidaRegistrada }) {
                   🧺 Insumos
                 </button>
               </div>
-
               <div className="sl-search">
                 <span className="sl-search__icon">🔍</span>
                 <input className="sl-search__input" placeholder="Buscar por nombre o categoría…"
                   value={busqueda}
                   onChange={e => { setBusqueda(e.target.value); setErrors(p => ({ ...p, seleccionado: "" })); }} />
               </div>
-
               <div className="sl-lista">
                 {filtrados.length === 0
                   ? <div className="sl-lista__empty">Sin resultados</div>
@@ -367,11 +420,8 @@ function RegistrarSalida({ onClose, onSalidaRegistrada }) {
               {errors.seleccionado && <p className="field-error" style={{ marginTop: 6 }}>{errors.seleccionado}</p>}
             </div>
 
-            {/* ── Columna derecha: formulario ── */}
             <div className="sl-panel sl-panel--form">
-
               <p className="sl-panel__title">2 · Registrar salida</p>
-
               {seleccionado ? (
                 <div className="sl-seleccionado">
                   <span style={{ fontSize: 22 }}>{seleccionado._tipo === "producto" ? "📦" : "🧺"}</span>
@@ -470,14 +520,15 @@ function HistorialSalidas({ onAgregarClick }) {
     eliminarSalidaInsumo, eliminarSalidaProducto,
   } = useApp();
 
-  const [filtroTipo,       setFiltroTipo]       = useState("todos");
-  const [filtroEntidad,    setFiltroEntidad]     = useState("todos");
-  const [busqueda,         setBusqueda]          = useState("");
-  const [showFilter,       setShowFilter]        = useState(false);
-  const [salidaAEliminar,  setSalidaAEliminar]   = useState(null); // { salida }
-  const [salidaAEditar,    setSalidaAEditar]     = useState(null); // { salida }
-  const [toast,            setToast]             = useState(null);
-  const [refreshKey,       setRefreshKey]        = useState(0);
+  const [filtroTipo,      setFiltroTipo]     = useState("todos");
+  const [filtroEntidad,   setFiltroEntidad]  = useState("todos");
+  const [busqueda,        setBusqueda]       = useState("");
+  const [showFilter,      setShowFilter]     = useState(false);
+  const [salidaAEliminar, setSalidaAEliminar] = useState(null);
+  const [salidaAEditar,   setSalidaAEditar]  = useState(null);
+  const [toast,           setToast]          = useState(null);
+  const [refreshKey,      setRefreshKey]     = useState(0);
+  const [page,            setPage]           = useState(1);          // ← paginación
   const filterRef = useRef();
 
   const showToast = (msg, type = "success") => {
@@ -491,7 +542,9 @@ function HistorialSalidas({ onAgregarClick }) {
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  // Construir lista completa enriquecida con entidadId para edit/delete
+  // Resetear a página 1 cuando cambian los filtros o la búsqueda
+  useEffect(() => { setPage(1); }, [filtroTipo, filtroEntidad, busqueda, refreshKey]);
+
   const todasSalidas = [
     ...productos.flatMap(p => (getSalidasProducto?.(p.id) || []).map(s => ({
       ...s,
@@ -523,11 +576,15 @@ function HistorialSalidas({ onAgregarClick }) {
     return matchTipo && matchEntidad && matchQ;
   });
 
+  // Calcular página segura y slice
+  const totalPages = Math.ceil(filtradas.length / ITEMS_PER_PAGE);
+  const safePage   = Math.min(page, Math.max(1, totalPages));
+  const paginadas  = filtradas.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
+
   const totalUnidades = todasSalidas.reduce((acc, s) => acc + s.cantidad, 0);
 
   const toggleFiltroTipo = (val) => setFiltroTipo(prev => prev === val ? "todos" : val);
 
-  // Confirmar eliminación
   const handleConfirmarEliminar = () => {
     if (!salidaAEliminar) return;
     const s = salidaAEliminar;
@@ -635,9 +692,9 @@ function HistorialSalidas({ onAgregarClick }) {
               </tr>
             </thead>
             <tbody>
-              {filtradas.map((s, idx) => {
-                const tc      = TIPO_MAP[s.tipo] || { color: "#757575", bg: "#f5f5f5", border: "#e0e0e0", icon: "📋", label: s.tipo };
-                const manual  = esSalidaManual(s);
+              {paginadas.map((s, idx) => {
+                const tc     = TIPO_MAP[s.tipo] || { color: "#757575", bg: "#f5f5f5", border: "#e0e0e0", icon: "📋", label: s.tipo };
+                const manual = esSalidaManual(s);
                 return (
                   <tr key={s.id || idx} className="sl-table__row">
                     <td>
@@ -662,23 +719,11 @@ function HistorialSalidas({ onAgregarClick }) {
                       <div className="sl-table-actions">
                         {manual ? (
                           <>
-                            <button
-                              className="sl-action-btn sl-action-btn--edit"
-                              title="Editar salida"
-                              onClick={() => setSalidaAEditar(s)}>
-                              ✏️
-                            </button>
-                            <button
-                              className="sl-action-btn sl-action-btn--delete"
-                              title="Eliminar salida"
-                              onClick={() => setSalidaAEliminar(s)}>
-                              🗑️
-                            </button>
+                            <button className="sl-action-btn sl-action-btn--edit" title="Editar salida" onClick={() => setSalidaAEditar(s)}>✏️</button>
+                            <button className="sl-action-btn sl-action-btn--delete" title="Eliminar salida" onClick={() => setSalidaAEliminar(s)}>🗑️</button>
                           </>
                         ) : (
-                          <span className="sl-action-locked" title="Generada por el sistema — no editable">
-                            🔒
-                          </span>
+                          <span className="sl-action-locked" title="Generada por el sistema — no editable">🔒</span>
                         )}
                       </div>
                     </td>
@@ -690,7 +735,15 @@ function HistorialSalidas({ onAgregarClick }) {
         )}
       </div>
 
-      {/* Modal eliminar */}
+      {/* ── Paginación ── */}
+      <Paginacion
+        totalItems={filtradas.length}
+        itemsPerPage={ITEMS_PER_PAGE}
+        currentPage={safePage}
+        onPageChange={setPage}
+      />
+
+      {/* Modales */}
       {salidaAEliminar && (
         <ModalConfirmarEliminar
           salida={salidaAEliminar}
@@ -698,8 +751,6 @@ function HistorialSalidas({ onAgregarClick }) {
           onCancelar={() => setSalidaAEliminar(null)}
         />
       )}
-
-      {/* Modal editar */}
       {salidaAEditar && (
         <EditarSalida
           salida={salidaAEditar}
@@ -712,7 +763,6 @@ function HistorialSalidas({ onAgregarClick }) {
         />
       )}
 
-      {/* Toast */}
       {toast && (
         <div className="sl-toast" style={{ background: toast.type === "error" ? "#c62828" : "#2e7d32" }}>
           <span>{toast.type === "error" ? "❌" : "✅"}</span> {toast.msg}

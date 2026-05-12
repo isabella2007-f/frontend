@@ -319,7 +319,7 @@
 }
 
 /* ══════════════════════════════════════════════════════════
-   ACCIONES EN TABLA (editar / eliminar / bloqueado)
+   ACCIONES EN TABLA
 ══════════════════════════════════════════════════════════ */
 .sl-table-actions {
   display: flex;
@@ -341,102 +341,61 @@
   padding: 0;
 }
 
-.sl-action-btn--edit {
-  border-color: #90caf9;
-  background: #e3f2fd;
-}
+.sl-action-btn--edit   { border-color: #90caf9; background: #e3f2fd; }
 .sl-action-btn--edit:hover {
-  background: #1565c0;
-  border-color: #1565c0;
+  background: #1565c0; border-color: #1565c0;
   transform: translateY(-1px);
   box-shadow: 0 3px 8px rgba(21,101,192,0.25);
 }
 
-.sl-action-btn--delete {
-  border-color: #ef9a9a;
-  background: #ffebee;
-}
+.sl-action-btn--delete { border-color: #ef9a9a; background: #ffebee; }
 .sl-action-btn--delete:hover {
-  background: #c62828;
-  border-color: #c62828;
+  background: #c62828; border-color: #c62828;
   transform: translateY(-1px);
   box-shadow: 0 3px 8px rgba(198,40,40,0.25);
 }
 
 .sl-action-locked {
-  font-size: 14px;
-  opacity: 0.35;
-  cursor: default;
-  user-select: none;
+  font-size: 14px; opacity: 0.35;
+  cursor: default; user-select: none;
 }
 
 /* ══════════════════════════════════════════════════════════
-   BOTONES MODAL CONFIRMAR / CANCELAR
+   BOTONES MODAL
 ══════════════════════════════════════════════════════════ */
 .sl-btn-cancel {
-  flex: 1;
-  padding: 10px;
-  border-radius: 10px;
-  border: 1.5px solid #e0e0e0;
-  background: #fafafa;
-  color: #616161;
-  font-weight: 600;
-  font-size: 14px;
-  cursor: pointer;
-  font-family: inherit;
-  transition: all 0.15s;
+  flex: 1; padding: 10px; border-radius: 10px;
+  border: 1.5px solid #e0e0e0; background: #fafafa;
+  color: #616161; font-weight: 600; font-size: 14px;
+  cursor: pointer; font-family: inherit; transition: all 0.15s;
 }
 .sl-btn-cancel:hover { border-color: #bdbdbd; background: #f5f5f5; }
 
 .sl-btn-delete {
-  flex: 1;
-  padding: 10px;
-  border-radius: 10px;
-  border: none;
-  background: #c62828;
-  color: #fff;
-  font-weight: 700;
-  font-size: 14px;
-  cursor: pointer;
-  font-family: inherit;
+  flex: 1; padding: 10px; border-radius: 10px; border: none;
+  background: #c62828; color: #fff; font-weight: 700; font-size: 14px;
+  cursor: pointer; font-family: inherit;
   box-shadow: 0 4px 14px rgba(198,40,40,0.28);
   transition: all 0.18s;
 }
 .sl-btn-delete:hover { filter: brightness(1.1); transform: translateY(-1px); }
 
 /* ══════════════════════════════════════════════════════════
-   MODAL CONFIRMAR ELIMINAR — tarjeta de detalle
+   MODAL CONFIRMAR — tarjeta detalle
 ══════════════════════════════════════════════════════════ */
 .sl-confirm-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  text-align: center;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 12px; text-align: center;
 }
 .sl-confirm-card__icon {
-  width: 52px; height: 52px;
-  border-radius: 50%;
-  background: #ffebee;
-  border: 2px solid #ef9a9a;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 22px;
+  width: 52px; height: 52px; border-radius: 50%;
+  background: #ffebee; border: 2px solid #ef9a9a;
+  display: flex; align-items: center; justify-content: center; font-size: 22px;
 }
-.sl-confirm-card__text {
-  font-size: 14px;
-  color: #424242;
-  line-height: 1.5;
-  margin: 0;
-}
+.sl-confirm-card__text { font-size: 14px; color: #424242; line-height: 1.5; margin: 0; }
 .sl-confirm-card__detail {
-  width: 100%;
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px;
-  border-radius: 10px;
-  border: 1.5px solid;
-  text-align: left;
+  width: 100%; display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px; border-radius: 10px; border: 1.5px solid; text-align: left;
 }
 
 /* ── Empty state ────────────────────────────────────────── */
@@ -458,9 +417,7 @@
 
 /* ── Vencidos ───────────────────────────────────────────── */
 .sl-vencidos-scroll {
-  flex: 1;
-  overflow-y: hidden;
-  min-height: 0;
+  flex: 1; overflow-y: hidden; min-height: 0;
   padding: 4px 4px 8px 4px;
 }
 .sl-vencidos-scroll::-webkit-scrollbar       { width: 4px; }
@@ -469,30 +426,23 @@
 .sl-vencidos-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 12px;
-  padding-bottom: 4px;
+  gap: 12px; padding-bottom: 4px;
 }
 
-.sl-vencido-card {
-  border-radius: 12px; border: 1.5px solid;
-  overflow: visible;
-  transition: transform 0.15s;
-}
+.sl-vencido-card { border-radius: 12px; border: 1.5px solid; overflow: visible; transition: transform 0.15s; }
 .sl-vencido-card:hover { transform: translateY(-2px); }
 .sl-vencido-card__header {
   display: flex; justify-content: space-between; align-items: flex-start;
-  padding: 12px 12px 8px; gap: 8px;
-  border-radius: 12px 12px 0 0;
+  padding: 12px 12px 8px; gap: 8px; border-radius: 12px 12px 0 0;
 }
 .sl-vencido-card__badge {
   padding: 3px 9px; border-radius: 20px;
   font-size: 11px; font-weight: 700; white-space: nowrap; flex-shrink: 0;
 }
 .sl-vencido-card__body {
-  display: grid; grid-template-columns: 1fr 1fr;
-  gap: 6px; padding: 8px 12px 12px;
-  border-top: 1px solid rgba(0,0,0,0.06); font-size: 12px;
-  border-radius: 0 0 12px 12px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  padding: 8px 12px 12px; border-top: 1px solid rgba(0,0,0,0.06);
+  font-size: 12px; border-radius: 0 0 12px 12px;
 }
 .sl-vencido-card__key { display: block; color: #9e9e9e; font-weight: 600; margin-bottom: 1px; }
 .sl-vencido-card__val { font-weight: 700; color: #1a1a1a; }
@@ -508,9 +458,88 @@
   font-family: 'DM Sans', sans-serif;
 }
 
+/* ══════════════════════════════════════════════════════════
+   PAGINACIÓN
+══════════════════════════════════════════════════════════ */
+.sl-pagination {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 4px 2px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.sl-pagination__info {
+  font-size: 12px;
+  color: #9e9e9e;
+  font-weight: 500;
+}
+.sl-pagination__info strong {
+  color: #424242;
+  font-weight: 700;
+}
+
+.sl-pagination__btns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sl-pg-btn {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 6px;
+  border-radius: 8px;
+  border: 1.5px solid #e0e0e0;
+  background: #fff;
+  color: #616161;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.sl-pg-btn:hover:not(:disabled) {
+  border-color: #4caf50;
+  color: #2e7d32;
+  background: #f1f8f1;
+}
+.sl-pg-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.sl-pg-btn--num {
+  min-width: 32px;
+}
+.sl-pg-btn--num.active {
+  background: #2e7d32;
+  border-color: #2e7d32;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(46,125,50,0.28);
+}
+.sl-pg-btn--num.active:hover {
+  background: #2e7d32;
+  color: #fff;
+}
+
+.sl-pg-ellipsis {
+  font-size: 13px;
+  color: #bdbdbd;
+  padding: 0 4px;
+  user-select: none;
+}
+
 /* ── Responsive ─────────────────────────────────────────── */
 @media (max-width: 860px) {
   .sl-registrar-grid { grid-template-columns: 1fr; overflow-y: hidden; }
   .sl-tipos-grid     { grid-template-columns: repeat(3, 1fr); }
   .sl-page__body     { padding: 12px 14px; }
+  .sl-pagination     { justify-content: center; }
+  .sl-pagination__info { display: none; }
 }

@@ -508,7 +508,38 @@ export function AppProvider({ children }) {
     return { ok: true };
   };
 
-  /* ── Salidas INSUMOS ────────────────────────────────── */
+  // ── Editar salida PRODUCTO ───────────────────────────────
+  const editarSalidaProducto = ({ idProducto, id, tipo, motivo, cantidad, fecha }) => {
+    const anterior = (salidasProductos[idProducto] || []).find(s => s.id === id);
+    if (!anterior) return { ok: false, razon: "Salida no encontrada" };
+    const diferencia = cantidad - anterior.cantidad;
+    setProductos(prev => prev.map(p =>
+      p.id !== idProducto ? p : { ...p, stock: Math.max(0, p.stock - diferencia) }
+    ));
+    setSalidasProductos(prev => ({
+      ...prev,
+      [idProducto]: (prev[idProducto] || []).map(s =>
+        s.id !== id ? s : { ...s, tipo, motivo, cantidad, fecha }
+      ),
+    }));
+    return { ok: true };
+  };
+
+  // ── Eliminar salida PRODUCTO ─────────────────────────────
+  const eliminarSalidaProducto = ({ idProducto, id }) => {
+    const salida = (salidasProductos[idProducto] || []).find(s => s.id === id);
+    if (!salida) return { ok: false, razon: "Salida no encontrada" };
+    setProductos(prev => prev.map(p =>
+      p.id !== idProducto ? p : { ...p, stock: p.stock + salida.cantidad }
+    ));
+    setSalidasProductos(prev => ({
+      ...prev,
+      [idProducto]: (prev[idProducto] || []).filter(s => s.id !== id),
+    }));
+    return { ok: true };
+  };
+
+  /* ── Salidas INSUMOS ────────────────────────────────────── */
   const getSalidasInsumo = (idInsumo) =>
     salidas.filter(s => s.idInsumo === Number(idInsumo)).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
@@ -550,6 +581,35 @@ export function AppProvider({ children }) {
     };
     setSalidas(prev => [salida, ...prev]);
     return { ok: result.ok, falta: result.faltante };
+  };
+
+  // ── Editar salida INSUMO ─────────────────────────────────
+  const editarSalidaInsumo = ({ id, tipo, motivo, cantidad, fecha }) => {
+    setSalidas(prev => {
+      const anterior = prev.find(s => s.id === id);
+      if (!anterior) return prev;
+      const diferencia = cantidad - anterior.cantidad;
+      setInsumos(prevIns => prevIns.map(ins =>
+        ins.id === anterior.idInsumo
+          ? { ...ins, stockActual: Math.max(0, ins.stockActual - diferencia) }
+          : ins
+      ));
+      return prev.map(s => s.id !== id ? s : { ...s, tipo, motivo, cantidad, fecha });
+    });
+    return { ok: true };
+  };
+
+  // ── Eliminar salida INSUMO ───────────────────────────────
+  const eliminarSalidaInsumo = (id) => {
+    const salida = salidas.find(s => s.id === id);
+    if (!salida) return { ok: false, razon: "Salida no encontrada" };
+    setInsumos(prev => prev.map(ins =>
+      ins.id === salida.idInsumo
+        ? { ...ins, stockActual: ins.stockActual + salida.cantidad }
+        : ins
+    ));
+    setSalidas(prev => prev.filter(s => s.id !== id));
+    return { ok: true };
   };
 
   /* ── Lookups ────────────────────────────────────────── */
@@ -743,7 +803,6 @@ export function AppProvider({ children }) {
     setCompras(p => [nueva, ...p]);
 
     if (stockAplicado) {
-      // Usamos el estado anterior para generar lotes de forma consistente
       setLotes(prevLotes => [...prevLotes, ..._buildLotes(id, detalles, prevLotes)]);
       _subirStock(detalles);
     } else {
@@ -761,13 +820,11 @@ export function AppProvider({ children }) {
   const editarCompra = (form) => {
     setCompras(prevCompras => prevCompras.map(c => {
       if (c.id !== form.id) return c;
-      
-      // Si ya se aplicó el stock, solo permitir editar notas y método de pago
+
       if (c.stockAplicado) {
         return { ...c, notas: form.notas, metodoPago: form.metodoPago };
       }
 
-      // Si pasa a completada ahora, aplicar stock
       if (form.estado === "completada") {
         const detallesConId = form.detalles.map((d, i) => ({ ...d, id: d.id || `${c.id}-D${i + 1}` }));
         setLotes(prevLotes => [...prevLotes, ..._buildLotes(c.id, detallesConId, prevLotes)]);
@@ -775,7 +832,6 @@ export function AppProvider({ children }) {
         return { ...form, detalles: detallesConId, stockAplicado: true };
       }
 
-      // Si sigue pendiente o anulada (pero no aplicada antes)
       return { ...form, stockAplicado: false };
     }));
   };
@@ -786,29 +842,25 @@ export function AppProvider({ children }) {
       if (!compra || compra.stockAplicado) return prevCompras;
 
       const detallesConId = compra.detalles.map((d, i) => ({ ...d, id: d.id || `${compra.id}-D${i + 1}` }));
-      
+
       setLotes(prevLotes => [...prevLotes, ..._buildLotes(compra.id, detallesConId, prevLotes)]);
       _subirStock(detallesConId);
 
-      return prevCompras.map(c => 
+      return prevCompras.map(c =>
         c.id === id ? { ...c, estado: "completada", detalles: detallesConId, stockAplicado: true } : c
       );
     });
   };
 
-  // ✅ FIX: anularCompra corregido — siempre retorna { ok: true/false }
-  // y setModal(null) nunca queda bloqueado por una excepción interna
   const anularCompra = (id) => {
     const c = compras.find(x => x.id === id);
     if (!c) return { ok: false, razon: "Compra no encontrada" };
     if (c.estado === "anulada") return { ok: false, razon: "La compra ya está anulada" };
 
-    // Primero marcar como anulada — esto siempre se ejecuta
     setCompras(prev => prev.map(comp =>
       comp.id === id ? { ...comp, estado: "anulada" } : comp
     ));
 
-    // Luego revertir stock si aplica, de forma aislada para no bloquear el return
     if (c.stockAplicado) {
       try {
         c.detalles.forEach(d => {
@@ -822,7 +874,6 @@ export function AppProvider({ children }) {
         });
       } catch (e) {
         console.warn("Error al revertir stock en anulación:", e);
-        // No bloquear — la compra ya quedó anulada correctamente
       }
     }
 
@@ -869,35 +920,35 @@ export function AppProvider({ children }) {
         if (!ins) return;
         const cantItem = (Number(fi.cantidad) || 0) * item.cantidad;
         if (insumosMap[ins.id]) insumosMap[ins.id].cantidad += cantItem;
-        else insumosMap[ins.id] = { 
-          idInsumo: ins.id, 
-          nombre: ins.nombre, 
-          cantidad: cantItem, 
-          unidad: UNIDADES_MEDIDA.find(u => u.id === ins.idUnidad)?.simbolo || "und", 
-          stockOk: false 
+        else insumosMap[ins.id] = {
+          idInsumo: ins.id,
+          nombre: ins.nombre,
+          cantidad: cantItem,
+          unidad: UNIDADES_MEDIDA.find(u => u.id === ins.idUnidad)?.simbolo || "und",
+          stockOk: false
         };
       });
     });
 
-    Object.values(insumosMap).forEach(ins => { 
-      const r = insumosActuales.find(i => i.id === ins.idInsumo); 
-      ins.stockOk = (r?.stockActual || 0) >= ins.cantidad; 
+    Object.values(insumosMap).forEach(ins => {
+      const r = insumosActuales.find(i => i.id === ins.idInsumo);
+      ins.stockOk = (r?.stockActual || 0) >= ins.cantidad;
     });
 
-    return { 
-      id, 
-      idPedido: pedido.id, 
-      numeroPedido: pedido.numero, 
-      productos: sinStock.map(p => ({ idProducto: p.idProducto, nombre: p.nombre, cantidad: p.cantidad, precio: p.precio })), 
-      insumos: Object.values(insumosMap), 
-      idEmpleado: null, 
-      estado: "Pendiente", 
-      fechaInicio: fechaHoy(), 
-      fechaEntrega: fechaEntrega || null, 
-      fechaCierre: null, 
-      costo: sinStock.reduce((acc, p) => acc + (p.precio || 0) * p.cantidad, 0), 
+    return {
+      id,
+      idPedido: pedido.id,
+      numeroPedido: pedido.numero,
+      productos: sinStock.map(p => ({ idProducto: p.idProducto, nombre: p.nombre, cantidad: p.cantidad, precio: p.precio })),
+      insumos: Object.values(insumosMap),
+      idEmpleado: null,
+      estado: "Pendiente",
+      fechaInicio: fechaHoy(),
+      fechaEntrega: fechaEntrega || null,
+      fechaCierre: null,
+      costo: sinStock.reduce((acc, p) => acc + (p.precio || 0) * p.cantidad, 0),
       notas: notas || "",
-      missingFicha // Agregamos reporte de fichas faltantes
+      missingFicha,
     };
   };
 
@@ -905,8 +956,7 @@ export function AppProvider({ children }) {
     const numero        = nextPedidoNumero(pedidos);
     const estadoInicial = payload.orden_produccion ? "En producción" : "Pendiente";
     const nuevo         = { ...payload, id: Date.now(), numero, estado: estadoInicial, orden_produccion: payload.orden_produccion || false, fecha_pedido: fechaHoy(), idEmpleado: null };
-    
-    // Validación de fichas antes de crear
+
     if (nuevo.orden_produccion) {
       const orden = _buildOrden(nuevo, { fechaEntrega: null, notas: payload.notas || "" }, ordenes, productos, insumos);
       if (orden.missingFicha.length > 0) {
@@ -922,9 +972,9 @@ export function AppProvider({ children }) {
     }));
 
     if (nuevo.orden_produccion) {
-      setOrdenes(prev => { 
-        const orden = _buildOrden(nuevo, { fechaEntrega: null, notas: payload.notas || "" }, prev, productos, insumos); 
-        return [orden, ...prev]; 
+      setOrdenes(prev => {
+        const orden = _buildOrden(nuevo, { fechaEntrega: null, notas: payload.notas || "" }, prev, productos, insumos);
+        return [orden, ...prev];
       });
     }
 
@@ -934,10 +984,9 @@ export function AppProvider({ children }) {
       titulo: `Nuevo pedido: ${numero}`,
       mensaje: `Se creó el pedido ${numero} para "${payload.cliente?.nombre || "cliente"}". Total: $${(payload.total || 0).toLocaleString("es-CO")}. Estado: ${estadoInicial}.`,
       idReferencia: numero, refNombre: numero,
-      idDestinatario: 'admin' // Para el admin
+      idDestinatario: 'admin',
     });
 
-    // ✅ Notificación para el CLIENTE
     if (payload.idCliente) {
       agregarNotifInterna({
         tipo:  NOTIF_TIPOS.SISTEMA,
@@ -945,7 +994,7 @@ export function AppProvider({ children }) {
         titulo: `¡Pedido Recibido! #${numero}`,
         mensaje: `Hemos recibido tu pedido. Actualmente se encuentra en estado "${estadoInicial}". ¡Gracias por tu compra!`,
         idReferencia: numero, refNombre: numero,
-        idDestinatario: payload.idCliente // Para el cliente específico
+        idDestinatario: payload.idCliente,
       });
     }
 
@@ -993,17 +1042,15 @@ export function AppProvider({ children }) {
         }));
       }
       if (["Listo", "En camino", "Entregado"].includes(nuevoEstado)) {
-        // Notificación para el ADMIN
         agregarNotifInterna({
           tipo:  NOTIF_TIPOS.SISTEMA,
           clave: `estado-pedido-${id}-${nuevoEstado}`,
           titulo: `Pedido ${p.numero}: ${nuevoEstado}`,
           mensaje: `El pedido ${p.numero} de "${p.cliente?.nombre || "cliente"}" cambió a estado "${nuevoEstado}".`,
           idReferencia: p.numero, refNombre: p.numero,
-          idDestinatario: 'admin'
+          idDestinatario: 'admin',
         });
 
-        // ✅ Notificación para el CLIENTE
         if (p.idCliente) {
           agregarNotifInterna({
             tipo:  NOTIF_TIPOS.SISTEMA,
@@ -1011,7 +1058,7 @@ export function AppProvider({ children }) {
             titulo: `Actualización de Pedido: ${nuevoEstado}`,
             mensaje: `Tu pedido #${p.numero} ahora está en estado "${nuevoEstado}".`,
             idReferencia: p.numero, refNombre: p.numero,
-            idDestinatario: p.idCliente
+            idDestinatario: p.idCliente,
           });
         }
       }
@@ -1023,8 +1070,7 @@ export function AppProvider({ children }) {
     setPedidos(prev => prev.map(p => {
       if (p.id === pedidoId) {
         const emp = usuarios.find(u => u.id === empleadoId);
-        
-        // Notificación para el CLIENTE
+
         if (p.idCliente) {
           agregarNotifInterna({
             tipo:  NOTIF_TIPOS.SISTEMA,
@@ -1032,10 +1078,10 @@ export function AppProvider({ children }) {
             titulo: `¡Repartidor Asignado!`,
             mensaje: `Tu pedido #${p.numero} será entregado por ${emp ? emp.nombre : 'un repartidor'}.`,
             idReferencia: p.numero, refNombre: p.numero,
-            idDestinatario: p.idCliente
+            idDestinatario: p.idCliente,
           });
         }
-        
+
         return { ...p, idEmpleado: empleadoId };
       }
       return p;
@@ -1076,7 +1122,6 @@ export function AppProvider({ children }) {
 
       let nextOrden = { ...o, estado: nuevoEstado, fechaCierre };
 
-      // 1. DESCONTAR INSUMOS: Al pasar a "En proceso" o "Completada" (si no se hizo antes)
       if ((nuevoEstado === "En proceso" || nuevoEstado === "Completada") && !yaDescontados) {
         (o.insumos || []).forEach(ins => {
           registrarSalidaInsumo({
@@ -1084,16 +1129,13 @@ export function AppProvider({ children }) {
             tipo: "produccion",
             cantidad: ins.cantidad,
             motivo: `Consumo por orden de producción ${ordenId}`,
-            usuario: "sistema"
+            usuario: "sistema",
           });
         });
         nextOrden.insumosDescontados = true;
       }
 
-      // 2. SUMAR STOCK PRODUCTOS: Solo al pasar a "Completada" (si no se hizo antes)
       if (nuevoEstado === "Completada" && !yaSumadosProd) {
-        // Solo sumamos al stock si no viene de un pedido (los pedidos suelen manejar su stock)
-        // O si el sistema requiere que la producción siempre sume stock.
         if (!o.idPedido) {
           setProductos(prods => prods.map(prod => {
             const item = (o.productos || []).find(p => p.idProducto === prod.id);
@@ -1101,7 +1143,7 @@ export function AppProvider({ children }) {
             return { ...prod, stock: prod.stock + item.cantidad };
           }));
         }
-        
+
         if (o.idPedido) {
           setPedidos(prevP => prevP.map(p => p.id !== o.idPedido ? p : { ...p, estado: "Listo" }));
         }
@@ -1112,18 +1154,15 @@ export function AppProvider({ children }) {
           titulo: `Orden de producción completada: ${ordenId}`,
           mensaje: `La orden ${ordenId} fue marcada como completada. El stock de los productos e insumos fue actualizado.`,
           idReferencia: ordenId, refNombre: ordenId,
-          idDestinatario: 'admin'
+          idDestinatario: 'admin',
         });
-        
+
         nextOrden.productosSumados = true;
       }
 
-      // 3. REVERTIR INSUMOS: Si se cancela y ya se habían descontado
       if (nuevoEstado === "Cancelada" && yaDescontados) {
         (o.insumos || []).forEach(ins => {
-          // Para revertir, sumamos al stock (una compra ficticia o ajuste positivo)
           setInsumos(prevI => prevI.map(i => i.id === ins.idInsumo ? { ...i, stockActual: i.stockActual + ins.cantidad } : i));
-          // Y podríamos necesitar revertir lotes, pero FIFO es complejo de revertir exacto sin tracking por lote
         });
         nextOrden.insumosDescontados = false;
       }
@@ -1142,18 +1181,16 @@ export function AppProvider({ children }) {
   const crearDevolucion = (payload) => {
     const numero = nextDevolucionNum(devoluciones);
     setDevoluciones(prev => [{ ...payload, id: numero, numero, estado: "Pendiente", fechaSolicitud: fechaHoy(), fechaAprobacion: null, fechaReembolso: null, motivoRechazo: null }, ...prev]);
-    
-    // Notificación para el ADMIN
+
     agregarNotifInterna({
       tipo:  NOTIF_TIPOS.DEVOLUCION,
       clave: `devolucion-${numero}`,
       titulo: `Nueva devolución: ${numero}`,
       mensaje: `Se solicitó la devolución ${numero} del pedido ${payload.numeroPedido}. Motivo: ${payload.motivo}.`,
       idReferencia: numero, refNombre: numero,
-      idDestinatario: 'admin'
+      idDestinatario: 'admin',
     });
 
-    // ✅ Notificación para el CLIENTE
     if (payload.idCliente) {
       agregarNotifInterna({
         tipo:  NOTIF_TIPOS.SISTEMA,
@@ -1161,7 +1198,7 @@ export function AppProvider({ children }) {
         titulo: `Solicitud de Devolución Recibida`,
         mensaje: `Hemos recibido tu solicitud #${numero} para el pedido ${payload.numeroPedido}. La revisaremos pronto.`,
         idReferencia: numero, refNombre: numero,
-        idDestinatario: payload.idCliente
+        idDestinatario: payload.idCliente,
       });
     }
 
@@ -1241,6 +1278,7 @@ export function AppProvider({ children }) {
       getLotesDeInsumo, getLotesVencidos, getStockRealInsumo,
       getLotesProducto, getLotesVencidosProducto, agregarLoteProducto,
       getSalidasProducto, registrarSalidaProducto,
+      editarSalidaProducto, eliminarSalidaProducto,
       getSalidasInsumo,
 
       /* Validaciones */
@@ -1259,11 +1297,12 @@ export function AppProvider({ children }) {
       crearCliente,     editarCliente,     toggleCliente,     eliminarCliente,
       crearProveedor,   editarProveedor,   toggleProveedor,   eliminarProveedor,
       crearCompra,      editarCompra,      eliminarCompra,    anularCompra, completarCompra,
-      registrarSalidaInsumo, descontarStockFIFO,
+      registrarSalidaInsumo, editarSalidaInsumo, eliminarSalidaInsumo,
+      descontarStockFIFO,
       crearPedido,      editarPedido,      eliminarPedido,
       cambiarEstadoPedido, asignarDomiciliario, generarOrdenProduccion,
       crearOrdenProduccion, editarOrdenProduccion,
-      cambiarEstadoOrden,  asignarEmpleadoOrden,
+      cambiarEstadoOrden,  asignarEmpleadoOrden, eliminarOrdenProduccion,
       crearDevolucion, aprobarDevolucion, rechazarDevolucion, reembolsarDevolucion, eliminarDevolucion,
       crearDescuento, editarDescuento, toggleDescuento, eliminarDescuento,
       asignarDescuentoClientes, getClientesDescuento,

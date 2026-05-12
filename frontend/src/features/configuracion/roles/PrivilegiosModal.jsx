@@ -29,7 +29,7 @@ const TODAS_ACCIONES = {
 
 };
 
-const STD = ["ver", "crear", "editar", "eliminar"];
+const STD = ["ver", "crear", "editar", "eliminar", "cambiar_estado"];
 
 const GRUPOS_MODULOS = [
   {
@@ -47,17 +47,17 @@ const GRUPOS_MODULOS = [
     icon: "📦",
     modulos: [
       { key: "CategoriaInsumos", label: "Cat. Insumos",  icon: "📂", acciones: STD },
-      { key: "Insumos",          label: "Insumos",       icon: "🧪", acciones: ["ver", "crear", "editar", "eliminar", "generar_salida"] },
+      { key: "Insumos",          label: "Insumos",       icon: "🧪", acciones: ["ver", "crear", "editar", "eliminar","cambiar_estado", "generar_salida"] },
       { key: "Proveedores",      label: "Proveedores",   icon: "🚚", acciones: STD },
-      { key: "Compras",          label: "Compras",       icon: "📋", acciones: ["ver", "crear", "editar", "anular"] },
+      { key: "Compras",          label: "Compras",       icon: "📋", acciones: ["ver", "crear", "editar","cambiar estado", "anular"] },
     ],
   },
   {
     grupo: "Producción",
     icon: "🏭",
     modulos: [
-      { key: "CategoriaProductos", label: "Cat. Productos", icon: "📦", acciones: ["ver", "crear", "editar", "eliminar"] },
-      { key: "GestionProductos",   label: "Gestión Prod.",  icon: "📋", acciones: ["ver", "crear", "editar", "eliminar", "generar_salida"] },
+      { key: "CategoriaProductos", label: "Cat. Productos", icon: "📦", acciones: ["ver", "crear", "editar", "eliminar", "cambiar_estado"] },
+      { key: "GestionProductos",   label: "Gestión Prod.",  icon: "📋", acciones: ["ver", "crear", "editar", "eliminar","cambiar_estado", "generar_salida"] },
       { key: "OrdenesProduccion",  label: "Órdenes Prod.",  icon: "🏭", acciones: STD },
     ],
   },
@@ -77,20 +77,33 @@ const MODULOS = GRUPOS_MODULOS.flatMap(g => g.modulos);
 const TOTAL_PRIVILEGIOS = MODULOS.reduce((acc, m) => acc + m.acciones.length, 0);
 
 export function buildPrivilegios(overrides = []) {
+
   const map = {};
-  overrides.forEach(p => { if (p.modulo) map[p.id] = p.estado; });
+
+  overrides.forEach(p => {
+    if (p.modulo) {
+      map[p.id] = p.estado;
+    }
+  });
+
   return MODULOS.flatMap(m =>
-    m.acciones.map(aKey => {
-      const a  = TODAS_ACCIONES[aKey];
-      const id = `${m.key}_${aKey}`;
-      return {
-        id,
-        modulo:  m.key,
-        accion:  aKey,
-        nombre:  `${a.label} ${m.label.toLowerCase()}`,
-        estado:  map[id] ?? false,
-      };
-    })
+
+    (m.acciones || [])
+      .filter(aKey => TODAS_ACCIONES[aKey])
+      .map(aKey => {
+
+        const a = TODAS_ACCIONES[aKey];
+        const id = `${m.key}_${aKey}`;
+
+        return {
+          id,
+          modulo: m.key,
+          accion: aKey,
+          nombre: `${a.label} ${m.label.toLowerCase()}`,
+          estado: map[id] ?? false,
+        };
+
+      })
   );
 }
 
