@@ -1,16 +1,38 @@
-import { useState, useRef } from "react";
-import { useApp } from "../../../../AppContext.jsx";
+import { useState, useRef, useEffect } from "react";
+import { getCategorias } from "../../../../services/categoriasInsumosService.js";
+import { getInsumos } from "../../../../services/insumosService.js";
 import "./FichasTecnicas.css";
+
 const UNIDADES = ["kg","g","l","ml","unidad","taza","cucharada","cucharadita"];
 
-export default function CrearFicha({ onClose, onSave, productoNombre = "", productoCategoria = "" }) {
-  const { categoriasInsumosActivas, insumosPorCategoriaId } = useApp();
+export default function CrearFicha({ onClose, onSave, productoNombre = "" }) {
+  const [categoriasInsumosActivas, setCategoriasInsumosActivas] = useState([]);
+  const [insumosPorCategoriaId,    setInsumosPorCategoriaId]    = useState({});
+
+  useEffect(() => {
+    Promise.all([getCategorias(), getInsumos()]).then(([catData, insData]) => {
+      const cats = (catData.categorias || catData.items || [])
+        .filter(c => c.Estado === 1 || c.estado === true)
+        .map(c => ({ id: c.ID_Categoria || c.id, nombre: c.Nombre || c.nombre, icon: c.Icono || c.icono || "📦" }));
+      setCategoriasInsumosActivas(cats);
+
+      const map = {};
+      (insData.insumos || insData.items || []).forEach(i => {
+        if (i.Estado !== 0 && i.estado !== false) {
+          const catId = String(i.ID_Categoria || i.id_categoria || "");
+          if (!map[catId]) map[catId] = [];
+          map[catId].push({ id: i.ID_Insumo || i.id, nombre: i.Nombre || i.nombre });
+        }
+      });
+      setInsumosPorCategoriaId(map);
+    }).catch(() => {});
+  }, []);
 
   const [form, setForm] = useState({
     producto: productoNombre,
     fecha: new Date().toISOString().slice(0, 10),
     fotoPreview: null,
-    insumos: [{ id: 1, idCategoria: "", nombre: "", cantidad: "", unidad: "" }],
+    insumos: [{ id: 1, idCategoria: "", idInsumo: "", nombre: "", cantidad: "", unidad: "" }],
     procedimiento: "",
     observaciones: "",
   });
@@ -28,43 +50,55 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
     reader.readAsDataURL(file);
   };
 
-  const addInsumo = () => setForm(p => ({ ...p, insumos: [...p.insumos, { id: Date.now(), idCategoria: "", nombre: "", cantidad: "", unidad: "" }] }));
+  const addInsumo = () => setForm(p => ({
+    ...p,
+    insumos: [...p.insumos, { id: Date.now(), idCategoria: "", idInsumo: "", nombre: "", cantidad: "", unidad: "" }],
+  }));
+
   const delInsumo = id => setForm(p => ({ ...p, insumos: p.insumos.filter(i => i.id !== id) }));
+
   const setInsumo = (id, k, v) => setForm(p => ({
     ...p,
-    insumos: p.insumos.map(i => i.id === id
-      ? { ...i, [k]: v, ...(k === "idCategoria" ? { nombre: "" } : {}) }
-      : i),
+    insumos: p.insumos.map(i => {
+      if (i.id !== id) return i;
+      if (k === "idCategoria") return { ...i, idCategoria: v, idInsumo: "", nombre: "" };
+      if (k === "idInsumo") {
+        const found = (insumosPorCategoriaId[i.idCategoria] || []).find(x => String(x.id) === String(v));
+        return { ...i, idInsumo: v ? Number(v) : "", nombre: found?.nombre || "" };
+      }
+      return { ...i, [k]: v };
+    }),
   }));
 
   const validate = () => {
     const e = {};
-    if (!form.producto.trim())      e.producto      = "El nombre del producto es obligatorio";
-    
-    // Validar insumos
-    const insumosValidos = form.insumos.filter(i => i.idCategoria && i.nombre && i.cantidad && i.unidad);
+    if (!form.producto.trim()) e.producto = "El nombre del producto es obligatorio";
+    const insumosValidos = form.insumos.filter(i => i.idInsumo && i.cantidad && i.unidad);
     if (form.insumos.length === 0 || insumosValidos.length === 0) {
-      e.insumos = "Debes agregar al menos un insumo completo (categoría, nombre, cantidad y unidad)";
+      e.insumos = "Debes agregar al menos un insumo completo";
     } else if (insumosValidos.length < form.insumos.length) {
-      e.insumos = "Hay insumos incompletos en la lista. Por favor complétalos o elimínalos.";
+      e.insumos = "Hay insumos incompletos. Complétalos o elimínalos.";
     }
-
-    if (!form.procedimiento.trim()) e.procedimiento = "Debes describir el procedimiento de fabricación";
+    if (!form.procedimiento.trim()) e.procedimiento = "Debes describir el procedimiento";
     return e;
   };
 
   const handleSave = async () => {
     const e = validate();
-    if (Object.keys(e).length) { 
-      setErrors(e); 
+    if (Object.keys(e).length) {
+      setErrors(e);
       if (e.insumos) setTab("insumos");
-      else if (e.procedimiento) setTab("procedimiento"); 
-      return; 
+      else if (e.procedimiento) setTab("procedimiento");
+      return;
     }
     setSaving(true);
-    await new Promise(r => setTimeout(r, 500));
-    onSave({ ...form, id: Date.now() });
-    setSaving(false);
+    try {
+      await onSave(form);
+    } catch {
+      // parent handles error
+    } finally {
+      setSaving(false);
+    }
   };
 
   const TABS = [
@@ -77,7 +111,6 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
     <div className="modal-overlay" onClick={onClose}>
       <div className="ficha-modal" onClick={e => e.stopPropagation()}>
 
-        {/* Header */}
         <div className="ficha-modal__header">
           <div className="ficha-modal__header-left">
             <div className="ficha-modal__badge">Ficha Técnica</div>
@@ -86,7 +119,6 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
           <button className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
 
-        {/* Foto + Info */}
         <div className="ficha-modal__top">
           <div className="ficha-foto-upload" onClick={() => fotoRef.current.click()}>
             {form.fotoPreview
@@ -111,21 +143,18 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="ficha-tabs">
           {TABS.map(t => (
             <button key={t.id}
-              className={`ficha-tab${tab === t.id ? " ficha-tab--active" : ""}${t.id === "procedimiento" && errors.procedimiento ? " ficha-tab--error" : ""}`}
+              className={`ficha-tab${tab === t.id ? " ficha-tab--active" : ""}${t.id === "insumos" && errors.insumos ? " ficha-tab--error" : ""}${t.id === "procedimiento" && errors.procedimiento ? " ficha-tab--error" : ""}`}
               onClick={() => setTab(t.id)}>
               {t.label}
             </button>
           ))}
         </div>
 
-        {/* Body */}
         <div className="ficha-modal__body">
 
-          {/* Insumos */}
           {tab === "insumos" && (
             <div>
               <div className="ficha-insumos-table-wrap">
@@ -142,11 +171,13 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
                           </select>
                         </td>
                         <td>
-                          <select className="ficha-select" value={ins.nombre}
-                            onChange={e => setInsumo(ins.id, "nombre", e.target.value)}
+                          <select className="ficha-select" value={ins.idInsumo}
+                            onChange={e => setInsumo(ins.id, "idInsumo", e.target.value)}
                             disabled={!ins.idCategoria} style={{ opacity: ins.idCategoria ? 1 : 0.45 }}>
                             <option value="">— Insumo —</option>
-                            {(insumosPorCategoriaId[ins.idCategoria] || []).map(n => <option key={n} value={n}>{n}</option>)}
+                            {(insumosPorCategoriaId[String(ins.idCategoria)] || []).map(insumo =>
+                              <option key={insumo.id} value={insumo.id}>{insumo.nombre}</option>
+                            )}
                           </select>
                         </td>
                         <td>
@@ -165,11 +196,11 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
                   </tbody>
                 </table>
               </div>
+              {errors.insumos && <p className="field-error" style={{ marginTop: 6 }}>{errors.insumos}</p>}
               <button className="ficha-add-btn" onClick={addInsumo}>+ Agregar insumo</button>
             </div>
           )}
 
-          {/* Procedimiento */}
           {tab === "procedimiento" && (
             <div>
               <p className="ficha-hint">Escribe un paso por línea. Cada línea se numerará automáticamente.</p>
@@ -191,7 +222,6 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
             </div>
           )}
 
-          {/* Observaciones */}
           {tab === "observaciones" && (
             <div>
               <p className="ficha-hint">Notas adicionales, alérgenos o recomendaciones de conservación.</p>
@@ -202,7 +232,6 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
           )}
         </div>
 
-        {/* Footer */}
         <div className="ficha-modal__footer">
           <div className="ficha-tabs-nav">
             {TABS.map(t => <span key={t.id} className={`ficha-step-dot${tab === t.id ? " ficha-step-dot--active" : ""}`} />)}

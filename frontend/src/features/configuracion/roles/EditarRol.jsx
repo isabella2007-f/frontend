@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import "./Roles.css";
-import { editarRol } from "../../../services/rolesService.js";
+import { editarRol, gestionarPermisos } from "../../../services/rolesService.js";
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
 import PrivilegiosModal, { buildPrivilegios } from "./PrivilegiosModal.jsx";
 
@@ -55,6 +55,8 @@ export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
         payload.limpiar_icono = true;
       }
       await editarRol(rol.id, payload);
+      const activeIds = (form.privilegios || []).filter(p => p.estado).map(p => p.id);
+      await gestionarPermisos(rol.id, activeIds);
       onSave?.();
     } catch (e) {
       setErrors({ _api: e.message || "Error al guardar" });

@@ -359,3 +359,6 @@
   background: #e0e0e0; transition: all 0.2s;
 }
 .ficha-step-dot--active { background: #2e7d32; width: 20px; border-radius: 4px; }
+
+@keyframes skeletonPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.skeleton-cell { height:14px; background:#e0e0e0; border-radius:4px; animation:skeletonPulse 1.4s ease-in-out infinite; }

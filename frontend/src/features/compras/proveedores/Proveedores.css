@@ -42,7 +42,7 @@
 
 /* ─── Tabla scrollable y sticky headers ─── */
 .card .tbl-wrapper {
-  overflow: hidden;
+  overflow-x: auto;
   border-radius: 8px;
 }
 

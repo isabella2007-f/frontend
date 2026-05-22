@@ -81,7 +81,9 @@ export function buildPrivilegios(overrides = []) {
   const map = {};
 
   overrides.forEach(p => {
-    if (p.modulo) {
+    if (typeof p === "string") {
+      map[p] = true;
+    } else if (p && p.modulo) {
       map[p.id] = p.estado;
     }
   });

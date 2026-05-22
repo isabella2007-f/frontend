@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import "./Roles.css";
-import { crearRol } from "../../../services/rolesService.js";
+import { crearRol, gestionarPermisos } from "../../../services/rolesService.js";
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
 import PrivilegiosModal, { buildPrivilegios } from "./PrivilegiosModal.jsx";
 
@@ -48,7 +48,11 @@ export default function CrearRol({ onClose, onSave }) {
       if (iconFile) {
         icono = await subirImagenCloudinary(iconFile);
       }
-      await crearRol({ Rol: form.nombre.trim(), Icono: icono });
+      const data = await crearRol({ Rol: form.nombre.trim(), Icono: icono });
+      const activeIds = form.privilegios.filter(p => p.estado).map(p => p.id);
+      if (activeIds.length > 0 && data?.ID_Rol) {
+        await gestionarPermisos(data.ID_Rol, activeIds);
+      }
       onSave?.();
     } catch (e) {
       setErrors({ _api: e.message || "Error al crear rol" });

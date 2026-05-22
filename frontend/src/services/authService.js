@@ -1,10 +1,22 @@
 import { apiFetch } from "../utils/api";
+import { API_URL } from "../config/api";
 
 export const login = async (correo, contrasena) => {
-  const data = await apiFetch("/auth/login", {
+  const res = await fetch(`${API_URL}/auth/login`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ correo, contrasena }),
   });
+
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({}));
+    let mensaje = "Correo o contraseña incorrectos";
+    if (typeof error.detail === "string") mensaje = error.detail;
+    else if (Array.isArray(error.detail)) mensaje = error.detail.map(e => e.msg).join(", ");
+    throw new Error(mensaje);
+  }
+
+  const data = await res.json();
 
   localStorage.setItem("token", data.access_token);
   localStorage.setItem("usuario", JSON.stringify({

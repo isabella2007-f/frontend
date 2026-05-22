@@ -1,48 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import CrearFicha from "./CrearFicha.jsx";
 import EditarFicha from "./EditarFicha.jsx";
+import { getFichas, crearFicha, editarFicha, eliminarFicha, toggleEstadoFicha } from "../../../../services/fichaTecnicaService.js";
 import "./FichasTecnicas.css";
-
-const initialFichas = [
-  {
-    id: 1, producto: "Plátano Tostón", productoId: "02", categoria: "Snacks",
-    version: "v1.0", estado: true, fecha: "2026-01-12", fotoPreview: null,
-    insumos: [
-      { id: 1, nombre: "Plátano verde", cantidad: "2", unidad: "kg" },
-      { id: 2, nombre: "Aceite de oliva", cantidad: "500", unidad: "ml" },
-      { id: 3, nombre: "Sal", cantidad: "1", unidad: "cucharadita" },
-    ],
-    procedimiento:
-      "Pelar los plátanos verdes y cortarlos en rodajas de 1 cm.\n" +
-      "Calentar el aceite de oliva en una sartén grande a fuego medio.\n" +
-      "Freír las rodajas de plátano durante 5 minutos, o hasta que estén doradas y crujientes.\n" +
-      "Retirar los plátanos del aceite y escurrir el exceso de grasa con un papel absorbente.\n" +
-      "Sazonar con sal al gusto y servir.",
-    observaciones: "Se puede acompañar con salsa de ajo o guacamole.\nAlternativa: Si no tienes aceite de oliva, puedes usar aceite vegetal.",
-  },
-  {
-    id: 2, producto: "Muffin de plátano", productoId: "01", categoria: "Postres",
-    version: "v2.1", estado: true, fecha: "2026-02-01", fotoPreview: null,
-    insumos: [
-      { id: 1, nombre: "Plátano verde", cantidad: "3", unidad: "unidad" },
-      { id: 2, nombre: "Harina", cantidad: "200", unidad: "g" },
-      { id: 3, nombre: "Huevo", cantidad: "2", unidad: "unidad" },
-    ],
-    procedimiento:
-      "Machacar los plátanos hasta obtener un puré homogéneo.\n" +
-      "Mezclar el puré con los huevos y el azúcar.\n" +
-      "Incorporar la harina tamizada y mezclar hasta integrar.\n" +
-      "Verter en moldes de muffin y hornear a 180°C por 20 minutos.",
-    observaciones: "Servir tibio para mejor textura.",
-  },
-];
 
 const ITEMS_PER_PAGE = 4;
 
-function Toggle({ value, onChange }) {
+function Toggle({ value, onChange, disabled }) {
   return (
-    <button onClick={() => onChange(!value)} className="toggle-btn"
-      style={{ background: value ? "#43a047" : "#bdbdbd", boxShadow: value ? "0 2px 8px rgba(67,160,71,0.45)" : "none" }}>
+    <button onClick={!disabled ? onChange : undefined} className="toggle-btn" disabled={disabled}
+      style={{ background: value ? "#43a047" : "#bdbdbd", boxShadow: value ? "0 2px 8px rgba(67,160,71,0.45)" : "none", opacity: disabled ? 0.6 : 1 }}>
       <span className="toggle-thumb" style={{ left: value ? 27 : 3 }}>
         <span className="toggle-label">{value ? "ON" : ""}</span>
       </span>
@@ -60,9 +27,19 @@ function Toast({ toast }) {
   );
 }
 
+function SkeletonRows() {
+  return Array.from({ length: 4 }, (_, i) => (
+    <tr key={i} className="tbl-row">
+      {Array.from({ length: 7 }, (_, j) => (
+        <td key={j}><div className="skeleton-cell" /></td>
+      ))}
+    </tr>
+  ));
+}
+
 function EliminarModal({ ficha, onClose, onConfirm }) {
   const [deleting, setDeleting] = useState(false);
-  const run = async () => { setDeleting(true); await new Promise(r => setTimeout(r, 500)); onConfirm(); };
+  const run = async () => { setDeleting(true); await onConfirm(); setDeleting(false); };
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
@@ -82,14 +59,15 @@ function EliminarModal({ ficha, onClose, onConfirm }) {
 }
 
 export default function FichaTecnica() {
-  const [fichas, setFichas]         = useState(initialFichas);
-  const [search, setSearch]         = useState("");
-  const [showFilter, setShowFilter] = useState(false);
-  const [filterCat, setFilterCat]   = useState("Todas");
-  const [page, setPage]             = useState(1);
-  const [modal, setModal]           = useState(null);
-  const [toast, setToast]           = useState(null);
-  const filterRef                   = useRef();
+  const [fichas,      setFichas]      = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [search,      setSearch]      = useState("");
+  const [showFilter,  setShowFilter]  = useState(false);
+  const [filterCat,   setFilterCat]   = useState("Todas");
+  const [page,        setPage]        = useState(1);
+  const [modal,       setModal]       = useState(null);
+  const [toast,       setToast]       = useState(null);
+  const filterRef = useRef();
 
   useEffect(() => {
     const h = e => { if (filterRef.current && !filterRef.current.contains(e.target)) setShowFilter(false); };
@@ -102,11 +80,25 @@ export default function FichaTecnica() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const CATEGORIAS = ["Todas","Congelados","Postres","Snacks","Bebidas","Harinas","Orgánicos"];
+  const cargarDatos = async () => {
+    try {
+      setLoading(true);
+      const data = await getFichas();
+      setFichas(data);
+    } catch (e) {
+      showToast(e.message || "Error al cargar fichas", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { cargarDatos(); }, []);
+
+  const CATEGORIAS = ["Todas", ...([...new Set(fichas.map(f => f.categoria).filter(Boolean))].sort())];
 
   const filtered = fichas.filter(f => {
     const q = search.toLowerCase();
-    const matchQ = f.producto.toLowerCase().includes(q) || f.categoria.toLowerCase().includes(q);
+    const matchQ = f.producto.toLowerCase().includes(q) || (f.categoria || "").toLowerCase().includes(q);
     const matchC = filterCat === "Todas" || f.categoria === filterCat;
     return matchQ && matchC;
   });
@@ -117,25 +109,62 @@ export default function FichaTecnica() {
 
   useEffect(() => setPage(1), [search, filterCat]);
 
-  const handleCreate = form => { setFichas(p => [form, ...p]); showToast("Ficha creada"); setModal(null); };
-  const handleEdit   = form => { setFichas(p => p.map(f => f.id === form.id ? form : f)); showToast("Cambios guardados"); setModal(null); };
-  const handleDelete = ()   => { setFichas(p => p.filter(f => f.id !== modal.ficha.id)); showToast("Ficha eliminada", "error"); setModal(null); };
+  const handleCreate = async (form) => {
+    try {
+      await crearFicha(form);
+      showToast("Ficha creada");
+      setModal(null);
+      cargarDatos();
+    } catch (e) {
+      showToast(e.message || "Error al crear ficha", "error");
+    }
+  };
+
+  const handleEdit = async (form) => {
+    try {
+      await editarFicha(form.id, form);
+      showToast("Cambios guardados");
+      setModal(null);
+      cargarDatos();
+    } catch (e) {
+      showToast(e.message || "Error al guardar cambios", "error");
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      await eliminarFicha(modal.ficha.id);
+      showToast("Ficha eliminada", "error");
+      setModal(null);
+      cargarDatos();
+    } catch (e) {
+      showToast(e.message || "Error al eliminar ficha", "error");
+    }
+  };
+
+  const handleToggleEstado = async (f) => {
+    setFichas(prev => prev.map(x => x.id === f.id ? { ...x, estado: !x.estado } : x));
+    try {
+      await toggleEstadoFicha(f.id, f.estado);
+    } catch (e) {
+      setFichas(prev => prev.map(x => x.id === f.id ? { ...x, estado: f.estado } : x));
+      showToast(e.message || "Error al cambiar estado", "error");
+    }
+  };
 
   return (
     <div className="page-wrapper">
-      {/* Header */}
       <div className="page-header">
         <h1 className="page-header__title">Ficha Técnica 📖</h1>
         <div className="page-header__line" />
       </div>
 
       <div className="page-inner">
-        {/* Toolbar */}
         <div className="toolbar">
           <div className="search-wrap">
             <span className="search-icon">🔍</span>
             <input type="text" className="search-input"
-              placeholder="Buscar o filtrar por…"
+              placeholder="Buscar por producto o categoría…"
               value={search} onChange={e => setSearch(e.target.value)} />
           </div>
 
@@ -159,7 +188,6 @@ export default function FichaTecnica() {
           </button>
         </div>
 
-        {/* Table */}
         <div className="card">
           <div style={{ overflowX: "auto" }}>
             <table className="tbl">
@@ -175,18 +203,21 @@ export default function FichaTecnica() {
                 </tr>
               </thead>
               <tbody>
-                {paginated.length === 0 ? (
+                {loading ? (
+                  <SkeletonRows />
+                ) : paginated.length === 0 ? (
                   <tr><td colSpan={7}>
                     <div className="empty-state">
                       <div className="empty-state__icon">📖</div>
-                      <p className="empty-state__text">Sin fichas técnicas</p>
+                      <p className="empty-state__text">
+                        {search || filterCat !== "Todas" ? "Sin fichas que coincidan." : "Sin fichas técnicas registradas."}
+                      </p>
                     </div>
                   </td></tr>
                 ) : paginated.map((f, idx) => (
                   <tr key={f.id} className="tbl-row">
                     <td><span className="cat-num">{String((safePage - 1) * ITEMS_PER_PAGE + idx + 1).padStart(2, "0")}</span></td>
 
-                    {/* Nombre con foto miniatura */}
                     <td>
                       <div className="cat-cell">
                         {f.fotoPreview
@@ -201,21 +232,21 @@ export default function FichaTecnica() {
 
                     <td>
                       <span style={{ fontSize: 13, color: "#424242", background: "#f1f8f1", padding: "3px 10px", borderRadius: 20, border: "1px solid #c8e6c9", fontWeight: 600 }}>
-                        {f.categoria}
+                        {f.categoria || "—"}
                       </span>
                     </td>
 
                     <td><span className="version-tag">{f.version}</span></td>
 
                     <td>
-                      <Toggle value={f.estado} onChange={() => setFichas(p => p.map(x => x.id === f.id ? { ...x, estado: !x.estado } : x))} />
+                      <Toggle value={f.estado} onChange={() => handleToggleEstado(f)} />
                     </td>
 
                     <td>
                       <div className="actions-cell">
-                        <button className="act-btn act-btn--view"   title="Ver"      onClick={() => setModal({ mode: "view",   ficha: f })}>👁</button>
-                        <button className="act-btn act-btn--edit"   title="Editar"   onClick={() => setModal({ mode: "edit",   ficha: f })}>✎</button>
-                        <button className="act-btn act-btn--delete" title="Eliminar" onClick={() => setModal({ mode: "delete", ficha: f })}>🗑️</button>
+                        <button className="act-btn act-btn--view"   onClick={() => setModal({ mode: "view",   ficha: f })}>👁</button>
+                        <button className="act-btn act-btn--edit"   onClick={() => setModal({ mode: "edit",   ficha: f })}>✎</button>
+                        <button className="act-btn act-btn--delete" onClick={() => setModal({ mode: "delete", ficha: f })}>🗑️</button>
                       </div>
                     </td>
                   </tr>
@@ -224,7 +255,6 @@ export default function FichaTecnica() {
             </table>
           </div>
 
-          {/* Pagination */}
           <div className="pagination-bar">
             <span className="pagination-count">{filtered.length} {filtered.length === 1 ? "ficha" : "fichas"} en total</span>
             <div className="pagination-btns">
