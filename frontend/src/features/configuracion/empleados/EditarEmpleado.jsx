@@ -209,7 +209,7 @@ export function ModalEliminarEmpleado({ empleado, onClose, onConfirm }) {
           <p className="delete-body">¿Eliminar a <strong>"{empleado.nombre} {empleado.apellidos}"</strong>?</p>
           <p className="delete-warn">Esta acción no se puede deshacer.</p>
         </div>
-        <div className="modal-footer modal-footer--center">
+        <div className="modal-footer">
           <button className="btn-cancel-full" onClick={onClose}>Cancelar</button>
           <button className="btn-danger" onClick={run} disabled={deleting}>{deleting ? "Eliminando…" : "Eliminar"}</button>
         </div>
@@ -474,7 +474,7 @@ export default function EditarEmpleado({ empleado, onClose, onSave }) {
         </div>
 
         {/* Footer — navegación wizard */}
-        <div className="modal-footer" style={{ justifyContent:"space-between" }}>
+        <div className="modal-footer">
           {step > 1
             ? <button className="btn-ghost" onClick={handleBack}>← Atrás</button>
             : <button className="btn-ghost" onClick={onClose}>Cancelar</button>

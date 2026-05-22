@@ -1,4 +1,12 @@
-import { useState, useEffect, useRef } from "react";
+// src/features/produccion/Productos/GestionProductos.jsx
+// ─────────────────────────────────────────────────────────────────────────────
+// Módulo de Gestión de Productos conectado a la API real.
+// Ya NO depende de AppContext para productos ni categorías.
+// Mantiene AppContext solo para: canDeleteProducto, registrarSalidaProducto,
+// guardarFicha, calcularCostoProduccion, sugerirPrecioConGanancia
+// (funciones que aún pueden vivir en contexto local mientras se migran).
+// ─────────────────────────────────────────────────────────────────────────────
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { useApp } from "../../../AppContext.jsx";
 import { Toast } from "./ui.jsx";
@@ -8,6 +16,13 @@ import EditarFicha from "./ficha_tecnica/EditarFicha.jsx";
 import CrearFicha from "./ficha_tecnica/CrearFicha.jsx";
 import SalidaModal from "./SalidaModal.jsx";
 import ModalEliminarValidado from "../../../ModalEliminarValidado";
+import {
+  getProductos,
+  getCategorias,
+  eliminarProducto as apiEliminarProducto,
+  toggleEstadoProducto as apiToggleEstado,
+  editarProducto as apiEditarProducto,
+} from "../../../services/productosService";
 import "./Productos.css";
 
 const ITEMS_PER_PAGE = 5;
@@ -42,7 +57,10 @@ function estaVencido(fechaVenc) {
 }
 function diasParaVencer(fechaVenc) {
   if (!fechaVenc) return null;
-  return Math.ceil((new Date(fechaVenc + "T00:00:00") - new Date(hoyISO() + "T00:00:00")) / 86400000);
+  return Math.ceil(
+    (new Date(fechaVenc + "T00:00:00") - new Date(hoyISO() + "T00:00:00")) /
+      86400000
+  );
 }
 const TIPO_COLORS = {
   vencido:    { color: "#e65100", bg: "#fff3e0", border: "#ffcc80", icon: "🕒" },
@@ -52,22 +70,53 @@ const TIPO_COLORS = {
   devolucion: { color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7", icon: "↩️" },
 };
 
+/**
+ * Convierte un ProductoResponse de la API al shape interno que usa la UI.
+ * Centralizado aquí para que todos los componentes hijos reciban el mismo shape.
+ */
+function adaptarProducto(p) {
+  return {
+    id:              p.ID_Producto,
+    nombre:          p.nombre,
+    idCategoria:     p.ID_Categoria ?? null,
+    precio:          parseFloat(p.Precio_venta ?? 0),
+    stock:           p.Stock ?? 0,
+    stockMinimo:     p.Stock_Minimo ?? 10,
+    activo:          p.Estado === 1,
+    estado:          p.estado_label ?? null,
+    // Imágenes: array original de la API (para poder borrar por ID)
+    imagenesApi:     p.imagenes ?? [],
+    // URLs para mostrar en la UI
+    imagenesPreview: (p.imagenes ?? []).map((img) => img.url).filter(Boolean),
+    ficha:           p.ficha_tecnica ?? null,
+  };
+}
+
 /* ══════════════════════════════════════════════════════════
    SUB-COMPONENTES
 ══════════════════════════════════════════════════════════ */
 
 function Toggle({ value, onChange }) {
   return (
-    <button onClick={() => onChange(!value)} className="toggle-btn"
-      style={{ background: value ? "#43a047" : "#c62828", boxShadow: value ? "0 2px 8px rgba(67,160,71,0.45)" : "0 2px 8px rgba(198,40,40,0.3)" }}>
+    <button
+      onClick={() => onChange(!value)}
+      className="toggle-btn"
+      style={{
+        background: value ? "#43a047" : "#c62828",
+        boxShadow: value
+          ? "0 2px 8px rgba(67,160,71,0.45)"
+          : "0 2px 8px rgba(198,40,40,0.3)",
+      }}
+    >
       <span className="toggle-thumb" style={{ left: value ? 27 : 3 }}>
-        <span className="toggle-label" style={{ color: "black" }}>{value ? "ON" : "OFF"}</span>
+        <span className="toggle-label" style={{ color: "black" }}>
+          {value ? "ON" : "OFF"}
+        </span>
       </span>
     </button>
   );
 }
 
-/* ── StockBar — igual que GestionInsumos ─────────────────── */
 function StockBar({ actual, minimo }) {
   const [hovered, setHovered] = useState(false);
   const pct   = minimo > 0 ? Math.min(100, Math.round((actual / (minimo * 2)) * 100)) : 100;
@@ -85,30 +134,46 @@ function StockBar({ actual, minimo }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* barra */}
-      <div style={{ height: 6, borderRadius: 4, background: "#f0f0f0", overflow: "hidden", marginBottom: 4 }}>
-        <div style={{ width: pct + "%", height: "100%", background: color, borderRadius: 4, transition: "width 0.3s" }} />
+      <div
+        style={{
+          height: 6, borderRadius: 4, background: "#f0f0f0",
+          overflow: "hidden", marginBottom: 4,
+        }}
+      >
+        <div
+          style={{
+            width: pct + "%", height: "100%",
+            background: color, borderRadius: 4, transition: "width 0.3s",
+          }}
+        />
       </div>
-      {/* números */}
       <span style={{ fontSize: 12, fontWeight: 600, color: "#424242" }}>
         <strong style={{ color }}>{actual}</strong>
         <span style={{ color: "#bdbdbd" }}> / mín {minimo}</span>
       </span>
-      {/* tooltip */}
       {hovered && (
-        <div style={{
-          position: "absolute", bottom: "calc(100% + 6px)", left: "50%",
-          transform: "translateX(-50%)", background: tip.bg,
-          border: `1px solid ${tip.border}`, color: tip.text,
-          fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 8,
-          whiteSpace: "nowrap", zIndex: 999, pointerEvents: "none",
-          display: "flex", alignItems: "center", gap: 5,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-        }}>
-          <span style={{ width: 7, height: 7, borderRadius: "50%", background: color, flexShrink: 0 }} />
+        <div
+          style={{
+            position: "absolute", bottom: "calc(100% + 6px)", left: "50%",
+            transform: "translateX(-50%)", background: tip.bg,
+            border: `1px solid ${tip.border}`, color: tip.text,
+            fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 8,
+            whiteSpace: "nowrap", zIndex: 999, pointerEvents: "none",
+            display: "flex", alignItems: "center", gap: 5,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+          }}
+        >
+          <span
+            style={{
+              width: 7, height: 7, borderRadius: "50%",
+              background: color, flexShrink: 0,
+            }}
+          />
           {tip.label}
           {est === "bajo" && (
-            <span style={{ fontWeight: 400, opacity: 0.8 }}> · faltan {minimo - actual}</span>
+            <span style={{ fontWeight: 400, opacity: 0.8 }}>
+              {" "}· faltan {minimo - actual}
+            </span>
           )}
         </div>
       )}
@@ -119,15 +184,40 @@ function StockBar({ actual, minimo }) {
 function CatCell({ cat }) {
   const [show, setShow] = useState(false);
   return (
-    <span style={{ position: "relative", display: "inline-flex" }}
-      onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
-      <span style={{ width: 34, height: 34, borderRadius: 8, background: "#f1f8f1", border: "1px solid #c8e6c9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, cursor: "default" }}>
+    <span
+      style={{ position: "relative", display: "inline-flex" }}
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+    >
+      <span
+        style={{
+          width: 34, height: 34, borderRadius: 8,
+          background: "#f1f8f1", border: "1px solid #c8e6c9",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 17, cursor: "default",
+        }}
+      >
         {cat?.icon || "📦"}
       </span>
       {show && (
-        <span style={{ position: "absolute", bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", background: "#1a1a1a", color: "#fff", fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 7, whiteSpace: "nowrap", zIndex: 999, pointerEvents: "none" }}>
+        <span
+          style={{
+            position: "absolute", bottom: "calc(100% + 6px)", left: "50%",
+            transform: "translateX(-50%)", background: "#1a1a1a", color: "#fff",
+            fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 7,
+            whiteSpace: "nowrap", zIndex: 999, pointerEvents: "none",
+          }}
+        >
           {cat?.nombre || "—"}
-          <span style={{ position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderTop: "5px solid #1a1a1a" }} />
+          <span
+            style={{
+              position: "absolute", top: "100%", left: "50%",
+              transform: "translateX(-50%)", width: 0, height: 0,
+              borderLeft: "5px solid transparent",
+              borderRight: "5px solid transparent",
+              borderTop: "5px solid #1a1a1a",
+            }}
+          />
         </span>
       )}
     </span>
@@ -136,13 +226,31 @@ function CatCell({ cat }) {
 
 function ProductImg({ previews, nombre }) {
   const thumb = previews && previews.length > 0 ? previews[0] : null;
-  return thumb
-    ? <img src={thumb} alt={nombre} style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover", border: "1px solid #c8e6c9", flexShrink: 0 }} />
-    : <div style={{ width: 36, height: 36, borderRadius: 8, flexShrink: 0, background: "#f1f8f1", border: "1px solid #c8e6c9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17 }}>🍌</div>;
+  return thumb ? (
+    <img
+      src={thumb}
+      alt={nombre}
+      style={{
+        width: 36, height: 36, borderRadius: 8,
+        objectFit: "cover", border: "1px solid #c8e6c9", flexShrink: 0,
+      }}
+    />
+  ) : (
+    <div
+      style={{
+        width: 36, height: 36, borderRadius: 8, flexShrink: 0,
+        background: "#f1f8f1", border: "1px solid #c8e6c9",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 17,
+      }}
+    >
+      🍌
+    </div>
+  );
 }
 
 /* ══════════════════════════════════════════════════════════
-   LOTES PANEL — Solo lectura, manual deshabilitado
+   LOTES PANEL — Solo lectura
 ══════════════════════════════════════════════════════════ */
 function LotesProductoPanel({ idProducto }) {
   const { getLotesProducto } = useApp();
@@ -150,14 +258,22 @@ function LotesProductoPanel({ idProducto }) {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-        <p className="ver-ins-section-label" style={{ margin: 0, textTransform: "none" }}>Lotes en inventario</p>
+      <div
+        style={{
+          display: "flex", justifyContent: "space-between",
+          alignItems: "center", marginBottom: 12,
+        }}
+      >
+        <p className="ver-ins-section-label" style={{ margin: 0, textTransform: "none" }}>
+          Lotes en inventario
+        </p>
       </div>
-
       <div className="form-info-box" style={{ marginBottom: 14, fontSize: 11 }}>
-        <p>ℹ️ Los lotes se generan automáticamente al completar una <strong>Orden de Producción</strong>.</p>
+        <p>
+          ℹ️ Los lotes se generan automáticamente al completar una{" "}
+          <strong>Orden de Producción</strong>.
+        </p>
       </div>
-
       {lotes.length === 0 ? (
         <div className="empty-state" style={{ padding: "28px 20px" }}>
           <div className="empty-state__icon">📦</div>
@@ -165,26 +281,62 @@ function LotesProductoPanel({ idProducto }) {
         </div>
       ) : (
         <div className="lotes-lista">
-          {lotes.map(lote => {
+          {lotes.map((lote) => {
             const vencido = estaVencido(lote.fechaVencimiento);
             const dias    = diasParaVencer(lote.fechaVencimiento);
             const pronto  = dias !== null && dias >= 0 && dias <= 7;
             return (
-              <div key={lote.id} className="lote-item"
-                style={{ borderColor: vencido ? "#ef9a9a" : pronto ? "#ffe082" : "#c8e6c9" }}>
+              <div
+                key={lote.id}
+                className="lote-item"
+                style={{
+                  borderColor: vencido ? "#ef9a9a" : pronto ? "#ffe082" : "#c8e6c9",
+                }}
+              >
                 <div className="lote-item__head">
                   <span className="lote-item__id">{lote.id}</span>
                   <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    {vencido && <span style={{ fontSize: 11, fontWeight: 700, color: "#c62828", background: "#ffebee", padding: "2px 8px", borderRadius: 20, border: "1px solid #ef9a9a" }}>Vencido</span>}
-                    {pronto && !vencido && <span style={{ fontSize: 11, fontWeight: 700, color: "#e65100", background: "#fff3e0", padding: "2px 8px", borderRadius: 20, border: "1px solid #ffcc80" }}>Vence en {dias}d</span>}
-                    <span style={{ fontWeight: 600, fontSize: 12 }}>Vence: {formatFecha(lote.fechaVencimiento)}</span>
+                    {vencido && (
+                      <span
+                        style={{
+                          fontSize: 11, fontWeight: 700, color: "#c62828",
+                          background: "#ffebee", padding: "2px 8px",
+                          borderRadius: 20, border: "1px solid #ef9a9a",
+                        }}
+                      >
+                        Vencido
+                      </span>
+                    )}
+                    {pronto && !vencido && (
+                      <span
+                        style={{
+                          fontSize: 11, fontWeight: 700, color: "#e65100",
+                          background: "#fff3e0", padding: "2px 8px",
+                          borderRadius: 20, border: "1px solid #ffcc80",
+                        }}
+                      >
+                        Vence en {dias}d
+                      </span>
+                    )}
+                    <span style={{ fontWeight: 600, fontSize: 12 }}>
+                      Vence: {formatFecha(lote.fechaVencimiento)}
+                    </span>
                   </span>
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 8, fontSize: 13 }}>
+                <div
+                  style={{
+                    display: "grid", gridTemplateColumns: "repeat(3, 1fr)",
+                    gap: 8, marginTop: 8, fontSize: 13,
+                  }}
+                >
                   <div><strong>Actual:</strong> {lote.cantidadActual} uds.</div>
                   <div><strong>Inicial:</strong> {lote.cantidadInicial} uds.</div>
                   <div><strong>Ingreso:</strong> {formatFecha(lote.fechaIngreso)}</div>
-                  {lote.costo && <div><strong>Costo unit.:</strong> ${lote.costo?.toLocaleString("es-CO")}</div>}
+                  {lote.costo && (
+                    <div>
+                      <strong>Costo unit.:</strong> ${lote.costo?.toLocaleString("es-CO")}
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -200,7 +352,7 @@ function LotesProductoPanel({ idProducto }) {
 ══════════════════════════════════════════════════════════ */
 function VerProducto({ product, catObj, onClose }) {
   const { getSalidasProducto, getLotesVencidosProducto } = useApp();
-  const [tab, setTab] = useState("info");
+  const [tab, setTab]    = useState("info");
   const [imgIdx, setImgIdx] = useState(0);
 
   const minimo   = product.stockMinimo ?? 10;
@@ -214,11 +366,15 @@ function VerProducto({ product, catObj, onClose }) {
     return acc;
   }, {});
 
-  const previews = product.imagenesPreview || (product.imagenPreview ? [product.imagenPreview] : []);
+  const previews = product.imagenesPreview ?? [];
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box" style={{ maxWidth: 500, display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 40px)" }} onClick={e => e.stopPropagation()}>
+      <div
+        className="modal-box"
+        style={{ maxWidth: 500, display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 40px)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <ProductImg previews={previews} nombre={product.nombre} />
@@ -231,26 +387,63 @@ function VerProducto({ product, catObj, onClose }) {
         </div>
 
         <div className="ver-ins-tabs">
-          {[{ key: "info", label: "📋 Información" }, { key: "lotes", label: "📦 Lotes" }, { key: "historial", label: "🕒 Historial" }].map(t => (
-            <button key={t.key} className={`ver-ins-tab${tab === t.key ? " ver-ins-tab--active" : ""}`} onClick={() => setTab(t.key)}>{t.label}</button>
+          {[
+            { key: "info",     label: "📋 Información" },
+            { key: "lotes",    label: "📦 Lotes" },
+            { key: "historial",label: "🕒 Historial" },
+          ].map((t) => (
+            <button
+              key={t.key}
+              className={`ver-ins-tab${tab === t.key ? " ver-ins-tab--active" : ""}`}
+              onClick={() => setTab(t.key)}
+            >
+              {t.label}
+            </button>
           ))}
         </div>
 
         <div className="modal-body" style={{ flex: 1, overflowY: "auto" }}>
+          {/* ── Tab Info ── */}
           {tab === "info" && (
             <>
-              {/* Galería de imágenes */}
               {previews.length > 0 && (
                 <div style={{ marginBottom: 20 }}>
-                  <div style={{ width: "100%", height: 220, borderRadius: 14, overflow: "hidden", border: "1.5px solid #e8f5e9", background: "#f9fdf9" }}>
-                    <img src={previews[imgIdx]} alt={product.nombre} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                  <div
+                    style={{
+                      width: "100%", height: 220, borderRadius: 14,
+                      overflow: "hidden", border: "1.5px solid #e8f5e9",
+                      background: "#f9fdf9",
+                    }}
+                  >
+                    <img
+                      src={previews[imgIdx]}
+                      alt={product.nombre}
+                      style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                    />
                   </div>
                   {previews.length > 1 && (
-                    <div style={{ display: "flex", gap: 8, marginTop: 10, overflowX: "auto", paddingBottom: 4 }}>
+                    <div
+                      style={{
+                        display: "flex", gap: 8, marginTop: 10,
+                        overflowX: "auto", paddingBottom: 4,
+                      }}
+                    >
                       {previews.map((url, i) => (
-                        <div key={i} onClick={() => setImgIdx(i)} 
-                          style={{ width: 50, height: 50, borderRadius: 8, overflow: "hidden", cursor: "pointer", border: `2px solid ${imgIdx === i ? "#2e7d32" : "#e0e0e0"}`, flexShrink: 0 }}>
-                          <img src={url} alt="thumb" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        <div
+                          key={i}
+                          onClick={() => setImgIdx(i)}
+                          style={{
+                            width: 50, height: 50, borderRadius: 8,
+                            overflow: "hidden", cursor: "pointer",
+                            border: `2px solid ${imgIdx === i ? "#2e7d32" : "#e0e0e0"}`,
+                            flexShrink: 0,
+                          }}
+                        >
+                          <img
+                            src={url}
+                            alt="thumb"
+                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                          />
                         </div>
                       ))}
                     </div>
@@ -265,26 +458,45 @@ function VerProducto({ product, catObj, onClose }) {
                 </div>
                 <div className="ver-ins-field">
                   <span className="ver-ins-field__label">Categoría</span>
-                  <span style={{ fontWeight: 600, fontSize: 14 }}>{catObj?.icon} {catObj?.nombre || "—"}</span>
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>
+                    {catObj?.icon} {catObj?.nombre || "—"}
+                  </span>
                 </div>
                 <div className="ver-ins-field">
                   <span className="ver-ins-field__label">Precio de venta</span>
-                  <span style={{ fontWeight: 700, fontSize: 16, color: "#2e7d32" }}>${product.precio?.toLocaleString("es-CO")}</span>
+                  <span style={{ fontWeight: 700, fontSize: 16, color: "#2e7d32" }}>
+                    ${product.precio?.toLocaleString("es-CO")}
+                  </span>
                 </div>
                 <div className="ver-ins-field">
                   <span className="ver-ins-field__label">Estado stock</span>
-                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 700, background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.color }} />{estado}
+                  <span
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 5,
+                      padding: "3px 10px", borderRadius: 20,
+                      fontSize: 12, fontWeight: 700,
+                      background: s.bg, color: s.color, border: `1px solid ${s.border}`,
+                    }}
+                  >
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.color }} />
+                    {estado}
                   </span>
                 </div>
                 <div className="ver-ins-field">
                   <span className="ver-ins-field__label">Activo</span>
-                  <span style={{ fontWeight: 600, fontSize: 14 }}>{product.activo !== false ? "Sí" : "No"}</span>
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>
+                    {product.activo !== false ? "Sí" : "No"}
+                  </span>
                 </div>
               </div>
 
               <p className="ver-ins-section-label" style={{ textTransform: "none" }}>Stock</p>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 8 }}>
+              <div
+                style={{
+                  display: "grid", gridTemplateColumns: "1fr 1fr",
+                  gap: 10, marginBottom: 8,
+                }}
+              >
                 <div className="ver-ins-stock-card ver-ins-stock-card--actual">
                   <span className="ver-ins-stock-card__num">{product.stock}</span>
                   <span className="ver-ins-stock-card__label">Stock actual</span>
@@ -296,28 +508,41 @@ function VerProducto({ product, catObj, onClose }) {
                   <span className="ver-ins-stock-card__uni">uds.</span>
                 </div>
               </div>
-              <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9e9e9e" }}>{calcTooltip(product.stock, minimo)}</p>
-              {product.fecha && (
-                <div className="date-info" style={{ marginTop: 14 }}>
-                  <span>📅</span><span>Creado el <strong>{product.fecha}</strong></span>
-                </div>
-              )}
+              <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9e9e9e" }}>
+                {calcTooltip(product.stock, minimo)}
+              </p>
             </>
           )}
 
+          {/* ── Tab Lotes ── */}
           {tab === "lotes" && <LotesProductoPanel idProducto={product.id} />}
 
+          {/* ── Tab Historial ── */}
           {tab === "historial" && (
             <>
               {salidas.length > 0 && (
                 <>
-                  <p className="ver-ins-section-label" style={{ textTransform: "none" }}>Resumen de salidas</p>
+                  <p className="ver-ins-section-label" style={{ textTransform: "none" }}>
+                    Resumen de salidas
+                  </p>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
                     {Object.entries(resumenSalidas).map(([tipo, total]) => {
-                      const tc = TIPO_COLORS[tipo] || { color: "#757575", bg: "#f5f5f5", border: "#e0e0e0", icon: "📋" };
+                      const tc = TIPO_COLORS[tipo] || {
+                        color: "#757575", bg: "#f5f5f5", border: "#e0e0e0", icon: "📋",
+                      };
                       return (
-                        <div key={tipo} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 20, background: tc.bg, border: `1px solid ${tc.border}`, fontSize: 12, fontWeight: 700, color: tc.color }}>
-                          <span>{tc.icon}</span>{tipo.charAt(0).toUpperCase() + tipo.slice(1)}: <span style={{ marginLeft: 2 }}>{total} uds.</span>
+                        <div
+                          key={tipo}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 6,
+                            padding: "6px 12px", borderRadius: 20,
+                            background: tc.bg, border: `1px solid ${tc.border}`,
+                            fontSize: 12, fontWeight: 700, color: tc.color,
+                          }}
+                        >
+                          <span>{tc.icon}</span>
+                          {tipo.charAt(0).toUpperCase() + tipo.slice(1)}:
+                          <span style={{ marginLeft: 2 }}>{total} uds.</span>
                         </div>
                       );
                     })}
@@ -325,46 +550,83 @@ function VerProducto({ product, catObj, onClose }) {
                 </>
               )}
 
-              <p className="ver-ins-section-label" style={{ textTransform: "none" }}>Lotes vencidos</p>
-              {vencidos.length === 0
-                ? <div className="empty-state" style={{ padding: "14px 20px" }}><p className="empty-state__text">No hay lotes vencidos registrados.</p></div>
-                : <div className="lotes-lista" style={{ marginBottom: 18 }}>
-                    {vencidos.map(lote => (
-                      <div key={lote.id} className="lote-item" style={{ borderColor: "#ef9a9a" }}>
-                        <div className="lote-item__head">
-                          <span className="lote-item__id">{lote.id}</span>
-                          <span style={{ fontWeight: 600, fontSize: 12 }}>Venció: {formatFecha(lote.fechaVencimiento)}</span>
+              <p className="ver-ins-section-label" style={{ textTransform: "none" }}>
+                Lotes vencidos
+              </p>
+              {vencidos.length === 0 ? (
+                <div className="empty-state" style={{ padding: "14px 20px" }}>
+                  <p className="empty-state__text">No hay lotes vencidos registrados.</p>
+                </div>
+              ) : (
+                <div className="lotes-lista" style={{ marginBottom: 18 }}>
+                  {vencidos.map((lote) => (
+                    <div key={lote.id} className="lote-item" style={{ borderColor: "#ef9a9a" }}>
+                      <div className="lote-item__head">
+                        <span className="lote-item__id">{lote.id}</span>
+                        <span style={{ fontWeight: 600, fontSize: 12 }}>
+                          Venció: {formatFecha(lote.fechaVencimiento)}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          display: "grid", gridTemplateColumns: "repeat(2, 1fr)",
+                          gap: 8, marginTop: 8, fontSize: 13,
+                        }}
+                      >
+                        <div><strong>Cantidad actual:</strong> {lote.cantidadActual} uds.</div>
+                        <div><strong>Ingreso:</strong> {formatFecha(lote.fechaIngreso)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <p className="ver-ins-section-label" style={{ textTransform: "none", marginTop: 4 }}>
+                Historial de salidas
+              </p>
+              {salidas.length === 0 ? (
+                <div className="empty-state" style={{ padding: "14px 20px" }}>
+                  <p className="empty-state__text">Aún no hay salidas registradas.</p>
+                </div>
+              ) : (
+                <div className="historial-list">
+                  {salidas.map((salida) => {
+                    const tc = TIPO_COLORS[salida.tipo] || {
+                      color: "#757575", bg: "#f5f5f5", icon: "📋",
+                    };
+                    return (
+                      <div
+                        key={salida.id}
+                        style={{
+                          display: "flex", justifyContent: "space-between",
+                          alignItems: "center", padding: "10px 14px",
+                          borderRadius: 9, border: "1px solid #f0f0f0",
+                          marginBottom: 6, background: "#fafafa",
+                        }}
+                      >
+                        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                          <span
+                            style={{
+                              padding: "2px 9px", borderRadius: 20,
+                              fontSize: 11, fontWeight: 700,
+                              color: tc.color, background: tc.bg,
+                            }}
+                          >
+                            {tc.icon} {salida.tipo}
+                          </span>
+                          <span style={{ fontSize: 13, color: "#424242" }}>{salida.motivo}</span>
                         </div>
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, marginTop: 8, fontSize: 13 }}>
-                          <div><strong>Cantidad actual:</strong> {lote.cantidadActual} uds.</div>
-                          <div><strong>Ingreso:</strong> {formatFecha(lote.fechaIngreso)}</div>
+                        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "#c62828" }}>
+                            -{salida.cantidad} uds.
+                          </span>
+                          <span style={{ fontSize: 11, color: "#bdbdbd" }}>{salida.fecha}</span>
                         </div>
                       </div>
-                    ))}
-                  </div>
-              }
-
-              <p className="ver-ins-section-label" style={{ textTransform: "none", marginTop: 4 }}>Historial de salidas</p>
-              {salidas.length === 0
-                ? <div className="empty-state" style={{ padding: "14px 20px" }}><p className="empty-state__text">Aún no hay salidas registradas.</p></div>
-                : <div className="historial-list">
-                    {salidas.map(salida => {
-                      const tc = TIPO_COLORS[salida.tipo] || { color: "#757575", bg: "#f5f5f5", icon: "📋" };
-                      return (
-                        <div key={salida.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", borderRadius: 9, border: "1px solid #f0f0f0", marginBottom: 6, background: "#fafafa" }}>
-                          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                            <span style={{ padding: "2px 9px", borderRadius: 20, fontSize: 11, fontWeight: 700, color: tc.color, background: tc.bg }}>{tc.icon} {salida.tipo}</span>
-                            <span style={{ fontSize: 13, color: "#424242" }}>{salida.motivo}</span>
-                          </div>
-                          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: "#c62828" }}>-{salida.cantidad} uds.</span>
-                            <span style={{ fontSize: 11, color: "#bdbdbd" }}>{salida.fecha}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-              }
+                    );
+                  })}
+                </div>
+              )}
             </>
           )}
         </div>
@@ -378,85 +640,221 @@ function VerProducto({ product, catObj, onClose }) {
 }
 
 /* ══════════════════════════════════════════════════════════
+   LOADING SKELETON
+══════════════════════════════════════════════════════════ */
+function LoadingSkeleton() {
+  return (
+    <div style={{ padding: "20px 0" }}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <div
+          key={i}
+          style={{
+            height: 60, borderRadius: 10, background: "#f1f8f1",
+            marginBottom: 8, animation: "pulse 1.5s ease-in-out infinite",
+            opacity: 1 - i * 0.12,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════
    PÁGINA PRINCIPAL
 ══════════════════════════════════════════════════════════ */
 export default function GestionProductos() {
+  // Solo usamos del contexto lo que aún no está migrado a API
   const {
-    productos,
-    getCatProducto,
-    crearProducto, editarProducto, eliminarProducto, guardarFicha,
     canDeleteProducto,
     registrarSalidaProducto,
-    toggleActivoProducto,
+    guardarFicha,
+    getSalidasProducto,
+    getLotesVencidosProducto,
+    getLotesProducto,
   } = useApp();
 
   const location = useLocation();
-  const [search,     setSearch]     = useState("");
-  const [filterCat,  setFilterCat]  = useState("Todas");
-  const [filterEst,  setFilterEst]  = useState("Todos");
-  const [showFilter, setShowFilter] = useState(false);
-  const [page,       setPage]       = useState(1);
-  const [modal,      setModal]      = useState(null);
-  const [toast,      setToast]      = useState(null);
+
+  /* ── Estado ── */
+  const [productosRaw, setProductosRaw] = useState([]); // datos crudos de la API
+  const [categorias,   setCategorias]   = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [search,       setSearch]       = useState("");
+  const [filterCat,    setFilterCat]    = useState("Todas");
+  const [filterEst,    setFilterEst]    = useState("Todos");
+  const [showFilter,   setShowFilter]   = useState(false);
+  const [page,         setPage]         = useState(1);
+  const [modal,        setModal]        = useState(null);
+  const [toast,        setToast]        = useState(null);
   const filterRef = useRef();
 
-  // ✅ DEEP LINKING: Abrir ficha técnica desde otras vistas
+  /* ── Helpers de categoría ── */
+  const getCat = useCallback(
+    (idCategoria) => {
+      const cat = categorias.find((c) => c.ID_Categoria === idCategoria);
+      return cat
+        ? { id: cat.ID_Categoria, nombre: cat.Nombre_Categoria, icon: cat.Icono ?? "📦" }
+        : { id: null, nombre: "Sin categoría", icon: "📦" };
+    },
+    [categorias]
+  );
+
+  /* ── Productos adaptados (API → UI shape) ── */
+  const productos = useMemo(
+    () => productosRaw.map(adaptarProducto),
+    [productosRaw]
+  );
+
+  /* ── Carga de datos ── */
+  const cargarDatos = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [resProd, resCat] = await Promise.all([
+        getProductos({ porPagina: 100 }),
+        getCategorias({ porPagina: 100 }),
+      ]);
+      setProductosRaw(resProd.productos ?? []);
+      setCategorias(resCat.categorias ?? []);
+    } catch (e) {
+      showToast("Error cargando datos: " + e.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { cargarDatos(); }, [cargarDatos]);
+
+  /* ── Deep link: abrir ficha técnica desde otra vista ── */
   useEffect(() => {
     if (location.state?.openFicha && productos.length > 0) {
-      const p = productos.find(prod => prod.id === Number(location.state.openFicha));
+      const p = productos.find((prod) => prod.id === Number(location.state.openFicha));
       if (p) {
         setModal({ type: "ficha", product: p });
-        // Limpiar estado para evitar que se abra de nuevo al recargar
         window.history.replaceState({}, document.title);
       }
     }
   }, [location.state, productos]);
 
+  /* ── Cierre del dropdown de filtros al click fuera ── */
   useEffect(() => {
-    const h = e => { if (filterRef.current && !filterRef.current.contains(e.target)) setShowFilter(false); };
+    const h = (e) => {
+      if (filterRef.current && !filterRef.current.contains(e.target))
+        setShowFilter(false);
+    };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
+  /* ── Toast ── */
   const showToast = (msg, type = "success") => {
     setToast({ message: msg, type });
     setTimeout(() => setToast(null), 3000);
   };
 
+  /* ── Filtrado y paginación ── */
   const ESTADOS_FILTER = ["Todos", "Disponible", "No disponible"];
   const ESTADO_DOT     = { "Disponible": "#43a047", "No disponible": "#ef5350" };
 
-  const filtered = productos.filter(p => {
-    const cat    = getCatProducto(p.idCategoria);
-    const q      = search.toLowerCase();
-    const estado = calcEstado(p.stock, p.stockMinimo ?? 10);
-    return (
-      (p.nombre.toLowerCase().includes(q) || cat.nombre.toLowerCase().includes(q)) &&
-      (filterCat === "Todas" || cat.nombre === filterCat) &&
-      (filterEst === "Todos" || estado === filterEst)
-    );
-  });
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return productos.filter((p) => {
+      const cat    = getCat(p.idCategoria);
+      const estado = calcEstado(p.stock, p.stockMinimo);
+      return (
+        (p.nombre.toLowerCase().includes(q) ||
+          cat.nombre.toLowerCase().includes(q)) &&
+        (filterCat === "Todas" || cat.nombre === filterCat) &&
+        (filterEst === "Todos" || estado === filterEst)
+      );
+    });
+  }, [productos, search, filterCat, filterEst, getCat]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const safePage   = Math.min(page, totalPages);
-  const paginated  = filtered.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
+  const paginated  = filtered.slice(
+    (safePage - 1) * ITEMS_PER_PAGE,
+    safePage * ITEMS_PER_PAGE
+  );
+
   useEffect(() => setPage(1), [search, filterCat, filterEst]);
 
-  const hasFilter = filterCat !== "Todas" || filterEst !== "Todos";
-  const catsEnUso = ["Todas", ...new Set(productos.map(p => getCatProducto(p.idCategoria).nombre).filter(Boolean))];
+  const hasFilter  = filterCat !== "Todas" || filterEst !== "Todos";
+  const catsEnUso  = useMemo(
+    () => ["Todas", ...new Set(productos.map((p) => getCat(p.idCategoria).nombre).filter(Boolean))],
+    [productos, getCat]
+  );
 
-  const handleCreate    = f  => { crearProducto({ ...f, fecha: new Date().toLocaleDateString("es-CO") }); showToast("Producto creado"); setModal(null); };
-  const handleEdit      = f  => { editarProducto(f); showToast("Cambios guardados"); setModal(null); };
-  const handleDelete    = () => { eliminarProducto(modal.product.id); showToast("Producto eliminado", "error"); setModal(null); };
-  const handleSaveFicha = f  => { guardarFicha(modal.product.id, f); showToast("Ficha técnica guardada"); setModal(null); };
-
-  const handleSalida = async (payload) => {
-    if (!registrarSalidaProducto) { showToast("Función no disponible", "error"); setModal(null); return { ok: false }; }
-    const result = registrarSalidaProducto(payload);
-    if (result?.ok !== false) { showToast("Salida registrada y stock actualizado"); setModal(null); return { ok: true }; }
-    showToast(result.razon || "Error en la salida", "error"); setModal(null); return { ok: false };
+  /* ── Handlers ── */
+  const handleCreate = async () => {
+    // CrearProducto ya llamó a la API; solo recargamos
+    await cargarDatos();
+    showToast("Producto creado");
+    setModal(null);
   };
 
+  const handleEdit = async () => {
+    await cargarDatos();
+    showToast("Cambios guardados");
+    setModal(null);
+  };
+
+  const handleDelete = async () => {
+    try {
+      await apiEliminarProducto(modal.product.id);
+      await cargarDatos();
+      showToast("Producto eliminado", "error");
+    } catch (e) {
+      showToast("Error al eliminar: " + e.message, "error");
+    }
+    setModal(null);
+  };
+
+  const handleToggleActivo = async (producto) => {
+    try {
+      await apiToggleEstado(producto.id, producto.activo);
+      // Actualización optimista: no esperamos recarga para que el toggle se vea fluido
+      setProductosRaw((prev) =>
+        prev.map((p) =>
+          p.ID_Producto === producto.id
+            ? { ...p, Estado: producto.activo ? 0 : 1 }
+            : p
+        )
+      );
+    } catch (e) {
+      showToast("Error cambiando estado: " + e.message, "error");
+      await cargarDatos(); // revert
+    }
+  };
+
+  const handleSaveFicha = async (ficha) => {
+    // guardarFicha puede seguir en contexto local hasta que se migre ese endpoint
+    if (guardarFicha) guardarFicha(modal.product.id, ficha);
+    await cargarDatos();
+    showToast("Ficha técnica guardada");
+    setModal(null);
+  };
+
+  const handleSalida = async (payload) => {
+    if (!registrarSalidaProducto) {
+      showToast("Función no disponible", "error");
+      setModal(null);
+      return { ok: false };
+    }
+    const result = registrarSalidaProducto(payload);
+    if (result?.ok !== false) {
+      showToast("Salida registrada y stock actualizado");
+      setModal(null);
+      await cargarDatos();
+      return { ok: true };
+    }
+    showToast(result.razon || "Error en la salida", "error");
+    setModal(null);
+    return { ok: false };
+  };
+
+  /* ══════════════════════════════════════════════════════
+     RENDER
+  ══════════════════════════════════════════════════════ */
   return (
     <div className="page-wrapper">
       <div className="page-header">
@@ -465,34 +863,87 @@ export default function GestionProductos() {
       </div>
 
       <div className="page-inner">
-        {/* Toolbar */}
+        {/* ── Toolbar ── */}
         <div className="toolbar">
           <div className="search-wrap">
             <span className="search-icon">🔍</span>
-            <input type="text" className="search-input" placeholder="Buscar por nombre o categoría…"
-              value={search} onChange={e => setSearch(e.target.value)} />
+            <input
+              type="text"
+              className="search-input"
+              placeholder="Buscar por nombre o categoría…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
+
           <div ref={filterRef} style={{ position: "relative" }}>
-            <button type="button" className={`filter-icon-btn${hasFilter ? " has-filter" : ""}`} onClick={() => setShowFilter(v => !v)}>▼</button>
+            <button
+              type="button"
+              className={`filter-icon-btn${hasFilter ? " has-filter" : ""}`}
+              onClick={() => setShowFilter((v) => !v)}
+            >
+              ▼
+            </button>
             {showFilter && (
               <div className="filter-dropdown" style={{ minWidth: 200 }}>
-                <div style={{ padding: "8px 14px 4px", fontSize: 10, fontWeight: 700, color: "#9e9e9e", letterSpacing: 1.5 }}>Categoría</div>
-                {catsEnUso.map(c => (
-                  <button key={c} className={`filter-option${filterCat === c ? " active" : ""}`} onClick={() => setFilterCat(c)}>
-                    <span className="filter-dot" style={{ background: filterCat === c ? "#43a047" : "#bdbdbd" }} />{c}
+                <div
+                  style={{
+                    padding: "8px 14px 4px", fontSize: 10,
+                    fontWeight: 700, color: "#9e9e9e", letterSpacing: 1.5,
+                  }}
+                >
+                  Categoría
+                </div>
+                {catsEnUso.map((c) => (
+                  <button
+                    key={c}
+                    className={`filter-option${filterCat === c ? " active" : ""}`}
+                    onClick={() => setFilterCat(c)}
+                  >
+                    <span
+                      className="filter-dot"
+                      style={{ background: filterCat === c ? "#43a047" : "#bdbdbd" }}
+                    />
+                    {c}
                   </button>
                 ))}
                 <div style={{ height: 1, background: "#f5f5f5", margin: "4px 0" }} />
-                <div style={{ padding: "4px 14px", fontSize: 10, fontWeight: 700, color: "#9e9e9e", letterSpacing: 1.5 }}>Estado</div>
-                {ESTADOS_FILTER.map(st => (
-                  <button key={st} className={`filter-option${filterEst === st ? " active" : ""}`} onClick={() => setFilterEst(st)}>
-                    <span className="filter-dot" style={{ background: ESTADO_DOT[st] || "#bdbdbd" }} />{st}
+                <div
+                  style={{
+                    padding: "4px 14px", fontSize: 10,
+                    fontWeight: 700, color: "#9e9e9e", letterSpacing: 1.5,
+                  }}
+                >
+                  Estado
+                </div>
+                {ESTADOS_FILTER.map((st) => (
+                  <button
+                    key={st}
+                    className={`filter-option${filterEst === st ? " active" : ""}`}
+                    onClick={() => setFilterEst(st)}
+                  >
+                    <span
+                      className="filter-dot"
+                      style={{ background: ESTADO_DOT[st] || "#bdbdbd" }}
+                    />
+                    {st}
                   </button>
                 ))}
                 {hasFilter && (
                   <div style={{ padding: "4px 14px 8px" }}>
-                    <button onClick={() => { setFilterCat("Todas"); setFilterEst("Todos"); setShowFilter(false); }}
-                      style={{ width: "100%", padding: 6, borderRadius: 7, border: "1px solid #e0e0e0", background: "transparent", color: "#e53935", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                    <button
+                      onClick={() => {
+                        setFilterCat("Todas");
+                        setFilterEst("Todos");
+                        setShowFilter(false);
+                      }}
+                      style={{
+                        width: "100%", padding: 6, borderRadius: 7,
+                        border: "1px solid #e0e0e0", background: "transparent",
+                        color: "#e53935", fontSize: 12, fontWeight: 700,
+                        cursor: "pointer", fontFamily: "inherit",
+                      }}
+                    >
                       Limpiar filtros
                     </button>
                   </div>
@@ -500,67 +951,121 @@ export default function GestionProductos() {
               </div>
             )}
           </div>
-          <button className="btn-agregar" onClick={() => setModal({ type: "crear" })}>Agregar <span style={{ fontSize: 18 }}>+</span></button>
+
+          <button className="btn-agregar" onClick={() => setModal({ type: "crear" })}>
+            Agregar <span style={{ fontSize: 18 }}>+</span>
+          </button>
         </div>
 
-        {/* Tabla */}
+        {/* ── Tabla ── */}
         <div className="card">
-          <div style={{ overflowX: "auto" }}>
-            <table className="tbl">
-              <thead>
-                <tr>
-                  <th>Nº</th>
-                  <th>Producto</th>
-                  <th>Categoría</th>
-                  <th>Precio</th>
-                  <th>Stock</th>
-                  <th>Activo</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginated.length === 0 ? (
-                  <tr><td colSpan={7}><div className="empty-state"><div className="empty-state__icon">🍌</div><p className="empty-state__text">Sin resultados</p></div></td></tr>
-                ) : paginated.map((p, idx) => {
-                  const cat = getCatProducto(p.idCategoria);
-                  const previews = p.imagenesPreview || (p.imagenPreview ? [p.imagenPreview] : []);
-                  return (
-                    <tr key={p.id} className="tbl-row">
-                      <td><span className="cat-num">{String((safePage - 1) * ITEMS_PER_PAGE + idx + 1).padStart(2, "0")}</span></td>
-                      <td><div className="cat-cell"><ProductImg previews={previews} nombre={p.nombre} /><span className="cat-name">{p.nombre}</span></div></td>
-                      <td><CatCell cat={cat} /></td>
-                      <td><span style={{ fontWeight: 700, color: "#2e7d32", fontSize: 14 }}>${p.precio?.toLocaleString("es-CO")}</span></td>
-
-                      <td><StockBar actual={p.stock} minimo={p.stockMinimo ?? 10} /></td>
-
-                      <td>
-                        <Toggle
-                          value={p.activo !== false}
-                          onChange={() => toggleActivoProducto && toggleActivoProducto(p.id)}
-                        />
-                      </td>
-                      <td>
-                        <div className="actions-cell">
-                          <button className="act-btn act-btn--view"   title="Ver detalle"      onClick={() => setModal({ type: "ver",      product: p })}>👁</button>
-                          <button className="act-btn act-btn--edit"   title="Editar"           onClick={() => setModal({ type: "editar",   product: p })}>✎</button>
-                          <button className="act-btn act-btn--ficha"  title="Ficha técnica"    onClick={() => setModal({ type: "ficha",    product: p })}>📋</button>
-                          <button className="act-btn act-btn--salida" title="Registrar salida" onClick={() => setModal({ type: "salida",   product: p })}>🚚</button>
-                          <button className="act-btn act-btn--delete" title="Eliminar"         onClick={() => setModal({ type: "eliminar", product: p })}>🗑️</button>
+          {loading ? (
+            <div style={{ padding: "0 20px" }}>
+              <LoadingSkeleton />
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Nº</th>
+                    <th>Producto</th>
+                    <th>Categoría</th>
+                    <th>Precio</th>
+                    <th>Stock</th>
+                    <th>Activo</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginated.length === 0 ? (
+                    <tr>
+                      <td colSpan={7}>
+                        <div className="empty-state">
+                          <div className="empty-state__icon">🍌</div>
+                          <p className="empty-state__text">Sin resultados</p>
                         </div>
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  ) : (
+                    paginated.map((p, idx) => {
+                      const cat = getCat(p.idCategoria);
+                      return (
+                        <tr key={p.id} className="tbl-row">
+                          <td>
+                            <span className="cat-num">
+                              {String((safePage - 1) * ITEMS_PER_PAGE + idx + 1).padStart(2, "0")}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="cat-cell">
+                              <ProductImg previews={p.imagenesPreview} nombre={p.nombre} />
+                              <span className="cat-name">{p.nombre}</span>
+                            </div>
+                          </td>
+                          <td><CatCell cat={cat} /></td>
+                          <td>
+                            <span style={{ fontWeight: 700, color: "#2e7d32", fontSize: 14 }}>
+                              ${p.precio?.toLocaleString("es-CO")}
+                            </span>
+                          </td>
+                          <td>
+                            <StockBar actual={p.stock} minimo={p.stockMinimo} />
+                          </td>
+                          <td>
+                            <Toggle
+                              value={p.activo}
+                              onChange={() => handleToggleActivo(p)}
+                            />
+                          </td>
+                          <td>
+                            <div className="actions-cell">
+                              <button
+                                className="act-btn act-btn--view"
+                                title="Ver detalle"
+                                onClick={() => setModal({ type: "ver", product: p })}
+                              >👁</button>
+                              <button
+                                className="act-btn act-btn--edit"
+                                title="Editar"
+                                onClick={() => setModal({ type: "editar", product: p })}
+                              >✎</button>
+                              <button
+                                className="act-btn act-btn--ficha"
+                                title="Ficha técnica"
+                                onClick={() => setModal({ type: "ficha", product: p })}
+                              >📋</button>
+                              <button
+                                className="act-btn act-btn--salida"
+                                title="Registrar salida"
+                                onClick={() => setModal({ type: "salida", product: p })}
+                              >🚚</button>
+                              <button
+                                className="act-btn act-btn--delete"
+                                title="Eliminar"
+                                onClick={() => setModal({ type: "eliminar", product: p })}
+                              >🗑️</button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Paginación */}
           <div className="pagination-bar">
-            <span className="pagination-count">{filtered.length} {filtered.length === 1 ? "producto" : "productos"} en total</span>
+            <span className="pagination-count">
+              {filtered.length} {filtered.length === 1 ? "producto" : "productos"} en total
+            </span>
             <div className="pagination-btns">
               <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
-              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
+              <button className="pg-btn-arrow" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
               <span className="pg-pill">Página {safePage} de {totalPages}</span>
-              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
+              <button className="pg-btn-arrow" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
               <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>»</button>
             </div>
           </div>
@@ -568,10 +1073,29 @@ export default function GestionProductos() {
       </div>
 
       {/* ══ Modales ══ */}
-      {modal?.type === "crear"    && <CrearProducto onClose={() => setModal(null)} onSave={handleCreate} />}
-      {modal?.type === "editar"   && <EditarProducto product={modal.product} onClose={() => setModal(null)} onSave={handleEdit} />}
-      {modal?.type === "ver"      && <VerProducto product={modal.product} catObj={getCatProducto(modal.product.idCategoria)} onClose={() => setModal(null)} />}
-      {modal?.type === "salida"   && (
+      {modal?.type === "crear" && (
+        <CrearProducto
+          categorias={categorias}
+          onClose={() => setModal(null)}
+          onSave={handleCreate}
+        />
+      )}
+      {modal?.type === "editar" && (
+        <EditarProducto
+          product={modal.product}
+          categorias={categorias}
+          onClose={() => setModal(null)}
+          onSave={handleEdit}
+        />
+      )}
+      {modal?.type === "ver" && (
+        <VerProducto
+          product={modal.product}
+          catObj={getCat(modal.product.idCategoria)}
+          onClose={() => setModal(null)}
+        />
+      )}
+      {modal?.type === "salida" && (
         <SalidaModal
           entidad={modal.product}
           tipo="producto"
@@ -585,16 +1109,31 @@ export default function GestionProductos() {
         <ModalEliminarValidado
           titulo="Eliminar producto"
           descripcion={`¿Está seguro de que desea eliminar el producto "${modal.product.nombre}"?`}
-          validacion={canDeleteProducto(modal.product.id)}
+          validacion={canDeleteProducto ? canDeleteProducto(modal.product.id) : { puede: true }}
           onClose={() => setModal(null)}
           onConfirm={handleDelete}
         />
       )}
       {modal?.type === "ficha" && (
         modal.product.ficha
-          ? <EditarFicha ficha={modal.product.ficha} mode="edit" onClose={() => setModal(null)} onSave={handleSaveFicha} />
-          : <CrearFicha  productoNombre={modal.product.nombre} productoCategoria={getCatProducto(modal.product.idCategoria)?.nombre} onClose={() => setModal(null)} onSave={handleSaveFicha} />
+          ? (
+            <EditarFicha
+              ficha={modal.product.ficha}
+              mode="edit"
+              onClose={() => setModal(null)}
+              onSave={handleSaveFicha}
+            />
+          )
+          : (
+            <CrearFicha
+              productoNombre={modal.product.nombre}
+              productoCategoria={getCat(modal.product.idCategoria)?.nombre}
+              onClose={() => setModal(null)}
+              onSave={handleSaveFicha}
+            />
+          )
       )}
+
       <Toast toast={toast} />
     </div>
   );

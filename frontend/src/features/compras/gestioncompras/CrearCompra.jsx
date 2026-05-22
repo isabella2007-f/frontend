@@ -68,23 +68,33 @@ export default function CrearCompra({ onClose, onSave }) {
 
   const [gastos, setGastos] = useState({
     transporte: "",
-    iva:        "",
-    descuento:  "",
+    iva:        "", // se entenderá como porcentaje
+    descuento:  "", // se entenderá como porcentaje
     otros:      "",
   });
 
   const setGasto = (k, v) => setGastos(g => ({ ...g, [k]: v }));
 
-  const totalGastosExtras =
-    (Number(gastos.transporte) || 0) +
-    (Number(gastos.iva)        || 0) -
-    (Number(gastos.descuento)  || 0) +
-    (Number(gastos.otros)      || 0);
-
   const [detalles, setDetalles] = useState([emptyDetalle()]);
   const [errors,   setErrors]   = useState({});
   const [saving,   setSaving]   = useState(false);
   const [step,     setStep]     = useState(1);
+
+  const subtotalInsumos = calcularTotal(
+    detalles.map(d => ({ cantidad: Number(d.cantidad) || 0, precioUnd: Number(d.precioUnd) || 0 }))
+  );
+
+  // Cálculos de porcentajes
+  const valorIva = (subtotalInsumos * (Number(gastos.iva) || 0)) / 100;
+  const valorDescuento = (subtotalInsumos * (Number(gastos.descuento) || 0)) / 100;
+
+  const totalGastosExtras =
+    (Number(gastos.transporte) || 0) +
+    valorIva -
+    valorDescuento +
+    (Number(gastos.otros)      || 0);
+
+  const totalActual = subtotalInsumos + totalGastosExtras;
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -104,12 +114,6 @@ export default function CrearCompra({ onClose, onSave }) {
   const removeDetalle = (key) => setDetalles(ds => ds.filter(d => d._key !== key));
 
   const idsSeleccionados = detalles.map(d => String(d.idInsumo)).filter(Boolean);
-
-  const subtotalInsumos = calcularTotal(
-    detalles.map(d => ({ cantidad: Number(d.cantidad) || 0, precioUnd: Number(d.precioUnd) || 0 }))
-  );
-
-  const totalActual = subtotalInsumos + totalGastosExtras;
 
   const validateStep1 = () => {
     const e = {};
@@ -171,9 +175,11 @@ export default function CrearCompra({ onClose, onSave }) {
         comprobante:  comprobante || null,
         gastos: {
           transporte: Number(gastos.transporte) || 0,
-          iva:        Number(gastos.iva)        || 0,
-          descuento:  Number(gastos.descuento)  || 0,
+          iva:        valorIva,
+          descuento:  valorDescuento,
           otros:      Number(gastos.otros)      || 0,
+          ivaPorcentaje: Number(gastos.iva) || 0,
+          descPorcentaje: Number(gastos.descuento) || 0,
         },
         totalConGastos: totalActual,
       });
@@ -544,7 +550,7 @@ export default function CrearCompra({ onClose, onSave }) {
                   Gastos adicionales
                 </p>
                 <p style={{ margin: 0, fontSize: 12, color: "#9e9e9e" }}>
-                  Estos valores se suman (o restan) al subtotal de los insumos.
+                  Ingresa los porcentajes para IVA y Descuento; el sistema calculará el valor automáticamente.
                 </p>
               </div>
 
@@ -554,13 +560,20 @@ export default function CrearCompra({ onClose, onSave }) {
                   <input type="number" className="field-input" placeholder="$ 0" value={gastos.transporte} onChange={e => setGasto("transporte", e.target.value)} />
                 </div>
                 <div className="field-wrap">
-                  <label className="field-label">🧾 IVA</label>
-                  <input type="number" className="field-input" placeholder="$ 0" value={gastos.iva} onChange={e => setGasto("iva", e.target.value)} />
+                  <label className="field-label">🧾 IVA (%)</label>
+                  <div style={{ position: "relative" }}>
+                    <input type="number" className="field-input" placeholder="0" value={gastos.iva} onChange={e => setGasto("iva", e.target.value)} style={{ paddingRight: 30 }} />
+                    <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#9e9e9e", fontWeight: 700 }}>%</span>
+                  </div>
+                  {valorIva > 0 && <span className="field-hint" style={{ color: "#2e7d32", fontWeight: 600 }}>+ {COP(valorIva)}</span>}
                 </div>
                 <div className="field-wrap">
-                  <label className="field-label">🏷️ Descuento proveedor</label>
-                  <input type="number" className="field-input gastos-descuento-input" placeholder="$ 0" value={gastos.descuento} onChange={e => setGasto("descuento", e.target.value)} />
-                  <span className="field-hint">Se resta del total</span>
+                  <label className="field-label">🏷️ Descuento (%)</label>
+                  <div style={{ position: "relative" }}>
+                    <input type="number" className="field-input gastos-descuento-input" placeholder="0" value={gastos.descuento} onChange={e => setGasto("descuento", e.target.value)} style={{ paddingRight: 30 }} />
+                    <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#c62828", fontWeight: 700 }}>%</span>
+                  </div>
+                  {valorDescuento > 0 && <span className="field-hint" style={{ color: "#c62828", fontWeight: 600 }}>− {COP(valorDescuento)}</span>}
                 </div>
                 <div className="field-wrap">
                   <label className="field-label">➕ Otros costos</label>
@@ -568,16 +581,36 @@ export default function CrearCompra({ onClose, onSave }) {
                 </div>
               </div>
 
-              {totalGastosExtras !== 0 && (
-                <div className="total-desglose" style={{ marginTop: 16 }}>
-                  <span>Subtotal insumos</span>
-                  <span>{COP(subtotalInsumos)}</span>
-                  {Number(gastos.transporte) > 0 && <><span>+ Transporte</span><span>{COP(Number(gastos.transporte))}</span></>}
-                  {Number(gastos.iva)        > 0 && <><span>+ IVA</span><span>{COP(Number(gastos.iva))}</span></>}
-                  {Number(gastos.descuento)  > 0 && <><span className="descuento-row">− Descuento</span><span className="descuento-row">{COP(Number(gastos.descuento))}</span></>}
-                  {Number(gastos.otros)      > 0 && <><span>+ Otros</span><span>{COP(Number(gastos.otros))}</span></>}
+              <div className="total-desglose" style={{ marginTop: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
+                  <span style={{ color: "#757575" }}>Subtotal insumos</span>
+                  <span style={{ fontWeight: 600 }}>{COP(subtotalInsumos)}</span>
                 </div>
-              )}
+                {Number(gastos.transporte) > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
+                    <span style={{ color: "#757575" }}>+ Transporte</span>
+                    <span style={{ color: "#2e7d32" }}>{COP(Number(gastos.transporte))}</span>
+                  </div>
+                )}
+                {valorIva > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
+                    <span style={{ color: "#757575" }}>+ IVA ({gastos.iva}%)</span>
+                    <span style={{ color: "#2e7d32" }}>{COP(valorIva)}</span>
+                  </div>
+                )}
+                {valorDescuento > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
+                    <span style={{ color: "#757575" }}>− Descuento ({gastos.descuento}%)</span>
+                    <span style={{ color: "#c62828" }}>{COP(valorDescuento)}</span>
+                  </div>
+                )}
+                {Number(gastos.otros) > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
+                    <span style={{ color: "#757575" }}>+ Otros</span>
+                    <span style={{ color: "#2e7d32" }}>{COP(Number(gastos.otros))}</span>
+                  </div>
+                )}
+              </div>
             </>
           )}
         </div>

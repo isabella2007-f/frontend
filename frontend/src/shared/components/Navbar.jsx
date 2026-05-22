@@ -8,7 +8,6 @@ import { getCartCount, getCart, getTotal } from "../../features/sales/orders/ser
 import CartAside from "../../features/sales/orders/components/CartAside";
 import CheckoutModal from "../../features/sales/orders/components/CheckoutModal";
 import LogoutModal from "./LogoutModal";
-// ── NOTIFICACIONES ──────────────────────────────────────────
 import { useNotificaciones } from "../../features/notificaciones/context/NotificacionesContext";
 import NotificacionesPanel from "../../features/notificaciones/components/NotificacionesPanel";
 import AlertaBanner from "../../features/notificaciones/components/AlertaBanner";
@@ -23,11 +22,9 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
   const [orderDetails,     setOrderDetails]     = useState(null);
   const [cartUpdateToggle, setCartUpdateToggle] = useState(false);
   const [showLogoutModal,  setShowLogoutModal]  = useState(false);
-  // ── Panel notificaciones ──
   const [notifOpen,        setNotifOpen]        = useState(false);
   const navigate = useNavigate();
 
-  // ── Notificaciones context ──
   const { noLeidas, agregarNotificacion } = useNotificaciones();
   const { crearPedido } = useApp();
 
@@ -70,7 +67,7 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
     const total = getTotal();
 
     const pedido = {
-      idCliente:      currentUser?.cedula || '',
+      idCliente:      currentUser?.id || '',
       cliente: {
         nombre:   currentUser ? `${currentUser.nombre} ${currentUser.apellidos || ''}`.trim() : onBehalfOf,
         correo:   currentUser?.correo   || '',
@@ -112,8 +109,6 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
     setMenuOpen(false);
   };
 
-  // La campanita se muestra a usuarios autenticados: tanto admin como cliente
-  // PERO no en la landing page según el requerimiento del usuario.
   const mostrarCampana = !!user && !isLanding;
 
   return (
@@ -121,12 +116,16 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
       <nav className={`navbar ${isLanding ? 'is-landing' : ''}`}>
         <div className="navbar-inner">
 
-          {/* LEFT — Botones de menú eliminados */}
+          {/* LEFT */}
           <div className="nav-left-section">
           </div>
 
           {/* CENTER — Logo */}
-          <div className="logo-wrapper" onClick={() => navigate(user?.rol === 'cliente' ? "/cliente/inicio" : "/")} style={{ cursor: 'pointer' }}>
+          <div
+            className="logo-wrapper"
+            onClick={() => navigate(user?.tipo === 'usuario' ? "/" : "/panel")}
+            style={{ cursor: 'pointer' }}
+          >
             <img src="/Logo.png" alt="Logo" className="logo" />
           </div>
 
@@ -134,35 +133,35 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
           <div className="nav-right">
             <div className="links-bell-wrapper">
               <div className="nav-links">
-                {/* Links de navegación de la landing */}
-                {(isLanding || user?.rol === 'cliente') && (
+
+                {/* Links landing / cliente */}
+                {(isLanding || user?.tipo === 'usuario') && (
                   <>
                     <button onClick={() => {
                       if (location.pathname === '/') scrollToSection('inicio');
-                      else if (user?.rol === 'cliente') navigate('/cliente/inicio');
                       else navigate('/');
                     }} className="nav-link">Inicio</button>
+
                     <button onClick={() => {
                       if (location.pathname === '/') scrollToSection('productos');
-                      else if (user?.rol === 'cliente') navigate('/cliente/inicio#productos');
                       else navigate('/#productos');
                     }} className="nav-link">Productos</button>
+
                     <button onClick={() => {
                       if (location.pathname === '/') scrollToSection('nosotros');
-                      else if (user?.rol === 'cliente') navigate('/cliente/inicio#nosotros');
                       else navigate('/#nosotros');
                     }} className="nav-link">Nosotros</button>
                   </>
                 )}
-                
-                {/* Link al Dashboard para el Admin (siempre visible si está logueado) */}
-                {user?.rol === 'administrador' && (
+
+                {/* Link Dashboard para empleado/admin */}
+                {user?.tipo === 'empleado' && (
                   <Link to="/admin" className="nav-link font-bold text-[#2e7d32]">Dashboard</Link>
                 )}
               </div>
             </div>
 
-            {/* ── 🔔 CAMPANITA DE NOTIFICACIONES ── */}
+            {/* Campanita */}
             {mostrarCampana && (
               <button
                 className="bell-btn"
@@ -180,15 +179,20 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
             )}
 
             {/* Carrito */}
-            {(user?.rol === "cliente" || (!user && !isLanding)) && (
+            {(user?.tipo === "usuario" || (!user && isLanding)) && (
               <button className="cart-btn" onClick={() => setIsCartOpen(true)} title="Ver carrito">
                 <ShoppingCart size={22} />
                 {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
               </button>
             )}
 
+            {/* Avatar usuario logueado */}
             {!isLanding && user && (
-              <div className="user-area" onClick={() => navigate(user.rol === "cliente" ? "/cliente/perfil" : "/admin/perfil")} style={{ cursor: 'pointer' }}>
+              <div
+                className="user-area"
+                onClick={() => navigate(user.tipo === "usuario" ? "/perfil" : "/panel/perfil")}
+                style={{ cursor: 'pointer' }}
+              >
                 <div className="avatar">{user.nombre.charAt(0)}</div>
                 <div className="user-info-text">
                   <div className="user-name">{user.nombre}</div>
@@ -197,6 +201,7 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
               </div>
             )}
 
+            {/* Botones login/register para invitados en landing */}
             {isLanding && !user && (
               <div className="auth-btns">
                 <button onClick={() => navigate("/login")} className="btn-login-nav">Iniciar sesión</button>
@@ -204,23 +209,21 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
               </div>
             )}
 
+            {/* Logout */}
             {user && (
               <button className="logout-btn" title="Cerrar sesión" onClick={handleLogout}>⏏</button>
             )}
           </div>
         </div>
-
-        {/* Menú móvil eliminado */}
       </nav>
 
-      {/* ── Panel de notificaciones ── */}
+      {/* Panel notificaciones */}
       {mostrarCampana && (
         <>
           <NotificacionesPanel
             isOpen={notifOpen}
             onClose={() => setNotifOpen(false)}
           />
-          {/* Banner de alertas críticas al entrar */}
           <AlertaBanner onVerTodas={() => { setNotifOpen(true); }} />
         </>
       )}

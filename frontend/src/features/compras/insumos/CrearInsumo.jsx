@@ -1,5 +1,6 @@
 import { useState } from "react";
 import "./GestionInsumos.css";
+import { useApp } from "../../../AppContext.jsx";
 
 // ─── Barra de pasos ───────────────────────────────────────
 const STEPS = ["Identificación", "Stock y Vencimiento"];
@@ -186,7 +187,7 @@ export default function CrearInsumo({ onClose, onSave, categorias, unidades }) {
         </div>
 
         {/* Footer */}
-        <div className="modal-footer" style={{ justifyContent: "space-between" }}>
+        <div className="modal-footer">
           {step > 1
             ? <button className="btn-ghost" onClick={handleBack}>← Atrás</button>
             : <button className="btn-ghost" onClick={onClose}>Cancelar</button>

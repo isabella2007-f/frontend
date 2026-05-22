@@ -95,7 +95,7 @@ export default function Sidebar({ isOpen, onToggle }) {
   }, []);
 
   const menuItems =
-    user?.rol === "administrador" ? adminMenuItems : clienteMenuItems;
+      user?.tipo === "empleado" ? adminMenuItems : clienteMenuItems;
 
   const toggle = (section) => {
     setOpenSections((prev) => ({
@@ -184,13 +184,14 @@ export default function Sidebar({ isOpen, onToggle }) {
 
           {/* FOOTER */}
           <div className="sidebar-footer">
-            <div className="avatar" onClick={() => navigate(user.rol === "cliente" ? "/cliente/perfil" : "/admin/perfil")} style={{ cursor: 'pointer' }}>
+            <div className="avatar" onClick={() => navigate(user.tipo === "usuario" ? "/cliente/perfil" : "/admin/perfil")}>
+
               {user?.nombre?.charAt(0) || "U"}
             </div>
 
             <div className="footer-info">
               <div className="user-name">{user?.nombre}</div>
-              <div className="user-role">{user?.rol}</div>
+              <div className="user-role">{user?.tipo}</div>
             </div>
 
             <button

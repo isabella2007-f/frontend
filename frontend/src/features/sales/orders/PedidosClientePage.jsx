@@ -409,16 +409,16 @@ const PedidosClientePage = () => {
             </div>
 
             {/* Modal Footer */}
-            <div className="modal-footer p-6 bg-white border-t border-gray-100 shrink-0 flex gap-3">
+            <div className="modal-footer p-6 bg-white border-t border-gray-100 shrink-0 flex justify-end gap-3">
               <button
-                className="btn-secondary flex-1 py-3 text-[11px] font-black uppercase tracking-widest"
+                className="btn-secondary py-3 px-8 text-[11px] font-black uppercase tracking-widest"
                 onClick={() => setSelectedPedido(null)}
               >
                 Cerrar
               </button>
               {selectedPedido.estado === 'Entregado' && (
                 <button
-                  className="btn-primary flex-1 py-3 text-[11px] font-black uppercase tracking-widest"
+                  className="btn-primary py-3 px-8 text-[11px] font-black uppercase tracking-widest"
                   onClick={() => handleRequestReturn(selectedPedido)}
                 >
                   Solicitar devolución

@@ -99,8 +99,7 @@
 
 /* ─── Modal styles moved to global shared/index.css ─── */
 
-.modal-close-btn { width: 30px; height: 30px; border-radius: 8px; border: 1px solid #e0e0e0; background: transparent; cursor: pointer; color: #757575; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
-.modal-close-btn:hover { background: #f5f5f5; }
+/* Eliminado para usar el estilo global en index.css */
 .modal-footer { padding: 10px 20px 16px; display: flex; gap: 10px; justify-content: flex-end; border-top: 1px solid #f5f5f5; }
 .modal-footer--center { justify-content: stretch; padding: 0 20px 16px; }
 

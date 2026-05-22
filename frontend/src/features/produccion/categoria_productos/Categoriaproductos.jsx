@@ -1,12 +1,32 @@
 import { useState, useEffect, useRef } from "react";
-import { useApp } from "../../../AppContext.jsx";
 import { Toast, ModalOverlay } from "./ui.jsx";
 import CrearCategoria from "./CrearCategoria.jsx";
 import EditarCategoria from "./EditarCategoria.jsx";
 import ModalEliminarValidado from "../../../ModalEliminarValidado";
+import {
+  getCategorias,
+  crearCategoria,
+  editarCategoria,
+  eliminarCategoria,
+  toggleEstadoCategoria,
+} from "../../../services/categoriasProductosService";
 import "./Categoriaproductos.css";
 
 const ITEMS_PER_PAGE = 5;
+
+function adaptCat(c) {
+  return {
+    id: c.ID_Categoria,
+    nombre: c.Nombre_Categoria,
+    descripcion: c.Descripcion ?? "",
+    icon: c.Icono ?? "📦",
+    estado: c.Estado === 1,
+    fecha: c.Fecha_Creacion
+      ? new Date(c.Fecha_Creacion).toLocaleDateString("es-CO")
+      : "",
+    totalProductos: c.total_productos ?? 0,
+  };
+}
 
 function Toggle({ value, onChange }) {
   return (
@@ -128,20 +148,105 @@ function VerCategoria({ category, onClose }) {
   );
 }
 
-export default function CategoriaProductos() {
-  const {
-    categoriasProductos, productos,
-    crearCatProducto, editarCatProducto, toggleCatProducto, eliminarCatProducto,
-    canDeleteCatProducto,
-  } = useApp();
+function ModalDesactivarCategoria({ cat, count, onClose, onConfirm }) {
+  const [done, setDone] = useState(false);
 
-  const [search,     setSearch]     = useState("");
-  const [filter,     setFilter]     = useState("todos");
-  const [showFilter, setShowFilter] = useState(false);
-  const [page,       setPage]       = useState(1);
-  const [modal,      setModal]      = useState(null);
-  const [toast,      setToast]      = useState(null);
+  const handleConfirm = () => {
+    setDone(true);
+    setTimeout(() => {
+      onConfirm(cat.id);
+      onClose();
+    }, 600);
+  };
+
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
+        <div className="delete-icon-wrap" style={{ background: "#fff8e1", border: "1px solid #ffe082", color: "#e65100", fontSize: 24 }}>⚠️</div>
+        <h3 className="delete-title">Desactivar categoría</h3>
+        <p className="delete-body">
+          La categoría <strong>"{cat.nombre}"</strong> tiene {count} producto{count > 1 ? "s" : ""} asociado{count > 1 ? "s" : ""}.
+        </p>
+
+        <div style={{ textAlign: "left", margin: "12px 0", background: "#fff8e1", borderRadius: 10, padding: "12px 16px", border: "1px solid #ffe082" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+            <span style={{ fontSize: 14, marginTop: 1 }}>•</span>
+            <span style={{ fontSize: 13, color: "#6d4c00", lineHeight: 1.4 }}>
+              Todos los productos vinculados a esta categoría serán <strong>desactivados</strong> automáticamente.
+            </span>
+          </div>
+        </div>
+
+        <p className="delete-warn">¿Desea continuar de todas formas?</p>
+      </div>
+      <div className="modal-footer" style={{ justifyContent: "center", gap: 12 }}>
+        <button className="btn-cancel-full" onClick={onClose}>Cancelar</button>
+        <button
+          className="btn-danger"
+          style={{ background: "#e65100", boxShadow: "0 3px 10px rgba(230,81,0,0.3)" }}
+          onClick={handleConfirm}
+          disabled={done}
+        >
+          {done ? "Desactivando…" : "Sí, desactivar"}
+        </button>
+      </div>
+    </ModalOverlay>
+  );
+}
+
+function SkeletonRow() {
+  return (
+    <tr className="tbl-row">
+      <td><div style={{ height: 14, width: 28, borderRadius: 4, background: "#e8f5e9" }} /></td>
+      <td>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 8, background: "#e8f5e9", flexShrink: 0 }} />
+          <div style={{ height: 14, width: "70%", borderRadius: 4, background: "#e8f5e9" }} />
+        </div>
+      </td>
+      <td><div style={{ height: 14, width: "85%", borderRadius: 4, background: "#e8f5e9" }} /></td>
+      <td><div style={{ height: 28, width: 52, borderRadius: 14, background: "#e8f5e9" }} /></td>
+      <td><div style={{ height: 14, width: 70, borderRadius: 4, background: "#e8f5e9" }} /></td>
+      <td>
+        <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+          {[0, 1, 2].map(i => (
+            <div key={i} style={{ width: 34, height: 34, borderRadius: 8, background: "#e8f5e9" }} />
+          ))}
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+export default function CategoriaProductos() {
+  const [categorias,  setCategorias]  = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [search,      setSearch]      = useState("");
+  const [filter,      setFilter]      = useState("todos");
+  const [showFilter,  setShowFilter]  = useState(false);
+  const [page,        setPage]        = useState(1);
+  const [modal,       setModal]       = useState(null);
+  const [toast,       setToast]       = useState(null);
   const filterRef = useRef(null);
+
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const cargarDatos = async () => {
+    setLoading(true);
+    try {
+      const res = await getCategorias();
+      setCategorias((res.categorias ?? []).map(adaptCat));
+    } catch (e) {
+      showToast("Error cargando categorías: " + e.message, "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { cargarDatos(); }, []); // eslint-disable-line
 
   useEffect(() => {
     const h = e => {
@@ -152,12 +257,7 @@ export default function CategoriaProductos() {
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const showToast = (message, type = "success") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  };
-
-  const filtered = categoriasProductos.filter(c => {
+  const filtered = categorias.filter(c => {
     const q = search.toLowerCase();
     return (
       (c.nombre.toLowerCase().includes(q) ||
@@ -175,29 +275,79 @@ export default function CategoriaProductos() {
   );
   useEffect(() => setPage(1), [search, filter]);
 
-  /* ── Toggle con validación de productos asociados ── */
-  const handleToggle = (cat) => {
-    // Solo validar cuando se intenta DESACTIVAR (estado actual = true)
-    if (cat.estado) {
-      const productosAsociados = productos.filter(p => p.idCategoria === cat.id);
-      if (productosAsociados.length > 0) {
-        showToast(
-          `No se puede desactivar "${cat.nombre}": tiene ${productosAsociados.length} producto${productosAsociados.length > 1 ? "s" : ""} asociado${productosAsociados.length > 1 ? "s" : ""}.`,
-          "error"
-        );
-        return;
-      }
+  /* ── Toggle ── */
+  const handleToggle = async (cat) => {
+    if (cat.estado && cat.totalProductos > 0) {
+      setModal({ type: "desactivar", category: cat });
+      return;
     }
-    toggleCatProducto(cat.id);
+    // optimistic
+    setCategorias(prev => prev.map(c => c.id === cat.id ? { ...c, estado: !c.estado } : c));
+    try {
+      await toggleEstadoCategoria(cat.id, cat.estado);
+    } catch (e) {
+      // revert
+      setCategorias(prev => prev.map(c => c.id === cat.id ? { ...c, estado: cat.estado } : c));
+      showToast("Error al cambiar estado: " + e.message, "error");
+    }
   };
 
-  const handleCreate = f => {
-    crearCatProducto({ ...f, fecha: new Date().toLocaleDateString("es-CO") });
-    showToast("Categoría creada");
-    setModal(null);
+  const handleToggleConfirm = async (catId) => {
+    try {
+      await toggleEstadoCategoria(catId, true);
+      showToast("Categoría y productos asociados desactivados");
+      await cargarDatos();
+    } catch (e) {
+      showToast("Error al desactivar: " + e.message, "error");
+    }
   };
-  const handleEdit   = f => { editarCatProducto(f); showToast("Cambios guardados"); setModal(null); };
-  const handleDelete = () => { eliminarCatProducto(modal.category.id); showToast("Categoría eliminada", "error"); setModal(null); };
+
+  /* ── CRUD ── */
+  const handleCreate = async (apiData) => {
+    try {
+      await crearCategoria(apiData);
+      showToast("Categoría creada");
+      setModal(null);
+      await cargarDatos();
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+      throw e;
+    }
+  };
+
+  const handleEdit = async (apiData) => {
+    try {
+      await editarCategoria(modal.category.id, apiData);
+      showToast("Cambios guardados");
+      setModal(null);
+      await cargarDatos();
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+      throw e;
+    }
+  };
+
+  const handleDelete = async () => {
+    const catId = modal.category.id;
+    setModal(null);
+    try {
+      await eliminarCategoria(catId);
+      showToast("Categoría eliminada", "error");
+      await cargarDatos();
+    } catch (e) {
+      showToast("Error al eliminar: " + e.message, "error");
+      await cargarDatos();
+    }
+  };
+
+  const canDelete = (cat) => {
+    if (cat.totalProductos > 0)
+      return {
+        ok: false,
+        razon: `Esta categoría tiene ${cat.totalProductos} producto${cat.totalProductos > 1 ? "s" : ""} vinculado${cat.totalProductos > 1 ? "s" : ""}. Reasígnalos o elimínalos antes de continuar.`,
+      };
+    return { ok: true };
+  };
 
   const filterOptions = [
     { val: "todos",    label: "Todos",     dot: "#bdbdbd" },
@@ -263,7 +413,9 @@ export default function CategoriaProductos() {
                 </tr>
               </thead>
               <tbody>
-                {paginated.length === 0 ? (
+                {loading ? (
+                  Array.from({ length: 5 }, (_, i) => <SkeletonRow key={i} />)
+                ) : paginated.length === 0 ? (
                   <tr>
                     <td colSpan={6}>
                       <div className="empty-state">
@@ -289,7 +441,6 @@ export default function CategoriaProductos() {
                       <span className="cat-desc">{cat.descripcion}</span>
                     </td>
                     <td>
-                      {/* Toggle con validación inline */}
                       <Toggle value={cat.estado} onChange={() => handleToggle(cat)} />
                     </td>
                     <td><span className="cat-date">{cat.fecha}</span></td>
@@ -316,7 +467,7 @@ export default function CategoriaProductos() {
           </div>
           <div className="pagination-bar">
             <span className="pagination-count">
-              {filtered.length} {filtered.length === 1 ? "categoría" : "categorías"} en total
+              {loading ? "Cargando…" : `${filtered.length} ${filtered.length === 1 ? "categoría" : "categorías"} en total`}
             </span>
             <div className="pagination-btns">
               <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
@@ -344,9 +495,17 @@ export default function CategoriaProductos() {
         <ModalEliminarValidado
           titulo="Eliminar categoría"
           descripcion={`¿Está seguro de que desea eliminar la categoría "${modal.category.nombre}"?`}
-          validacion={canDeleteCatProducto(modal.category.id)}
+          validacion={canDelete(modal.category)}
           onClose={() => setModal(null)}
           onConfirm={handleDelete}
+        />
+      )}
+      {modal?.type === "desactivar" && (
+        <ModalDesactivarCategoria
+          cat={modal.category}
+          count={modal.category.totalProductos}
+          onClose={() => setModal(null)}
+          onConfirm={handleToggleConfirm}
         />
       )}
       <Toast toast={toast} />

@@ -59,7 +59,7 @@ const AppRouter = () => {
         <Route path="/recuperar" element={<ForgotPassword />} />
 
         {/* ───────────── ADMIN ───────────── */}
-        <Route element={<ProtectedRoute allowedRoles={["administrador"]} />}>
+        <Route element={<ProtectedRoute allowedRoles={["empleado"]} />}>
           <Route path="/admin" element={<MainLayout />}>
             
             <Route index element={<Dashboard />} />
@@ -94,7 +94,7 @@ const AppRouter = () => {
         </Route>
 
         {/* ───────────── CLIENTE ───────────── */}
-        <Route element={<ProtectedRoute allowedRoles={["cliente"]} />}>
+        <Route element={<ProtectedRoute allowedRoles={["usuario"]} />}>
           <Route path="/cliente" element={<MainLayout />}>
             
             <Route index element={<LandingPage hideNavbar={true} />} />

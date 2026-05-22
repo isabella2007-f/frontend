@@ -290,7 +290,7 @@ export default function EditarProveedor({ proveedor, mode = "edit", onClose, onS
           </div>
         </div>
 
-        <div className="modal-footer" style={{ justifyContent: "space-between" }}>
+        <div className="modal-footer">
           <button className="btn-ghost" onClick={onClose}>
             {isView ? "Cerrar" : "Cancelar"}
           </button>

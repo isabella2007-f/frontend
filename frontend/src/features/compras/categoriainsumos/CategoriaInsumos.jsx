@@ -128,6 +128,52 @@ function VerCategoria({ cat, onClose }) {
   );
 }
 
+function ModalDesactivarCategoriaInsumo({ cat, insumosAsociados, onClose, onConfirm }) {
+  const [done, setDone] = useState(false);
+
+  const handleConfirm = () => {
+    setDone(true);
+    setTimeout(() => {
+      onConfirm(cat.id);
+      onClose();
+    }, 600);
+  };
+
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
+        <div className="delete-icon-wrap" style={{ background: "#fff8e1", border: "1px solid #ffe082", color: "#e65100", fontSize: 24 }}>⚠️</div>
+        <h3 className="delete-title">Desactivar categoría</h3>
+        <p className="delete-body">
+          La categoría <strong>"{cat.nombre}"</strong> tiene {insumosAsociados.length} insumo{insumosAsociados.length > 1 ? "s" : ""} activo{insumosAsociados.length > 1 ? "s" : ""} asociado{insumosAsociados.length > 1 ? "s" : ""}.
+        </p>
+
+        <div style={{ textAlign: "left", margin: "12px 0", background: "#fff8e1", borderRadius: 10, padding: "12px 16px", border: "1px solid #ffe082" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+            <span style={{ fontSize: 14, marginTop: 1 }}>•</span>
+            <span style={{ fontSize: 13, color: "#6d4c00", lineHeight: 1.4 }}>
+              Todos los insumos vinculados a esta categoría serán <strong>desactivados</strong> automáticamente.
+            </span>
+          </div>
+        </div>
+
+        <p className="delete-warn">¿Desea continuar de todas formas?</p>
+      </div>
+      <div className="modal-footer" style={{ justifyContent: "center", gap: 12 }}>
+        <button className="btn-cancel-full" onClick={onClose}>Cancelar</button>
+        <button
+          className="btn-danger"
+          style={{ background: "#e65100", boxShadow: "0 3px 10px rgba(230,81,0,0.3)" }}
+          onClick={handleConfirm}
+          disabled={done}
+        >
+          {done ? "Desactivando…" : "Sí, desactivar"}
+        </button>
+      </div>
+    </ModalOverlay>
+  );
+}
+
 export default function CategoriaInsumos() {
   const {
     categoriasInsumos, insumos,
@@ -178,14 +224,16 @@ export default function CategoriaInsumos() {
     if (cat.estado) {
       const insumosAsociados = insumos.filter(i => i.idCategoria === cat.id && i.estado);
       if (insumosAsociados.length > 0) {
-        showToast(
-          `No se puede desactivar "${cat.nombre}": tiene ${insumosAsociados.length} insumo${insumosAsociados.length > 1 ? "s" : ""} activo${insumosAsociados.length > 1 ? "s" : ""} asociado${insumosAsociados.length > 1 ? "s" : ""}.`,
-          "error"
-        );
+        setModal({ type: "desactivar", cat, insumosAsociados });
         return;
       }
     }
     toggleCatInsumo(cat.id);
+  };
+
+  const handleToggleConfirm = (catId) => {
+    toggleCatInsumo(catId);
+    showToast("Categoría e insumos asociados desactivados");
   };
 
   const handleCreate = f => {
@@ -357,6 +405,14 @@ export default function CategoriaInsumos() {
           validacion={canDeleteCatInsumo(modal.cat.id)}
           onClose={() => setModal(null)}
           onConfirm={handleDelete}
+        />
+      )}
+      {modal?.type === "desactivar" && (
+        <ModalDesactivarCategoriaInsumo
+          cat={modal.cat}
+          insumosAsociados={modal.insumosAsociados}
+          onClose={() => setModal(null)}
+          onConfirm={handleToggleConfirm}
         />
       )}
 

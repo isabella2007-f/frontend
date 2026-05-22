@@ -1211,10 +1211,6 @@ export function AppProvider({ children }) {
     setDevoluciones(prev => prev.map(d => d.id !== id ? d : { ...d, estado: "Reembolsada", fechaReembolso: fechaHoy() }));
     if (dev.idCliente) setCreditosClientes(prev => ({ ...prev, [dev.idCliente]: (prev[dev.idCliente] || 0) + dev.totalDevuelto }));
   };
-  const eliminarDevolucion = (id) => {
-    const dev = devoluciones.find(d => d.id === id); if (!dev || dev.estado === "Reembolsada") return { ok: false };
-    setDevoluciones(prev => prev.filter(d => d.id !== id)); return { ok: true };
-  };
 
   /* ── CRUD descuentos ────────────────────────────────── */
   const crearDescuento   = (payload) => setDescuentos(prev => [{ ...payload, id: nextDescuentoId(descuentos), usosCount: 0 }, ...prev]);
@@ -1303,7 +1299,7 @@ export function AppProvider({ children }) {
       cambiarEstadoPedido, asignarDomiciliario, generarOrdenProduccion,
       crearOrdenProduccion, editarOrdenProduccion,
       cambiarEstadoOrden,  asignarEmpleadoOrden, eliminarOrdenProduccion,
-      crearDevolucion, aprobarDevolucion, rechazarDevolucion, reembolsarDevolucion, eliminarDevolucion,
+      crearDevolucion, aprobarDevolucion, rechazarDevolucion, reembolsarDevolucion,
       crearDescuento, editarDescuento, toggleDescuento, eliminarDescuento,
       asignarDescuentoClientes, getClientesDescuento,
       aplicarCodigoDescuento, registrarUsoDescuento,

@@ -1,24 +1,17 @@
 import { useState } from "react";
-import { C, ICON_OPTIONS } from "./theme.js";
+import { ICON_OPTIONS } from "./theme.js";
 import { FieldInput, ModalOverlay } from "./ui.jsx";
 import "./Categoriaproductos.css";
 
 export default function CrearCategoria({ onClose, onSave }) {
-  const { categoriasProductos } = useApp();
-  const [form, setForm] = useState({ nombre: "", descripcion: "", estado: true, icon: "🍌" });
+  const [form, setForm] = useState({ nombre: "", descripcion: "", icon: "🍌" });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [pickingIcon, setPickingIcon] = useState(false);
 
   const validate = () => {
     const e = {};
-    const existing = categoriasProductos || [];
-    
     if (!form.nombre.trim())      e.nombre      = "El nombre es obligatorio";
-    else if (existing.some(c => c.nombre.toLowerCase() === form.nombre.toLowerCase())) {
-      e.nombre = "Esta categoría ya existe";
-    }
-    
     if (!form.descripcion.trim()) e.descripcion = "La descripción es obligatoria";
     return e;
   };
@@ -27,14 +20,22 @@ export default function CrearCategoria({ onClose, onSave }) {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaving(true);
-    await new Promise(r => setTimeout(r, 500));
-    onSave({ ...form, id: Date.now(), fecha: new Date().toLocaleDateString("es-CO") });
-    setSaving(false);
+    try {
+      await onSave({
+        Nombre_Categoria: form.nombre.trim(),
+        Descripcion: form.descripcion.trim(),
+        Icono: form.icon,
+      });
+    } catch {
+      // el padre ya mostró el toast de error; el modal se mantiene abierto
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <ModalOverlay onClose={onClose}>
-      
+
       {/* Header */}
       <div className="modal-header">
         <div>
@@ -75,41 +76,37 @@ export default function CrearCategoria({ onClose, onSave }) {
         {/* Nombre */}
         <div className="form-group">
           <label className="form-label">
-            Nombre <span style={{color:"red"}}>*</span>
+            Nombre <span style={{ color: "red" }}>*</span>
           </label>
-
           <FieldInput
             required
             value={form.nombre}
-            onChange={e => { 
-              setForm({ ...form, nombre: e.target.value }); 
-              setErrors({ ...errors, nombre: "" }); 
+            onChange={e => {
+              setForm({ ...form, nombre: e.target.value });
+              setErrors({ ...errors, nombre: "" });
             }}
             placeholder="Ej. Snacks Premium"
             error={errors.nombre}
           />
-
           {errors.nombre && <p className="field-error">{errors.nombre}</p>}
         </div>
 
         {/* Descripción */}
         <div className="form-group" style={{ marginBottom: 0 }}>
           <label className="form-label">
-            Descripción <span style={{color:"red"}}>*</span>
+            Descripción <span style={{ color: "red" }}>*</span>
           </label>
-
           <FieldInput
             required
             multiline
             value={form.descripcion}
-            onChange={e => { 
-              setForm({ ...form, descripcion: e.target.value }); 
-              setErrors({ ...errors, descripcion: "" }); 
+            onChange={e => {
+              setForm({ ...form, descripcion: e.target.value });
+              setErrors({ ...errors, descripcion: "" });
             }}
             placeholder="Describe los productos de esta categoría"
             error={errors.descripcion}
           />
-
           {errors.descripcion && <p className="field-error">{errors.descripcion}</p>}
         </div>
 
@@ -117,7 +114,7 @@ export default function CrearCategoria({ onClose, onSave }) {
 
       {/* Footer */}
       <div className="modal-footer">
-        <button className="btn-ghost" onClick={onClose}>Cancelar</button>
+        <button className="btn-ghost" onClick={onClose} disabled={saving}>Cancelar</button>
         <button className="btn-save" onClick={handleSave} disabled={saving}>
           {saving ? "Guardando…" : "Guardar"}
         </button>

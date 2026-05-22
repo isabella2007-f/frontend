@@ -327,60 +327,13 @@ function ModalRechazar({ dev, onClose, onConfirm }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   MODAL ELIMINAR
-   ═══════════════════════════════════════════════════════════ */
-function ModalEliminar({ dev, onClose, onConfirm }) {
-  const [done, setDone] = useState(false);
-
-  if (dev.estado === "Reembolsada") {
-    return (
-      <div className="modal-overlay" onClick={onClose}>
-        <div className="modal-box modal-box--sm" onClick={(e) => e.stopPropagation()}>
-          <div style={{ padding: "28px 24px", textAlign: "center" }}>
-            <div className="delete-icon-wrap">🚫</div>
-            <h3 className="delete-title">No se puede eliminar</h3>
-            <p className="delete-body">Las devoluciones ya reembolsadas no se pueden eliminar porque afectarían el crédito del cliente.</p>
-          </div>
-          <div className="modal-footer" style={{ justifyContent: "center" }}>
-            <button className="btn-ghost" onClick={onClose}>Entendido</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box--sm" onClick={(e) => e.stopPropagation()}>
-        <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
-          <div className="delete-icon-wrap">🗑️</div>
-          <h3 className="delete-title">Eliminar devolución</h3>
-          <p className="delete-body">¿Eliminar <strong>"{dev.numero}"</strong>?</p>
-          <p className="delete-warn">Esta acción no se puede deshacer.</p>
-        </div>
-        <div className="modal-footer modal-footer--center" style={{ padding: "0 24px 20px" }}>
-          <button className="btn-cancel-full" onClick={onClose}>Cancelar</button>
-          <button
-            className="btn-danger"
-            disabled={done}
-            onClick={() => { setDone(true); setTimeout(() => onConfirm(dev.id), 700); }}
-          >
-            {done ? "Eliminando…" : "Eliminar"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════
    COMPONENTE PRINCIPAL
    ═══════════════════════════════════════════════════════════ */
 export default function GestionDevoluciones() {
   const {
     devoluciones, creditosClientes,
     crearDevolucion, aprobarDevolucion, rechazarDevolucion,
-    reembolsarDevolucion, eliminarDevolucion,
+    reembolsarDevolucion,
   } = useApp();
 
   const [search,       setSearch]       = useState("");
@@ -433,12 +386,6 @@ export default function GestionDevoluciones() {
   const handleRechazar = (id, motivo) => {
     rechazarDevolucion(id, motivo);
     showToast("Devolución rechazada", "error");
-    setModal(null);
-  };
-
-  const handleEliminar = (id) => {
-    eliminarDevolucion(id);
-    showToast("Devolución eliminada", "error");
     setModal(null);
   };
 
@@ -609,8 +556,6 @@ export default function GestionDevoluciones() {
                           style={{ opacity: dev.estado === "Pendiente" ? 1 : 0.35, cursor: dev.estado === "Pendiente" ? "pointer" : "default" }}>
                           🚫
                         </button>
-                        <button className="act-btn act-btn--delete" title="Eliminar"
-                          onClick={() => setModal({ type: "eliminar", dev })}>🗑️</button>
                       </div>
                     </td>
                   </tr>
@@ -646,7 +591,6 @@ export default function GestionDevoluciones() {
       )}
       {modal?.type === "aprobar"  && <ModalAprobar  dev={modal.dev} onClose={() => setModal(null)} onConfirm={handleAprobar} />}
       {modal?.type === "rechazar" && <ModalRechazar dev={modal.dev} onClose={() => setModal(null)} onConfirm={handleRechazar} />}
-      {modal?.type === "eliminar" && <ModalEliminar dev={modal.dev} onClose={() => setModal(null)} onConfirm={handleEliminar} />}
 
       <Toast toast={toast} />
     </div>

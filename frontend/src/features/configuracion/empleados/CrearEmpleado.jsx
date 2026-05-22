@@ -369,7 +369,7 @@ export default function CrearEmpleado({ onClose, onSave }) {
         </div>
 
         {/* Footer — navegación wizard */}
-        <div className="modal-footer" style={{ justifyContent:"space-between" }}>
+        <div className="modal-footer">
           {step > 1
             ? <button className="btn-ghost" onClick={handleBack}>← Atrás</button>
             : <button className="btn-ghost" onClick={onClose}>Cancelar</button>

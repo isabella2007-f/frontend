@@ -156,7 +156,7 @@ function ProductoItem({ item, onChange, onRemove }) {
 }
 
 /* ─── BARRA DE PASOS ─────────────────────────────────────── */
-const STEPS = ["Cliente", "Productos", "Pago y entrega"];
+const STEPS = ["Cliente", "Productos", "Entrega", "Pago", "Resumen"];
 
 function StepsBar({ current }) {
   return (
@@ -219,16 +219,16 @@ export default function CrearPedido({ onClose, onSave }) {
       }
     }
     if (s === 3) {
-      if (!form.metodo_pago) e.metodo_pago = "Selecciona un método de pago";
-      
-      if (form.metodo_pago === "Transferencia 🏦" && !form.comprobantePreview) {
-        e.comprobante = "Es obligatorio adjuntar el comprobante de transferencia";
-      }
-
       if (form.domicilio) {
         if (!form.direccion_entrega.trim()) e.direccion_entrega = "Ingresa la dirección de entrega";
         if (!form.departamento.trim())       e.departamento = "El departamento es obligatorio";
         if (!form.municipio.trim())          e.municipio = "El municipio es obligatorio";
+      }
+    }
+    if (s === 4) {
+      if (!form.metodo_pago) e.metodo_pago = "Selecciona un método de pago";
+      if (form.metodo_pago === "Transferencia 🏦" && !form.comprobantePreview) {
+        e.comprobante = "Es obligatorio adjuntar el comprobante de transferencia";
       }
     }
     return e;
@@ -243,7 +243,7 @@ export default function CrearPedido({ onClose, onSave }) {
   const handleBack = () => setStep(s => s - 1);
 
   const handleSave = () => {
-    const e = validateStep(3);
+    const e = validateStep(4);
     if (Object.keys(e).length) { setErrors(e); return; }
 
     // Alerta si hay productos sin stock - Se creará orden de producción automáticamente
@@ -316,7 +316,7 @@ export default function CrearPedido({ onClose, onSave }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
+      <div className="modal-card" style={{ maxWidth: 650, width: "95%" }} onClick={e => e.stopPropagation()}>
 
         {/* Header */}
         <div className="modal-header">
@@ -333,12 +333,12 @@ export default function CrearPedido({ onClose, onSave }) {
         </div>
 
         {/* Body */}
-        <div className="modal-body" style={{ overflowY: "auto", overflowX: "hidden", minHeight: 280 }}>
+        <div className="modal-body" style={{ overflowY: "auto", overflowX: "hidden", minHeight: 340, padding: "20px 30px" }}>
 
           {/* ── Paso 1: Cliente ── */}
           {step === 1 && (
-            <>
-              <p className="section-label" style={{ textTransform: "none", marginTop: 0 }}>Seleccionar Cliente</p>
+            <div className="fade-in">
+              <p className="section-label" style={{ textTransform: "none", marginTop: 0, fontSize: 16 }}>1. Selección de Cliente</p>
               <div className="field-wrap">
                 <label className="field-label">Cliente <span className="required">*</span></label>
                 <div className="select-wrap">
@@ -361,7 +361,7 @@ export default function CrearPedido({ onClose, onSave }) {
                     <option value="">Seleccione un cliente…</option>
                     {clientes.map(c => (
                       <option key={c.id} value={c.id}>
-                        {c.nombre} {c.apellidos}
+                        {c.nombre} {c.apellidos} — {c.cedula}
                       </option>
                     ))}
                   </select>
@@ -371,137 +371,122 @@ export default function CrearPedido({ onClose, onSave }) {
               </div>
 
               {clienteSeleccionado && (
-                <div className="info-box info-box--success" style={{ marginTop: 16 }}>
-                  <span className="info-box__icon">👤</span>
-                  <div className="info-box__text">
-                    <span className="info-box__label">{clienteSeleccionado.nombre} {clienteSeleccionado.apellidos}</span>
-                    {clienteSeleccionado.telefono} · {clienteSeleccionado.correo}
+                <div className="info-box info-box--success" style={{ marginTop: 24, padding: "16px", borderRadius: "12px" }}>
+                  <div style={{ display: "flex", gap: 15, alignItems: "center" }}>
+                    <div style={{ width: 48, height: 48, borderRadius: "50%", background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, boxShadow: "0 2px 6px rgba(0,0,0,0.05)" }}>👤</div>
+                    <div className="info-box__text">
+                      <span className="info-box__label" style={{ fontSize: 16, fontWeight: 700 }}>{clienteSeleccionado.nombre} {clienteSeleccionado.apellidos}</span>
+                      <div style={{ fontSize: 13, color: "#666", marginTop: 2 }}>
+                        <span>📞 {clienteSeleccionado.telefono}</span>
+                        <span style={{ margin: "0 8px", opacity: 0.3 }}>|</span>
+                        <span>✉️ {clienteSeleccionado.correo}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
-            </>
+            </div>
           )}
 
           {/* ── Paso 2: Productos ── */}
           {step === 2 && (
-            <>
-              <p className="section-label" style={{ textTransform: "none", marginTop: 0 }}>Agregar Productos</p>
-              <BuscadorProducto
-                productosSeleccionados={form.productosItems}
-                onAgregar={agregarProducto}
-              />
-              {errors.productos && (
-                <span className="field-error" style={{ marginTop: 4 }}>{errors.productos}</span>
-              )}
+            <div className="fade-in">
+              <p className="section-label" style={{ textTransform: "none", marginTop: 0, fontSize: 16 }}>2. Lista de Productos</p>
+              <div style={{ marginBottom: 20 }}>
+                <BuscadorProducto
+                  productosSeleccionados={form.productosItems}
+                  onAgregar={agregarProducto}
+                />
+                {errors.productos && (
+                  <span className="field-error" style={{ marginTop: 8, display: "block" }}>{errors.productos}</span>
+                )}
+              </div>
 
-              {form.productosItems.length > 0 && (
-                <div className="productos-list" style={{ marginTop: 12, maxHeight: 200, overflowY: "auto" }}>
-                  {form.productosItems.map((item, idx) => (
+              <div className="productos-tabla-header" style={{ display: "grid", gridTemplateColumns: "1fr 120px 100px 30px", gap: 10, padding: "0 10px 8px", borderBottom: "2px solid #f0f0f0", fontSize: 12, fontWeight: 700, color: "#999", textTransform: "uppercase" }}>
+                <span>Producto</span>
+                <span style={{ textAlign: "center" }}>Cantidad</span>
+                <span style={{ textAlign: "right" }}>Total</span>
+                <span></span>
+              </div>
+
+              <div className="productos-list" style={{ marginTop: 0, maxHeight: 260, overflowY: "auto", padding: "5px 0" }}>
+                {form.productosItems.length === 0 ? (
+                  <div style={{ padding: "40px 20px", textAlign: "center", color: "#bbb", fontSize: 14 }}>
+                    <div style={{ fontSize: 32, marginBottom: 10 }}>🛒</div>
+                    No has agregado productos todavía
+                  </div>
+                ) : (
+                  form.productosItems.map((item, idx) => (
                     <ProductoItem
                       key={item.idProducto}
                       item={item}
                       onChange={v => cambiarProducto(idx, v)}
                       onRemove={() => quitarProducto(idx)}
                     />
-                  ))}
-                </div>
-              )}
+                  ))
+                )}
+              </div>
 
-              <div className="totales-box" style={{ marginTop: 16, background: "#f9fdf9", padding: 12, borderRadius: 10, border: "1px solid #c8e6c9" }}>
-                <div className="totales-row" style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                  <span>Subtotal</span><strong>{fmt(subtotal)}</strong>
+              <div className="totales-summary" style={{ marginTop: 20, background: "#f8fdf8", padding: "16px 20px", borderRadius: 12, border: "1.5px solid #e8f5e9" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "#666", marginBottom: 6 }}>
+                  <span>Subtotal del pedido</span>
+                  <span style={{ fontWeight: 600, color: "#333" }}>{fmt(subtotal)}</span>
                 </div>
-                <div className="totales-row totales-row--total" style={{ display: "flex", justifyContent: "space-between", fontSize: 15, fontWeight: 800, color: "#2e7d32", marginTop: 4, paddingTop: 4, borderTop: "1px dashed #c8e6c9" }}>
-                  <span>Total</span><span>{fmt(total)}</span>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 18, fontWeight: 800, color: "#2e7d32", paddingTop: 10, borderTop: "1px dashed #c8e6c9" }}>
+                  <span>Total estimado</span>
+                  <span>{fmt(total)}</span>
                 </div>
               </div>
-            </>
+            </div>
           )}
 
-          {/* ── Paso 3: Pago y entrega ── */}
+          {/* ── Paso 3: Entrega ── */}
           {step === 3 && (
-            <>
-              <p className="section-label" style={{ textTransform: "none", marginTop: 0 }}>Finalizar Pedido</p>
-              <div className="form-grid-2">
-                <div className="field-wrap">
-                  <label className="field-label">Método de pago <span className="required">*</span></label>
-                  <div className="select-wrap">
-                    <select
-                      className={`field-select${errors.metodo_pago ? " error" : ""}`}
-                      value={form.metodo_pago}
-                      onChange={e => set("metodo_pago", e.target.value)}
+            <div className="fade-in">
+              <p className="section-label" style={{ textTransform: "none", marginTop: 0, fontSize: 16 }}>3. Datos de Entrega</p>
+              
+              <div className="field-wrap">
+                <label className="field-label">¿Cómo se entregará el pedido?</label>
+                <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+                  {[
+                    { val: false, label: "🏪 Recoger en Tienda", icon: "🏪" },
+                    { val: true,  label: "🛵 Domicilio Local",  icon: "🛵" },
+                  ].map(opt => (
+                    <button
+                      key={String(opt.val)}
+                      onClick={() => set("domicilio", opt.val)}
+                      className="btn-delivery-opt"
+                      style={{
+                        flex: 1, padding: "14px", borderRadius: "12px", border: "2px solid",
+                        display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+                        transition: "all 0.2s",
+                        borderColor: form.domicilio === opt.val ? "#2e7d32" : "#eee",
+                        background:  form.domicilio === opt.val ? "#f1f8f1" : "#fff",
+                        color:       form.domicilio === opt.val ? "#2e7d32" : "#666",
+                        fontWeight:  form.domicilio === opt.val ? 700 : 500,
+                      }}
                     >
-                      <option value="">Seleccione…</option>
-                      {METODOS_PAGO.map(m => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                    <SelectArrow />
-                  </div>
-                  {errors.metodo_pago && <span className="field-error">{errors.metodo_pago}</span>}
-                </div>
-
-                <div className="field-wrap">
-                  <label className="field-label">Tipo de entrega</label>
-                  <div style={{ display: "flex", gap: 8, paddingTop: 4 }}>
-                    {[
-                      { val: false, label: "🏪 Tienda"   },
-                      { val: true,  label: "🛵 Domicilio" },
-                    ].map(opt => (
-                      <button
-                        key={String(opt.val)}
-                        onClick={() => set("domicilio", opt.val)}
-                        className="btn-ghost"
-                        style={{
-                          flex: 1, padding: "8px", fontSize: 11,
-                          borderColor: form.domicilio === opt.val ? "#2e7d32" : "#e0e0e0",
-                          background:  form.domicilio === opt.val ? "#e8f5e9" : "#fff",
-                          color:       form.domicilio === opt.val ? "#2e7d32" : "#616161",
-                        }}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
+                      <span style={{ fontSize: 24 }}>{opt.icon}</span>
+                      <span style={{ fontSize: 13 }}>{opt.label}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
 
-              {form.metodo_pago === "Transferencia 🏦" && (
-                <div className="field-wrap" style={{ marginTop: 12 }}>
-                  <label className="field-label">Comprobante de pago <span className="required">*</span></label>
-                  <div className="comprobante-upload">
-                    {form.comprobantePreview ? (
-                      <div className="comprobante-preview-wrap">
-                        <img src={form.comprobantePreview} alt="Comprobante" className="comprobante-preview-img" />
-                        <button className="comprobante-remove-btn" onClick={() => setForm(f => ({ ...f, comprobante: null, comprobantePreview: null }))}>✕</button>
-                      </div>
-                    ) : (
-                      <label className={`comprobante-dropzone${errors.comprobante ? " error" : ""}`}>
-                        <input type="file" accept="image/*" onChange={handleFile} hidden />
-                        <span style={{ fontSize: 24 }}>📤</span>
-                        <span style={{ fontSize: 12, fontWeight: 600 }}>Subir comprobante</span>
-                        <span style={{ fontSize: 10, color: "#9e9e9e" }}>JPG, PNG o WEBP</span>
-                      </label>
-                    )}
-                  </div>
-                  {errors.comprobante && <span className="field-error">{errors.comprobante}</span>}
-                </div>
-              )}
-
               {form.domicilio && (
-                <>
-                  <div className="field-wrap" style={{ marginTop: 12 }}>
-                    <label className="field-label">Dirección de entrega <span className="required">*</span></label>
+                <div className="delivery-details-form fade-in" style={{ marginTop: 24, padding: "20px", background: "#f9f9f9", borderRadius: "14px", border: "1px solid #eee" }}>
+                  <div className="field-wrap">
+                    <label className="field-label">Dirección exacta <span className="required">*</span></label>
                     <input
                       className={`field-input${errors.direccion_entrega ? " error" : ""}`}
-                      placeholder="Ej: Cra 5 #12-34..."
+                      placeholder="Calle, número, barrio, apto..."
                       value={form.direccion_entrega}
                       onChange={e => set("direccion_entrega", e.target.value)}
                     />
-                    {errors.direccion_entrega && (
-                      <span className="field-error">{errors.direccion_entrega}</span>
-                    )}
+                    {errors.direccion_entrega && <span className="field-error">{errors.direccion_entrega}</span>}
                   </div>
 
-                  <div className="form-grid-2" style={{ marginTop: 12 }}>
+                  <div className="form-grid-2" style={{ marginTop: 15 }}>
                     <div className="field-wrap">
                       <label className="field-label">Departamento <span className="required">*</span></label>
                       <div className="select-wrap">
@@ -518,9 +503,6 @@ export default function CrearPedido({ onClose, onSave }) {
                         </select>
                         <SelectArrow />
                       </div>
-                      {errors.departamento && (
-                        <span className="field-error">{errors.departamento}</span>
-                      )}
                     </div>
 
                     <div className="field-wrap">
@@ -537,40 +519,174 @@ export default function CrearPedido({ onClose, onSave }) {
                         </select>
                         <SelectArrow />
                       </div>
-                      {errors.municipio && (
-                        <span className="field-error">{errors.municipio}</span>
-                      )}
                     </div>
                   </div>
-                </>
+                </div>
               )}
 
-              <div className="field-wrap" style={{ marginTop: 12 }}>
-                <label className="field-label">Descuento (COP)</label>
-                <input
-                  type="number" min={0} max={subtotal}
+              <div className="field-wrap" style={{ marginTop: 20 }}>
+                <label className="field-label">Notas u observaciones</label>
+                <textarea
                   className="field-input"
-                  value={form.descuento}
-                  onChange={e => set("descuento", e.target.value)}
-                  placeholder="0"
+                  style={{ minHeight: 80, resize: "none" }}
+                  placeholder="Ej: Tocar el timbre fuerte, dejar en portería, etc."
+                  value={form.notas}
+                  onChange={e => set("notas", e.target.value)}
                 />
               </div>
-            </>
+            </div>
+          )}
+
+          {/* ── Paso 4: Pago ── */}
+          {step === 4 && (
+            <div className="fade-in">
+              <p className="section-label" style={{ textTransform: "none", marginTop: 0, fontSize: 16 }}>4. Método de Pago</p>
+              
+              <div className="field-wrap">
+                <label className="field-label">Seleccione una opción <span className="required">*</span></label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 8 }}>
+                  {METODOS_PAGO.map(m => (
+                    <button
+                      key={m}
+                      onClick={() => set("metodo_pago", m)}
+                      className="btn-pay-opt"
+                      style={{
+                        padding: "16px", borderRadius: "12px", border: "2px solid",
+                        transition: "all 0.2s", textAlign: "center", fontSize: 14,
+                        borderColor: form.metodo_pago === m ? "#2e7d32" : "#eee",
+                        background:  form.metodo_pago === m ? "#f1f8f1" : "#fff",
+                        color:       form.metodo_pago === m ? "#2e7d32" : "#666",
+                        fontWeight:  form.metodo_pago === m ? 700 : 500,
+                      }}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+                {errors.metodo_pago && <span className="field-error" style={{ marginTop: 8 }}>{errors.metodo_pago}</span>}
+              </div>
+
+              {form.metodo_pago === "Transferencia 🏦" && (
+                <div className="comprobante-section fade-in" style={{ marginTop: 24, padding: "20px", background: "#f0f7ff", borderRadius: "14px", border: "1.5px dashed #1565c0" }}>
+                  <label className="field-label" style={{ color: "#1565c0" }}>Comprobante de transferencia <span className="required">*</span></label>
+                  <div className="comprobante-upload" style={{ marginTop: 10 }}>
+                    {form.comprobantePreview ? (
+                      <div className="comprobante-preview-container" style={{ position: "relative", width: "100%", height: 180, borderRadius: 10, overflow: "hidden", background: "#000" }}>
+                        <img src={form.comprobantePreview} alt="Comprobante" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                        <button className="comprobante-remove-btn" style={{ position: "absolute", top: 10, right: 10, background: "rgba(0,0,0,0.6)", color: "#fff", border: "none", borderRadius: "50%", width: 30, height: 30, cursor: "pointer" }} onClick={() => setForm(f => ({ ...f, comprobante: null, comprobantePreview: null }))}>✕</button>
+                      </div>
+                    ) : (
+                      <label className={`comprobante-dropzone${errors.comprobante ? " error" : ""}`} style={{ height: 140, background: "rgba(255,255,255,0.7)" }}>
+                        <input type="file" accept="image/*" onChange={handleFile} hidden />
+                        <div style={{ textAlign: "center" }}>
+                          <span style={{ fontSize: 32 }}>📸</span>
+                          <p style={{ margin: "8px 0 0", fontSize: 13, fontWeight: 700, color: "#1565c0" }}>Subir imagen del comprobante</p>
+                          <p style={{ margin: "2px 0 0", fontSize: 11, color: "#7faade" }}>Presiona para abrir la cámara o galería</p>
+                        </div>
+                      </label>
+                    )}
+                  </div>
+                  {errors.comprobante && <span className="field-error">{errors.comprobante}</span>}
+                </div>
+              )}
+
+              <div className="discount-section" style={{ marginTop: 30, padding: "16px", background: "#fff9f0", borderRadius: "12px", border: "1px solid #ffe0b2" }}>
+                <label className="field-label" style={{ color: "#e65100" }}>¿Aplicar algún descuento manual?</label>
+                <div style={{ position: "relative", marginTop: 8 }}>
+                  <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#e65100", fontWeight: 700 }}>$</span>
+                  <input
+                    type="number" min={0} max={subtotal}
+                    className="field-input"
+                    style={{ paddingLeft: 28, borderColor: "#ffe0b2" }}
+                    value={form.descuento}
+                    onChange={e => set("descuento", e.target.value)}
+                    placeholder="Valor en pesos (COP)"
+                  />
+                </div>
+                <p style={{ margin: "8px 0 0", fontSize: 11, color: "#e65100", opacity: 0.8 }}>El descuento se restará del total final.</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Paso 5: Resumen ── */}
+          {step === 5 && (
+            <div className="fade-in">
+              <p className="section-label" style={{ textTransform: "none", marginTop: 0, fontSize: 16 }}>5. Resumen del Pedido</p>
+              
+              <div className="resumen-container" style={{ display: "flex", flexDirection: "column", gap: 15 }}>
+                
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 15 }}>
+                  <div className="resumen-card">
+                    <p className="resumen-card__title">👤 Cliente</p>
+                    <p className="resumen-card__val"><strong>{clienteSeleccionado.nombre}</strong></p>
+                    <p className="resumen-card__sub">{clienteSeleccionado.telefono}</p>
+                  </div>
+                  <div className="resumen-card">
+                    <p className="resumen-card__title">📍 Entrega</p>
+                    <p className="resumen-card__val"><strong>{form.domicilio ? "Domicilio" : "En Tienda"}</strong></p>
+                    <p className="resumen-card__sub" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {form.domicilio ? form.direccion_entrega : "Recoger en local"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="resumen-card" style={{ padding: "0" }}>
+                  <div style={{ padding: "12px 16px", borderBottom: "1px solid #eee", background: "#fcfcfc", borderTopLeftRadius: 10, borderTopRightRadius: 10 }}>
+                    <p className="resumen-card__title" style={{ margin: 0 }}>🛒 Detalle de productos ({form.productosItems.length})</p>
+                  </div>
+                  <div style={{ maxHeight: 120, overflowY: "auto", padding: "10px 16px" }}>
+                    {form.productosItems.map(p => (
+                      <div key={p.idProducto} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "4px 0" }}>
+                        <span>{p.cantidad}x {p.nombre}</span>
+                        <span style={{ fontWeight: 600 }}>{fmt(p.precio * p.cantidad)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="resumen-final-box" style={{ background: "#2e7d32", color: "#fff", padding: "20px", borderRadius: "14px", boxShadow: "0 4px 15px rgba(46,125,50,0.25)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, opacity: 0.9 }}>
+                    <span>Subtotal</span>
+                    <span>{fmt(subtotal)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, opacity: 0.9, marginTop: 4 }}>
+                    <span>Descuento aplicado</span>
+                    <span>-{fmt(descuento)}</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 22, fontWeight: 900, marginTop: 12, paddingTop: 12, borderTop: "1px dashed rgba(255,255,255,0.3)" }}>
+                    <span>TOTAL FINAL</span>
+                    <span>{fmt(total)}</span>
+                  </div>
+                  <div style={{ marginTop: 10, fontSize: 11, background: "rgba(0,0,0,0.15)", padding: "6px 10px", borderRadius: "6px", textAlign: "center" }}>
+                    💳 Pago vía: <strong>{form.metodo_pago}</strong>
+                  </div>
+                </div>
+
+                {hayProductosSinStock && (
+                  <div style={{ padding: "12px", background: "#fff4e5", border: "1px solid #ffe0b2", borderRadius: "10px", display: "flex", gap: 10, alignItems: "center" }}>
+                    <span style={{ fontSize: 20 }}>🏭</span>
+                    <p style={{ margin: 0, fontSize: 12, color: "#663c00", lineHeight: 1.4 }}>
+                      <strong>Nota:</strong> Algunos productos requieren producción. Se creará una <strong>Orden de Producción</strong> automáticamente.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
 
         </div>
 
         {/* Footer */}
-        <div className="modal-footer" style={{ justifyContent: "space-between" }}>
+        <div className="modal-footer" style={{ padding: "20px 30px", borderTop: "1px solid #f0f0f0" }}>
           {step > 1
-            ? <button className="btn-ghost" onClick={handleBack}>← Atrás</button>
-            : <button className="btn-ghost" onClick={onClose}>Cancelar</button>
+            ? <button className="btn-ghost" style={{ padding: "10px 20px" }} onClick={handleBack}>← Volver</button>
+            : <button className="btn-ghost" style={{ padding: "10px 20px" }} onClick={onClose}>Cancelar</button>
           }
-          <div style={{ display: "flex", gap: 10 }}>
-            {step < 3
-              ? <button className="btn-save" onClick={handleNext}>Siguiente →</button>
-              : <button className="btn-save" onClick={handleSave} disabled={saved}>
-                  {saved ? "Guardando…" : "Crear pedido"}
+          <div style={{ display: "flex", gap: 12 }}>
+            {step < 5
+              ? <button className="btn-save" style={{ padding: "10px 30px", fontSize: 14 }} onClick={handleNext}>Continuar →</button>
+              : <button className="btn-save" style={{ padding: "10px 40px", fontSize: 15, background: "#2e7d32" }} onClick={handleSave} disabled={saved}>
+                  {saved ? "Procesando…" : "Confirmar Pedido"}
                 </button>
             }
           </div>
@@ -579,7 +695,7 @@ export default function CrearPedido({ onClose, onSave }) {
         {saved && (
           <div className="modal-success-toast">
             <span>✓</span>
-            <span>Pedido creado con éxito</span>
+            <span>Pedido registrado correctamente</span>
           </div>
         )}
       </div>

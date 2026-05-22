@@ -692,3 +692,40 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; color: #1a1a1a; }
 .wizard-step-line.done {
   background: var(--g);
 }
+
+/* ─── Mejoras Modal Crear Pedido ─── */
+.fade-in { animation: fadeIn 0.3s ease-in-out; }
+
+.btn-delivery-opt:hover, .btn-pay-opt:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.resumen-card {
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+.resumen-card__title {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: #999;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+  font-weight: 700;
+}
+.resumen-card__val { font-size: 14px; color: #333; margin: 0; }
+.resumen-card__sub { font-size: 12px; color: #777; margin: 2px 0 0; }
+
+.productos-tabla-header {
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.producto-item {
+  transition: all 0.2s;
+}
+.producto-item:hover {
+  border-color: var(--gb);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}

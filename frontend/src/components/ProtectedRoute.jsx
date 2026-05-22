@@ -8,7 +8,7 @@ const ProtectedRoute = ({ allowedRoles }) => {
 
   if (allowedRoles) {
     const user = getUser();
-    if (!allowedRoles.includes(user.rol)) {
+    if (!allowedRoles.includes(user.tipo)) {
       return <Navigate to="/" replace />;
     }
   }

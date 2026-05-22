@@ -1,32 +1,26 @@
-// profileService.js — alineado con tabla Usuarios en BD
+// profileService.js
+import { apiFetch } from '../../../../utils/api';
 
 export const getCurrentUser = () => {
-  const session = localStorage.getItem('session');
-  return session ? JSON.parse(session) : null;
+  try {
+    return JSON.parse(localStorage.getItem('usuario'));
+  } catch {
+    return null;
+  }
 };
 
-export const updateUser = (updatedData) => {
+export const updateUser = async (updatedData) => {
+  const data = await apiFetch('/auth/perfil', {
+    method: 'PUT',
+    body: JSON.stringify(updatedData),
+  });
+
+  // Actualizar el usuario en localStorage con los nuevos datos
   const currentUser = getCurrentUser();
-  if (!currentUser) throw new Error('No hay sesión activa');
+  const updated = { ...currentUser, ...updatedData };
+  localStorage.setItem('usuario', JSON.stringify(updated));
 
-  // Campos protegidos — nunca se sobreescriben desde el perfil
-  const { cedula, tipoDocumento, nombre, apellidos, rol, estado, ...editable } = updatedData;
-
-  const users = JSON.parse(localStorage.getItem('users') || '[]');
-
-  const updatedUsers = users.map(u =>
-    u.cedula === currentUser.cedula
-      ? { ...u, ...editable }
-      : u
-  );
-
-  localStorage.setItem('users', JSON.stringify(updatedUsers));
-
-  const newProfile = { ...currentUser, ...editable };
-  localStorage.setItem('session', JSON.stringify(newProfile));
-  sessionStorage.setItem('session', JSON.stringify(newProfile));
-
-  return newProfile;
+  return updated;
 };
 
 export const validateEmail = (email) => {

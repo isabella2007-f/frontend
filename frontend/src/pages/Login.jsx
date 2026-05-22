@@ -13,13 +13,17 @@ const Login = () => {
   const [loading,  setLoading]  = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
+const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      const user = login(email, password);
-      navigate(user.rol === "administrador" ? "/admin" : "/cliente");
+      const data = await login(email, password);
+      if (data.tipo === "empleado") {
+        navigate("/admin");
+      } else {
+        navigate("/cliente");
+      }
     } catch (err) {
       setError(err.message);
     } finally {

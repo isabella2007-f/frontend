@@ -20,9 +20,9 @@ const ProfilePage = () => {
   const userPedidos = user ? pedidos.filter(p => p.idCliente === user.cedula) : [];
   const totalPedidos = userPedidos.length; // ✅ FIX: variable estaba sin declarar
 
-  const handleSave = (updatedData) => {
+  const handleSave = async (updatedData) => {
     try {
-      const updatedUser = updateUser(updatedData);
+      const updatedUser = await updateUser(updatedData);
       setUser(updatedUser);
       setIsEditing(false);
       showToast('¡Datos actualizados correctamente!', 'success');

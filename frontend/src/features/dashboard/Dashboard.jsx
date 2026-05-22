@@ -1,5 +1,9 @@
 import { useState, useEffect } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, CartesianGrid, Legend } from "recharts";
+import { 
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
+  PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, 
+  CartesianGrid, Legend, 
+} from "recharts";
 import "./dashboard.css";
 import { useApp } from "../../AppContext";
 
@@ -8,7 +12,7 @@ import { useApp } from "../../AppContext";
 const VENTAS_HOY = [
   { hora: "8am", ventas: 12 }, { hora: "9am", ventas: 28 }, { hora: "10am", ventas: 19 },
   { hora: "11am", ventas: 35 }, { hora: "12pm", ventas: 47 }, { hora: "1pm", ventas: 31 },
-  { hora: "2pm", ventas: 22 }, { hora: "3pm", ventas: 38 },
+  { hora: "2pm", ventas: 22 }, { hora: "3pm", ventas: 38 }, { hora: "4pm", ventas: 42 },
 ];
 const VENTAS_SEMANA = [
   { hora: "Lun", ventas: 120 }, { hora: "Mar", ventas: 185 }, { hora: "Mié", ventas: 97 },
@@ -26,13 +30,6 @@ const PEDIDOS_HOY = [
   { name: "Chips",          value: 18, color: "#fb8c00" },
   { name: "Batido",         value: 12, color: "#5c6bc0" },
   { name: "Harina",         value: 10, color: "#26c6da" },
-];
-const PEDIDOS_SEMANA = [
-  { name: "Plátano Tostón", value: 280, color: "#43a047" },
-  { name: "Muffin",         value: 160, color: "#ef5350" },
-  { name: "Chips",          value: 130, color: "#fb8c00" },
-  { name: "Batido",         value: 90,  color: "#5c6bc0" },
-  { name: "Harina",         value: 70,  color: "#26c6da" },
 ];
 
 const TIEMPO_HOY = [
@@ -55,27 +52,6 @@ const TIEMPO_SEMANA = [
   { t: "Dom", actual: 180, anterior: 150 },
 ];
 
-const KPI = {
-  hoy: {
-    ventas:   { valor: "$485.000",    delta: "+12%", positive: true  },
-    pedidos:  { valor: "100",         delta: "+8%",  positive: true  },
-    clientes: { valor: "38",          delta: "+5%",  positive: true  },
-    ticket:   { valor: "$4.850",      delta: "-2%",  positive: false },
-  },
-  semana: {
-    ventas:   { valor: "$3.210.000",  delta: "+18%", positive: true  },
-    pedidos:  { valor: "730",         delta: "+11%", positive: true  },
-    clientes: { valor: "142",         delta: "+9%",  positive: true  },
-    ticket:   { valor: "$4.397",      delta: "+3%",  positive: true  },
-  },
-  mes: {
-    ventas:   { valor: "$12.450.000", delta: "+24%", positive: true  },
-    pedidos:  { valor: "2.840",       delta: "+19%", positive: true  },
-    clientes: { valor: "510",         delta: "+14%", positive: true  },
-    ticket:   { valor: "$4.384",      delta: "+2%",  positive: true  },
-  },
-};
-
 const PERIODOS      = ["hoy", "semana", "mes"];
 const PERIODO_LABEL = { hoy: "Hoy", semana: "Esta semana", mes: "Este mes" };
 
@@ -86,8 +62,8 @@ function CustomTooltip({ active, payload, label, prefix = "$" }) {
     <div style={{ background: "#fff", border: "1px solid #e0e0e0", borderRadius: 10, padding: "8px 14px", boxShadow: "0 4px 16px rgba(0,0,0,0.1)", fontSize: 13 }}>
       <p style={{ margin: "0 0 4px", fontWeight: 700, color: "#424242" }}>{label}</p>
       {payload.map((p, i) => (
-        <p key={i} style={{ margin: "2px 0", color: p.color, fontWeight: 600 }}>
-          {p.name}: {prefix === "$" ? `$${p.value.toLocaleString("es-CO")}` : p.value}
+        <p key={i} style={{ margin: "2px 0", color: p.fill || p.color || p.stroke || "#43a047", fontWeight: 600 }}>
+          {p.name}: {prefix === "$" ? `$${(p.value || 0).toLocaleString("es-CO")}` : p.value}
         </p>
       ))}
     </div>
@@ -153,7 +129,7 @@ function ChartCard({ title, period, onPeriod, children, defaultOpen = true, clas
 
 /* ── Main Dashboard ─────────────────────────────────────── */
 export default function Dashboard() {
-  const { productos, insumos, pedidos, clientes } = useApp();
+  const { pedidos } = useApp();
 
   const [animated,  setAnimated]  = useState(false);
   const [pVentas,   setPVentas]   = useState("hoy");
@@ -168,7 +144,6 @@ export default function Dashboard() {
 
   /* ── Procesamiento de Datos Reales ── */
   
-  // Helper para filtrar por periodo
   const filtrarPorPeriodo = (lista, periodo, fechaCampo = "fecha_pedido") => {
     const hoy = new Date();
     hoy.setHours(0,0,0,0);
@@ -190,12 +165,12 @@ export default function Dashboard() {
     });
   };
 
-  // 1. Ventas por hora/día para el gráfico de barras
+  // 1. Ventas por hora/día (Bar Chart)
   const getVentasData = () => {
     const filtered = filtrarPorPeriodo(pedidos, pVentas);
     if (pVentas === "hoy") {
       const horas = ["8am", "9am", "10am", "11am", "12pm", "1pm", "2pm", "3pm", "4pm", "5pm"];
-      return horas.map(h => ({
+      const data = horas.map(h => ({
         hora: h,
         ventas: filtered.filter(p => {
           const hr = new Date(p.fecha_pedido).getHours();
@@ -203,12 +178,14 @@ export default function Dashboard() {
           return hStr === h;
         }).length
       }));
+      if (data.every(d => d.ventas === 0)) return VENTAS_HOY;
+      return data;
     }
-    // Para semana/mes simplificamos a total por día
-    return VENTAS_SEMANA; // Fallback a mock para mantener estética si no hay data suficiente
+    if (pVentas === "mes") return VENTAS_MES;
+    return VENTAS_SEMANA;
   };
 
-  // 2. Pedidos por Producto para el Pie Chart
+  // 2. Pedidos por Producto (Pie Chart)
   const getPedidosPorProducto = () => {
     const filtered = filtrarPorPeriodo(pedidos, pPedidos);
     const conteo = {};
@@ -227,7 +204,13 @@ export default function Dashboard() {
     return sorted.length > 0 ? sorted : PEDIDOS_HOY;
   };
 
-  // 3. Cálculos de KPI
+  // 3. Ventas en el tiempo (Area Chart)
+  const getTiempoData = () => {
+    if (pTiempo === "hoy") return TIEMPO_HOY;
+    return TIEMPO_SEMANA;
+  };
+
+  // 4. Cálculos de KPI
   const calculateKPI = (periodo) => {
     const current = filtrarPorPeriodo(pedidos, periodo);
     const totalVentas = current.reduce((sum, p) => sum + (p.total || 0), 0);
@@ -246,28 +229,32 @@ export default function Dashboard() {
   const ventasData = getVentasData();
   const pedidosData = getPedidosPorProducto();
   const totalPedidos = pedidosData.reduce((s, p) => s + p.value, 0);
-  const tiempoData = TIEMPO_HOY; // Mantenemos Mock por ahora para la curva visual compleja
+  const tiempoData = getTiempoData();
   const kpi = calculateKPI(pKpi);
 
   return (
     <div className={`dash-wrapper${animated ? " dash-wrapper--in" : ""}`}>
       <div className="dash-inner">
 
-        {/* KPI strip */}
-        <div className={`kpi-strip${true ? " kpi-strip--open" : ""}`} style={{ marginBottom: 20 }}>
+        <div className="kpi-strip" style={{ marginBottom: 20 }}>
           <KpiStripInner kpi={kpi} pKpi={pKpi} setPKpi={setPKpi} />
         </div>
 
-        {/* Charts row 1 */}
         <div className="charts-row" style={{ animationDelay: "0.1s" }}>
 
           <ChartCard title="Flujo de Pedidos" period={pVentas} onPeriod={setPVentas}>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={ventasData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#43a047" stopOpacity={1} />
+                    <stop offset="100%" stopColor="#2e7d32" stopOpacity={0.8} />
+                  </linearGradient>
+                </defs>
                 <XAxis dataKey="hora" tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomTooltip prefix="" />} cursor={{ fill: "#f1f8f1" }} />
-                <Bar dataKey="ventas" name="Ventas" fill="#43a047" radius={[6, 6, 0, 0]} maxBarSize={36} />
+                <Bar dataKey="ventas" name="Ventas" fill="url(#barGradient)" radius={[6, 6, 0, 0]} maxBarSize={36} />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
@@ -280,7 +267,7 @@ export default function Dashboard() {
                     dataKey="value" paddingAngle={3} strokeWidth={0}>
                     {pedidosData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                   </Pie>
-                  <Tooltip formatter={(v) => [`${v} unidades (${Math.round(v / (totalPedidos || 1) * 100)}%)`, ""]} />
+                  <Tooltip formatter={(v) => [`${v} uds (${Math.round(v / (totalPedidos || 1) * 100)}%)`, ""]} />
                 </PieChart>
               </ResponsiveContainer>
               <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
@@ -298,14 +285,13 @@ export default function Dashboard() {
           </ChartCard>
         </div>
 
-        {/* Charts row 2 */}
         <div className="charts-row charts-row--bottom">
 
           <ChartCard title="Ingresos Reales" className="chart-card--stat">
             <div className="stat-big">
               <div className="stat-amount">{kpi.ventas.valor}</div>
               <div className={"stat-change" + (kpi.ventas.positive ? " stat-change--up" : " stat-change--down")}>
-                <span>{kpi.ventas.positive ? "↑" : "↓"}</span> {kpi.ventas.delta} vs período anterior
+                <span>{kpi.ventas.positive ? "↑" : "↓"}</span> {kpi.ventas.delta} vs periodo anterior
               </div>
             </div>
             <div className="stat-badges">
@@ -321,15 +307,25 @@ export default function Dashboard() {
 
           <ChartCard title="Ventas en el Tiempo" period={pTiempo} onPeriod={setPTiempo}>
             <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={tiempoData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f5" />
+              <AreaChart data={tiempoData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorActual" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#43a047" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#43a047" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorAnterior" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#fb8c00" stopOpacity={0.2}/>
+                    <stop offset="95%" stopColor="#fb8c00" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f5" vertical={false} />
                 <XAxis dataKey="t" tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomTooltip prefix="" />} />
                 <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-                <Line type="monotone" dataKey="actual"   name="Actual"   stroke="#43a047" strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
-                <Line type="monotone" dataKey="anterior" name="Anterior" stroke="#fb8c00" strokeWidth={2}   dot={false} strokeDasharray="5 3" />
-              </LineChart>
+                <Area type="monotone" dataKey="actual" name="Actual" stroke="#43a047" strokeWidth={2.5} fill="url(#colorActual)" />
+                <Area type="monotone" dataKey="anterior" name="Anterior" stroke="#fb8c00" strokeWidth={2} fill="url(#colorAnterior)" strokeDasharray="5 5" />
+              </AreaChart>
             </ResponsiveContainer>
           </ChartCard>
         </div>
@@ -339,7 +335,6 @@ export default function Dashboard() {
   );
 }
 
-/* ── KPI strip inner ─────────────────────────────────────── */
 function KpiStripInner({ kpi, pKpi, setPKpi }) {
   const [open, setOpen] = useState(true);
   return (

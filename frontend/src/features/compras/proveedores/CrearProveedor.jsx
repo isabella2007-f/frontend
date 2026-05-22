@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useApp } from "../../../AppContext.jsx";
 import "./Proveedores.css";
 
 const TIPO_DOCS_NATURAL  = ["CC", "CE", "PP"];
@@ -363,7 +364,7 @@ export default function CrearProveedor({ onClose, onSave }) {
           )}
         </div>
 
-        <div className="modal-footer" style={{ justifyContent: "space-between" }}>
+        <div className="modal-footer">
           {step > 1
             ? <button className="btn-ghost" onClick={() => setStep(1)}>← Atrás</button>
             : <button className="btn-ghost" onClick={onClose}>Cancelar</button>

@@ -26,7 +26,7 @@ const TODAS_ACCIONES = {
   cambiar_estado: { key: "cambiar_estado", label: "Cambiar Estado", icon: "🔄",   color: "#f57f17", bg: "#fff8e1", border: "#ffe082" },
   aprobar:        { key: "aprobar",        label: "Aprobar",        icon: "✅",   color: "#1b5e20", bg: "#e8f5e9", border: "#81c784" },
   desaprobar:     { key: "desaprobar",     label: "Desaprobar",     icon: "❌",   color: "#b71c1c", bg: "#ffebee", border: "#ef5350" },
-
+  cancelar:       { key: "cancelar",       label: "Cancelar",       icon: "✖️",   color: "#4e342e", bg: "#efebe9", border: "#bcaaa4" },
 };
 
 const STD = ["ver", "crear", "editar", "eliminar", "cambiar_estado"];
@@ -39,7 +39,7 @@ const GRUPOS_MODULOS = [
       { key: "Dashboard",       label: "Dashboard",       icon: "📊", acciones: ["ver"] },
       { key: "Roles",           label: "Roles",           icon: "🛡️", acciones: STD },
       { key: "Usuarios",        label: "Usuarios",        icon: "👥", acciones: STD },
-      { key: "GestionSalidas",  label: "Gestión Salidas", icon: "📤", acciones: STD },
+      { key: "GestionSalidas",  label: "Gestión Salidas", icon: "📤", acciones: ["ver", "crear", "editar", "eliminar"] },
     ],
   },
   {
@@ -47,9 +47,10 @@ const GRUPOS_MODULOS = [
     icon: "📦",
     modulos: [
       { key: "CategoriaInsumos", label: "Cat. Insumos",  icon: "📂", acciones: STD },
-      { key: "Insumos",          label: "Insumos",       icon: "🧪", acciones: ["ver", "crear", "editar", "eliminar","cambiar_estado", "generar_salida"] },
+      { key: "Insumos",          label: "Insumos",       icon: "🧪", acciones: ["ver", "crear", "editar", "eliminar", "cambiar_estado", "generar_salida"] },
       { key: "Proveedores",      label: "Proveedores",   icon: "🚚", acciones: STD },
-      { key: "Compras",          label: "Compras",       icon: "📋", acciones: ["ver", "crear", "editar","cambiar estado", "anular"] },
+      // FIX: "cambiar estado" (con espacio) → "cambiar_estado" (con guión bajo)
+      { key: "Compras",          label: "Compras",       icon: "📋", acciones: ["ver", "crear", "editar", "cambiar_estado", "anular"] },
     ],
   },
   {
@@ -57,8 +58,8 @@ const GRUPOS_MODULOS = [
     icon: "🏭",
     modulos: [
       { key: "CategoriaProductos", label: "Cat. Productos", icon: "📦", acciones: ["ver", "crear", "editar", "eliminar", "cambiar_estado"] },
-      { key: "GestionProductos",   label: "Gestión Prod.",  icon: "📋", acciones: ["ver", "crear", "editar", "eliminar","cambiar_estado", "generar_salida"] },
-      { key: "OrdenesProduccion",  label: "Órdenes Prod.",  icon: "🏭", acciones: STD },
+      { key: "GestionProductos",   label: "Gestión Prod.",  icon: "📋", acciones: ["ver", "crear", "editar", "eliminar", "cambiar_estado", "generar_salida"] },
+      { key: "OrdenesProduccion",  label: "Órdenes Prod.",  icon: "🏭", acciones: ["ver", "crear", "editar", "cancelar", "cambiar_estado"] },
     ],
   },
   {
@@ -67,7 +68,7 @@ const GRUPOS_MODULOS = [
     modulos: [
       { key: "Pedidos",       label: "Pedidos",        icon: "🛒", acciones: STD },
       { key: "GestionVentas", label: "Gestión Ventas", icon: "💰", acciones: STD },
-      { key: "Devoluciones",  label: "Devoluciones",   icon: "↩️", acciones: ["ver", "crear", "editar", "eliminar", "aprobar", "desaprobar"] },
+      { key: "Devoluciones",  label: "Devoluciones",   icon: "↩️", acciones: ["ver", "crear", "editar", "aprobar", "desaprobar"] },
       { key: "Domicilios",    label: "Domicilios",     icon: "🏍️", acciones: ["ver", "ver_detalles", "cambiar_estado"] },
     ],
   },
@@ -77,7 +78,6 @@ const MODULOS = GRUPOS_MODULOS.flatMap(g => g.modulos);
 const TOTAL_PRIVILEGIOS = MODULOS.reduce((acc, m) => acc + m.acciones.length, 0);
 
 export function buildPrivilegios(overrides = []) {
-
   const map = {};
 
   overrides.forEach(p => {
@@ -87,14 +87,11 @@ export function buildPrivilegios(overrides = []) {
   });
 
   return MODULOS.flatMap(m =>
-
     (m.acciones || [])
       .filter(aKey => TODAS_ACCIONES[aKey])
       .map(aKey => {
-
-        const a = TODAS_ACCIONES[aKey];
+        const a  = TODAS_ACCIONES[aKey];
         const id = `${m.key}_${aKey}`;
-
         return {
           id,
           modulo: m.key,
@@ -102,7 +99,6 @@ export function buildPrivilegios(overrides = []) {
           nombre: `${a.label} ${m.label.toLowerCase()}`,
           estado: map[id] ?? false,
         };
-
       })
   );
 }
@@ -112,7 +108,6 @@ function tieneTodosLosPrivilegios(privilegios) {
 }
 
 const S = {
-  // ── FIX: zIndex subido a 9999 para salir del stacking context del modal padre ──
   overlay: {
     position: "fixed", inset: 0,
     background: "rgba(0,0,0,0.55)",
@@ -248,7 +243,12 @@ export default function PrivilegiosModal({
   const grupoActual = GRUPOS_MODULOS.find(g => g.grupo === grupo);
   const modMeta     = MODULOS.find(m => m.key === modKey);
   const modItems    = local.filter(p => p.modulo === modKey);
-  const accionesMod = (modMeta?.acciones ?? []).map(k => TODAS_ACCIONES[k]);
+
+  // FIX: .filter(Boolean) elimina cualquier undefined causado por typos en las claves de acciones
+  const accionesMod = (modMeta?.acciones ?? [])
+    .map(k => TODAS_ACCIONES[k])
+    .filter(Boolean);
+
   const modActivos  = modItems.filter(p => p.estado).length;
   const todosOn     = modActivos === accionesMod.length && accionesMod.length > 0;
 

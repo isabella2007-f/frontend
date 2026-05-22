@@ -1,15 +1,27 @@
 import { useState, useEffect } from "react";
-import { C, ICON_OPTIONS } from "./theme.js";
+import { ICON_OPTIONS } from "./theme.js";
 import { FieldInput, ModalOverlay } from "./ui.jsx";
 import "./Categoriaproductos.css";
 
 export default function EditarCategoria({ category, onClose, onSave }) {
-  const [form, setForm] = useState(category);
+  const [form, setForm] = useState({
+    nombre: category?.nombre ?? "",
+    descripcion: category?.descripcion ?? "",
+    icon: category?.icon ?? "📦",
+  });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [pickingIcon, setPickingIcon] = useState(false);
 
-  useEffect(() => { if (category) setForm(category); }, [category]);
+  useEffect(() => {
+    if (category) {
+      setForm({
+        nombre: category.nombre,
+        descripcion: category.descripcion,
+        icon: category.icon,
+      });
+    }
+  }, [category]);
 
   const validate = () => {
     const e = {};
@@ -22,9 +34,17 @@ export default function EditarCategoria({ category, onClose, onSave }) {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaving(true);
-    await new Promise(r => setTimeout(r, 500));
-    onSave(form);
-    setSaving(false);
+    try {
+      await onSave({
+        Nombre_Categoria: form.nombre.trim(),
+        Descripcion: form.descripcion.trim(),
+        Icono: form.icon,
+      });
+    } catch {
+      // el padre ya mostró el toast de error; el modal se mantiene abierto
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -101,7 +121,7 @@ export default function EditarCategoria({ category, onClose, onSave }) {
 
       {/* Footer */}
       <div className="modal-footer">
-        <button className="btn-ghost" onClick={onClose}>Cancelar</button>
+        <button className="btn-ghost" onClick={onClose} disabled={saving}>Cancelar</button>
         <button className="btn-save" onClick={handleSave} disabled={saving}>
           {saving ? "Guardando…" : "Guardar"}
         </button>
