@@ -25,6 +25,7 @@ const PALETA = [
 
 // Genera o devuelve el estilo de un rol por nombre
 export function getRolStyle(nombre) {
+  if (!nombre) return PALETA[0];
   if (ROL_STYLES[nombre]) return ROL_STYLES[nombre];
   // Hash simple del nombre para elegir color consistente
   let hash = 0;

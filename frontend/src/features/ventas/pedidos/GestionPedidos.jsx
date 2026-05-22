@@ -1,14 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useApp } from "../../../AppContext.jsx";
+import { getPedidos, confirmarPedido, cancelarPedido } from "../../../services/pedidosService.js";
 import { 
   Eye, Edit3, Trash2, Truck, Package, 
   RotateCcw, ChevronRight, X, AlertCircle, 
   CheckCircle2, Info, ArrowRight, User, 
   Mail, Phone, CreditCard, MapPin, Calendar, ClipboardList, DollarSign, Search
 } from 'lucide-react';
-import CrearPedido from "./CrearPedido.jsx";
-import EditarPedido from "./EditarPedido.jsx";
 import "./Pedidos.css";
 
 /* ─── Helpers ────────────────────────────────────────────── */
@@ -475,18 +474,29 @@ function ModalAsignarDomiciliario({ pedido, empleados, onClose, onConfirm }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   SKELETON
+   ═══════════════════════════════════════════════════════════ */
+function SkeletonRows({ cols = 8, rows = 5 }) {
+  return Array.from({ length: rows }).map((_, i) => (
+    <tr key={i}>
+      {Array.from({ length: cols }).map((__, j) => (
+        <td key={j}><div className="skeleton-cell" /></td>
+      ))}
+    </tr>
+  ));
+}
+
+/* ═══════════════════════════════════════════════════════════
    COMPONENTE PRINCIPAL
    ═══════════════════════════════════════════════════════════ */
 export default function GestionPedidos() {
-  const {
-    pedidos, crearPedido, editarPedido, eliminarPedido,
-    cambiarEstadoPedido, asignarDomiciliario,
-    usuarios,
-  } = useApp();
-
+  const { usuarios } = useApp();
   const navigate = useNavigate();
-  const empleados = usuarios.filter(u => u.rol === "Empleado" && u.estado);
+  const empleados = (usuarios || []).filter(u => u.rol === "Empleado" && u.estado);
 
+  const [pedidos,      setPedidos]      = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [actionSaving, setActionSaving] = useState(false);
   const [search,       setSearch]       = useState("");
   const [filterEstado, setFilterEstado] = useState("todos");
   const [filterTipo,   setFilterTipo]   = useState("todos");
@@ -496,16 +506,30 @@ export default function GestionPedidos() {
   const [toast,        setToast]        = useState(null);
   const filterRef = useRef();
 
+  const showToast = (msg, type = "success") => {
+    setToast({ message: msg, type });
+    setTimeout(() => setToast(null), 3200);
+  };
+
+  const cargarDatos = async () => {
+    setLoading(true);
+    try {
+      const data = await getPedidos({ porPagina: 200 });
+      setPedidos(data.pedidos);
+    } catch (err) {
+      showToast(err.message || "Error al cargar pedidos", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { cargarDatos(); }, []);
+
   useEffect(() => {
     const h = e => { if (filterRef.current && !filterRef.current.contains(e.target)) setShowFilter(false); };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
-
-  const showToast = (msg, type = "success") => {
-    setToast({ message: msg, type });
-    setTimeout(() => setToast(null), 3200);
-  };
 
   const filtered = pedidos.filter(p => {
     const q      = search.toLowerCase();
@@ -513,10 +537,10 @@ export default function GestionPedidos() {
       .filter(Boolean).some(v => v.toLowerCase().includes(q));
     const matchE = filterEstado === "todos" || p.estado === filterEstado;
     const matchT =
-      filterTipo === "todos"       ? true :
-      filterTipo === "domicilio"   ? p.domicilio :
-      filterTipo === "tienda"      ? !p.domicilio :
-      filterTipo === "produccion"  ? p.orden_produccion : true;
+      filterTipo === "todos"      ? true :
+      filterTipo === "domicilio"  ? p.domicilio :
+      filterTipo === "tienda"     ? !p.domicilio :
+      filterTipo === "produccion" ? p.orden_produccion : true;
     return matchQ && matchE && matchT;
   });
 
@@ -528,69 +552,42 @@ export default function GestionPedidos() {
 
   const hasFilter = filterEstado !== "todos" || filterTipo !== "todos";
 
-  const handleSave = (payload) => {
-    if (payload.id) {
-      editarPedido(payload);
-      showToast(`Pedido ${payload.numero} actualizado`);
-      setModal(null);
-    } else {
-      const res = crearPedido(payload);
-      if (res && res.error) {
-        showToast(res.error, "error");
-      } else {
-        showToast(`Pedido ${res.numero} creado`);
-        setModal(null);
-      }
-    }
-  };
-
   const handleCambiarEstadoDirecto = (ped) => {
     const actualIdx = ESTADOS_FLUJO.indexOf(ped.estado);
-    if (actualIdx === -1) {
-      if (ped.estado === "Cancelado") {
-        showToast("Un pedido cancelado no puede ser reactivado", "warn");
-      } else {
-        showToast("Estado no reconocido", "error");
-      }
+    if (ped.estado === "Cancelado") {
+      showToast("Un pedido cancelado no puede ser reactivado", "warn");
       return;
     }
-    
     if (actualIdx >= ESTADOS_FLUJO.length - 1) {
       showToast(`El pedido ya está en su estado final: ${ped.estado}`, "info");
       return;
     }
-
     const nuevoEstado = ESTADOS_FLUJO[actualIdx + 1];
     setModal({ type: "confirmarEstado", pedido: ped, nuevoEstado });
   };
 
-  const handleConfirmarCambioEstado = (id, nuevoEstado) => {
+  const handleCancelarPedido = (ped) => {
+    setModal({ type: "confirmarEstado", pedido: ped, nuevoEstado: "Cancelado" });
+  };
+
+  const handleConfirmarCambioEstado = async (id, nuevoEstado) => {
     const ped = pedidos.find(p => p.id === id);
     if (!ped) return;
-
-    let finalEstado = nuevoEstado;
-    if (nuevoEstado === "En camino" && !ped.domicilio) {
-      finalEstado = "Entregado";
-      showToast(`Pedido ${ped.numero} marcado como Entregado (Tienda)`);
-    } else {
-      showToast(`Pedido ${ped.numero} actualizado a: ${nuevoEstado}`);
+    setActionSaving(true);
+    try {
+      if (nuevoEstado === "Cancelado") {
+        await cancelarPedido(id);
+      } else {
+        await confirmarPedido(id);
+      }
+      await cargarDatos();
+      showToast(`Pedido ${ped.numero} actualizado`);
+      setModal(null);
+    } catch (err) {
+      showToast(err.message || "Error al cambiar estado", "error");
+    } finally {
+      setActionSaving(false);
     }
-
-    cambiarEstadoPedido(id, finalEstado);
-    setModal(null);
-  };
-
-  const handleEliminar = (id) => {
-    eliminarPedido(id);
-    showToast("Pedido eliminado", "error");
-    setModal(null);
-  };
-
-  const handleAsignarDomiciliario = (pedidoId, empleadoId) => {
-    asignarDomiciliario(pedidoId, empleadoId);
-    const empleado = empleados.find(e => e.id === empleadoId);
-    showToast(`Pedido asignado a ${empleado?.nombre} ${empleado?.apellidos}`);
-    setModal(null);
   };
 
   return (
@@ -621,7 +618,7 @@ export default function GestionPedidos() {
                   <div>
                     <p className="filter-section-title">Estado</p>
                     <div style={{ display: "grid", gap: 2 }}>
-                      {[{ val: "todos", label: "Todos", dot: "#bdbdbd" }, ...ESTADOS_FLUJO.map(e => ({ val: e, label: e, dot: ESTADO_CONFIG[e]?.dot }))].map(f => (
+                      {[{ val: "todos", label: "Todos", dot: "#bdbdbd" }, ...ESTADOS_FLUJO.map(e => ({ val: e, label: e, dot: ESTADO_CONFIG[e]?.dot })), { val: "Cancelado", label: "Cancelado", dot: ESTADO_CONFIG["Cancelado"]?.dot }].map(f => (
                         <button key={f.val} className={`filter-option${filterEstado === f.val ? " active" : ""}`} onClick={() => setFilterEstado(f.val)}>
                           <span className="filter-dot" style={{ background: f.dot }} />{f.label}
                         </button>
@@ -652,10 +649,6 @@ export default function GestionPedidos() {
               </div>
             )}
           </div>
-
-          <button className="btn-agregar" onClick={() => setModal({ type: "crear" })}>
-            Nuevo pedido <span>+</span>
-          </button>
         </div>
 
         <div className="card">
@@ -674,19 +667,23 @@ export default function GestionPedidos() {
                 </tr>
               </thead>
               <tbody>
-                {paged.length === 0 ? (
+                {loading ? (
+                  <SkeletonRows cols={8} rows={5} />
+                ) : paged.length === 0 ? (
                   <tr><td colSpan={8}><div className="empty-state"><div className="empty-state__icon">📦</div><p className="empty-state__text">Sin pedidos.</p></div></td></tr>
                 ) : paged.map((ped, idx) => {
                   const emp = empleados.find(e => e.id === ped.idEmpleado);
-                  const canAdvance = ESTADOS_FLUJO.indexOf(ped.estado) < ESTADOS_FLUJO.length - 1;
+                  const canAdvance = ESTADOS_FLUJO.indexOf(ped.estado) !== -1 &&
+                    ESTADOS_FLUJO.indexOf(ped.estado) < ESTADOS_FLUJO.length - 1;
+                  const canCancel = !["Entregado", "Cancelado"].includes(ped.estado);
                   return (
                     <tr key={ped.id} className="tbl-row group hover:bg-green-50/30 transition-colors">
                       <td><span className="row-num">{String((safePage - 1) * PER_PAGE + idx + 1).padStart(2, "0")}</span></td>
                       <td>
                         <div className="pedido-num font-black text-green-800">{ped.numero}</div>
-                        {(ped.comprobante || ped.comprobantePreview) && (
+                        {ped.comprobante && (
                           <div className="text-[9px] font-black text-green-600 uppercase flex items-center gap-1 mt-0.5">
-                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span> Pago Adjunto
+                            <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" /> Pago Adjunto
                           </div>
                         )}
                       </td>
@@ -713,10 +710,8 @@ export default function GestionPedidos() {
                       <td>
                         <div className="actions-cell flex items-center gap-1">
                           <button className="act-btn act-btn--view bg-green-50 text-green-600 hover:bg-green-600 hover:text-white transition-all p-1.5 rounded-lg border border-green-100" onClick={() => setModal({ type: "ver", pedido: ped })}>👁</button>
-                          {canAdvance && <button className="act-btn act-btn--success bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all p-1.5 rounded-lg border border-blue-100" onClick={() => handleCambiarEstadoDirecto(ped)}>🔄</button>}
-                          <button className="act-btn act-btn--edit bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white transition-all p-1.5 rounded-lg border border-amber-100" onClick={() => setModal({ type: "editar", pedido: ped })}>✎</button>
-                          {ped.domicilio && <button className="act-btn act-btn--domicilio bg-purple-50 text-purple-600 hover:bg-purple-600 hover:text-white transition-all p-1.5 rounded-lg border border-purple-100" onClick={() => setModal({ type: "domicilio", pedido: ped })}>🛵</button>}
-                          <button className="act-btn act-btn--delete bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-all p-1.5 rounded-lg border border-red-100" onClick={() => setModal({ type: "eliminar", pedido: ped })}>🗑️</button>
+                          {canAdvance && <button className="act-btn act-btn--success bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all p-1.5 rounded-lg border border-blue-100" disabled={actionSaving} onClick={() => handleCambiarEstadoDirecto(ped)}>🔄</button>}
+                          {canCancel && <button className="act-btn act-btn--delete bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-all p-1.5 rounded-lg border border-red-100" disabled={actionSaving} onClick={() => handleCancelarPedido(ped)}>✕</button>}
                         </div>
                       </td>
                     </tr>
@@ -739,12 +734,8 @@ export default function GestionPedidos() {
         </div>
       </div>
 
-      {modal?.type === "crear" && <CrearPedido onClose={() => setModal(null)} onSave={handleSave} />}
-      {modal?.type === "editar" && <EditarPedido pedido={modal.pedido} onClose={() => setModal(null)} onSave={handleSave} />}
-      {modal?.type === "ver" && <ModalVerPedido pedido={modal.pedido} empleados={empleados} onClose={() => setModal(null)} onEdit={ped => setModal({ type: "editar", pedido: ped })} />}
-      {modal?.type === "eliminar" && <ModalEliminarPedido pedido={modal.pedido} onClose={() => setModal(null)} onConfirm={handleEliminar} />}
+      {modal?.type === "ver" && <ModalVerPedido pedido={modal.pedido} empleados={empleados} onClose={() => setModal(null)} onEdit={() => setModal(null)} />}
       {modal?.type === "confirmarEstado" && <ModalConfirmarEstado pedido={modal.pedido} nuevoEstado={modal.nuevoEstado} onClose={() => setModal(null)} onConfirm={handleConfirmarCambioEstado} />}
-      {modal?.type === "domicilio" && <ModalAsignarDomiciliario pedido={modal.pedido} empleados={empleados} onClose={() => setModal(null)} onConfirm={handleAsignarDomiciliario} />}
 
       <Toast toast={toast} />
     </div>

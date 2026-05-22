@@ -1,25 +1,24 @@
 import { useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import "./Roles.css";
-import { useApp } from "../../../AppContext.jsx";
+import { crearRol } from "../../../services/rolesService.js";
+import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
 import PrivilegiosModal, { buildPrivilegios } from "./PrivilegiosModal.jsx";
 
 const ICON_OPTIONS = ["👤","👑","🛡️","🔧","📦","💼","🧑‍💻","📊","🔑","⚙️","👷","🧑‍🍳"];
 
 export default function CrearRol({ onClose, onSave }) {
-  const { roles: existing } = useApp();
   const [form, setForm] = useState({
-    nombre: "",
-    icono: "👤",
+    nombre:       "",
+    icono:        "👤",
     iconoPreview: null,
-    esAdmin: false,
-    estado: true,
-    privilegios: buildPrivilegios(),
+    privilegios:  buildPrivilegios(),
   });
-  const [errors, setErrors]                   = useState({});
-  const [saving, setSaving]                   = useState(false);
-  const [pickingIcon, setPickingIcon]         = useState(false);
+  const [errors,         setErrors]         = useState({});
+  const [saving,         setSaving]         = useState(false);
+  const [pickingIcon,    setPickingIcon]    = useState(false);
   const [showPrivilegios, setShowPrivilegios] = useState(false);
+  const [iconFile,       setIconFile]       = useState(null);
   const fileRef = useRef();
 
   const set = (k, v) => {
@@ -29,6 +28,7 @@ export default function CrearRol({ onClose, onSave }) {
 
   const handleIconFile = e => {
     const file = e.target.files[0]; if (!file) return;
+    setIconFile(file);
     const reader = new FileReader();
     reader.onload = ev => { set("iconoPreview", ev.target.result); set("icono", null); };
     reader.readAsDataURL(file);
@@ -39,26 +39,23 @@ export default function CrearRol({ onClose, onSave }) {
 
   const handleSave = async () => {
     const newErrors = {};
-    const roles = existing || [];
-
-    if (!form.nombre.trim()) {
-      newErrors.nombre = "El nombre del rol es obligatorio";
-    } else if (roles.some(r => r.nombre.toLowerCase() === form.nombre.toLowerCase())) {
-      newErrors.nombre = "Este nombre de rol ya existe";
-    }
-
-    if (activosCount === 0) {
-      newErrors.privilegios = "El rol debe tener al menos un privilegio activo";
-    }
-
+    if (!form.nombre.trim()) newErrors.nombre = "El nombre del rol es obligatorio";
     if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
+
     setSaving(true);
-    await new Promise(r => setTimeout(r, 500));
-    onSave({ ...form, id: Date.now(), fecha: new Date().toLocaleDateString("es-CO") });
+    try {
+      let icono = form.icono || "👤";
+      if (iconFile) {
+        icono = await subirImagenCloudinary(iconFile);
+      }
+      await crearRol({ Rol: form.nombre.trim(), Icono: icono });
+      onSave?.();
+    } catch (e) {
+      setErrors({ _api: e.message || "Error al crear rol" });
+    }
     setSaving(false);
   };
 
-  // ── FIX: portal al document.body para evitar quedar atrapado en stacking contexts ──
   return createPortal(
     <>
       <div className="modal-overlay" onClick={onClose}>
@@ -91,7 +88,7 @@ export default function CrearRol({ onClose, onSave }) {
                   {ICON_OPTIONS.map(ic => (
                     <button key={ic}
                       className={`icon-option${form.icono === ic ? " selected" : ""}`}
-                      onClick={() => { set("icono", ic); set("iconoPreview", null); setPickingIcon(false); }}>
+                      onClick={() => { set("icono", ic); set("iconoPreview", null); setIconFile(null); setPickingIcon(false); }}>
                       {ic}
                     </button>
                   ))}
@@ -118,8 +115,7 @@ export default function CrearRol({ onClose, onSave }) {
               <label className="form-label">Privilegios</label>
               <button
                 className="privilegios-open-btn"
-                style={errors.privilegios ? { borderColor: "#e53935" } : {}}
-                onClick={() => { setShowPrivilegios(true); setErrors(p => ({ ...p, privilegios: "" })); }}
+                onClick={() => setShowPrivilegios(true)}
               >
                 <span>🔐</span>
                 <span>Configurar privilegios</span>
@@ -128,8 +124,11 @@ export default function CrearRol({ onClose, onSave }) {
                 </span>
                 <span style={{ color: "#9e9e9e", fontSize: 13 }}>›</span>
               </button>
-              {errors.privilegios && <p className="field-error">{errors.privilegios}</p>}
             </div>
+
+            {errors._api && (
+              <p className="field-error" style={{ textAlign: "center" }}>{errors._api}</p>
+            )}
           </div>
 
           <div className="modal-footer">
@@ -145,7 +144,7 @@ export default function CrearRol({ onClose, onSave }) {
       {showPrivilegios && (
         <PrivilegiosModal
           privilegios={form.privilegios}
-          esAdmin={form.esAdmin}
+          esAdmin={false}
           onChange={privilegios => set("privilegios", privilegios)}
           onClose={() => setShowPrivilegios(false)}
         />

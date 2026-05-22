@@ -1,6 +1,17 @@
 import { useState, useEffect, useRef } from "react";
-import { useApp } from "../../../AppContext.jsx";
+import { getDomicilios, asignarRepartidor, actualizarDomicilio } from "../../../services/domiciliosService.js";
+import { getUsuarios, toggleEstadoUsuario } from "../../../services/usuariosService.js";
 import "./Domicilios.css";
+
+function SkeletonRows({ cols = 9, rows = 5 }) {
+  return Array.from({ length: rows }).map((_, i) => (
+    <tr key={i}>
+      {Array.from({ length: cols }).map((__, j) => (
+        <td key={j}><div className="skeleton-cell" /></td>
+      ))}
+    </tr>
+  ));
+}
 
 /* ─── Helpers ────────────────────────────────────────────── */
 const fmt = (n) =>
@@ -642,15 +653,10 @@ function HistorialDomiciliario({ domicilios, empleados, onDesactivar }) {
    COMPONENTE PRINCIPAL
    ═══════════════════════════════════════════════════════════ */
 export default function GestionDomicilios() {
-  const { pedidos, editarPedido, asignarDomiciliario, toggleUsuarioEstado, usuarios } = useApp();
-
-  const empleados  = usuarios.filter(u => u.rol === "Empleado" && u.estado);
-  const domicilios = pedidos.filter(p => p.domicilio);
-  const pedidosPorEmpleado = empleados.reduce((acc, emp) => {
-    acc[emp.id] = domicilios.filter(p => p.idEmpleado === emp.id).length;
-    return acc;
-  }, {});
-
+  const [domicilios,   setDomicilios]   = useState([]);
+  const [empleados,    setEmpleados]    = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [actionSaving, setActionSaving] = useState(false);
   const [tab,          setTab]          = useState("tabla");
   const [search,       setSearch]       = useState("");
   const [filterEstado, setFilterEstado] = useState("todos");
@@ -660,16 +666,39 @@ export default function GestionDomicilios() {
   const [toast,        setToast]        = useState(null);
   const filterRef = useRef();
 
+  const showToast = (msg, type = "success") => {
+    setToast({ message: msg, type });
+    setTimeout(() => setToast(null), 3200);
+  };
+
+  const cargarDatos = async () => {
+    setLoading(true);
+    try {
+      const [dData, uData] = await Promise.all([
+        getDomicilios({ porPagina: 200 }),
+        getUsuarios({ porPagina: 100 }),
+      ]);
+      setDomicilios(dData.domicilios);
+      setEmpleados((uData || []).filter(u => u.rol === "Empleado" && u.estado));
+    } catch (err) {
+      showToast(err.message || "Error al cargar domicilios", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { cargarDatos(); }, []);
+
   useEffect(() => {
     const h = e => { if (filterRef.current && !filterRef.current.contains(e.target)) setShowFilter(false); };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const showToast = (msg, type = "success") => {
-    setToast({ message: msg, type });
-    setTimeout(() => setToast(null), 3200);
-  };
+  const pedidosPorEmpleado = empleados.reduce((acc, emp) => {
+    acc[emp.id] = domicilios.filter(p => p.idEmpleado === emp.id).length;
+    return acc;
+  }, {});
 
   /* ── Filtrado ── */
   const filtered = domicilios.filter(p => {
@@ -686,7 +715,7 @@ export default function GestionDomicilios() {
       filterEstado === "activos"     ? ["Listo", "En camino"].includes(p.estado) :
       filterEstado === "Entregado"   ? p.estado === "Entregado" :
       filterEstado === "sin-asignar" ? !p.idEmpleado && !["Entregado", "Cancelado"].includes(p.estado) :
-      p.estado === filterEstado;   // cubre "Listo" y "En camino" exactos
+      p.estado === filterEstado;
 
     return matchQ && matchE;
   });
@@ -699,17 +728,33 @@ export default function GestionDomicilios() {
   const hasFilter = filterEstado !== "todos";
 
   /* ── Handlers ── */
-  const handleReasignar = (pedidoId, empId) => {
-    asignarDomiciliario(pedidoId, empId);
-    const emp = empleados.find(e => e.id === empId);
-    showToast(`Reasignado a ${emp?.nombre} ${emp?.apellidos}`);
-    setModal(null);
+  const handleReasignar = async (domicilioId, empId) => {
+    setActionSaving(true);
+    try {
+      await asignarRepartidor(domicilioId, empId);
+      await cargarDatos();
+      const emp = empleados.find(e => e.id === empId);
+      showToast(`Reasignado a ${emp?.nombre} ${emp?.apellidos}`);
+      setModal(null);
+    } catch (err) {
+      showToast(err.message || "Error al reasignar domiciliario", "error");
+    } finally {
+      setActionSaving(false);
+    }
   };
 
-  const handleObservaciones = (pedidoId, obs) => {
-    editarPedido({ id: pedidoId, obs_domicilio: obs });
-    showToast("Observaciones guardadas");
-    setModal(null);
+  const handleObservaciones = async (domicilioId, obs) => {
+    setActionSaving(true);
+    try {
+      await actualizarDomicilio(domicilioId, { Observaciones: obs });
+      await cargarDatos();
+      showToast("Observaciones guardadas");
+      setModal(null);
+    } catch (err) {
+      showToast(err.message || "Error al guardar observaciones", "error");
+    } finally {
+      setActionSaving(false);
+    }
   };
 
   const abrirReasignar = (ped) => {
@@ -726,22 +771,25 @@ export default function GestionDomicilios() {
     setModal({ type: "obs", pedido: ped });
   };
 
-  /* ── Handler desactivar domiciliario con advertencia ── */
   const handleSolicitarDesactivar = (emp, pedidosActivos) => {
     if (pedidosActivos.length > 0) {
-      // Mostrar modal de confirmación con lista de pedidos afectados
       setModal({ type: "confirmar-desactivar", usuario: emp, pedidosActivos });
     } else {
-      // Sin pedidos activos → desactivar directo
-      if (toggleUsuarioEstado) toggleUsuarioEstado(emp.id);
-      showToast(`${emp.nombre} ${emp.apellidos} desactivado`);
+      toggleEstadoUsuario(emp.tipo || "empleado", emp.id, emp.estado)
+        .then(() => { cargarDatos(); showToast(`${emp.nombre} ${emp.apellidos} desactivado`); })
+        .catch(err => showToast(err.message || "Error al desactivar", "error"));
     }
   };
 
-  const handleConfirmarDesactivar = () => {
+  const handleConfirmarDesactivar = async () => {
     const { usuario } = modal;
-    if (toggleUsuarioEstado) toggleUsuarioEstado(usuario.id);
-    showToast(`${usuario.nombre} ${usuario.apellidos} desactivado`, "warn");
+    try {
+      await toggleEstadoUsuario(usuario.tipo || "empleado", usuario.id, usuario.estado);
+      await cargarDatos();
+      showToast(`${usuario.nombre} ${usuario.apellidos} desactivado`, "warn");
+    } catch (err) {
+      showToast(err.message || "Error al desactivar", "error");
+    }
     setModal(null);
   };
 
@@ -863,7 +911,9 @@ export default function GestionDomicilios() {
                     </tr>
                   </thead>
                   <tbody>
-                    {paged.length === 0 ? (
+                    {loading ? (
+                      <SkeletonRows cols={9} rows={5} />
+                    ) : paged.length === 0 ? (
                       <tr><td colSpan={9}>
                         <div className="empty-state">
                           <div className="empty-state__icon">🛵</div>
@@ -995,7 +1045,7 @@ export default function GestionDomicilios() {
             <HistorialDomiciliario
               domicilios={domicilios}
               empleados={empleados}
-              onDesactivar={toggleUsuarioEstado ? handleSolicitarDesactivar : undefined}
+              onDesactivar={handleSolicitarDesactivar}
             />
           </div>
         )}

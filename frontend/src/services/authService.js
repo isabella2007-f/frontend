@@ -44,3 +44,24 @@ export const hasRole = (rol) => {
   const user = getUser();
   return user?.rol === rol;
 };
+
+export const recuperarContrasena = async (correo) => {
+  return apiFetch("/auth/recuperar-contrasena", {
+    method: "POST",
+    body: JSON.stringify({ correo }),
+  });
+};
+
+export const verificarCodigo = async (correo, codigo) => {
+  return apiFetch("/auth/verificar-codigo", {
+    method: "POST",
+    body: JSON.stringify({ correo, codigo }),
+  });
+};
+
+export const resetearContrasena = async (correo, codigo, nuevaContrasena) => {
+  return apiFetch("/auth/resetear-contrasena", {
+    method: "POST",
+    body: JSON.stringify({ correo, codigo, nueva_contrasena: nuevaContrasena }),
+  });
+};

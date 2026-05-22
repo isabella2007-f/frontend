@@ -127,39 +127,13 @@ export async function toggleEstadoProducto(id, activoActual) {
  * @param {File[]}   archivos    — array de objetos File del <input type="file">
  * @returns {Promise<ProductoResponse>}  — producto actualizado con las imágenes
  */
-export async function subirImagenes(idProducto, archivos) {
-  if (!archivos || archivos.length === 0) return null;
-
-  const token = localStorage.getItem("token");
-  const fd = new FormData();
-  // El campo se llama "imagenes" (plural) según el schema de la API
-  archivos.forEach((archivo) => fd.append("imagenes", archivo));
-
-  const res = await fetch(`${BASE}/productos/${idProducto}/imagenes`, {
+export async function subirImagenes(idProducto, urls) {
+  // urls: array de strings (secure_url de Cloudinary)
+  if (!urls || urls.length === 0) return null;
+  return apiFetch(`/productos/${idProducto}/imagenes`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      // ⚠️ NO pongas Content-Type manualmente:
-      // el browser lo pone como multipart/form-data con el boundary correcto.
-    },
-    body: fd,
+    body: JSON.stringify({ urls }),
   });
-
-  if (!res.ok) {
-    let mensaje = `Error ${res.status} subiendo imágenes`;
-    try {
-      const err = await res.json();
-      if (err.detail) {
-        mensaje =
-          typeof err.detail === "string"
-            ? err.detail
-            : JSON.stringify(err.detail);
-      }
-    } catch (_) { /* ignorar */ }
-    throw new Error(mensaje);
-  }
-
-  return res.json();
 }
 
 /**

@@ -29,7 +29,13 @@ export async function apiFetch(endpoint, options = {}) {
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));
-    throw new Error(error.detail || "Error en la petición");
+    let mensaje = "Error en la petición";
+    if (typeof error.detail === "string") {
+      mensaje = error.detail;
+    } else if (Array.isArray(error.detail)) {
+      mensaje = error.detail.map(e => e.msg).join(", ");
+    }
+    throw new Error(mensaje);
   }
 
   return res.json();

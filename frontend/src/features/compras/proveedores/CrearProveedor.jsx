@@ -1,9 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useApp } from "../../../AppContext.jsx";
 import "./Proveedores.css";
-
-const TIPO_DOCS_NATURAL  = ["CC", "CE", "PP"];
-const TIPO_DOCS_JURIDICA = ["NIT"];
 
 const fmtTel = raw => {
   if (!raw || typeof raw !== "string") return "";
@@ -40,7 +36,6 @@ function StepsBar({ current }) {
   );
 }
 
-/* ─── Selector Departamento / Ciudad ─────────────────────── */
 function LocationSelects({ departamento, ciudad, onDepto, onCiudad, errDepto, errCiudad }) {
   const [deptos,   setDeptos]   = useState([]);
   const [ciudades, setCiudades] = useState([]);
@@ -115,8 +110,6 @@ function LocationSelects({ departamento, ciudad, onDepto, onCiudad, errDepto, er
   );
 }
 
-/* ─── Campos individuales definidos FUERA del componente padre
-       para evitar pérdida de foco al re-renderizar ─────────── */
 function FieldText({ label, value, onChange, error, type = "text", placeholder = "", required }) {
   return (
     <div className="form-group">
@@ -133,88 +126,35 @@ function FieldText({ label, value, onChange, error, type = "text", placeholder =
   );
 }
 
-function FieldSelect({ label, value, onChange, options, required }) {
-  return (
-    <div className="form-group">
-      <label className="form-label">{label}{required && <span className="required"> *</span>}</label>
-      <div style={{ position: "relative" }}>
-        <select
-          className="field-input"
-          style={{ appearance: "none", paddingRight: 32 }}
-          value={value || ""}
-          onChange={e => onChange(e.target.value)}
-        >
-          {options.map(o => <option key={o.val} value={o.val}>{o.label}</option>)}
-        </select>
-        <div style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ─── Componente principal ───────────────────────────────── */
 export default function CrearProveedor({ onClose, onSave }) {
-  const { proveedores: existing } = useApp();
   const [form, setForm] = useState({
-    tipo:          "natural",
-    tipoDoc:       "CC",
-    responsable:   "",
-    documento:     "",
-    celular:       "",
-    correo:        "",
-    direccion:     "",
-    departamento:  "",
-    ciudad:        "",
-    estado:        true,
+    tipo:         "natural",
+    responsable:  "",
+    celular:      "",
+    correo:       "",
+    direccion:    "",
+    departamento: "",
+    ciudad:       "",
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [step,   setStep]   = useState(1);
-
-  // Al cambiar tipo de persona, ajustar tipoDoc automáticamente
-  useEffect(() => {
-    if (form.tipo === "juridica") {
-      setForm(f => ({ ...f, tipoDoc: "NIT" }));
-    } else if (form.tipoDoc === "NIT") {
-      setForm(f => ({ ...f, tipoDoc: "CC" }));
-    }
-  }, [form.tipo]);
 
   const set = (k, v) => {
     setForm(f => ({ ...f, [k]: v }));
     setErrors(e => ({ ...e, [k]: "" }));
   };
 
-  const tiposDoc = form.tipo === "juridica" ? TIPO_DOCS_JURIDICA : TIPO_DOCS_NATURAL;
-
   const labelResponsable = form.tipo === "juridica" ? "Razón Social" : "Nombre del responsable";
-  const labelDocumento   = form.tipo === "juridica" ? "NIT"
-    : form.tipoDoc === "CC" ? "Cédula de Ciudadanía"
-    : form.tipoDoc === "CE" ? "Cédula de Extranjería"
-    : "Pasaporte";
 
   const validateStep = (s) => {
     const e = {};
-    const provs = existing || [];
-
     if (s === 1) {
       if (!form.responsable.trim()) e.responsable = "El nombre/razón social es obligatorio";
-      
-      if (!form.documento.trim())   e.documento   = "El número de documento es obligatorio";
-      else if (provs.some(p => p.documento === form.documento)) {
-        e.documento = "Este documento ya está registrado para otro proveedor";
-      }
     }
     if (s === 2) {
-      if (!form.celular.trim())     e.celular     = "El celular es obligatorio";
-      
-      if (!form.correo.trim())      e.correo = "El correo es obligatorio";
-      else if (!/\S+@\S+\.\S+/.test(form.correo)) e.correo = "Formato de correo inválido";
-      else if (provs.some(p => p.correo.toLowerCase() === form.correo.toLowerCase())) {
-        e.correo = "Este correo ya está registrado";
-      }
+      if (form.correo.trim() && !/\S+@\S+\.\S+/.test(form.correo))
+        e.correo = "Formato de correo inválido";
     }
     return e;
   };
@@ -229,9 +169,19 @@ export default function CrearProveedor({ onClose, onSave }) {
     const e = validateStep(2);
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaving(true);
-    await new Promise(r => setTimeout(r, 400));
-    onSave({ ...form, id: `PROV${Date.now().toString().slice(-4)}` });
-    setSaving(false);
+    try {
+      await onSave({
+        Sujeto_Derecho: form.tipo === "juridica" ? 2 : 1,
+        Responsable:    form.responsable.trim(),
+        Direccion:      form.direccion    || undefined,
+        Municipio:      form.ciudad       || undefined,
+        Departamento:   form.departamento || undefined,
+        Telefono:       form.celular      || undefined,
+        Correo:         form.correo       || undefined,
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -250,29 +200,28 @@ export default function CrearProveedor({ onClose, onSave }) {
           <StepsBar current={step} />
         </div>
 
-        <div className="modal-body" style={{ minHeight: 260 }}>
+        <div className="modal-body" style={{ minHeight: 220 }}>
 
-          {/* ── Step 1: Identificación ── */}
           {step === 1 && (
             <>
               <p className="section-label" style={{ marginTop: 0 }}>Datos de identificación</p>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <FieldSelect
-                  label="Tipo de persona"
-                  value={form.tipo}
-                  onChange={v => set("tipo", v)}
-                  options={[
-                    { val: "natural",  label: "Persona Natural" },
-                    { val: "juridica", label: "Persona Jurídica" },
-                  ]}
-                />
-                <FieldSelect
-                  label="Tipo de documento"
-                  value={form.tipoDoc}
-                  onChange={v => set("tipoDoc", v)}
-                  options={tiposDoc.map(t => ({ val: t, label: t }))}
-                />
+              <div className="form-group">
+                <label className="form-label">Tipo de persona</label>
+                <div style={{ position: "relative" }}>
+                  <select
+                    className="field-input"
+                    style={{ appearance: "none", paddingRight: 32 }}
+                    value={form.tipo}
+                    onChange={e => set("tipo", e.target.value)}
+                  >
+                    <option value="natural">Persona Natural</option>
+                    <option value="juridica">Persona Jurídica</option>
+                  </select>
+                  <div style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
+                  </div>
+                </div>
               </div>
 
               <FieldText
@@ -283,18 +232,9 @@ export default function CrearProveedor({ onClose, onSave }) {
                 placeholder={form.tipo === "juridica" ? "Ej: Distribuidora XYZ S.A.S." : "Ej: Juan García"}
                 required
               />
-              <FieldText
-                label={labelDocumento}
-                value={form.documento}
-                onChange={v => set("documento", v)}
-                error={errors.documento}
-                placeholder={form.tipo === "juridica" ? "Ej: 900123456-7" : "Ej: 1023456789"}
-                required
-              />
             </>
           )}
 
-          {/* ── Step 2: Contacto y Ubicación ── */}
           {step === 2 && (
             <>
               <p className="section-label" style={{ marginTop: 0 }}>Contacto</p>
@@ -305,7 +245,6 @@ export default function CrearProveedor({ onClose, onSave }) {
                   onChange={v => set("celular", fmtTel(v))}
                   error={errors.celular}
                   placeholder="300 000 0000"
-                  required
                 />
                 <FieldText
                   label="Correo electrónico"
@@ -314,7 +253,6 @@ export default function CrearProveedor({ onClose, onSave }) {
                   error={errors.correo}
                   type="email"
                   placeholder="correo@empresa.com"
-                  required
                 />
               </div>
 
@@ -333,33 +271,6 @@ export default function CrearProveedor({ onClose, onSave }) {
                 errDepto={errors.departamento}
                 errCiudad={errors.ciudad}
               />
-
-              <p className="section-label">Estado inicial</p>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <button
-                  onClick={() => set("estado", !form.estado)}
-                  style={{
-                    position: "relative", width: 52, height: 28, borderRadius: 14,
-                    border: "none", cursor: "pointer",
-                    background: form.estado ? "#43a047" : "#c62828",
-                    boxShadow: form.estado ? "0 2px 8px rgba(67,160,71,0.45)" : "0 2px 8px rgba(198,40,40,0.3)",
-                    transition: "background 0.25s",
-                  }}
-                >
-                  <span style={{
-                    position: "absolute", top: 3, left: form.estado ? 27 : 3,
-                    width: 22, height: 22, borderRadius: "50%", background: "#fff",
-                    transition: "left 0.25s", boxShadow: "0 1px 4px rgba(0,0,0,0.25)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 9, fontWeight: 800, color: "black",
-                  }}>
-                    {form.estado ? "ON" : "OFF"}
-                  </span>
-                </button>
-                <span style={{ fontSize: 13, fontWeight: 600, color: form.estado ? "#2e7d32" : "#9e9e9e" }}>
-                  {form.estado ? "Activo" : "Inactivo"}
-                </span>
-              </div>
             </>
           )}
         </div>

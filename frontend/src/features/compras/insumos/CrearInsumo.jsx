@@ -1,9 +1,7 @@
 import { useState } from "react";
 import "./GestionInsumos.css";
-import { useApp } from "../../../AppContext.jsx";
 
-// ─── Barra de pasos ───────────────────────────────────────
-const STEPS = ["Identificación", "Stock y Vencimiento"];
+const STEPS = ["Identificación", "Stock"];
 
 function StepsBar({ current }) {
   return (
@@ -31,33 +29,22 @@ function StepsBar({ current }) {
 }
 
 export default function CrearInsumo({ onClose, onSave, categorias, unidades }) {
-  const { insumos } = useApp();
   const [form, setForm] = useState({
-    nombre: "", idCategoria: "", idUnidad: "",
-    stockMinimo: "",
-    vencimientoTipo: "dias", // "fecha" o "dias"
-    vencimientoValor: "30",
-    estado: true,
+    nombre: "", idCategoria: "", idUnidad: "", stockMinimo: "",
   });
   const [errors, setSErrors] = useState({});
   const [saving, setSaving]  = useState(false);
   const [step, setStep]      = useState(1);
 
-  const set = (k, v) => { 
-    setForm(p => ({ ...p, [k]: v })); 
-    setSErrors(p => ({ ...p, [k]: "" })); 
+  const set = (k, v) => {
+    setForm(p => ({ ...p, [k]: v }));
+    setSErrors(p => ({ ...p, [k]: "" }));
   };
 
-  // Validación por paso
   const validateStep = (s) => {
     const e = {};
-    const existing = insumos || [];
-
     if (s === 1) {
       if (!form.nombre.trim()) e.nombre      = "El nombre es obligatorio";
-      else if (existing.some(i => i.nombre.toLowerCase() === form.nombre.toLowerCase())) {
-        e.nombre = "Este insumo ya existe en el inventario";
-      }
       if (!form.idCategoria)   e.idCategoria = "Selecciona una categoría";
       if (!form.idUnidad)      e.idUnidad    = "Selecciona una unidad";
     }
@@ -74,29 +61,27 @@ export default function CrearInsumo({ onClose, onSave, categorias, unidades }) {
     setStep(s => s + 1);
   };
 
-  const handleBack = () => setStep(s => s - 1);
-
   const handleSave = async () => {
     const e = validateStep(2);
     if (Object.keys(e).length) { setSErrors(e); return; }
     setSaving(true);
-    await new Promise(r => setTimeout(r, 500));
-    onSave({
-      ...form,
-      idCategoria: Number(form.idCategoria),
-      idUnidad:    Number(form.idUnidad),
-      stockActual: 0,
-      stockMinimo: Number(form.stockMinimo),
-      vencimientoValor: form.vencimientoTipo === "dias" ? Number(form.vencimientoValor) : null,
-    });
-    setSaving(false);
+    try {
+      await onSave({
+        Nombre:       form.nombre.trim(),
+        ID_Categoria: Number(form.idCategoria),
+        Unidad_Medida: Number(form.idUnidad),
+        Stock_Actual:  0,
+        Stock_Minimo:  Number(form.stockMinimo),
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
 
-        {/* Header */}
         <div className="modal-header">
           <div>
             <p className="modal-header__eyebrow">Gestión de Insumos</p>
@@ -105,15 +90,12 @@ export default function CrearInsumo({ onClose, onSave, categorias, unidades }) {
           <button className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
 
-        {/* Steps */}
         <div style={{ padding: "16px 24px 0" }}>
           <StepsBar current={step} />
         </div>
 
-        {/* Body */}
-        <div className="modal-body" style={{ minHeight: 240 }}>
+        <div className="modal-body" style={{ minHeight: 200 }}>
 
-          {/* ── Paso 1: Identificación ── */}
           {step === 1 && (
             <>
               <div className="form-group">
@@ -136,6 +118,7 @@ export default function CrearInsumo({ onClose, onSave, categorias, unidades }) {
                     <option value="">— Seleccionar —</option>
                     {categorias.map(c => <option key={c.id} value={c.id}>{c.icon} {c.nombre}</option>)}
                   </select>
+                  {errors.idCategoria && <p className="field-error">{errors.idCategoria}</p>}
                 </div>
                 <div className="form-group">
                   <label className="form-label">Unidad de medida <span className="required">*</span></label>
@@ -146,50 +129,29 @@ export default function CrearInsumo({ onClose, onSave, categorias, unidades }) {
                     <option value="">— Seleccionar —</option>
                     {unidades.map(u => <option key={u.id} value={u.id}>{u.simbolo} — {u.nombre}</option>)}
                   </select>
+                  {errors.idUnidad && <p className="field-error">{errors.idUnidad}</p>}
                 </div>
               </div>
             </>
           )}
 
-          {/* ── Paso 2: Stock y Vencimiento ── */}
           {step === 2 && (
-            <>
-              <div className="form-group">
-                <label className="form-label">Stock mínimo <span className="required">*</span></label>
-                <input
-                  type="number" min="0"
-                  className={`field-input${errors.stockMinimo ? " error" : ""}`}
-                  value={form.stockMinimo} onChange={e => set("stockMinimo", e.target.value)}
-                  placeholder="0"
-                />
-                {errors.stockMinimo && <p className="field-error">{errors.stockMinimo}</p>}
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Preferencia de Vencimiento</label>
-                <div style={{ display: "flex", gap: 10 }}>
-                  <button
-                    type="button"
-                    className={`btn-ghost ${form.vencimientoTipo === "dias" ? "active" : ""}`}
-                    onClick={() => set("vencimientoTipo", "dias")}
-                    style={{ flex: 1, borderColor: form.vencimientoTipo === "dias" ? "#2e7d32" : "#e0e0e0", background: form.vencimientoTipo === "dias" ? "#e8f5e9" : "#fff", color: form.vencimientoTipo === "dias" ? "#2e7d32" : "#757575" }}
-                  >📅 Por Días</button>
-                  <button
-                    type="button"
-                    className={`btn-ghost ${form.vencimientoTipo === "fecha" ? "active" : ""}`}
-                    onClick={() => set("vencimientoTipo", "fecha")}
-                    style={{ flex: 1, borderColor: form.vencimientoTipo === "fecha" ? "#2e7d32" : "#e0e0e0", background: form.vencimientoTipo === "fecha" ? "#e8f5e9" : "#fff", color: form.vencimientoTipo === "fecha" ? "#2e7d32" : "#757575" }}
-                  >🗓️ Por Fecha</button>
-                </div>
-              </div>
-            </>
+            <div className="form-group">
+              <label className="form-label">Stock mínimo <span className="required">*</span></label>
+              <input
+                type="number" min="0"
+                className={`field-input${errors.stockMinimo ? " error" : ""}`}
+                value={form.stockMinimo} onChange={e => set("stockMinimo", e.target.value)}
+                placeholder="0"
+              />
+              {errors.stockMinimo && <p className="field-error">{errors.stockMinimo}</p>}
+            </div>
           )}
         </div>
 
-        {/* Footer */}
         <div className="modal-footer">
           {step > 1
-            ? <button className="btn-ghost" onClick={handleBack}>← Atrás</button>
+            ? <button className="btn-ghost" onClick={() => setStep(s => s - 1)}>← Atrás</button>
             : <button className="btn-ghost" onClick={onClose}>Cancelar</button>
           }
           <div style={{ display: "flex", gap: 10 }}>

@@ -14,6 +14,7 @@ import {
   crearProducto as apiCrearProducto,
   subirImagenes,
 } from "../../../services/productosService";
+import { subirImagenCloudinary } from "../../../utils/cloudinary";
 import "./Productos.css";
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
@@ -172,7 +173,10 @@ export default function CrearProducto({ categorias = [], onClose, onSave }) {
 
       // ── 2. Subir imágenes (si el usuario seleccionó alguna) ──
       if (form.archivos.length > 0) {
-        await subirImagenes(productoCreado.ID_Producto, form.archivos);
+        const urls = await Promise.all(
+          form.archivos.map(archivo => subirImagenCloudinary(archivo))
+        );
+        await subirImagenes(productoCreado.ID_Producto, urls);
       }
 
       // ── 3. Notificar al padre para que recargue ─────────

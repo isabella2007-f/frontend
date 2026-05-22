@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useApp } from "../../AppContext.jsx";
+import { getSalidas, registrarSalida, anularSalida } from "../../services/salidasService.js";
+import { getProductos } from "../../services/productosService.js";
+import { getInsumos } from "../../services/insumosService.js";
 import "./Salidas.css";
 
 /* ══════════════════════════════════════════════════════════
@@ -16,20 +19,35 @@ function formatFecha(f) {
   return `${d}/${m}/${y}`;
 }
 function estaVencido(fv)    { return fv ? fv < hoyISO() : false; }
-function diasParaVencer(fv) { if (!fv) return null; return Math.ceil((new Date(fv + "T00:00:00") - new Date(hoyISO() + "T00:00:00")) / 86400000); }
-
-function esSalidaManual(s) {
-  return s.usuario !== "sistema" && s.tipo !== "produccion" && s.origen !== "sistema";
+function diasParaVencer(fv) {
+  if (!fv) return null;
+  return Math.ceil((new Date(fv + "T00:00:00") - new Date(hoyISO() + "T00:00:00")) / 86400000);
 }
 
 const TIPOS = [
-  { val: "vencido",    label: "Vencido",    icon: "🕒", color: "#e65100", bg: "#fff3e0", border: "#ffcc80" },
-  { val: "dañado",     label: "Dañado",     icon: "💥", color: "#c62828", bg: "#ffebee", border: "#ef9a9a" },
-  { val: "ajuste",     label: "Ajuste",     icon: "⚖️", color: "#1565c0", bg: "#e3f2fd", border: "#90caf9" },
-  { val: "consumo",    label: "Consumo",    icon: "🍽️", color: "#4a148c", bg: "#f3e5f5", border: "#ce93d8" },
-  { val: "devolucion", label: "Devolución", icon: "↩️", color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7" },
+  { val: "vencimiento", label: "Vencido",    icon: "🕒", color: "#e65100", bg: "#fff3e0", border: "#ffcc80" },
+  { val: "daño",        label: "Dañado",     icon: "💥", color: "#c62828", bg: "#ffebee", border: "#ef9a9a" },
+  { val: "ajuste",      label: "Ajuste",     icon: "⚖️", color: "#1565c0", bg: "#e3f2fd", border: "#90caf9" },
+  { val: "consumo",     label: "Consumo",    icon: "🍽️", color: "#4a148c", bg: "#f3e5f5", border: "#ce93d8" },
+  { val: "devolución",  label: "Devolución", icon: "↩️", color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7" },
 ];
 const TIPO_MAP = Object.fromEntries(TIPOS.map(t => [t.val, t]));
+
+function adaptarSalida(s) {
+  return {
+    id:            s.ID_Salida,
+    tipo:          s.Tipo,
+    entidadId:     s.ID_Insumo || s.ID_Producto,
+    entidadTipo:   s.ID_Insumo ? "insumo" : "producto",
+    entidadNombre: s.nombre_insumo || s.nombre_producto || "—",
+    entidadCat:    "—",
+    unidad:        "uds.",
+    cantidad:      s.Cantidad,
+    motivo:        s.Motivo,
+    fecha:         s.Fecha,
+    anulada:       s.estado_label === "Anulada",
+  };
+}
 
 /* ══════════════════════════════════════════════════════════
    PAGINACIÓN
@@ -47,19 +65,8 @@ function Paginacion({ totalItems, itemsPerPage, currentPage, onPageChange }) {
         Mostrando <strong>{inicio}–{fin}</strong> de <strong>{totalItems}</strong> salidas
       </span>
       <div className="sl-pagination__btns">
-        <button
-          className="sl-pg-btn"
-          onClick={() => onPageChange(1)}
-          disabled={currentPage === 1}
-          title="Primera página"
-        >«</button>
-        <button
-          className="sl-pg-btn"
-          onClick={() => onPageChange(currentPage - 1)}
-          disabled={currentPage === 1}
-          title="Página anterior"
-        >‹</button>
-
+        <button className="sl-pg-btn" onClick={() => onPageChange(1)} disabled={currentPage === 1} title="Primera página">«</button>
+        <button className="sl-pg-btn" onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1} title="Página anterior">‹</button>
         {Array.from({ length: totalPages }, (_, i) => i + 1)
           .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
           .reduce((acc, p, idx, arr) => {
@@ -77,28 +84,17 @@ function Paginacion({ totalItems, itemsPerPage, currentPage, onPageChange }) {
                 >{item}</button>
           )
         }
-
-        <button
-          className="sl-pg-btn"
-          onClick={() => onPageChange(currentPage + 1)}
-          disabled={currentPage === totalPages}
-          title="Página siguiente"
-        >›</button>
-        <button
-          className="sl-pg-btn"
-          onClick={() => onPageChange(totalPages)}
-          disabled={currentPage === totalPages}
-          title="Última página"
-        >»</button>
+        <button className="sl-pg-btn" onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages} title="Siguiente">›</button>
+        <button className="sl-pg-btn" onClick={() => onPageChange(totalPages)} disabled={currentPage === totalPages} title="Última">»</button>
       </div>
     </div>
   );
 }
 
 /* ══════════════════════════════════════════════════════════
-   MODAL CONFIRMAR ELIMINACIÓN
+   MODAL CONFIRMAR ANULAR
 ══════════════════════════════════════════════════════════ */
-function ModalConfirmarEliminar({ salida, onConfirmar, onCancelar }) {
+function ModalConfirmarAnular({ salida, onConfirmar, onCancelar }) {
   const tc = TIPO_MAP[salida.tipo] || { color: "#757575", bg: "#f5f5f5", border: "#e0e0e0", icon: "📋", label: salida.tipo };
   return (
     <div className="modal-overlay" onClick={onCancelar}>
@@ -106,15 +102,15 @@ function ModalConfirmarEliminar({ salida, onConfirmar, onCancelar }) {
         <div className="modal-header">
           <div>
             <p className="modal-header__eyebrow">Confirmar acción</p>
-            <h2 className="modal-header__title">Eliminar salida</h2>
+            <h2 className="modal-header__title">Anular salida</h2>
           </div>
           <button className="modal-close-btn" onClick={onCancelar}>✕</button>
         </div>
         <div className="modal-body" style={{ padding: "20px 24px 24px" }}>
           <div className="sl-confirm-card">
-            <div className="sl-confirm-card__icon">🗑️</div>
+            <div className="sl-confirm-card__icon">🚫</div>
             <p className="sl-confirm-card__text">
-              ¿Estás seguro de que deseas eliminar esta salida? El stock será <strong>reintegrado automáticamente</strong>.
+              ¿Estás seguro de que deseas anular esta salida? El stock será <strong>reintegrado automáticamente</strong>.
             </p>
             <div className="sl-confirm-card__detail" style={{ borderColor: tc.border, background: tc.bg }}>
               <span style={{ fontSize: 18 }}>{salida.entidadTipo === "producto" ? "📦" : "🧺"}</span>
@@ -132,7 +128,7 @@ function ModalConfirmarEliminar({ salida, onConfirmar, onCancelar }) {
           </div>
           <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
             <button className="sl-btn-cancel" onClick={onCancelar}>Cancelar</button>
-            <button className="sl-btn-delete" onClick={onConfirmar}>Sí, eliminar</button>
+            <button className="sl-btn-delete" onClick={onConfirmar}>Sí, anular</button>
           </div>
         </div>
       </div>
@@ -141,170 +137,13 @@ function ModalConfirmarEliminar({ salida, onConfirmar, onCancelar }) {
 }
 
 /* ══════════════════════════════════════════════════════════
-   MODAL EDITAR SALIDA
+   MODAL REGISTRAR SALIDA
 ══════════════════════════════════════════════════════════ */
-function EditarSalida({ salida, onClose, onGuardado }) {
-  const { productos, insumos, editarSalidaInsumo, editarSalidaProducto, getUnidad } = useApp();
-
-  const [tipoSalida, setTipoSalida] = useState(salida.tipo);
-  const [cantidad,   setCantidad]   = useState(String(salida.cantidad));
-  const [motivo,     setMotivo]     = useState(salida.motivo || "");
-  const [errors,     setErrors]     = useState({});
-  const [saving,     setSaving]     = useState(false);
-
-  const entidad = salida.entidadTipo === "producto"
-    ? productos.find(p => p.id === salida.entidadId)
-    : insumos.find(i => i.id === salida.entidadId);
-
-  const unidadLabel = salida.entidadTipo === "insumo"
-    ? (getUnidad(entidad?.idUnidad)?.simbolo || "uds.")
-    : "uds.";
-
-  const stockDisponible = salida.entidadTipo === "producto"
-    ? (entidad?.stock ?? 0) + salida.cantidad
-    : (entidad?.stockActual ?? 0) + salida.cantidad;
-
-  const tipoActual   = TIPO_MAP[tipoSalida];
-  const stockDespues = Math.max(0, stockDisponible - (Number(cantidad) || 0));
-  const pct          = stockDisponible > 0 ? Math.min(100, Math.round((stockDespues / stockDisponible) * 100)) : 0;
-
-  const validate = () => {
-    const e = {};
-    if (!cantidad || isNaN(cantidad) || Number(cantidad) <= 0) e.cantidad = "Ingresa una cantidad válida";
-    else if (Number(cantidad) > stockDisponible)               e.cantidad = `Máximo: ${stockDisponible} ${unidadLabel}`;
-    return e;
-  };
-
-  const handleGuardar = async () => {
-    const e = validate();
-    if (Object.keys(e).length) { setErrors(e); return; }
-    setSaving(true);
-
-    let result;
-    if (salida.entidadTipo === "insumo") {
-      result = editarSalidaInsumo({
-        id: salida.id,
-        tipo: tipoSalida,
-        cantidad: Number(cantidad),
-        motivo: motivo.trim() || tipoActual.label,
-        fecha: salida.fecha,
-      });
-    } else {
-      result = editarSalidaProducto({
-        idProducto: salida.entidadId,
-        id: salida.id,
-        tipo: tipoSalida,
-        cantidad: Number(cantidad),
-        motivo: motivo.trim() || tipoActual.label,
-        fecha: salida.fecha,
-      });
-    }
-
-    setSaving(false);
-    if (result?.ok !== false) {
-      onGuardado?.();
-      onClose();
-    }
-  };
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box" style={{ maxWidth: 500 }} onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <div>
-            <p className="modal-header__eyebrow">Logística</p>
-            <h2 className="modal-header__title">Editar Salida</h2>
-          </div>
-          <button className="modal-close-btn" onClick={onClose}>✕</button>
-        </div>
-
-        <div className="modal-body" style={{ padding: "20px 24px 24px" }}>
-          <div className="sl-seleccionado" style={{ marginBottom: 18 }}>
-            <span style={{ fontSize: 22 }}>{salida.entidadTipo === "producto" ? "📦" : "🧺"}</span>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>{salida.entidadNombre}</div>
-              <div style={{ fontSize: 12, color: "#9e9e9e" }}>
-                Stock disponible: <strong style={{ color: "#2e7d32" }}>{stockDisponible} {unidadLabel}</strong>
-                <span style={{ marginLeft: 8, color: "#bdbdbd" }}>(incluye la cantidad actual de esta salida)</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="sl-label">Tipo de salida</label>
-            <div className="sl-tipos-grid">
-              {TIPOS.map(t => (
-                <button key={t.val} onClick={() => setTipoSalida(t.val)}
-                  className={`sl-tipo-btn${tipoSalida === t.val ? " active" : ""}`}
-                  style={tipoSalida === t.val ? { borderColor: t.border, background: t.bg, color: t.color } : {}}>
-                  <span style={{ fontSize: 17 }}>{t.icon}</span>
-                  <span>{t.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="sl-label">Cantidad</label>
-            <div style={{ position: "relative" }}>
-              <input type="number" min="1" max={stockDisponible}
-                className={`sl-input${errors.cantidad ? " sl-input--error" : ""}`}
-                value={cantidad}
-                onChange={e => { setCantidad(e.target.value); setErrors(p => ({ ...p, cantidad: "" })); }} />
-              <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: "#9e9e9e", pointerEvents: "none" }}>
-                {unidadLabel}
-              </span>
-            </div>
-            {errors.cantidad && <p className="field-error">{errors.cantidad}</p>}
-          </div>
-
-          {cantidad && !errors.cantidad && (
-            <div style={{ marginBottom: 14, padding: "10px 14px", borderRadius: 10, background: tipoActual.bg, border: `1px solid ${tipoActual.border}` }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5, fontSize: 12 }}>
-                <span style={{ color: "#9e9e9e" }}>Stock después de la salida</span>
-                <span style={{ fontWeight: 700, color: tipoActual.color }}>{stockDespues} {unidadLabel}</span>
-              </div>
-              <div style={{ height: 5, background: "#e0e0e0", borderRadius: 3, overflow: "hidden" }}>
-                <div style={{ height: "100%", borderRadius: 3, transition: "width 0.35s", width: pct + "%", background: pct > 50 ? "#43a047" : pct > 20 ? "#ffa726" : "#ef5350" }} />
-              </div>
-            </div>
-          )}
-
-          <div className="form-group">
-            <label className="sl-label">Motivo <span style={{ color: "#bdbdbd", fontWeight: 400, textTransform: "none" }}>(opcional)</span></label>
-            <input className="sl-input" value={motivo}
-              onChange={e => setMotivo(e.target.value)}
-              placeholder="Descripción adicional…" />
-          </div>
-
-          <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
-            <button className="sl-btn-cancel" onClick={onClose}>Cancelar</button>
-            <button className="sl-btn-registrar" onClick={handleGuardar}
-              disabled={saving}
-              style={{ background: tipoActual.color, flex: 1 }}>
-              {saving ? "Guardando…" : "✅ Guardar cambios"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ══════════════════════════════════════════════════════════
-   TAB 1 — REGISTRAR SALIDA (MODAL)
-══════════════════════════════════════════════════════════ */
-function RegistrarSalida({ onClose, onSalidaRegistrada }) {
-  const {
-    productos, insumos,
-    getCatProducto, getCatInsumo, getUnidad,
-    registrarSalidaProducto, registrarSalidaInsumo,
-  } = useApp();
-
+function RegistrarSalida({ productos, insumos, onClose, onRegistrada }) {
   const [entidadTipo,  setEntidadTipo]  = useState("producto");
   const [busqueda,     setBusqueda]     = useState("");
   const [seleccionado, setSeleccionado] = useState(null);
-  const [tipoSalida,   setTipoSalida]   = useState("vencido");
+  const [tipoSalida,   setTipoSalida]   = useState("vencimiento");
   const [cantidad,     setCantidad]     = useState("");
   const [motivo,       setMotivo]       = useState("");
   const [errors,       setErrors]       = useState({});
@@ -316,16 +155,13 @@ function RegistrarSalida({ onClose, onSalidaRegistrada }) {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const lista = entidadTipo === "producto"
-    ? productos.map(p => ({ ...p, _tipo: "producto", _stock: p.stock,       _label: getCatProducto(p.idCategoria)?.nombre }))
-    : insumos.map(i  => ({ ...i, _tipo: "insumo",   _stock: i.stockActual, _label: getCatInsumo(i.idCategoria)?.nombre, _unidad: getUnidad(i.idUnidad)?.simbolo }));
-
+  const lista = entidadTipo === "producto" ? productos : insumos;
   const filtrados = lista.filter(e =>
     e.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
     (e._label || "").toLowerCase().includes(busqueda.toLowerCase())
   );
 
-  const unidadLabel  = seleccionado?._tipo === "insumo" ? (getUnidad(seleccionado.idUnidad)?.simbolo || "uds.") : "uds.";
+  const unidadLabel  = seleccionado?._unidad || "uds.";
   const stockActual  = seleccionado?._stock ?? 0;
   const tipoActual   = TIPO_MAP[tipoSalida];
   const stockDespues = Math.max(0, stockActual - (Number(cantidad) || 0));
@@ -333,7 +169,7 @@ function RegistrarSalida({ onClose, onSalidaRegistrada }) {
 
   const validate = () => {
     const e = {};
-    if (!seleccionado)                                         e.seleccionado = "Selecciona un producto o insumo";
+    if (!seleccionado)                                          e.seleccionado = "Selecciona un producto o insumo";
     if (!cantidad || isNaN(cantidad) || Number(cantidad) <= 0) e.cantidad     = "Ingresa una cantidad válida";
     else if (Number(cantidad) > stockActual)                   e.cantidad     = `Máximo: ${stockActual} ${unidadLabel}`;
     return e;
@@ -343,21 +179,18 @@ function RegistrarSalida({ onClose, onSalidaRegistrada }) {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaving(true);
-    const payload = { id: seleccionado.id, tipo: tipoSalida, cantidad: Number(cantidad), motivo: motivo.trim() || tipoActual.label, fecha: new Date().toLocaleDateString("es-CO") };
-    let result;
-    if (seleccionado._tipo === "producto") {
-      result = registrarSalidaProducto(payload);
-    } else {
-      result = registrarSalidaInsumo({ idInsumo: payload.id, tipo: payload.tipo, cantidad: payload.cantidad, motivo: payload.motivo, fecha: payload.fecha });
-    }
-    if (result?.ok !== false) {
+    try {
+      await registrarSalida({
+        tipo:       tipoSalida,
+        idProducto: seleccionado._tipo === "producto" ? seleccionado.id : null,
+        idInsumo:   seleccionado._tipo === "insumo"   ? seleccionado.id : null,
+        cantidad:   Number(cantidad),
+        motivo:     motivo.trim() || undefined,
+      });
       showToast(`Salida registrada — ${seleccionado.nombre} (-${cantidad} ${unidadLabel})`);
-      setTimeout(() => {
-        onSalidaRegistrada?.();
-        onClose();
-      }, 1500);
-    } else {
-      showToast(result.razon || "Error al registrar", "error");
+      setTimeout(() => onRegistrada?.(), 1500);
+    } catch (err) {
+      showToast(err.message || "Error al registrar", "error");
     }
     setSaving(false);
   };
@@ -510,25 +343,29 @@ function RegistrarSalida({ onClose, onSalidaRegistrada }) {
 }
 
 /* ══════════════════════════════════════════════════════════
-   TAB 2 — HISTORIAL
+   SKELETON
 ══════════════════════════════════════════════════════════ */
-function HistorialSalidas({ onAgregarClick }) {
-  const {
-    productos, insumos,
-    getSalidasProducto, getSalidasInsumo,
-    getCatProducto, getCatInsumo,
-    eliminarSalidaInsumo, eliminarSalidaProducto,
-  } = useApp();
+function SkeletonRows() {
+  return Array.from({ length: 5 }, (_, i) => (
+    <tr key={i}>
+      {Array.from({ length: 7 }, (_, j) => (
+        <td key={j}><div className="skeleton-cell" /></td>
+      ))}
+    </tr>
+  ));
+}
 
+/* ══════════════════════════════════════════════════════════
+   TAB HISTORIAL
+══════════════════════════════════════════════════════════ */
+function HistorialSalidas({ salidas, loading, onAgregarClick, cargarSalidas }) {
   const [filtroTipo,      setFiltroTipo]     = useState("todos");
   const [filtroEntidad,   setFiltroEntidad]  = useState("todos");
   const [busqueda,        setBusqueda]       = useState("");
   const [showFilter,      setShowFilter]     = useState(false);
-  const [salidaAEliminar, setSalidaAEliminar] = useState(null);
-  const [salidaAEditar,   setSalidaAEditar]  = useState(null);
+  const [salidaAAnular,   setSalidaAAnular]  = useState(null);
   const [toast,           setToast]          = useState(null);
-  const [refreshKey,      setRefreshKey]     = useState(0);
-  const [page,            setPage]           = useState(1);          // ← paginación
+  const [page,            setPage]           = useState(1);
   const filterRef = useRef();
 
   const showToast = (msg, type = "success") => {
@@ -542,74 +379,42 @@ function HistorialSalidas({ onAgregarClick }) {
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  // Resetear a página 1 cuando cambian los filtros o la búsqueda
-  useEffect(() => { setPage(1); }, [filtroTipo, filtroEntidad, busqueda, refreshKey]);
+  useEffect(() => { setPage(1); }, [filtroTipo, filtroEntidad, busqueda]);
 
-  const todasSalidas = [
-    ...productos.flatMap(p => (getSalidasProducto?.(p.id) || []).map(s => ({
-      ...s,
-      entidadId:     p.id,
-      entidadTipo:   "producto",
-      entidadNombre: p.nombre,
-      entidadCat:    getCatProducto(p.idCategoria)?.nombre || "—",
-      unidad:        "uds.",
-    }))),
-    ...insumos.flatMap(i => (getSalidasInsumo?.(i.id) || []).map(s => ({
-      ...s,
-      entidadId:     i.id,
-      entidadTipo:   "insumo",
-      entidadNombre: i.nombre,
-      entidadCat:    getCatInsumo(i.idCategoria)?.nombre || "—",
-      unidad:        "uds.",
-    }))),
-  ].sort((a, b) => {
-    const fa = a.fecha?.split("/").reverse().join("-") || "";
-    const fb = b.fecha?.split("/").reverse().join("-") || "";
-    return fb.localeCompare(fa);
-  });
-
-  const filtradas = todasSalidas.filter(s => {
+  const filtradas = salidas.filter(s => {
     const matchTipo    = filtroTipo    === "todos" || s.tipo === filtroTipo;
     const matchEntidad = filtroEntidad === "todos" || s.entidadTipo === filtroEntidad;
     const matchQ       = s.entidadNombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-                         s.motivo?.toLowerCase().includes(busqueda.toLowerCase());
+                         (s.motivo || "").toLowerCase().includes(busqueda.toLowerCase());
     return matchTipo && matchEntidad && matchQ;
   });
 
-  // Calcular página segura y slice
   const totalPages = Math.ceil(filtradas.length / ITEMS_PER_PAGE);
   const safePage   = Math.min(page, Math.max(1, totalPages));
   const paginadas  = filtradas.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
-
-  const totalUnidades = todasSalidas.reduce((acc, s) => acc + s.cantidad, 0);
+  const totalUnidades = salidas.reduce((acc, s) => acc + (s.cantidad || 0), 0);
 
   const toggleFiltroTipo = (val) => setFiltroTipo(prev => prev === val ? "todos" : val);
 
-  const handleConfirmarEliminar = () => {
-    if (!salidaAEliminar) return;
-    const s = salidaAEliminar;
-    let result;
-    if (s.entidadTipo === "insumo") {
-      result = eliminarSalidaInsumo(s.id);
-    } else {
-      result = eliminarSalidaProducto({ idProducto: s.entidadId, id: s.id });
+  const handleConfirmarAnular = async () => {
+    if (!salidaAAnular) return;
+    try {
+      await anularSalida(salidaAAnular.id);
+      showToast("Salida anulada — stock reintegrado ✔");
+      await cargarSalidas();
+    } catch (err) {
+      showToast(err.message || "Error al anular", "error");
     }
-    setSalidaAEliminar(null);
-    if (result?.ok !== false) {
-      showToast(`Salida eliminada — stock reintegrado ✔`);
-      setRefreshKey(k => k + 1);
-    } else {
-      showToast(result?.razon || "Error al eliminar", "error");
-    }
+    setSalidaAAnular(null);
   };
 
   return (
-    <div className="sl-tab-content" key={refreshKey}>
+    <div className="sl-tab-content">
       {/* Stats */}
       <div className="sl-stats-row">
-        <div className={`sl-stat-card ${filtroTipo === 'todos' && filtroEntidad === 'todos' ? 'active' : ''}`}
-          onClick={() => { setFiltroTipo('todos'); setFiltroEntidad('todos'); }} style={{ cursor: 'pointer' }}>
-          <span className="sl-stat-card__num">{todasSalidas.length}</span>
+        <div className={`sl-stat-card ${filtroTipo === "todos" && filtroEntidad === "todos" ? "active" : ""}`}
+          onClick={() => { setFiltroTipo("todos"); setFiltroEntidad("todos"); }} style={{ cursor: "pointer" }}>
+          <span className="sl-stat-card__num">{salidas.length}</span>
           <span className="sl-stat-card__label">Total salidas</span>
         </div>
         <div className="sl-stat-card">
@@ -617,9 +422,9 @@ function HistorialSalidas({ onAgregarClick }) {
           <span className="sl-stat-card__label">Unidades</span>
         </div>
         {TIPOS.map(t => {
-          const count = todasSalidas.filter(s => s.tipo === t.val).length;
+          const count = salidas.filter(s => s.tipo === t.val).length;
           return (
-            <div key={t.val} className={`sl-stat-card ${filtroTipo === t.val ? 'active' : ''}`}
+            <div key={t.val} className={`sl-stat-card ${filtroTipo === t.val ? "active" : ""}`}
               style={{ borderColor: count > 0 ? (filtroTipo === t.val ? t.color : t.border) : "#e0e0e0", cursor: "pointer" }}
               onClick={() => toggleFiltroTipo(t.val)}>
               <span style={{ fontSize: 18 }}>{t.icon}</span>
@@ -638,7 +443,7 @@ function HistorialSalidas({ onAgregarClick }) {
             value={busqueda} onChange={e => setBusqueda(e.target.value)} />
         </div>
         <div ref={filterRef} style={{ position: "relative" }}>
-          <button className={`sl-filter-btn ${filtroTipo !== 'todos' || filtroEntidad !== 'todos' ? 'has-filter' : ''}`}
+          <button className={`sl-filter-btn ${filtroTipo !== "todos" || filtroEntidad !== "todos" ? "has-filter" : ""}`}
             onClick={() => setShowFilter(v => !v)}>▼ Filtrar</button>
           {showFilter && (
             <div className="sl-filter-dropdown sl-filter-dropdown--wide">
@@ -677,7 +482,18 @@ function HistorialSalidas({ onAgregarClick }) {
 
       {/* Tabla */}
       <div className="sl-table-wrap">
-        {filtradas.length === 0 ? (
+        {loading ? (
+          <table className="sl-table">
+            <thead>
+              <tr>
+                <th>Tipo</th><th>Elemento</th><th>Categoría</th>
+                <th>Cantidad</th><th>Motivo</th><th>Fecha</th>
+                <th style={{ width: 80, textAlign: "center" }}>Acciones</th>
+              </tr>
+            </thead>
+            <tbody><SkeletonRows /></tbody>
+          </table>
+        ) : filtradas.length === 0 ? (
           <div className="sl-empty">
             <div style={{ fontSize: 32, opacity: 0.3, marginBottom: 8 }}>📋</div>
             <p>No hay salidas registradas</p>
@@ -688,15 +504,14 @@ function HistorialSalidas({ onAgregarClick }) {
               <tr>
                 <th>Tipo</th><th>Elemento</th><th>Categoría</th>
                 <th>Cantidad</th><th>Motivo</th><th>Fecha</th>
-                <th style={{ width: 100, textAlign: "center" }}>Acciones</th>
+                <th style={{ width: 80, textAlign: "center" }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {paginadas.map((s, idx) => {
-                const tc     = TIPO_MAP[s.tipo] || { color: "#757575", bg: "#f5f5f5", border: "#e0e0e0", icon: "📋", label: s.tipo };
-                const manual = esSalidaManual(s);
+                const tc = TIPO_MAP[s.tipo] || { color: "#757575", bg: "#f5f5f5", border: "#e0e0e0", icon: "📋", label: s.tipo };
                 return (
-                  <tr key={s.id || idx} className="sl-table__row">
+                  <tr key={s.id || idx} className="sl-table__row" style={{ opacity: s.anulada ? 0.5 : 1 }}>
                     <td>
                       <span className="sl-tipo-badge" style={{ color: tc.color, background: tc.bg, border: `1px solid ${tc.border}` }}>
                         {tc.icon} {tc.label}
@@ -717,14 +532,10 @@ function HistorialSalidas({ onAgregarClick }) {
                     <td><span style={{ fontSize: 12, color: "#9e9e9e" }}>{s.fecha || "—"}</span></td>
                     <td>
                       <div className="sl-table-actions">
-                        {manual ? (
-                          <>
-                            <button className="sl-action-btn sl-action-btn--edit" title="Editar salida" onClick={() => setSalidaAEditar(s)}>✏️</button>
-                            <button className="sl-action-btn sl-action-btn--delete" title="Eliminar salida" onClick={() => setSalidaAEliminar(s)}>🗑️</button>
-                          </>
-                        ) : (
-                          <span className="sl-action-locked" title="Generada por el sistema — no editable">🔒</span>
-                        )}
+                        {s.anulada
+                          ? <span className="sl-action-locked" title="Salida anulada">🚫</span>
+                          : <button className="sl-action-btn sl-action-btn--delete" title="Anular salida" onClick={() => setSalidaAAnular(s)}>🚫</button>
+                        }
                       </div>
                     </td>
                   </tr>
@@ -735,7 +546,6 @@ function HistorialSalidas({ onAgregarClick }) {
         )}
       </div>
 
-      {/* ── Paginación ── */}
       <Paginacion
         totalItems={filtradas.length}
         itemsPerPage={ITEMS_PER_PAGE}
@@ -743,23 +553,11 @@ function HistorialSalidas({ onAgregarClick }) {
         onPageChange={setPage}
       />
 
-      {/* Modales */}
-      {salidaAEliminar && (
-        <ModalConfirmarEliminar
-          salida={salidaAEliminar}
-          onConfirmar={handleConfirmarEliminar}
-          onCancelar={() => setSalidaAEliminar(null)}
-        />
-      )}
-      {salidaAEditar && (
-        <EditarSalida
-          salida={salidaAEditar}
-          onClose={() => setSalidaAEditar(null)}
-          onGuardado={() => {
-            setSalidaAEditar(null);
-            showToast("Salida actualizada correctamente ✔");
-            setRefreshKey(k => k + 1);
-          }}
+      {salidaAAnular && (
+        <ModalConfirmarAnular
+          salida={salidaAAnular}
+          onConfirmar={handleConfirmarAnular}
+          onCancelar={() => setSalidaAAnular(null)}
         />
       )}
 
@@ -773,7 +571,7 @@ function HistorialSalidas({ onAgregarClick }) {
 }
 
 /* ══════════════════════════════════════════════════════════
-   TAB 3 — VENCIDOS
+   TAB VENCIDOS — mantiene useApp para lotes (sin endpoint)
 ══════════════════════════════════════════════════════════ */
 function Vencidos() {
   const { productos, insumos, getLotesProducto, getLotesDeInsumo, getCatProducto, getCatInsumo, getUnidad } = useApp();
@@ -817,7 +615,7 @@ function Vencidos() {
           { val: "insumo",     label: "Insumos",           num: lotesInsumosVencidos.length,   color: "#c62828", border: "#ef9a9a", icon: "🧺" },
           { val: "por-vencer", label: "Por vencer (≤7d)",  num: lotesPorVencer.length,         color: "#e65100", border: "#ffcc80", icon: "⚠️" },
         ].map(s => (
-          <div key={s.label} className={`sl-stat-card ${filtro === s.val ? 'active' : ''}`}
+          <div key={s.label} className={`sl-stat-card ${filtro === s.val ? "active" : ""}`}
             style={{ borderColor: s.num > 0 ? (filtro === s.val ? s.color : s.border) : "#e0e0e0", cursor: "pointer" }}
             onClick={() => toggleFiltroVencidos(s.val)}>
             <span style={{ fontSize: 18 }}>{s.icon}</span>
@@ -889,13 +687,64 @@ function Vencidos() {
    PÁGINA PRINCIPAL
 ══════════════════════════════════════════════════════════ */
 export default function GestionSalidas() {
-  const [tab,        setTab]        = useState("historial");
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [showModal,  setShowModal]  = useState(false);
+  const [tab,       setTab]       = useState("historial");
+  const [showModal, setShowModal] = useState(false);
+  const [salidas,   setSalidas]   = useState([]);
+  const [productos, setProductos] = useState([]);
+  const [insumos,   setInsumos]   = useState([]);
+  const [loading,   setLoading]   = useState(true);
+
+  const cargarSalidas = async () => {
+    setLoading(true);
+    try {
+      const data = await getSalidas();
+      setSalidas((data.salidas || []).map(adaptarSalida));
+    } catch {
+      // error shown in child toast
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    cargarSalidas();
+    (async () => {
+      try {
+        const [pData, iData] = await Promise.all([getProductos(), getInsumos()]);
+        setProductos(
+          (pData.productos || [])
+            .filter(p => p.Estado !== 0)
+            .map(p => ({
+              id:         p.ID_Producto,
+              nombre:     p.Nombre,
+              _tipo:      "producto",
+              _stock:     p.Stock_Actual ?? p.Stock ?? 0,
+              _label:     p.nombre_categoria || "",
+              _unidad:    "uds.",
+            }))
+        );
+        setInsumos(
+          (iData.insumos || [])
+            .filter(i => i.Estado !== 0)
+            .map(i => ({
+              id:         i.ID_Insumo,
+              nombre:     i.Nombre,
+              _tipo:      "insumo",
+              _stock:     i.Stock_Actual ?? 0,
+              _label:     i.nombre_categoria || "",
+              _unidad:    i.simbolo_unidad || "uds.",
+              stockMinimo: i.Stock_Minimo,
+            }))
+        );
+      } catch {
+        // selector fallback to empty
+      }
+    })();
+  }, []);
 
   const TABS = [
-    { key: "historial", label: "📋 Historial"  },
-    { key: "vencidos",  label: "⛔ Vencidos"   },
+    { key: "historial", label: "📋 Historial" },
+    { key: "vencidos",  label: "⛔ Vencidos"  },
   ];
 
   return (
@@ -916,14 +765,23 @@ export default function GestionSalidas() {
       </div>
 
       <div className="sl-page__body">
-        {tab === "historial" && <HistorialSalidas onAgregarClick={() => setShowModal(true)} key={refreshKey} />}
-        {tab === "vencidos"  && <Vencidos key={refreshKey} />}
+        {tab === "historial" && (
+          <HistorialSalidas
+            salidas={salidas}
+            loading={loading}
+            onAgregarClick={() => setShowModal(true)}
+            cargarSalidas={cargarSalidas}
+          />
+        )}
+        {tab === "vencidos" && <Vencidos />}
       </div>
 
       {showModal && (
         <RegistrarSalida
+          productos={productos}
+          insumos={insumos}
           onClose={() => setShowModal(false)}
-          onSalidaRegistrada={() => setRefreshKey(k => k + 1)}
+          onRegistrada={() => { setShowModal(false); cargarSalidas(); }}
         />
       )}
     </div>

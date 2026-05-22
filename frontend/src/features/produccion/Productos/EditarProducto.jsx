@@ -16,6 +16,7 @@ import {
   subirImagenes,
   eliminarImagen,
 } from "../../../services/productosService";
+import { subirImagenCloudinary } from "../../../utils/cloudinary";
 import "./Productos.css";
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
@@ -227,7 +228,10 @@ export default function EditarProducto({ product, categorias = [], onClose, onSa
 
       // ── 3. Subir imágenes nuevas ────────────────────────
       if (form.archivosNuevos.length > 0) {
-        await subirImagenes(id, form.archivosNuevos);
+        const urls = await Promise.all(
+          form.archivosNuevos.map(archivo => subirImagenCloudinary(archivo))
+        );
+        await subirImagenes(id, urls);
       }
 
       // ── 4. Notificar al padre ───────────────────────────

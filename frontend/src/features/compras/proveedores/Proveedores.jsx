@@ -1,14 +1,27 @@
 import { useState, useRef, useEffect } from "react";
-import { useApp } from "../../../AppContext.jsx";
 import "./Proveedores.css";
-import CrearProveedor   from "./CrearProveedor";
-import EditarProveedor  from "./EditarProveedor";
+import CrearProveedor  from "./CrearProveedor";
+import EditarProveedor from "./EditarProveedor";
 import ModalEliminarValidado from "../../../ModalEliminarValidado";
-import { Toggle } from "../../configuracion/Usuarios/CrearUsuario.jsx";
+import {
+  getProveedores,
+  crearProveedor,
+  editarProveedor,
+  eliminarProveedor,
+} from "../../../services/proveedoresService.js";
 
 const ITEMS_PER_PAGE = 5;
 
-/* ── Toast ────────────────────────────────────────────────── */
+const ADAPT = raw => ({
+  id:           raw.ID_Proveedor,
+  responsable:  raw.Responsable,
+  direccion:    raw.Direccion    ?? "",
+  ciudad:       raw.Municipio    ?? "",
+  departamento: raw.Departamento ?? "",
+  celular:      raw.Telefono     ?? "",
+  correo:       raw.Correo       ?? "",
+});
+
 function Toast({ toast }) {
   if (!toast) return null;
   return (
@@ -19,28 +32,29 @@ function Toast({ toast }) {
   );
 }
 
-/* ── Página principal ─────────────────────────────────────── */
+function SkeletonRows() {
+  return Array.from({ length: 5 }, (_, i) => (
+    <tr key={i} className="tbl-row">
+      <td><div className="skeleton-cell" style={{ width: 28 }} /></td>
+      <td><div className="skeleton-cell" style={{ width: "65%" }} /></td>
+      <td><div className="skeleton-cell" style={{ width: "55%" }} /></td>
+      <td><div className="skeleton-cell" style={{ width: "70%" }} /></td>
+      <td><div className="skeleton-cell" style={{ width: 80 }} /></td>
+    </tr>
+  ));
+}
+
 export default function GestionProveedores() {
-  const { 
-    proveedores, 
-    compras, 
-    crearProveedor, 
-    editarProveedor, 
-    toggleProveedor,
-    eliminarProveedor,
-    canDeleteProveedor 
-  } = useApp();
-
-  const [search, setSearch]             = useState("");
+  const [proveedores,  setProveedores]  = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [search,       setSearch]       = useState("");
   const [filterCiudad, setFilterCiudad] = useState("todas");
-  const [filterEstado, setFilterEstado] = useState("todos");
-  const [showFilter, setShowFilter]   = useState(false);
-  const [page, setPage]               = useState(1);
-  const [modal, setModal]             = useState(null);
-  const [toast, setToast]             = useState(null);
-  const filterRef                     = useRef();
+  const [showFilter,   setShowFilter]   = useState(false);
+  const [page,         setPage]         = useState(1);
+  const [modal,        setModal]        = useState(null);
+  const [toast,        setToast]        = useState(null);
+  const filterRef = useRef();
 
-  /* Cerrar dropdown al hacer clic fuera */
   useEffect(() => {
     const h = e => {
       if (filterRef.current && !filterRef.current.contains(e.target)) setShowFilter(false);
@@ -54,54 +68,78 @@ export default function GestionProveedores() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  /* Ciudades únicas para el filtro */
+  const cargarDatos = async () => {
+    try {
+      setLoading(true);
+      const data = await getProveedores();
+      setProveedores((data.proveedores ?? []).map(ADAPT));
+    } catch (e) {
+      showToast(e.message || "Error cargando proveedores", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { cargarDatos(); }, []);
+
   const ciudadesUnicas = [...new Set(proveedores.map(p => p.ciudad).filter(Boolean))].sort();
 
-  /* ── Filtrado ── */
   const filtered = proveedores.filter(p => {
     const q = search.toLowerCase();
     const matchQ = (
       p.responsable.toLowerCase().includes(q) ||
       (p.correo    || "").toLowerCase().includes(q) ||
       (p.celular   || "").toLowerCase().includes(q) ||
-      (p.direccion || "").toLowerCase().includes(q) ||
-      (p.documento || "").toLowerCase().includes(q)
+      (p.direccion || "").toLowerCase().includes(q)
     );
     const matchCiudad = filterCiudad === "todas" || p.ciudad === filterCiudad;
-    const matchEstado = filterEstado === "todos" || 
-                        (filterEstado === "activos"   ? p.estado : !p.estado);
-    
-    return matchQ && matchCiudad && matchEstado;
+    return matchQ && matchCiudad;
   });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const safePage   = Math.min(page, totalPages);
   const paginated  = filtered.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
-  useEffect(() => setPage(1), [search, filterCiudad, filterEstado]);
+  useEffect(() => setPage(1), [search, filterCiudad]);
 
-  const hasFilter = filterCiudad !== "todas" || filterEstado !== "todos";
+  const hasFilter = filterCiudad !== "todas";
 
   /* ── CRUD ── */
-  const handleCreate = data => {
-    crearProveedor(data);
-    showToast("Proveedor creado");
-    setModal(null);
+  const handleCreate = async (payload) => {
+    try {
+      await crearProveedor(payload);
+      showToast("Proveedor creado");
+      setModal(null);
+      cargarDatos();
+    } catch (e) {
+      showToast(e.message || "Error al crear el proveedor", "error");
+    }
   };
-  const handleEdit = data => {
-    editarProveedor(data);
-    showToast("Cambios guardados");
-    setModal(null);
+
+  const handleEdit = async (payload) => {
+    try {
+      await editarProveedor(modal.proveedor.id, payload);
+      showToast("Cambios guardados");
+      setModal(null);
+      cargarDatos();
+    } catch (e) {
+      showToast(e.message || "Error al guardar cambios", "error");
+    }
   };
-  const handleDelete = () => {
-    eliminarProveedor(modal.proveedor.id);
-    showToast("Proveedor eliminado", "error");
-    setModal(null);
+
+  const handleDelete = async () => {
+    try {
+      await eliminarProveedor(modal.proveedor.id);
+      showToast("Proveedor eliminado", "error");
+      setModal(null);
+      cargarDatos();
+    } catch (e) {
+      showToast(e.message || "Error al eliminar el proveedor", "error");
+    }
   };
 
   return (
     <div className="page-wrapper">
 
-      {/* ENCABEZADO */}
       <div className="page-header">
         <h1 className="page-header__title">Gestión de Proveedores</h1>
         <div className="page-header__line" />
@@ -109,53 +147,27 @@ export default function GestionProveedores() {
 
       <div className="page-inner">
 
-        {/* TOOLBAR */}
         <div className="toolbar">
           <div className="search-wrap">
             <span className="search-icon">🔍</span>
             <input
               type="text"
               className="search-input"
-              placeholder="Buscar por responsable, documento, correo o celular…"
+              placeholder="Buscar por responsable, correo o celular…"
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
             />
           </div>
 
-          {/* Botón filtro + dropdown */}
           <div ref={filterRef} style={{ position: "relative" }}>
             <button
               className={"filter-icon-btn" + (hasFilter ? " has-filter" : "")}
               onClick={() => setShowFilter(v => !v)}
-            >
-              ▼
-            </button>
+            >▼</button>
 
             {showFilter && (
               <div className="filter-dropdown" style={{ minWidth: 200 }}>
                 <div className="filter-dropdown__section">
-                  <p className="filter-section-title">Estado</p>
-                  <button
-                    className={"filter-option" + (filterEstado === "todos" ? " active" : "")}
-                    onClick={() => setFilterEstado("todos")}
-                  >
-                    <span className="filter-dot" style={{ background: "#bdbdbd" }} />Todos
-                  </button>
-                  <button
-                    className={"filter-option" + (filterEstado === "activos" ? " active" : "")}
-                    onClick={() => setFilterEstado("activos")}
-                  >
-                    <span className="filter-dot" style={{ background: "#2e7d32" }} />Activos
-                  </button>
-                  <button
-                    className={"filter-option" + (filterEstado === "inactivos" ? " active" : "")}
-                    onClick={() => setFilterEstado("inactivos")}
-                  >
-                    <span className="filter-dot" style={{ background: "#c62828" }} />Inactivos
-                  </button>
-                </div>
-
-                <div className="filter-dropdown__section" style={{ borderTop: "1px solid #f0f0f0", marginTop: 4, paddingTop: 4 }}>
                   <p className="filter-section-title">Ciudad</p>
                   <button
                     className={"filter-option" + (filterCiudad === "todas" ? " active" : "")}
@@ -182,7 +194,6 @@ export default function GestionProveedores() {
           </button>
         </div>
 
-        {/* TABLA */}
         <div className="card">
           <div className="tbl-wrapper">
             <table className="tbl">
@@ -192,14 +203,15 @@ export default function GestionProveedores() {
                   <th>Responsable</th>
                   <th>Dirección / Ciudad</th>
                   <th>Contacto</th>
-                  <th>Estado</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {paginated.length === 0 ? (
+                {loading ? (
+                  <SkeletonRows />
+                ) : paginated.length === 0 ? (
                   <tr>
-                    <td colSpan={6}>
+                    <td colSpan={5}>
                       <div className="empty-state">
                         <div className="empty-state__icon">🏭</div>
                         <p className="empty-state__text">
@@ -211,25 +223,22 @@ export default function GestionProveedores() {
                 ) : paginated.map((p, idx) => (
                   <tr key={p.id} className="tbl-row">
 
-                    {/* Nº */}
                     <td>
                       <span className="row-num">
                         {String((safePage - 1) * ITEMS_PER_PAGE + idx + 1).padStart(2, "0")}
                       </span>
                     </td>
 
-                    {/* Responsable */}
                     <td>
                       <div className="prov-cell">
                         <div className="prov-avatar">🏭</div>
                         <div>
                           <div className="prov-name">{p.responsable}</div>
-                          <div className="prov-id">{p.tipoDoc}: {p.documento || p.id}</div>
+                          <div className="prov-id">ID: {p.id}</div>
                         </div>
                       </div>
                     </td>
 
-                    {/* Dirección */}
                     <td>
                       <div style={{ display: "flex", flexDirection: "column" }}>
                         <span style={{ fontSize: 13, color: "#424242" }}>{p.direccion || "—"}</span>
@@ -237,7 +246,6 @@ export default function GestionProveedores() {
                       </div>
                     </td>
 
-                    {/* Contacto */}
                     <td>
                       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                         <span className="phone-cell" style={{ fontSize: 12 }}>
@@ -250,18 +258,6 @@ export default function GestionProveedores() {
                       </div>
                     </td>
 
-                    {/* Estado */}
-                    <td>
-                      <Toggle 
-                        on={p.estado} 
-                        onToggle={() => {
-                          toggleProveedor(p.id);
-                          showToast(`Proveedor ${p.estado ? "inactivado" : "activado"}`);
-                        }} 
-                      />
-                    </td>
-
-                    {/* Acciones */}
                     <td>
                       <div className="actions-cell">
                         <button className="act-btn act-btn--view"
@@ -279,20 +275,15 @@ export default function GestionProveedores() {
             </table>
           </div>
 
-          {/* PAGINACIÓN */}
           <div className="pagination-bar">
             <span className="pagination-count">
               {filtered.length} {filtered.length === 1 ? "proveedor" : "proveedores"} en total
             </span>
             <div className="pagination-btns">
               <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
-              <button className="pg-btn-arrow"
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={safePage === 1}>‹</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
               <span className="pg-pill">Página {safePage} de {totalPages}</span>
-              <button className="pg-btn-arrow"
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={safePage === totalPages}>›</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
               <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>»</button>
             </div>
           </div>
@@ -300,7 +291,6 @@ export default function GestionProveedores() {
 
       </div>
 
-      {/* MODALES */}
       {modal?.mode === "new" && (
         <CrearProveedor onClose={() => setModal(null)} onSave={handleCreate} />
       )}
@@ -308,7 +298,6 @@ export default function GestionProveedores() {
         <EditarProveedor
           proveedor={modal.proveedor}
           mode="edit"
-          compras={compras}
           onClose={() => setModal(null)}
           onSave={handleEdit}
         />
@@ -317,7 +306,6 @@ export default function GestionProveedores() {
         <EditarProveedor
           proveedor={modal.proveedor}
           mode="view"
-          compras={compras}
           onClose={() => setModal(null)}
         />
       )}
@@ -325,7 +313,7 @@ export default function GestionProveedores() {
         <ModalEliminarValidado
           titulo="Eliminar proveedor"
           descripcion={`¿Está seguro de que desea eliminar al proveedor "${modal.proveedor.responsable}"?`}
-          validacion={canDeleteProveedor(modal.proveedor.id)}
+          validacion={{ ok: true }}
           onClose={() => setModal(null)}
           onConfirm={handleDelete}
         />

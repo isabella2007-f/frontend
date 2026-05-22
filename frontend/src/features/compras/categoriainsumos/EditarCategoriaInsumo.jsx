@@ -9,12 +9,14 @@ const ICON_OPTIONS = [
 ];
 
 export default function EditarCategoriaInsumo({ cat, onClose, onSave }) {
-  const [form, setForm]               = useState({ ...cat });
+  const [form, setForm]               = useState({ nombre: cat.nombre, descripcion: cat.descripcion, icon: cat.icon });
   const [errors, setErrors]           = useState({});
   const [saving, setSaving]           = useState(false);
   const [pickingIcon, setPickingIcon] = useState(false);
 
-  useEffect(() => { if (cat) setForm({ ...cat }); }, [cat]);
+  useEffect(() => {
+    if (cat) setForm({ nombre: cat.nombre, descripcion: cat.descripcion, icon: cat.icon });
+  }, [cat]);
 
   const set = (k, v) => {
     setForm(p => ({ ...p, [k]: v }));
@@ -32,9 +34,15 @@ export default function EditarCategoriaInsumo({ cat, onClose, onSave }) {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaving(true);
-    await new Promise(r => setTimeout(r, 500));
-    onSave({ ...form });
-    setSaving(false);
+    try {
+      await onSave({
+        Nombre_Categoria: form.nombre.trim(),
+        Descripcion:      form.descripcion.trim(),
+        Icono:            form.icon,
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -48,8 +56,6 @@ export default function EditarCategoriaInsumo({ cat, onClose, onSave }) {
       </div>
 
       <div className="modal-body">
-
-        {/* Ícono */}
         <div className="form-group">
           <label className="form-label">Ícono</label>
           <button
@@ -73,7 +79,6 @@ export default function EditarCategoriaInsumo({ cat, onClose, onSave }) {
           )}
         </div>
 
-        {/* Nombre — obligatorio */}
         <div className="form-group">
           <label className="form-label">
             Nombre <span style={{ color: "#e53935", fontWeight: 800 }}>*</span>
@@ -89,7 +94,6 @@ export default function EditarCategoriaInsumo({ cat, onClose, onSave }) {
           {errors.nombre && <p className="field-error">{errors.nombre}</p>}
         </div>
 
-        {/* Descripción — obligatoria */}
         <div className="form-group">
           <label className="form-label">
             Descripción <span style={{ color: "#e53935", fontWeight: 800 }}>*</span>
@@ -107,14 +111,12 @@ export default function EditarCategoriaInsumo({ cat, onClose, onSave }) {
           {errors.descripcion && <p className="field-error">{errors.descripcion}</p>}
         </div>
 
-        {/* Fecha de creación */}
         {cat?.fecha && (
           <div className="date-info">
             <span>📅</span>
             <span>Creada el <strong>{cat.fecha}</strong></span>
           </div>
         )}
-
       </div>
 
       <div className="modal-footer">

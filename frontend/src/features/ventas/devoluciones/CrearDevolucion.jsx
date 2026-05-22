@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { useApp } from "../../../AppContext.jsx";
+import { useState, useRef, useEffect } from "react";
+import { getPedidos } from "../../../services/pedidosService.js";
 import "./Devoluciones.css";
 
 const fmt = (n) =>
@@ -164,10 +164,14 @@ function ProdItem({ item, idx, onSet }) {
 }
 
 /* ─── COMPONENTE PRINCIPAL ───────────────────────────────── */
-export default function CrearDevolucion({ onClose, onSave }) {
-  const { pedidos } = useApp();
+export default function CrearDevolucion({ onClose, onSave, saving }) {
+  const [pedidosEntregados, setPedidosEntregados] = useState([]);
 
-  const pedidosEntregados = pedidos.filter((p) => p.estado === "Entregado");
+  useEffect(() => {
+    getPedidos({ porPagina: 200 })
+      .then(data => setPedidosEntregados((data.pedidos || []).filter(p => p.estado === "Entregado")))
+      .catch(() => {});
+  }, []);
 
   const [idPedido,   setIdPedido]   = useState("");
   const [motivo,     setMotivo]     = useState("");
@@ -175,7 +179,6 @@ export default function CrearDevolucion({ onClose, onSave }) {
   const [evidencia,  setEvidencia]  = useState(null);
   const [items,      setItems]      = useState([]);
   const [errors,     setErrors]     = useState({});
-  const [saved,      setSaved]      = useState(false);
   const [step,       setStep]       = useState(1);
 
   const pedidoSel = pedidosEntregados.find((p) => String(p.id) === String(idPedido));
@@ -239,8 +242,6 @@ export default function CrearDevolucion({ onClose, onSave }) {
   const handleSave = () => {
     const e = validateStep(2);
     if (Object.keys(e).length) { setErrors(e); return; }
-    setSaved(true);
-
     const payload = {
       idPedido:     pedidoSel.id,
       numeroPedido: pedidoSel.numero,
@@ -259,7 +260,7 @@ export default function CrearDevolucion({ onClose, onSave }) {
       evidencia:     evidencia || null,
     };
 
-    setTimeout(() => onSave(payload), 900);
+    onSave(payload);
   };
 
   return (
@@ -421,20 +422,14 @@ export default function CrearDevolucion({ onClose, onSave }) {
                 className="btn-save"
                 style={{ background: "#c62828" }}
                 onClick={handleSave}
-                disabled={saved || totalDevolucion === 0}
+                disabled={saving || totalDevolucion === 0}
               >
-                {saved ? "Guardando…" : "Registrar"}
+                {saving ? "Guardando…" : "Registrar"}
               </button>
             )}
           </div>
         </div>
 
-        {saved && (
-          <div className="modal-success-toast">
-            <span>✓</span>
-            <span>Devolución exitosa</span>
-          </div>
-        )}
       </div>
     </div>
   );

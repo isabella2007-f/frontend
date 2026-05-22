@@ -632,3 +632,6 @@
 .prod-dev-name  { flex:1; font-size:13px; font-weight:600; color:#1a1a1a; }
 .prod-dev-qty   { font-size:13px; font-weight:700; color:#1565c0; }
 .prod-dev-sub   { font-size:12px; font-weight:700; color:#c62828; }
+
+@keyframes skeletonPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.skeleton-cell { height:14px; background:#e0e0e0; border-radius:4px; animation:skeletonPulse 1.4s ease-in-out infinite; }

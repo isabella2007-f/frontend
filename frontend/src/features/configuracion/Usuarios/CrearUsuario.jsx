@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 import { GB, getRolStyle, EMPTY_FORM, TIPO_DOC, validatePassword } from "./usuariosUtils.js";
 import { Ic } from "./usuariosIcons.jsx";
-import { useApp } from "../../../AppContext.jsx";
+import { crearEmpleado, crearCliente, editarUsuario } from "../../../services/usuariosService.js";
 import "./Usuarios.css";
 
 const ROL_ICONS_BASE = {
@@ -12,9 +12,8 @@ const ROL_ICONS_BASE = {
 
 // ─── COMPONENTES SHARED ───────────────────────────────────
 
-export function RolBadge({ rol }) {
+export function RolBadge({ rol, roles = [] }) {
   const c = getRolStyle(rol);
-  const { roles } = useApp();
   const rolObj = roles.find(r => r.nombre === rol);
   const icono = rolObj?.iconoPreview
     ? <img src={rolObj.iconoPreview} alt={rol} style={{ width: 15, height: 15, borderRadius: "50%", objectFit: "cover" }} />
@@ -141,7 +140,6 @@ function LocationSelects({
 
   return (
     <>
-      {/* Departamento */}
       <div className="field-wrap">
         <label className="field-label">Departamento <span className="required">*</span></label>
         <div className="select-wrap">
@@ -163,7 +161,6 @@ function LocationSelects({
         {errDepto && <span className="field-error">{errDepto}</span>}
       </div>
 
-      {/* Municipio */}
       <div className="field-wrap">
         <label className="field-label">Municipio <span className="required">*</span></label>
         <div className="select-wrap">
@@ -246,12 +243,10 @@ function StepsBar({ current }) {
 }
 
 // ─── MODAL CREAR / EDITAR — WIZARD ────────────────────────
-export default function CrearUsuario({ user, onClose, onSave }) {
+export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
   const isEdit = !!user;
-  const { roles } = useApp();
   const rolesDisponibles = roles.filter(r => r.estado);
 
-  // Al editar: contrasena y confirmar SIEMPRE vacíos (nunca mostrar hash/valor guardado)
   const [form, setForm] = useState(() => {
     if (isEdit) {
       const { contrasena: _c, confirmar: _cf, ...rest } = user;
@@ -260,38 +255,26 @@ export default function CrearUsuario({ user, onClose, onSave }) {
     return { ...EMPTY_FORM };
   });
 
-  const [errors, setErrors] = useState({});
-  const [saved,  setSaved]  = useState(false);
-  const [step,   setStep]   = useState(1);
+  const [errors,  setErrors]  = useState({});
+  const [saving,  setSaving]  = useState(false);
+  const [step,    setStep]    = useState(1);
 
   const set = (k, v) => {
     let val = v;
-    if (k === 'cedula' && typeof v === 'string') {
-      val = v.replace(/\D/g, '');
-    }
+    if (k === "cedula" && typeof v === "string") val = v.replace(/\D/g, "");
     setForm(f => ({ ...f, [k]: val }));
     setErrors(e => ({ ...e, [k]: "" }));
   };
 
   const validateStep = (s) => {
     const e = {};
-    const { usuarios: existing } = useApp();
 
     if (s === 1) {
       if (!form.nombre.trim())    e.nombre    = "El nombre es obligatorio";
       if (!form.apellidos.trim()) e.apellidos = "Los apellidos son obligatorios";
-      
       if (!form.correo.trim())    e.correo    = "El correo es obligatorio";
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo)) e.correo = "Formato de correo inválido";
-      else if (existing.some(u => u.correo.toLowerCase() === form.correo.toLowerCase() && u.id !== form.id)) {
-        e.correo = "Este correo ya está registrado";
-      }
-
       if (!form.cedula.trim())    e.cedula    = "La cédula es obligatoria";
-      else if (existing.some(u => u.cedula === form.cedula && u.id !== form.id)) {
-        e.cedula = "Esta cédula ya está registrada";
-      }
-
       if (!form.telefono.trim())  e.telefono  = "El teléfono es obligatorio";
     }
 
@@ -303,9 +286,7 @@ export default function CrearUsuario({ user, onClose, onSave }) {
 
     if (s === 3) {
       if (!form.rol) e.rol = "Seleccione un rol";
-
       if (isEdit) {
-        // Contraseña opcional en edición: solo validar si se ingresó algo
         if (form.contrasena) {
           const passError = validatePassword(form.contrasena, form.confirmar);
           if (passError) e.contrasena = passError;
@@ -327,19 +308,45 @@ export default function CrearUsuario({ user, onClose, onSave }) {
 
   const handleBack = () => setStep(s => s - 1);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const e = validateStep(3);
     if (Object.keys(e).length) { setErrors(e); return; }
-    setSaved(true);
+    setSaving(true);
 
-    const payload = { ...form };
-    // En edición: si no ingresó contraseña nueva, no la enviamos
-    if (isEdit && !form.contrasena) {
-      delete payload.contrasena;
-      delete payload.confirmar;
+    const rolObj   = rolesDisponibles.find(r => r.nombre === form.rol);
+    const esCliente = form.rol === "Cliente";
+
+    const payload = {
+      Nombre:         form.nombre.trim(),
+      Apellidos:      form.apellidos.trim(),
+      Correo:         form.correo.trim(),
+      Tipo_Documento: form.tipoDocumento,
+      Cedula:         form.cedula.trim(),
+      Telefono:       form.telefono.trim(),
+      Departamento:   form.departamento,
+      Municipio:      form.municipio,
+      Direccion:      form.direccion.trim(),
+    };
+
+    if (!esCliente && rolObj) payload.ID_Rol = rolObj.id;
+    if (form.contrasena)      payload.Contrasena = form.contrasena;
+
+    try {
+      if (isEdit) {
+        await editarUsuario(user.tipo, user.id, payload);
+      } else if (esCliente) {
+        await crearCliente(payload);
+      } else {
+        await crearEmpleado(payload);
+      }
+      onSave?.();
+    } catch (err) {
+      const msg = Array.isArray(err?.detail)
+        ? err.detail.map(v => v.msg).join(", ")
+        : (err?.detail || err?.message || "Error al guardar");
+      setErrors({ _api: msg });
+      setSaving(false);
     }
-
-    setTimeout(() => onSave(payload), 1200);
   };
 
   return (
@@ -395,7 +402,7 @@ export default function CrearUsuario({ user, onClose, onSave }) {
             </>
           )}
 
-          {/* ── Step 2: Ubicación — Depto → Municipio → Dirección ── */}
+          {/* ── Step 2: Ubicación ── */}
           {step === 2 && (
             <>
               <div className="field-grid-2">
@@ -410,7 +417,6 @@ export default function CrearUsuario({ user, onClose, onSave }) {
                   initialMunicipio={isEdit ? user.municipio : ""}
                 />
               </div>
-              {/* Dirección se muestra debajo, después de seleccionar depto y municipio */}
               <div style={{ marginTop: 4 }}>
                 <Field
                   required
@@ -435,17 +441,16 @@ export default function CrearUsuario({ user, onClose, onSave }) {
           {step === 3 && (
             <>
               {isEdit && (
-                <div style={{ marginBottom: 16, padding: '10px 14px', background: '#f8fafc', borderRadius: 12, border: '1px solid #e2e8f0' }}>
-                  <h4 style={{ margin: 0, fontSize: 13, color: '#1e293b', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ marginBottom: 16, padding: "10px 14px", background: "#f8fafc", borderRadius: 12, border: "1px solid #e2e8f0" }}>
+                  <h4 style={{ margin: 0, fontSize: 13, color: "#1e293b", display: "flex", alignItems: "center", gap: 6 }}>
                     <Ic.LockSvg /> Cambio de contraseña
                   </h4>
-                  <p style={{ margin: '4px 0 0', fontSize: 11, color: '#64748b' }}>
+                  <p style={{ margin: "4px 0 0", fontSize: 11, color: "#64748b" }}>
                     Complete estos campos solo si desea actualizar la contraseña del usuario.
                   </p>
                 </div>
               )}
               <div className="field-grid-2">
-                {/* autocomplete="new-password" evita que el browser rellene la contraseña */}
                 <Field
                   required={!isEdit}
                   label={isEdit ? "Nueva contraseña (opcional)" : "Contraseña"}
@@ -506,6 +511,10 @@ export default function CrearUsuario({ user, onClose, onSave }) {
                   );
                 })()}
               </div>
+
+              {errors._api && (
+                <p className="field-error" style={{ textAlign: "center", marginTop: 8 }}>{errors._api}</p>
+              )}
             </>
           )}
         </div>
@@ -518,18 +527,12 @@ export default function CrearUsuario({ user, onClose, onSave }) {
           <div style={{ display: "flex", gap: 10 }}>
             {step < 3
               ? <button className="btn-save" onClick={handleNext}>Siguiente →</button>
-              : <button className="btn-save" onClick={handleSave} disabled={saved}>
-                  {saved ? "Guardando…" : isEdit ? "Guardar cambios" : "Crear usuario"}
+              : <button className="btn-save" onClick={handleSave} disabled={saving}>
+                  {saving ? "Guardando…" : isEdit ? "Guardar cambios" : "Crear usuario"}
                 </button>
             }
           </div>
         </div>
-
-        {saved && (
-          <div className="modal-success-toast">
-            <Ic.Check /><span>Usuario {isEdit ? "actualizado" : "agregado"} con éxito</span>
-          </div>
-        )}
       </div>
     </div>
   );

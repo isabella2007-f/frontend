@@ -23,6 +23,7 @@ import {
   toggleEstadoProducto as apiToggleEstado,
   editarProducto as apiEditarProducto,
 } from "../../../services/productosService";
+import { registrarSalida } from "../../../services/salidasService";
 import "./Productos.css";
 
 const ITEMS_PER_PAGE = 5;
@@ -835,21 +836,19 @@ export default function GestionProductos() {
   };
 
   const handleSalida = async (payload) => {
-    if (!registrarSalidaProducto) {
-      showToast("Función no disponible", "error");
-      setModal(null);
-      return { ok: false };
-    }
-    const result = registrarSalidaProducto(payload);
-    if (result?.ok !== false) {
-      showToast("Salida registrada y stock actualizado");
-      setModal(null);
+    try {
+      await registrarSalida({
+        tipo:       payload.tipo,
+        idProducto: payload.id,
+        cantidad:   payload.cantidad,
+        motivo:     payload.motivo,
+      });
       await cargarDatos();
-      return { ok: true };
+      showToast("Salida registrada y stock actualizado");
+    } catch (e) {
+      showToast(e.message || "Error en la salida", "error");
     }
-    showToast(result.razon || "Error en la salida", "error");
     setModal(null);
-    return { ok: false };
   };
 
   /* ══════════════════════════════════════════════════════

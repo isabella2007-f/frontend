@@ -61,8 +61,8 @@ const NAV_ITEMS_BASE = [
 ];
 
 // ─── MODAL VER USUARIO — SIDE PANEL ──────────────────────
-export function ModalVerUsuario({ user, onClose }) {
-  const { roles, creditosClientes, clientes, pedidos } = useApp();
+export function ModalVerUsuario({ user, roles = [], onClose }) {
+  const { creditosClientes, clientes, pedidos } = useApp();
   const [activeSection, setActiveSection] = useState("personal");
 
   const esCliente = user.rol === "Cliente";

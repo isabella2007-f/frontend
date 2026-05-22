@@ -30,15 +30,15 @@ export default function CrearCategoriaInsumo({ onClose, onSave }) {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaving(true);
-    await new Promise(r => setTimeout(r, 500));
-    onSave({
-      ...form,
-      id: Date.now(),
-      insumos: [],
-      estado: true,
-      fecha: new Date().toLocaleDateString("es-CO"),
-    });
-    setSaving(false);
+    try {
+      await onSave({
+        Nombre_Categoria: form.nombre.trim(),
+        Descripcion:      form.descripcion.trim(),
+        Icono:            form.icon,
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -52,8 +52,6 @@ export default function CrearCategoriaInsumo({ onClose, onSave }) {
       </div>
 
       <div className="modal-body">
-
-        {/* Ícono */}
         <div className="form-group">
           <label className="form-label">Ícono</label>
           <button
@@ -77,7 +75,6 @@ export default function CrearCategoriaInsumo({ onClose, onSave }) {
           )}
         </div>
 
-        {/* Nombre — obligatorio */}
         <div className="form-group">
           <label className="form-label">
             Nombre <span style={{ color: "#e53935", fontWeight: 800 }}>*</span>
@@ -93,7 +90,6 @@ export default function CrearCategoriaInsumo({ onClose, onSave }) {
           {errors.nombre && <p className="field-error">{errors.nombre}</p>}
         </div>
 
-        {/* Descripción — obligatoria */}
         <div className="form-group">
           <label className="form-label">
             Descripción <span style={{ color: "#e53935", fontWeight: 800 }}>*</span>
@@ -110,7 +106,6 @@ export default function CrearCategoriaInsumo({ onClose, onSave }) {
           />
           {errors.descripcion && <p className="field-error">{errors.descripcion}</p>}
         </div>
-
       </div>
 
       <div className="modal-footer">

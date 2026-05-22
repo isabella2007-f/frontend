@@ -1,7 +1,17 @@
 import { useState, useEffect, useRef } from "react";
-import { useApp } from "../../../AppContext.jsx";
 import CrearDevolucion from "./CrearDevolucion.jsx";
+import { getDevoluciones, crearDevolucion, resolverDevolucion } from "../../../services/devolucionesService.js";
 import "./Devoluciones.css";
+
+function SkeletonRows({ cols = 8, rows = 5 }) {
+  return Array.from({ length: rows }).map((_, i) => (
+    <tr key={i}>
+      {Array.from({ length: cols }).map((__, j) => (
+        <td key={j}><div className="skeleton-cell" /></td>
+      ))}
+    </tr>
+  ));
+}
 
 const fmt = (n) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
@@ -330,12 +340,9 @@ function ModalRechazar({ dev, onClose, onConfirm }) {
    COMPONENTE PRINCIPAL
    ═══════════════════════════════════════════════════════════ */
 export default function GestionDevoluciones() {
-  const {
-    devoluciones, creditosClientes,
-    crearDevolucion, aprobarDevolucion, rechazarDevolucion,
-    reembolsarDevolucion,
-  } = useApp();
-
+  const [devoluciones, setDevoluciones] = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [actionSaving, setActionSaving] = useState(false);
   const [search,       setSearch]       = useState("");
   const [filterEstado, setFilterEstado] = useState("todos");
   const [showFilter,   setShowFilter]   = useState(false);
@@ -344,16 +351,30 @@ export default function GestionDevoluciones() {
   const [toast,        setToast]        = useState(null);
   const filterRef = useRef();
 
+  const showToast = (msg, type = "success") => {
+    setToast({ message: msg, type });
+    setTimeout(() => setToast(null), 3200);
+  };
+
+  const cargarDatos = async () => {
+    setLoading(true);
+    try {
+      const data = await getDevoluciones({ porPagina: 200 });
+      setDevoluciones(data.devoluciones);
+    } catch (err) {
+      showToast(err.message || "Error al cargar devoluciones", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { cargarDatos(); }, []);
+
   useEffect(() => {
     const h = (e) => { if (filterRef.current && !filterRef.current.contains(e.target)) setShowFilter(false); };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
-
-  const showToast = (msg, type = "success") => {
-    setToast({ message: msg, type });
-    setTimeout(() => setToast(null), 3200);
-  };
 
   const filtered = devoluciones.filter((d) => {
     const q = search.toLowerCase();
@@ -370,23 +391,46 @@ export default function GestionDevoluciones() {
 
   const hasFilter = filterEstado !== "todos";
 
-  const handleCrear = (payload) => {
-    const numero = crearDevolucion(payload);
-    showToast(`Devolución ${numero} registrada`);
-    setModal(null);
+  const handleCrear = async (payload) => {
+    setActionSaving(true);
+    try {
+      const dev = await crearDevolucion(payload);
+      await cargarDatos();
+      showToast(`Devolución ${dev.numero} registrada`);
+      setModal(null);
+    } catch (err) {
+      showToast(err.message || "Error al registrar devolución", "error");
+    } finally {
+      setActionSaving(false);
+    }
   };
 
-  const handleAprobar = (id) => {
-    aprobarDevolucion(id);
-    reembolsarDevolucion(id);
-    showToast("Devolución aprobada y crédito aplicado");
-    setModal(null);
+  const handleAprobar = async (id) => {
+    setActionSaving(true);
+    try {
+      await resolverDevolucion(id, "aprobar");
+      await cargarDatos();
+      showToast("Devolución aprobada y reembolso procesado");
+      setModal(null);
+    } catch (err) {
+      showToast(err.message || "Error al aprobar devolución", "error");
+    } finally {
+      setActionSaving(false);
+    }
   };
 
-  const handleRechazar = (id, motivo) => {
-    rechazarDevolucion(id, motivo);
-    showToast("Devolución rechazada", "error");
-    setModal(null);
+  const handleRechazar = async (id, motivo) => {
+    setActionSaving(true);
+    try {
+      await resolverDevolucion(id, "rechazar", motivo);
+      await cargarDatos();
+      showToast("Devolución rechazada", "error");
+      setModal(null);
+    } catch (err) {
+      showToast(err.message || "Error al rechazar devolución", "error");
+    } finally {
+      setActionSaving(false);
+    }
   };
 
   const counts = {
@@ -504,7 +548,9 @@ export default function GestionDevoluciones() {
                 </tr>
               </thead>
               <tbody>
-                {paged.length === 0 ? (
+                {loading ? (
+                  <SkeletonRows cols={8} rows={5} />
+                ) : paged.length === 0 ? (
                   <tr><td colSpan={8}>
                     <div className="empty-state">
                       <div className="empty-state__icon">↩️</div>
@@ -581,14 +627,8 @@ export default function GestionDevoluciones() {
         </div>
       </div>
 
-      {modal?.type === "crear"    && <CrearDevolucion onClose={() => setModal(null)} onSave={handleCrear} />}
-      {modal?.type === "ver"      && (
-        <ModalVerDevolucion
-          dev={modal.dev}
-          creditoCliente={creditosClientes[modal.dev.idCliente] || 0}
-          onClose={() => setModal(null)}
-        />
-      )}
+      {modal?.type === "crear"    && <CrearDevolucion onClose={() => setModal(null)} onSave={handleCrear} saving={actionSaving} />}
+      {modal?.type === "ver"      && <ModalVerDevolucion dev={modal.dev} creditoCliente={0} onClose={() => setModal(null)} />}
       {modal?.type === "aprobar"  && <ModalAprobar  dev={modal.dev} onClose={() => setModal(null)} onConfirm={handleAprobar} />}
       {modal?.type === "rechazar" && <ModalRechazar dev={modal.dev} onClose={() => setModal(null)} onConfirm={handleRechazar} />}
 

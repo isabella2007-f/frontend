@@ -238,3 +238,6 @@
 .tbl .col-entrega   { width: 100px; }
 .tbl .col-estado    { width: 120px; }
 .tbl .col-acciones  { width: 110px; text-align: center; }
+
+@keyframes skeletonPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.skeleton-cell { height:14px; background:#e0e0e0; border-radius:4px; animation:skeletonPulse 1.4s ease-in-out infinite; }

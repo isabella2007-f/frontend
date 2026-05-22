@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../AppContext.jsx';
 import { getUser } from '../services/authService.js';
+import { getProductos, getCategorias } from '../services/productosService.js';
 import { useNotificaciones, TIPOS } from '../features/notificaciones/context/NotificacionesContext.jsx';
 import Navbar from '../shared/components/Navbar.jsx';
 
@@ -35,10 +36,12 @@ const DEFAULT_CONTENT = {
 ═══════════════════════════════════════════ */
 const LandingPage = ({ hideNavbar = false }) => {
   const navigate = useNavigate();
-  const { productos, getCatProducto, crearPedido } = useApp();
+  const { crearPedido } = useApp();
   const { agregarNotificacion } = useNotificaciones();
   const [activeTab, setActiveTab] = useState('Todos');
   const [user, setUser] = useState(null);
+  const [productos, setProductos] = useState([]);
+  const [categoriasMap, setCategoriasMap] = useState({});
 
   const [cartCount, setCartCount] = useState(0);
   const [cartOpen, setCartOpen] = useState(false);
@@ -69,12 +72,40 @@ const LandingPage = ({ hideNavbar = false }) => {
     setCartCount(getCartCount());
   }, []);
 
-  useEffect(() => { 
-    setUser(getUser()); 
+  useEffect(() => {
+    setUser(getUser());
     syncCartInfo();
     window.addEventListener('cart-updated', syncCartInfo);
     return () => window.removeEventListener('cart-updated', syncCartInfo);
   }, [syncCartInfo]);
+
+  useEffect(() => {
+    const cargar = async () => {
+      try {
+        const [pData, cData] = await Promise.all([getProductos(), getCategorias()]);
+        const map = {};
+        (cData.categorias || []).forEach(c => {
+          map[c.ID_Categoria] = { nombre: c.Nombre, descripcion: c.Descripcion, icon: c.Icon };
+        });
+        setCategoriasMap(map);
+        setProductos(
+          (pData.productos || [])
+            .filter(p => p.Estado !== 0)
+            .map(p => ({
+              id:          p.ID_Producto,
+              nombre:      p.Nombre,
+              precio:      p.Precio_venta,
+              stock:       p.Stock,
+              idCategoria: p.ID_Categoria,
+              imagen:      p.Imagenes?.[0]?.URL_Imagen || null,
+            }))
+        );
+      } catch {
+        // silent — show empty grid
+      }
+    };
+    cargar();
+  }, []);
 
   /* ── Auto-scroll si hay hash en la URL ── */
   useEffect(() => {
@@ -164,11 +195,11 @@ const LandingPage = ({ hideNavbar = false }) => {
     setTimeout(() => setOrderDone(false), 4000);
   };
 
-  const activeProducts = productos.filter(p => p.stock > 0);
-  const categories = ['Todos', ...new Set(activeProducts.map(p => getCatProducto(p.idCategoria).nombre))];
+  const getCat = (id) => categoriasMap[id] || { nombre: 'Sin categoría', descripcion: '', icon: '🍌' };
+  const categories = ['Todos', ...new Set(productos.map(p => getCat(p.idCategoria).nombre))];
   const filteredProducts = activeTab === 'Todos'
-    ? activeProducts.slice(0, 6)
-    : activeProducts.filter(p => getCatProducto(p.idCategoria).nombre === activeTab).slice(0, 6);
+    ? productos.slice(0, 6)
+    : productos.filter(p => getCat(p.idCategoria).nombre === activeTab).slice(0, 6);
 
   const scrollToSection = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
@@ -361,7 +392,7 @@ const LandingPage = ({ hideNavbar = false }) => {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
             {filteredProducts.map((p) => {
-              const cat = getCatProducto(p.idCategoria);
+              const cat = getCat(p.idCategoria);
               const qty = getQty(p.id);
               const inCartItem = getCart().find(i => i.id === p.id);
               return (

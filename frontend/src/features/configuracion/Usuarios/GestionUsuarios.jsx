@@ -1,8 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { useApp } from "../../../AppContext.jsx";
+import {
+  getUsuarios, eliminarUsuario, toggleEstadoUsuario,
+} from "../../../services/usuariosService.js";
+import { getRoles } from "../../../services/rolesService.js";
 import { Avatar, Toggle, RolBadge } from "./CrearUsuario.jsx";
 import CrearUsuario from "./CrearUsuario.jsx";
-import { ModalVerUsuario, ModalEliminarUsuario, ModalDesactivarUsuario } from "./EditarUsuario.jsx";
+import { ModalVerUsuario, ModalEliminarUsuario } from "./EditarUsuario.jsx";
 import "./Usuarios.css";
 
 const PER_PAGE = 5;
@@ -26,18 +29,20 @@ function Toast({ toast }) {
   );
 }
 
+function SkeletonRows() {
+  return Array.from({ length: 5 }, (_, i) => (
+    <tr key={i}>
+      {Array.from({ length: 8 }, (_, j) => (
+        <td key={j}><div className="skeleton-cell" /></td>
+      ))}
+    </tr>
+  ));
+}
+
 export default function GestionUsuarios() {
-  const {
-    usuarios, roles, rolesActivos,
-    crearUsuario, editarUsuario, toggleUsuario, eliminarUsuario,
-    canDeleteUsuario,
-    pedidos, ordenes, clientes,
-  } = useApp();
-
-  // ── La tabla muestra TODOS los roles (incluyendo Cliente)
-  // Solo se excluyen en otras secciones según contexto del negocio
-  const usuariosTabla = usuarios;
-
+  const [usuarios,   setUsuarios]   = useState([]);
+  const [roles,      setRoles]      = useState([]);
+  const [loading,    setLoading]    = useState(true);
   const [search,     setSearch]     = useState("");
   const [filter,     setFilter]     = useState("todos");
   const [filterRol,  setFilterRol]  = useState("todos");
@@ -47,7 +52,26 @@ export default function GestionUsuarios() {
   const [toast,      setToast]      = useState(null);
   const filterRef = useRef();
 
-  // Bloquear eventos de teclado cuando hay modal abierto
+  const showToast = (msg, type = "success") => {
+    setToast({ message: msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const cargarDatos = async () => {
+    setLoading(true);
+    try {
+      const [users, rolesData] = await Promise.all([getUsuarios(), getRoles()]);
+      setUsuarios(users);
+      setRoles(rolesData);
+    } catch (e) {
+      showToast(e.message || "Error al cargar usuarios", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { cargarDatos(); }, []);
+
   useEffect(() => {
     if (!modal) return;
     const block = e => e.stopPropagation();
@@ -69,12 +93,7 @@ export default function GestionUsuarios() {
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const showToast = (msg, type = "success") => {
-    setToast({ message: msg, type });
-    setTimeout(() => setToast(null), 3000);
-  };
-
-  const filtered = usuariosTabla.filter(u => {
+  const filtered = usuarios.filter(u => {
     const q      = search.toLowerCase();
     const matchQ = [u.nombre, u.apellidos, u.correo, u.rol, u.cedula, u.municipio]
       .filter(Boolean).some(v => v.toLowerCase().includes(q));
@@ -89,155 +108,37 @@ export default function GestionUsuarios() {
 
   useEffect(() => { setPage(1); }, [search, filter, filterRol]);
 
-  const handleSave = (form) => {
-    if (modal?.user) {
-      editarUsuario({ ...modal.user, ...form });
-      showToast("Usuario actualizado");
-    } else {
-      crearUsuario(form);
-      showToast("Usuario creado");
+  const handleSave = async () => {
+    await cargarDatos();
+    showToast(modal?.user ? "Usuario actualizado" : "Usuario creado");
+    setModal(null);
+  };
+
+  const handleDeleteConfirm = async (id) => {
+    const user = usuarios.find(u => u.id === id);
+    try {
+      await eliminarUsuario(user.tipo, id);
+      showToast("Usuario eliminado", "error");
+      await cargarDatos();
+    } catch (e) {
+      showToast(e.message || "Error al eliminar", "error");
     }
     setModal(null);
   };
 
-  const getAdvertenciasEliminar = (user) => {
-    // Bloqueo duro: admin principal
-    if (user.esAdmin) return {
-      bloqueado: true,
-      razon: `El usuario "${user.nombre} ${user.apellidos}" posee privilegios de administrador principal y está protegido.`,
-    };
-
-    const advertencias = [];
-
-    // Pedidos activos asignados como domiciliario
-    const pedidosAsignados = pedidos.filter(p =>
-      p.idEmpleado === user.id && !["Entregado", "Cancelado"].includes(p.estado)
-    );
-    if (pedidosAsignados.length > 0) {
-      const lista = pedidosAsignados.map(p => p.numero).join(", ");
-      advertencias.push(
-        `Está asignado como domiciliario en ${pedidosAsignados.length === 1 ? "el pedido" : "los pedidos"} ${lista}. Si se elimina, deberá reasignar un responsable a ${pedidosAsignados.length === 1 ? "dicho pedido" : "dichos pedidos"}.`
-      );
+  const handleToggleClick = async (user) => {
+    // Optimistic update
+    setUsuarios(prev => prev.map(u => u.id === user.id ? { ...u, estado: !u.estado } : u));
+    try {
+      await toggleEstadoUsuario(user.tipo, user.id, user.estado);
+    } catch (e) {
+      // Revert
+      setUsuarios(prev => prev.map(u => u.id === user.id ? { ...u, estado: user.estado } : u));
+      showToast(e.message || "Error al cambiar estado", "error");
     }
-
-    // Órdenes de producción activas asignadas
-    const ordenesAsignadas = ordenes.filter(o =>
-      o.idEmpleado === user.id && !["Completada", "Cancelada"].includes(o.estado)
-    );
-    if (ordenesAsignadas.length > 0) {
-      const lista = ordenesAsignadas.map(o => o.id).join(", ");
-      advertencias.push(
-        `Está asignado como operario en ${ordenesAsignadas.length === 1 ? "la orden de producción" : "las órdenes de producción"} ${lista}. Si se elimina, deberá reasignar un responsable a ${ordenesAsignadas.length === 1 ? "dicha orden" : "dichas órdenes"}.`
-      );
-    }
-
-    // Si es cliente: pedidos en curso
-    if (user.rol === "Cliente") {
-      const clienteVinculado = clientes.find(c =>
-        c.correo === user.correo || c.numDoc === user.cedula
-      );
-      if (clienteVinculado) {
-        const pedidosCliente = pedidos.filter(p =>
-          p.idCliente === clienteVinculado.id && !["Entregado", "Cancelado"].includes(p.estado)
-        );
-        if (pedidosCliente.length > 0) {
-          const lista = pedidosCliente.map(p => p.numero).join(", ");
-          advertencias.push(
-            `Tiene ${pedidosCliente.length === 1 ? "el pedido" : "los pedidos"} ${lista} en curso. Si se elimina, ${pedidosCliente.length === 1 ? "dicho pedido quedará" : "dichos pedidos quedarán"} sin cliente asociado y deberá gestionarlos manualmente.`
-          );
-        }
-      }
-    }
-
-    return { bloqueado: false, advertencias };
-  };
-
-  const handleDeleteClick = (user) => {
-    const resultado = getAdvertenciasEliminar(user);
-    if (resultado.bloqueado) {
-      setModal({ type: "delete", user, razon: resultado.razon, advertencias: [] });
-    } else {
-      setModal({ type: "delete", user, razon: null, advertencias: resultado.advertencias });
-    }
-  };
-
-  const handleDeleteConfirm = (id) => {
-    eliminarUsuario(id);
-    showToast("Usuario eliminado", "error");
-    setModal(null);
-  };
-
-  // ── Desactivar usuario: verificar elementos asociados ────
-  const getAdvertenciasDesactivar = (user) => {
-    const advertencias = [];
-
-    // Pedidos activos asignados como empleado
-    const pedidosAsignados = pedidos.filter(p =>
-      p.idEmpleado === user.id && !["Entregado", "Cancelado"].includes(p.estado)
-    );
-    if (pedidosAsignados.length > 0) {
-      advertencias.push(
-        `Tiene ${pedidosAsignados.length} pedido${pedidosAsignados.length > 1 ? "s" : ""} activo${pedidosAsignados.length > 1 ? "s" : ""} asignado${pedidosAsignados.length > 1 ? "s" : ""} como domiciliario. Quedará${pedidosAsignados.length > 1 ? "n" : ""} sin responsable.`
-      );
-    }
-
-    // Órdenes de producción activas asignadas
-    const ordenesAsignadas = ordenes.filter(o =>
-      o.idEmpleado === user.id && !["Completada", "Cancelada"].includes(o.estado)
-    );
-    if (ordenesAsignadas.length > 0) {
-      advertencias.push(
-        `Tiene ${ordenesAsignadas.length} orden${ordenesAsignadas.length > 1 ? "es" : ""} de producción activa${ordenesAsignadas.length > 1 ? "s" : ""} asignada${ordenesAsignadas.length > 1 ? "s" : ""}. Quedará${ordenesAsignadas.length > 1 ? "n" : ""} sin operario.`
-      );
-    }
-
-    // Si es cliente: pedidos activos como cliente
-    if (user.rol === "Cliente") {
-      const clienteVinculado = clientes.find(c => c.correo === user.correo || c.numDoc === user.cedula);
-      if (clienteVinculado) {
-        const pedidosCliente = pedidos.filter(p =>
-          p.idCliente === clienteVinculado.id && !["Entregado", "Cancelado"].includes(p.estado)
-        );
-        if (pedidosCliente.length > 0) {
-          advertencias.push(
-            `Este cliente tiene ${pedidosCliente.length} pedido${pedidosCliente.length > 1 ? "s" : ""} en curso. Su cuenta quedará inactiva pero los pedidos continuarán.`
-          );
-        }
-      }
-    }
-
-    return advertencias;
-  };
-
-  const handleToggleClick = (user) => {
-    const rolObj = roles.find(r => r.nombre === user.rol);
-
-    // Bloqueos que impiden cambiar estado
-    const bloqueadoPorRol = rolObj && !rolObj.estado;
-    const esAdminProtegido = user.esAdmin;
-    if (bloqueadoPorRol || esAdminProtegido) return; // ya manejado por tooltip
-
-    // Si se va a DESACTIVAR (estado: true → false), verificar advertencias
-    if (user.estado) {
-      const advertencias = getAdvertenciasDesactivar(user);
-      if (advertencias.length > 0) {
-        setModal({ type: "desactivar", user, advertencias });
-        return;
-      }
-    }
-
-    // Sin advertencias: toggle directo
-    toggleUsuario(user.id);
-  };
-
-  const handleToggleConfirm = (userId) => {
-    toggleUsuario(userId);
-    showToast("Estado del usuario actualizado");
   };
 
   const hasFilter = filter !== "todos" || filterRol !== "todos";
-
-  // Todos los roles disponibles para el filtro
   const todosLosRoles = [...new Set(usuarios.map(u => u.rol).filter(Boolean))].sort();
 
   return (
@@ -265,7 +166,6 @@ export default function GestionUsuarios() {
               className={"filter-icon-btn" + (hasFilter ? " has-filter" : "")}
               onClick={() => setShowFilter(v => !v)}
             >▼</button>
-
             {showFilter && (
               <div className="filter-dropdown" style={{ minWidth: 170 }}>
                 <p className="filter-section-title">Estado</p>
@@ -319,7 +219,9 @@ export default function GestionUsuarios() {
                 </tr>
               </thead>
               <tbody>
-                {paged.length === 0 ? (
+                {loading ? (
+                  <SkeletonRows />
+                ) : paged.length === 0 ? (
                   <tr><td colSpan={8}>
                     <div className="empty-state">
                       <div className="empty-state__icon">👤</div>
@@ -328,73 +230,61 @@ export default function GestionUsuarios() {
                       </p>
                     </div>
                   </td></tr>
-                ) : paged.map((user, idx) => {
-                  const rolObj = roles.find(r => r.nombre === user.rol);
-                  const bloqueadoPorRol = rolObj && !rolObj.estado;
-                  const razon = bloqueadoPorRol
-                    ? `El rol "${user.rol}" está desactivado`
-                    : user.esAdmin
-                    ? "El administrador principal no puede desactivarse"
-                    : null;
-
-                  return (
-                    <tr key={user.id} className="tbl-row">
-                      <td>
-                        <span className="row-num">
-                          {String((safePage - 1) * PER_PAGE + idx + 1).padStart(2, "0")}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="client-cell">
-                          <div className="avatar-wrap">
-                            <Avatar foto={user.foto} size={38} border={false} />
-                          </div>
-                          <div>
-                            <div className="client-name">{user.nombre} {user.apellidos}</div>
-                            <div className="client-email">{user.correo}</div>
-                          </div>
+                ) : paged.map((user, idx) => (
+                  <tr key={`${user.tipo}-${user.id}`} className="tbl-row">
+                    <td>
+                      <span className="row-num">
+                        {String((safePage - 1) * PER_PAGE + idx + 1).padStart(2, "0")}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="client-cell">
+                        <div className="avatar-wrap">
+                          <Avatar foto={user.foto} size={38} border={false} />
                         </div>
-                      </td>
-                      <td>
-                        <div className="doc-badge">
-                          <span className="doc-type">{user.tipoDocumento || "CC"}</span>
-                          <span className="doc-num">{user.cedula || "—"}</span>
+                        <div>
+                          <div className="client-name">{user.nombre} {user.apellidos}</div>
+                          <div className="client-email">{user.correo}</div>
                         </div>
-                      </td>
-                      <td>
-                        <span className="phone-cell">
-                          <span className="phone-icon">📞</span>
-                          {user.telefono || "—"}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="location-city">{user.municipio    || "—"}</div>
-                        <div className="location-dept">{user.departamento || ""}</div>
-                      </td>
-                      <td><RolBadge rol={user.rol} /></td>
-                      <td>
-                        <ToggleConTooltip
-                          on={user.estado}
-                          onToggle={() => handleToggleClick(user)}
-                          disabled={!!razon}
-                          razon={razon}
-                        />
-                      </td>
-                      <td>
-                        <div className="actions-cell">
-                          <button className="act-btn act-btn--view"
-                            onClick={() => setModal({ type: "ver", user })}>👁</button>
-                          {!user.esAdmin && <>
-                            <button className="act-btn act-btn--edit"
-                              onClick={() => setModal({ type: "form", user })}>✎</button>
-                            <button className="act-btn act-btn--delete"
-                              onClick={() => handleDeleteClick(user)}>🗑️</button>
-                          </>}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="doc-badge">
+                        <span className="doc-type">{user.tipoDocumento || "CC"}</span>
+                        <span className="doc-num">{user.cedula || "—"}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <span className="phone-cell">
+                        <span className="phone-icon">📞</span>
+                        {user.telefono || "—"}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="location-city">{user.municipio    || "—"}</div>
+                      <div className="location-dept">{user.departamento || ""}</div>
+                    </td>
+                    <td><RolBadge rol={user.rol} roles={roles} /></td>
+                    <td>
+                      <ToggleConTooltip
+                        on={user.estado}
+                        onToggle={() => handleToggleClick(user)}
+                        disabled={false}
+                        razon={null}
+                      />
+                    </td>
+                    <td>
+                      <div className="actions-cell">
+                        <button className="act-btn act-btn--view"
+                          onClick={() => setModal({ type: "ver", user })}>👁</button>
+                        <button className="act-btn act-btn--edit"
+                          onClick={() => setModal({ type: "form", user })}>✎</button>
+                        <button className="act-btn act-btn--delete"
+                          onClick={() => setModal({ type: "delete", user, advertencias: [] })}>🗑️</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -414,13 +304,13 @@ export default function GestionUsuarios() {
         </div>
       </div>
 
-      {/* Modales */}
       {modal?.type === "ver" && (
-        <ModalVerUsuario user={modal.user} onClose={() => setModal(null)} />
+        <ModalVerUsuario user={modal.user} roles={roles} onClose={() => setModal(null)} />
       )}
       {modal?.type === "form" && (
         <CrearUsuario
           user={modal.user}
+          roles={roles}
           onClose={() => setModal(null)}
           onSave={handleSave}
         />
@@ -428,18 +318,10 @@ export default function GestionUsuarios() {
       {modal?.type === "delete" && (
         <ModalEliminarUsuario
           user={modal.user}
-          razon={modal.razon}
-          advertencias={modal.advertencias || []}
+          razon={null}
+          advertencias={[]}
           onClose={() => setModal(null)}
           onConfirm={handleDeleteConfirm}
-        />
-      )}
-      {modal?.type === "desactivar" && (
-        <ModalDesactivarUsuario
-          user={modal.user}
-          advertencias={modal.advertencias}
-          onClose={() => setModal(null)}
-          onConfirm={handleToggleConfirm}
         />
       )}
 

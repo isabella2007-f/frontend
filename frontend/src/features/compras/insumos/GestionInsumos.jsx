@@ -1,26 +1,50 @@
 import { useState, useEffect, useRef } from "react";
-import { useApp } from "../../../AppContext.jsx";
+import { registrarSalida } from "../../../services/salidasService";
 import CrearInsumo from "./CrearInsumo.jsx";
 import EditarInsumo from "./EditarInsumo.jsx";
 import VerInsumo from "./VerInsumo.jsx";
 import SalidaModal from "../../produccion/Productos/SalidaModal.jsx";
 import ModalEliminarValidado from "../../../ModalEliminarValidado";
+import { getInsumos, crearInsumo, editarInsumo, eliminarInsumo, toggleEstadoInsumo } from "../../../services/insumosService.js";
+import { getCategorias } from "../../../services/categoriasInsumosService.js";
 import "./GestionInsumos.css";
 
 const ITEMS_PER_PAGE = 5;
 
-/* ══════════════════════════════════════════════════════════
-   HELPERS
-══════════════════════════════════════════════════════════ */
+export const UNIDADES = [
+  { id: 1, nombre: "Kilogramo", simbolo: "kg"   },
+  { id: 2, nombre: "Gramo",     simbolo: "g"    },
+  { id: 3, nombre: "Litro",     simbolo: "L"    },
+  { id: 4, nombre: "Mililitro", simbolo: "ml"   },
+  { id: 5, nombre: "Unidad",    simbolo: "uds." },
+  { id: 6, nombre: "Libra",     simbolo: "lb"   },
+];
+
+const ADAPT_INSUMO = raw => ({
+  id:           raw.ID_Insumo,
+  nombre:       raw.Nombre,
+  idCategoria:  raw.ID_Categoria,
+  idUnidad:     raw.Unidad_Medida,
+  stockActual:  raw.Stock_Actual,
+  stockMinimo:  raw.Stock_Minimo,
+  estado:       raw.Estado === 1,
+  simboloUnidad: raw.simbolo_unidad ?? "",
+});
+
+const ADAPT_CAT = raw => ({
+  id:          raw.ID_Categoria,
+  nombre:      raw.Nombre_Categoria,
+  descripcion: raw.Descripcion ?? "",
+  icon:        raw.Icono ?? "🧺",
+  estado:      raw.Estado === 1,
+});
+
 function calcEstado(actual, minimo) {
   if (actual === 0)    return "agotado";
   if (actual < minimo) return "bajo";
   return "disponible";
 }
 
-/* ══════════════════════════════════════════════════════════
-   SUB-COMPONENTES
-══════════════════════════════════════════════════════════ */
 function Toggle({ value, onChange }) {
   return (
     <button onClick={() => onChange(!value)} className="toggle-btn"
@@ -79,18 +103,24 @@ function CatCell({ cat }) {
   );
 }
 
-/* ══════════════════════════════════════════════════════════
-   PÁGINA PRINCIPAL
-══════════════════════════════════════════════════════════ */
-export default function GestionInsumos() {
-  const {
-    insumos, categoriasInsumosActivas, categoriasInsumos, unidades,
-    getCatInsumo, getUnidad, getLotesDeInsumo,
-    crearInsumo, editarInsumo, toggleInsumo, eliminarInsumo,
-    registrarSalidaInsumo,
-    canDeleteInsumo,
-  } = useApp();
+function SkeletonRows() {
+  return Array.from({ length: 5 }, (_, i) => (
+    <tr key={i} className="tbl-row">
+      <td><div className="skeleton-cell" style={{ width: 28 }} /></td>
+      <td><div className="skeleton-cell" style={{ width: "70%" }} /></td>
+      <td><div className="skeleton-cell" style={{ width: 34 }} /></td>
+      <td><div className="skeleton-cell" style={{ width: 120 }} /></td>
+      <td><div className="skeleton-cell" style={{ width: 70 }} /></td>
+      <td><div className="skeleton-cell" style={{ width: 52 }} /></td>
+      <td><div className="skeleton-cell" style={{ width: 90 }} /></td>
+    </tr>
+  ));
+}
 
+export default function GestionInsumos() {
+  const [insumos,    setInsumos]    = useState([]);
+  const [categorias, setCategorias] = useState([]);
+  const [loading,    setLoading]    = useState(true);
   const [search,     setSearch]     = useState("");
   const [filterCat,  setFilterCat]  = useState("todas");
   const [filterEst,  setFilterEst]  = useState("todos");
@@ -111,6 +141,24 @@ export default function GestionInsumos() {
     setTimeout(() => setToast(null), 3000);
   };
 
+  const cargarDatos = async () => {
+    try {
+      setLoading(true);
+      const [insData, catData] = await Promise.all([getInsumos(), getCategorias()]);
+      setInsumos((insData.insumos ?? []).map(ADAPT_INSUMO));
+      setCategorias((catData.categorias ?? []).map(ADAPT_CAT));
+    } catch (e) {
+      showToast(e.message || "Error cargando datos", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { cargarDatos(); }, []);
+
+  const getCatInsumo = (idCat) => categorias.find(c => c.id === idCat) ?? { icon: "🧺", nombre: "—" };
+  const getUnidad    = (idU)   => UNIDADES.find(u => u.id === idU) ?? { simbolo: "uds.", nombre: "Unidad" };
+
   /* ── Filtrado ── */
   const filtered = insumos.filter(ins => {
     const q        = search.toLowerCase();
@@ -119,8 +167,7 @@ export default function GestionInsumos() {
     const matchCat = filterCat === "todas" || ins.idCategoria === Number(filterCat);
     const est      = calcEstado(ins.stockActual, ins.stockMinimo);
     const matchEst = filterEst === "todos" || filterEst === est ||
-      (filterEst === "activo"   ? ins.estado  :
-       filterEst === "inactivo" ? !ins.estado : true);
+      (filterEst === "activo" ? ins.estado : filterEst === "inactivo" ? !ins.estado : true);
     return matchQ && matchCat && matchEst;
   });
 
@@ -131,35 +178,68 @@ export default function GestionInsumos() {
 
   const hasFilter = filterCat !== "todas" || filterEst !== "todos";
 
-  /* ── Handlers ── */
-  const handleCreate = f  => { crearInsumo(f);  showToast("Insumo creado");    setModal(null); };
-  const handleEdit   = f  => { editarInsumo(f); showToast("Cambios guardados"); setModal(null); };
-  const handleDelete = () => { eliminarInsumo(modal.ins.id); showToast("Insumo eliminado", "error"); setModal(null); };
-
-  const handleSalida = async (payload) => {
-    const result = registrarSalidaInsumo({
-      idInsumo: payload.id,
-      tipo:     payload.tipo,
-      cantidad: payload.cantidad,
-      motivo:   payload.motivo,
-      fecha:    payload.fecha,
-    });
-    if (result.ok) {
-      showToast("Salida registrada y stock actualizado");
-      setModal(null);
-      return { ok: true };
-    } else {
-      showToast(result.razon || "Error en la salida", "error");
-      setModal(null);
-      return { ok: false };
+  /* ── Toggle optimista ── */
+  const handleToggle = async (ins) => {
+    setInsumos(prev => prev.map(i => i.id === ins.id ? { ...i, estado: !i.estado } : i));
+    try {
+      await toggleEstadoInsumo(ins.id, ins.estado);
+    } catch (e) {
+      setInsumos(prev => prev.map(i => i.id === ins.id ? { ...i, estado: ins.estado } : i));
+      showToast(e.message || "Error al cambiar estado", "error");
     }
   };
 
-  const getProximoVencimiento = (idInsumo) => {
-    const lotesValidos = getLotesDeInsumo(idInsumo).filter(l => l.cantidadActual > 0);
-    if (lotesValidos.length === 0) return "—";
-    return lotesValidos[0].fechaVencimiento;
+  /* ── CRUD ── */
+  const handleCreate = async (payload) => {
+    try {
+      await crearInsumo(payload);
+      showToast("Insumo creado");
+      setModal(null);
+      cargarDatos();
+    } catch (e) {
+      showToast(e.message || "Error al crear el insumo", "error");
+    }
   };
+
+  const handleEdit = async (payload) => {
+    try {
+      await editarInsumo(modal.ins.id, payload);
+      showToast("Cambios guardados");
+      setModal(null);
+      cargarDatos();
+    } catch (e) {
+      showToast(e.message || "Error al guardar cambios", "error");
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      await eliminarInsumo(modal.ins.id);
+      showToast("Insumo eliminado", "error");
+      setModal(null);
+      cargarDatos();
+    } catch (e) {
+      showToast(e.message || "Error al eliminar el insumo", "error");
+    }
+  };
+
+  const handleSalida = async (payload) => {
+    try {
+      await registrarSalida({
+        tipo:     payload.tipo,
+        idInsumo: payload.id,
+        cantidad: payload.cantidad,
+        motivo:   payload.motivo,
+      });
+      await cargarDatos();
+      showToast("Salida registrada y stock actualizado");
+    } catch (e) {
+      showToast(e.message || "Error en la salida", "error");
+    }
+    setModal(null);
+  };
+
+  const categoriasActivas = categorias.filter(c => c.estado);
 
   const filterEstOptions = [
     { val: "todos",      label: "Todos",      dot: "#bdbdbd" },
@@ -178,8 +258,6 @@ export default function GestionInsumos() {
       </div>
 
       <div className="page-inner">
-
-        {/* Toolbar */}
         <div className="toolbar">
           <div className="search-wrap">
             <span className="search-icon">🔍</span>
@@ -200,7 +278,7 @@ export default function GestionInsumos() {
                       onClick={() => setFilterCat("todas")}>
                       <span className="filter-dot" style={{ background: "#bdbdbd" }} />Todas
                     </button>
-                    {categoriasInsumos.map(c => (
+                    {categorias.map(c => (
                       <button key={c.id}
                         className={`filter-option${filterCat === c.id ? " active" : ""}`}
                         onClick={() => setFilterCat(c.id)}>
@@ -230,7 +308,6 @@ export default function GestionInsumos() {
           </button>
         </div>
 
-        {/* Tabla */}
         <div className="card">
           <div style={{ overflowX: "auto" }}>
             <table className="tbl">
@@ -246,7 +323,9 @@ export default function GestionInsumos() {
                 </tr>
               </thead>
               <tbody>
-                {paginated.length === 0 ? (
+                {loading ? (
+                  <SkeletonRows />
+                ) : paginated.length === 0 ? (
                   <tr>
                     <td colSpan={7}>
                       <div className="empty-state">
@@ -260,7 +339,6 @@ export default function GestionInsumos() {
                 ) : paginated.map((ins, idx) => {
                   const cat    = getCatInsumo(ins.idCategoria);
                   const unidad = getUnidad(ins.idUnidad);
-                  const proxVenc = getProximoVencimiento(ins.id);
                   return (
                     <tr key={ins.id} className="tbl-row">
                       <td>
@@ -277,11 +355,9 @@ export default function GestionInsumos() {
                       <td><CatCell cat={cat} /></td>
                       <td><StockBar actual={ins.stockActual} minimo={ins.stockMinimo} /></td>
                       <td>
-                        <span style={{ fontSize: 13, color: proxVenc === "—" ? "#bdbdbd" : "#555", fontWeight: 500 }}>
-                          {proxVenc}
-                        </span>
+                        <span style={{ fontSize: 13, color: "#bdbdbd", fontWeight: 500 }}>—</span>
                       </td>
-                      <td><Toggle value={ins.estado} onChange={() => toggleInsumo(ins.id)} /></td>
+                      <td><Toggle value={ins.estado} onChange={() => handleToggle(ins)} /></td>
                       <td>
                         <div className="actions-cell">
                           <button className="act-btn act-btn--view"   title="Ver detalle"      onClick={() => setModal({ type: "ver",      ins })}>👁</button>
@@ -302,30 +378,33 @@ export default function GestionInsumos() {
               {filtered.length} {filtered.length === 1 ? "insumo" : "insumos"} en total
             </span>
             <div className="pagination-btns">
-              <button className="pg-btn-arrow"
-                onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
-              <button className="pg-btn-arrow"
-                onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
               <span className="pg-pill">Página {safePage} de {totalPages}</span>
-              <button className="pg-btn-arrow"
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
-              <button className="pg-btn-arrow"
-                onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>»</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>»</button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ══ Modales ══ */}
-      {modal?.type === "crear"    && <CrearInsumo    onClose={() => setModal(null)} onSave={handleCreate} categorias={categoriasInsumosActivas} unidades={unidades} />}
-      {modal?.type === "editar"   && <EditarInsumo   ins={modal.ins} onClose={() => setModal(null)} onSave={handleEdit} categorias={categoriasInsumosActivas} unidades={unidades} />}
-      {modal?.type === "ver"      && <VerInsumo      ins={modal.ins} onClose={() => setModal(null)} />}
-      {modal?.type === "salida"   && (
+      {modal?.type === "crear"  && (
+        <CrearInsumo onClose={() => setModal(null)} onSave={handleCreate}
+          categorias={categoriasActivas} unidades={UNIDADES} />
+      )}
+      {modal?.type === "editar" && (
+        <EditarInsumo ins={modal.ins} onClose={() => setModal(null)} onSave={handleEdit}
+          categorias={categoriasActivas} unidades={UNIDADES} />
+      )}
+      {modal?.type === "ver" && (
+        <VerInsumo ins={modal.ins} categorias={categorias} unidades={UNIDADES} onClose={() => setModal(null)} />
+      )}
+      {modal?.type === "salida" && (
         <SalidaModal
-          entidad={modal?.ins}
+          entidad={modal.ins}
           tipo="insumo"
-          stockActual={modal?.ins?.stockActual}
-          unidadLabel={getUnidad(modal?.ins?.idUnidad)?.simbolo || "uds."}
+          stockActual={modal.ins.stockActual}
+          unidadLabel={getUnidad(modal.ins.idUnidad).simbolo}
           onClose={() => setModal(null)}
           onConfirm={handleSalida}
         />
@@ -333,8 +412,8 @@ export default function GestionInsumos() {
       {modal?.type === "eliminar" && (
         <ModalEliminarValidado
           titulo="Eliminar insumo"
-          descripcion={`¿Está seguro de que desea eliminar el insumo "${modal?.ins?.nombre}"?`}
-          validacion={canDeleteInsumo(modal?.ins?.id)}
+          descripcion={`¿Está seguro de que desea eliminar el insumo "${modal.ins.nombre}"?`}
+          validacion={{ ok: true }}
           onClose={() => setModal(null)}
           onConfirm={handleDelete}
         />

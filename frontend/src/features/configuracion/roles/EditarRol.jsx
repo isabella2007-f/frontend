@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import "./Roles.css";
+import { editarRol } from "../../../services/rolesService.js";
+import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
 import PrivilegiosModal, { buildPrivilegios } from "./PrivilegiosModal.jsx";
 
 const ICON_OPTIONS = ["👤","👑","🛡️","🔧","📦","💼","🧑‍💻","📊","🔑","⚙️","👷","🧑‍🍳"];
@@ -13,6 +15,7 @@ export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
   const [saving, setSaving]                   = useState(false);
   const [pickingIcon, setPickingIcon]         = useState(false);
   const [showPrivilegios, setShowPrivilegios] = useState(false);
+  const [iconFile, setIconFile]               = useState(null);
   const fileRef = useRef();
   const isView  = mode === "view";
 
@@ -27,6 +30,7 @@ export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
 
   const handleIconFile = e => {
     const file = e.target.files[0]; if (!file) return;
+    setIconFile(file);
     const reader = new FileReader();
     reader.onload = ev => { set("iconoPreview", ev.target.result); set("icono", null); };
     reader.readAsDataURL(file);
@@ -38,22 +42,26 @@ export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
   const handleSave = async () => {
     const newErrors = {};
     if (!form.nombre.trim()) newErrors.nombre = "Campo requerido";
-    if (activosCount === 0)  newErrors.privilegios = "El rol debe tener al menos un privilegio activo.";
-    if (form.esAdmin) {
-      const tieneRolesVer    = form.privilegios?.some(p => p.id === "Roles_ver"    && p.estado);
-      const tieneUsuariosVer = form.privilegios?.some(p => p.id === "Usuarios_ver" && p.estado);
-      if (!tieneRolesVer || !tieneUsuariosVer) {
-        newErrors.privilegios = "El rol administrador debe conservar al menos los privilegios de ver Roles y ver Usuarios.";
-      }
-    }
     if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
+
     setSaving(true);
-    await new Promise(r => setTimeout(r, 500));
-    onSave(form);
+    try {
+      const payload = { Rol: form.nombre.trim() };
+      if (iconFile) {
+        payload.Icono = await subirImagenCloudinary(iconFile);
+      } else if (form.icono) {
+        payload.Icono = form.icono;
+      } else if (!form.iconoPreview) {
+        payload.limpiar_icono = true;
+      }
+      await editarRol(rol.id, payload);
+      onSave?.();
+    } catch (e) {
+      setErrors({ _api: e.message || "Error al guardar" });
+    }
     setSaving(false);
   };
 
-  // ── FIX: portal al document.body para evitar quedar atrapado en stacking contexts ──
   return createPortal(
     <>
       <div className="modal-overlay" onClick={onClose}>
@@ -92,7 +100,7 @@ export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
                   {ICON_OPTIONS.map(ic => (
                     <button key={ic}
                       className={`icon-option${form.icono === ic ? " selected" : ""}`}
-                      onClick={() => { set("icono", ic); set("iconoPreview", null); setPickingIcon(false); }}>
+                      onClick={() => { set("icono", ic); set("iconoPreview", null); setIconFile(null); setPickingIcon(false); }}>
                       {ic}
                     </button>
                   ))}
@@ -119,21 +127,12 @@ export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
               }
             </div>
 
-            {/* Fecha */}
-            {rol?.fecha && (
-              <div className="date-info" style={{ marginBottom: 16 }}>
-                <span>📅</span>
-                <span>Creado el <strong>{rol.fecha}</strong></span>
-              </div>
-            )}
-
             {/* Privilegios */}
             <div className="form-group">
               <label className="form-label">Privilegios</label>
               <button
                 className="privilegios-open-btn"
-                style={errors.privilegios ? { borderColor: "#e53935" } : {}}
-                onClick={() => { setShowPrivilegios(true); setErrors(p => ({ ...p, privilegios: "" })); }}
+                onClick={() => setShowPrivilegios(true)}
               >
                 <span>🔐</span>
                 <span>Ver y gestionar privilegios</span>
@@ -142,8 +141,11 @@ export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
                 </span>
                 <span style={{ color: "#9e9e9e", fontSize: 13 }}>›</span>
               </button>
-              {errors.privilegios && <p className="field-error">{errors.privilegios}</p>}
             </div>
+
+            {errors._api && (
+              <p className="field-error" style={{ textAlign: "center" }}>{errors._api}</p>
+            )}
           </div>
 
           <div className="modal-footer">
@@ -161,7 +163,7 @@ export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
       {showPrivilegios && (
         <PrivilegiosModal
           privilegios={form.privilegios}
-          esAdmin={form.esAdmin}
+          esAdmin={rol?.esAdmin}
           isView={isView}
           onChange={privilegios => set("privilegios", privilegios)}
           onClose={() => setShowPrivilegios(false)}

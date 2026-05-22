@@ -1,52 +1,53 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { getUsers, saveUser } from "../services/userService";
+import { recuperarContrasena, verificarCodigo, resetearContrasena } from "../services/authService";
 import { Mail, Lock, Eye, EyeOff, Key, ChevronRight, CheckCircle, ArrowLeft, ShieldCheck } from "lucide-react";
 import "./Auth.css";
 
 const ForgotPassword = () => {
-  const [step, setStep]           = useState(1); // 1: Email | 2: Code | 3: Password | 4: Success
-  const [email, setEmail]         = useState("");
-  const [code, setCode]           = useState("");
-  const [password, setPassword]   = useState("");
-  const [confirm, setConfirm]     = useState("");
-  const [showPass, setShowPass]   = useState(false);
-  const [showConf, setShowConf]   = useState(false);
-  const [error, setError]         = useState("");
-  const [loading, setLoading]     = useState(false);
+  const [step, setStep]         = useState(1); // 1: Email | 2: Code | 3: Password | 4: Success
+  const [email, setEmail]       = useState("");
+  const [code, setCode]         = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm]   = useState("");
+  const [showPass, setShowPass] = useState(false);
+  const [showConf, setShowConf] = useState(false);
+  const [error, setError]       = useState("");
+  const [loading, setLoading]   = useState(false);
 
-  const handleEmailSubmit = (e) => {
+  const handleEmailSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
-    setTimeout(() => {
-      const users = getUsers();
-      const found = users.find(u => u.correo === email);
-      if (!found) {
-        setError("No encontramos una cuenta con ese correo.");
-      } else {
-        setStep(2);
-      }
+    try {
+      await recuperarContrasena(email);
+      setStep(2);
+    } catch (err) {
+      setError(err.message || "No encontramos una cuenta con ese correo.");
+    } finally {
       setLoading(false);
-    }, 600);
+    }
   };
 
-  const handleCodeSubmit = (e) => {
+  const handleCodeSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    if (code.length !== 6) {
+      setError("El código debe tener 6 dígitos.");
+      return;
+    }
     setLoading(true);
-    setTimeout(() => {
-      // Mock validation: any 6 digit code or '123456'
-      if (code.length !== 6) {
-        setError("El código debe tener 6 dígitos.");
-      } else {
-        setStep(3);
-      }
+    try {
+      await verificarCodigo(email, code);
+      setStep(3);
+    } catch (err) {
+      setError(err.message || "Código incorrecto o expirado.");
+    } finally {
       setLoading(false);
-    }, 600);
+    }
   };
 
-  const handlePasswordSubmit = (e) => {
+  const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     setError("");
     if (password !== confirm) {
@@ -58,13 +59,14 @@ const ForgotPassword = () => {
       return;
     }
     setLoading(true);
-    setTimeout(() => {
-      const users = getUsers();
-      const user  = users.find(u => u.correo === email);
-      saveUser({ ...user, password });
+    try {
+      await resetearContrasena(email, code, password);
       setStep(4);
+    } catch (err) {
+      setError(err.message || "No se pudo actualizar la contraseña.");
+    } finally {
       setLoading(false);
-    }, 600);
+    }
   };
 
   return (

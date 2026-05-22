@@ -1,12 +1,27 @@
 import { useState, useEffect, useRef } from "react";
-import { useApp } from "../../../AppContext.jsx";
 import { Toast, ModalOverlay } from "./ui.jsx";
 import CrearCategoriaInsumo from "./CrearCategoriaInsumo.jsx";
 import EditarCategoriaInsumo from "./EditarCategoriaInsumo.jsx";
 import ModalEliminarValidado from "../../../ModalEliminarValidado";
+import {
+  getCategorias,
+  crearCategoria,
+  editarCategoria,
+  eliminarCategoria,
+  toggleEstadoCategoria,
+} from "../../../services/categoriasInsumosService.js";
 import "./CategoriaInsumos.css";
 
 const ITEMS_PER_PAGE = 5;
+
+const ADAPT = raw => ({
+  id:          raw.ID_Categoria,
+  nombre:      raw.Nombre_Categoria,
+  descripcion: raw.Descripcion ?? "",
+  icon:        raw.Icono ?? "🧺",
+  estado:      raw.Estado === 1,
+  fecha:       raw.Fecha_creacion ?? "",
+});
 
 function Toggle({ value, onChange }) {
   return (
@@ -35,14 +50,11 @@ function StatusPill({ active }) {
       className="status-pill"
       style={{
         background: active ? "#e8f5e9" : "#f5f5f5",
-        color: active ? "#2e7d32" : "#9e9e9e",
-        border: `1px solid ${active ? "#a5d6a7" : "#e0e0e0"}`,
+        color:      active ? "#2e7d32" : "#9e9e9e",
+        border:     `1px solid ${active ? "#a5d6a7" : "#e0e0e0"}`,
       }}
     >
-      <span
-        className="status-dot"
-        style={{ background: active ? "#43a047" : "#bdbdbd" }}
-      />
+      <span className="status-dot" style={{ background: active ? "#43a047" : "#bdbdbd" }} />
       {active ? "Activo" : "Inactivo"}
     </span>
   );
@@ -59,29 +71,10 @@ function VerCategoria({ cat, onClose }) {
         <button className="modal-close-btn" onClick={onClose}>✕</button>
       </div>
       <div className="modal-body">
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "80px 1fr",
-            gap: 20,
-            marginBottom: 16,
-          }}
-        >
+        <div style={{ display: "grid", gridTemplateColumns: "80px 1fr", gap: 20, marginBottom: 16 }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Ícono</label>
-            <div
-              style={{
-                width: "100%",
-                height: 46,
-                borderRadius: 10,
-                background: "#f1f8f1",
-                border: "1px solid #c8e6c9",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 28,
-              }}
-            >
+            <div style={{ width: "100%", height: 46, borderRadius: 10, background: "#f1f8f1", border: "1px solid #c8e6c9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>
               {cat.icon}
             </div>
           </div>
@@ -93,22 +86,12 @@ function VerCategoria({ cat, onClose }) {
 
         <div className="form-group">
           <label className="form-label">Descripción</label>
-          <div
-            className="field-input field-input--disabled"
-            style={{ minHeight: 60, lineHeight: 1.4, fontSize: 13 }}
-          >
+          <div className="field-input field-input--disabled" style={{ minHeight: 60, lineHeight: 1.4, fontSize: 13 }}>
             {cat.descripcion || "Sin descripción registrada."}
           </div>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            paddingTop: 8,
-          }}
-        >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 8 }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Estado actual</label>
             <StatusPill active={cat.estado} />
@@ -128,65 +111,28 @@ function VerCategoria({ cat, onClose }) {
   );
 }
 
-function ModalDesactivarCategoriaInsumo({ cat, insumosAsociados, onClose, onConfirm }) {
-  const [done, setDone] = useState(false);
-
-  const handleConfirm = () => {
-    setDone(true);
-    setTimeout(() => {
-      onConfirm(cat.id);
-      onClose();
-    }, 600);
-  };
-
-  return (
-    <ModalOverlay onClose={onClose}>
-      <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
-        <div className="delete-icon-wrap" style={{ background: "#fff8e1", border: "1px solid #ffe082", color: "#e65100", fontSize: 24 }}>⚠️</div>
-        <h3 className="delete-title">Desactivar categoría</h3>
-        <p className="delete-body">
-          La categoría <strong>"{cat.nombre}"</strong> tiene {insumosAsociados.length} insumo{insumosAsociados.length > 1 ? "s" : ""} activo{insumosAsociados.length > 1 ? "s" : ""} asociado{insumosAsociados.length > 1 ? "s" : ""}.
-        </p>
-
-        <div style={{ textAlign: "left", margin: "12px 0", background: "#fff8e1", borderRadius: 10, padding: "12px 16px", border: "1px solid #ffe082" }}>
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-            <span style={{ fontSize: 14, marginTop: 1 }}>•</span>
-            <span style={{ fontSize: 13, color: "#6d4c00", lineHeight: 1.4 }}>
-              Todos los insumos vinculados a esta categoría serán <strong>desactivados</strong> automáticamente.
-            </span>
-          </div>
-        </div>
-
-        <p className="delete-warn">¿Desea continuar de todas formas?</p>
-      </div>
-      <div className="modal-footer" style={{ justifyContent: "center", gap: 12 }}>
-        <button className="btn-cancel-full" onClick={onClose}>Cancelar</button>
-        <button
-          className="btn-danger"
-          style={{ background: "#e65100", boxShadow: "0 3px 10px rgba(230,81,0,0.3)" }}
-          onClick={handleConfirm}
-          disabled={done}
-        >
-          {done ? "Desactivando…" : "Sí, desactivar"}
-        </button>
-      </div>
-    </ModalOverlay>
-  );
+function SkeletonRows() {
+  return Array.from({ length: 5 }, (_, i) => (
+    <tr key={i} className="tbl-row">
+      <td><div className="skeleton-cell" style={{ width: 28 }} /></td>
+      <td><div className="skeleton-cell" style={{ width: "60%" }} /></td>
+      <td><div className="skeleton-cell" style={{ width: "80%" }} /></td>
+      <td><div className="skeleton-cell" style={{ width: 52 }} /></td>
+      <td><div className="skeleton-cell" style={{ width: 80 }} /></td>
+      <td><div className="skeleton-cell" style={{ width: 80 }} /></td>
+    </tr>
+  ));
 }
 
 export default function CategoriaInsumos() {
-  const {
-    categoriasInsumos, insumos,
-    crearCatInsumo, editarCatInsumo, toggleCatInsumo, eliminarCatInsumo,
-    canDeleteCatInsumo,
-  } = useApp();
-
-  const [search,     setSearch]     = useState("");
-  const [filter,     setFilter]     = useState("todos");
-  const [showFilter, setShowFilter] = useState(false);
-  const [page,       setPage]       = useState(1);
-  const [modal,      setModal]      = useState(null);
-  const [toast,      setToast]      = useState(null);
+  const [categorias,  setCategorias]  = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [search,      setSearch]      = useState("");
+  const [filter,      setFilter]      = useState("todos");
+  const [showFilter,  setShowFilter]  = useState(false);
+  const [page,        setPage]        = useState(1);
+  const [modal,       setModal]       = useState(null);
+  const [toast,       setToast]       = useState(null);
   const filterRef = useRef();
 
   useEffect(() => {
@@ -203,7 +149,22 @@ export default function CategoriaInsumos() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const filtered = categoriasInsumos.filter(c => {
+  const cargarDatos = async () => {
+    try {
+      setLoading(true);
+      const data = await getCategorias();
+      setCategorias((data.categorias ?? []).map(ADAPT));
+    } catch (e) {
+      showToast(e.message || "Error cargando categorías", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { cargarDatos(); }, []);
+
+  /* ── Filtrado ── */
+  const filtered = categorias.filter(c => {
     const q      = search.toLowerCase();
     const matchQ = c.nombre.toLowerCase().includes(q) || c.descripcion.toLowerCase().includes(q);
     const matchE = filter === "todos" || (filter === "activo" ? c.estado : !c.estado);
@@ -212,37 +173,53 @@ export default function CategoriaInsumos() {
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const safePage   = Math.min(page, totalPages);
-  const paginated  = filtered.slice(
-    (safePage - 1) * ITEMS_PER_PAGE,
-    safePage * ITEMS_PER_PAGE
-  );
+  const paginated  = filtered.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
   useEffect(() => setPage(1), [search, filter]);
 
-  /* ── Toggle con validación de insumos asociados ── */
-  const handleToggle = (cat) => {
-    // Solo validar cuando se intenta DESACTIVAR (estado actual = true)
-    if (cat.estado) {
-      const insumosAsociados = insumos.filter(i => i.idCategoria === cat.id && i.estado);
-      if (insumosAsociados.length > 0) {
-        setModal({ type: "desactivar", cat, insumosAsociados });
-        return;
-      }
+  /* ── Toggle optimista ── */
+  const handleToggle = async (cat) => {
+    setCategorias(prev => prev.map(c => c.id === cat.id ? { ...c, estado: !c.estado } : c));
+    try {
+      await toggleEstadoCategoria(cat.id, cat.estado);
+    } catch (e) {
+      setCategorias(prev => prev.map(c => c.id === cat.id ? { ...c, estado: cat.estado } : c));
+      showToast(e.message || "Error al cambiar estado", "error");
     }
-    toggleCatInsumo(cat.id);
   };
 
-  const handleToggleConfirm = (catId) => {
-    toggleCatInsumo(catId);
-    showToast("Categoría e insumos asociados desactivados");
+  /* ── CRUD ── */
+  const handleCreate = async (payload) => {
+    try {
+      await crearCategoria(payload);
+      showToast("Categoría creada");
+      setModal(null);
+      cargarDatos();
+    } catch (e) {
+      showToast(e.message || "Error al crear la categoría", "error");
+    }
   };
 
-  const handleCreate = f => {
-    crearCatInsumo({ ...f, fecha: new Date().toLocaleDateString("es-CO") });
-    showToast("Categoría creada");
-    setModal(null);
+  const handleEdit = async (payload) => {
+    try {
+      await editarCategoria(modal.cat.id, payload);
+      showToast("Cambios guardados");
+      setModal(null);
+      cargarDatos();
+    } catch (e) {
+      showToast(e.message || "Error al guardar cambios", "error");
+    }
   };
-  const handleEdit   = f  => { editarCatInsumo(f);                showToast("Cambios guardados");          setModal(null); };
-  const handleDelete = () => { eliminarCatInsumo(modal.cat.id);   showToast("Categoría eliminada", "error"); setModal(null); };
+
+  const handleDelete = async () => {
+    try {
+      await eliminarCategoria(modal.cat.id);
+      showToast("Categoría eliminada", "error");
+      setModal(null);
+      cargarDatos();
+    } catch (e) {
+      showToast(e.message || "Error al eliminar la categoría", "error");
+    }
+  };
 
   const filterOptions = [
     { val: "todos",    label: "Todos",     dot: "#bdbdbd" },
@@ -310,7 +287,9 @@ export default function CategoriaInsumos() {
                 </tr>
               </thead>
               <tbody>
-                {paginated.length === 0 ? (
+                {loading ? (
+                  <SkeletonRows />
+                ) : paginated.length === 0 ? (
                   <tr>
                     <td colSpan={6}>
                       <div className="empty-state">
@@ -336,7 +315,6 @@ export default function CategoriaInsumos() {
                       <span className="cat-desc">{cat.descripcion}</span>
                     </td>
                     <td>
-                      {/* Toggle con validación inline */}
                       <Toggle value={cat.estado} onChange={() => handleToggle(cat)} />
                     </td>
                     <td>
@@ -344,18 +322,12 @@ export default function CategoriaInsumos() {
                     </td>
                     <td>
                       <div className="actions-cell">
-                        <button
-                          className="act-btn act-btn--view"
-                          onClick={() => setModal({ type: "ver", cat })}
-                        >👁</button>
-                        <button
-                          className="act-btn act-btn--edit"
-                          onClick={() => setModal({ type: "editar", cat })}
-                        >✎</button>
-                        <button
-                          className="act-btn act-btn--delete"
-                          onClick={() => setModal({ type: "eliminar", cat })}
-                        >🗑️</button>
+                        <button className="act-btn act-btn--view"
+                          onClick={() => setModal({ type: "ver", cat })}>👁</button>
+                        <button className="act-btn act-btn--edit"
+                          onClick={() => setModal({ type: "editar", cat })}>✎</button>
+                        <button className="act-btn act-btn--delete"
+                          onClick={() => setModal({ type: "eliminar", cat })}>🗑️</button>
                       </div>
                     </td>
                   </tr>
@@ -369,27 +341,11 @@ export default function CategoriaInsumos() {
               {filtered.length} {filtered.length === 1 ? "categoría" : "categorías"} en total
             </span>
             <div className="pagination-btns">
-              <button
-                className="pg-btn-arrow"
-                onClick={() => setPage(1)}
-                disabled={safePage === 1}
-              >«</button>
-              <button
-                className="pg-btn-arrow"
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={safePage === 1}
-              >‹</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
               <span className="pg-pill">Página {safePage} de {totalPages}</span>
-              <button
-                className="pg-btn-arrow"
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={safePage === totalPages}
-              >›</button>
-              <button
-                className="pg-btn-arrow"
-                onClick={() => setPage(totalPages)}
-                disabled={safePage === totalPages}
-              >»</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>»</button>
             </div>
           </div>
         </div>
@@ -402,17 +358,9 @@ export default function CategoriaInsumos() {
         <ModalEliminarValidado
           titulo="Eliminar categoría"
           descripcion={`¿Está seguro de que desea eliminar la categoría "${modal.cat.nombre}"?`}
-          validacion={canDeleteCatInsumo(modal.cat.id)}
+          validacion={{ ok: true }}
           onClose={() => setModal(null)}
           onConfirm={handleDelete}
-        />
-      )}
-      {modal?.type === "desactivar" && (
-        <ModalDesactivarCategoriaInsumo
-          cat={modal.cat}
-          insumosAsociados={modal.insumosAsociados}
-          onClose={() => setModal(null)}
-          onConfirm={handleToggleConfirm}
         />
       )}
 

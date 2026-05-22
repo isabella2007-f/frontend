@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useApp } from "../../../AppContext.jsx";
+import { getRoles, eliminarRol, toggleEstadoRol } from "../../../services/rolesService.js";
 import CrearRol from "./CrearRol.jsx";
 import EditarRol from "./EditarRol.jsx";
 import ModalEliminarValidado from "../../../ModalEliminarValidado";
@@ -38,55 +38,45 @@ function Toast({ toast }) {
   );
 }
 
-/** Modal de advertencia genérico (bloqueo o confirmación). */
-function AdvertenciaModal({ titulo, mensaje, onClose, onConfirm, confirmLabel = "Confirmar", bloqueado = false }) {
-  const [loading, setLoading] = useState(false);
-  const run = async () => {
-    setLoading(true);
-    await new Promise(r => setTimeout(r, 400));
-    onConfirm?.();
-    setLoading(false);
-  };
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
-        <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
-          <div className="delete-icon-wrap">{bloqueado ? "⚠️" : "🔄"}</div>
-          <h3 className="delete-title">{titulo}</h3>
-          <p className="delete-body">{mensaje}</p>
-        </div>
-        <div className="modal-footer modal-footer--center">
-          <button className="btn-ghost" onClick={onClose}>{bloqueado ? "Entendido" : "Cancelar"}</button>
-          {!bloqueado && (
-            <button className="btn-danger" onClick={run} disabled={loading}>
-              {loading ? "Procesando…" : confirmLabel}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+function SkeletonRows() {
+  return Array.from({ length: 5 }, (_, i) => (
+    <tr key={i}>
+      {Array.from({ length: 7 }, (_, j) => (
+        <td key={j}><div className="skeleton-cell" /></td>
+      ))}
+    </tr>
+  ));
 }
 
 export default function GestionRoles() {
-  const {
-    roles,
-    usuariosPorRol,
-    crearRol,
-    editarRol,
-    toggleRol,
-    eliminarRol,
-    canDeleteRol,
-  } = useApp();
-
-  const [search, setSearch]         = useState("");
-  const [filter, setFilter]         = useState("todos");
+  const [roles,      setRoles]      = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [search,     setSearch]     = useState("");
+  const [filter,     setFilter]     = useState("todos");
   const [showFilter, setShowFilter] = useState(false);
-  const [page, setPage]             = useState(1);
-  const [modal, setModal]           = useState(null);
-  const [toast, setToast]           = useState(null);
-  const filterRef                   = useRef();
+  const [page,       setPage]       = useState(1);
+  const [modal,      setModal]      = useState(null);
+  const [toast,      setToast]      = useState(null);
+  const filterRef = useRef();
+
+  const showToast = (msg, type = "success") => {
+    setToast({ message: msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const cargarDatos = async () => {
+    setLoading(true);
+    try {
+      const data = await getRoles();
+      setRoles(data);
+    } catch (e) {
+      showToast(e.message || "Error al cargar roles", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { cargarDatos(); }, []);
 
   useEffect(() => {
     const h = e => {
@@ -95,11 +85,6 @@ export default function GestionRoles() {
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
-
-  const showToast = (msg, type = "success") => {
-    setToast({ message: msg, type });
-    setTimeout(() => setToast(null), 3000);
-  };
 
   const filtered   = roles.filter(r => {
     const matchQ = r.nombre.toLowerCase().includes(search.toLowerCase());
@@ -112,55 +97,37 @@ export default function GestionRoles() {
 
   useEffect(() => setPage(1), [search, filter]);
 
-  const handleSave = (form) => {
-    if (modal.mode === "new") { crearRol(form);  showToast("Rol creado"); }
-    else                      { editarRol(form); showToast("Cambios guardados"); }
+  const handleSave = async () => {
+    await cargarDatos();
+    showToast(modal?.mode === "new" ? "Rol creado" : "Cambios guardados");
     setModal(null);
   };
 
-  const handleDeleteClick = (rol) => {
-    const check = canDeleteRol(rol.id);
-    setModal({ mode: "delete", rol, razon: check.ok ? null : check.razon });
-  };
-
-  const handleDeleteConfirm = () => {
-    eliminarRol(modal.rol.id);
-    showToast("Rol eliminado", "error");
-    setModal(null);
-  };
-
-  /**
-   * Intento de cambiar el toggle de estado de un rol.
-   *
-   * Regla de negocio:
-   *  – Si el rol es admin (esAdmin = true) y está activo (estado = true),
-   *    verificar que exista al menos OTRO rol admin activo antes de desactivarlo.
-   *    Si no existe, bloquear con advertencia.
-   */
-  const handleToggleClick = (rol) => {
-    const intentaDesactivar = rol.estado; // true → quiere pasar a false
-
-    if (rol.esAdmin && intentaDesactivar) {
-      const otrosAdminsActivos = roles.filter(
-        r => r.id !== rol.id && r.esAdmin && r.estado
-      );
-      if (otrosAdminsActivos.length === 0) {
-        // No hay otro admin activo → bloquear
-        setModal({
-          mode: "toggleBlock",
-          titulo: "No se puede desactivar",
-          mensaje: `"${rol.nombre}" es el único rol administrador activo. Activa otro rol admin antes de desactivar este.`,
-        });
-        return;
-      }
+  const handleDeleteConfirm = async () => {
+    try {
+      await eliminarRol(modal.rol.id);
+      showToast("Rol eliminado", "error");
+      await cargarDatos();
+    } catch (e) {
+      showToast(e.message || "Error al eliminar", "error");
     }
+    setModal(null);
+  };
 
-    // Caso permitido → ejecutar directamente
-    toggleRol(rol.id);
-    showToast(
-      rol.estado ? `Rol "${rol.nombre}" desactivado` : `Rol "${rol.nombre}" activado`,
-      rol.estado ? "error" : "success"
-    );
+  const handleToggleClick = async (rol) => {
+    // Optimistic update
+    setRoles(prev => prev.map(r => r.id === rol.id ? { ...r, estado: !r.estado } : r));
+    try {
+      await toggleEstadoRol(rol.id, rol.estado);
+      showToast(
+        rol.estado ? `Rol "${rol.nombre}" desactivado` : `Rol "${rol.nombre}" activado`,
+        rol.estado ? "error" : "success"
+      );
+    } catch (e) {
+      // Revert on failure
+      setRoles(prev => prev.map(r => r.id === rol.id ? { ...r, estado: rol.estado } : r));
+      showToast(e.message || "Error al cambiar estado", "error");
+    }
   };
 
   return (
@@ -187,9 +154,7 @@ export default function GestionRoles() {
             <button
               className={"filter-icon-btn" + (filter !== "todos" ? " has-filter" : "")}
               onClick={() => setShowFilter(v => !v)}
-            >
-              ▼
-            </button>
+            >▼</button>
             {showFilter && (
               <div className="filter-dropdown">
                 {[
@@ -225,14 +190,15 @@ export default function GestionRoles() {
                   <th>Rol</th>
                   <th>Usuarios</th>
                   <th>Estado</th>
-                  <th>Fecha</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {paginated.length === 0 ? (
+                {loading ? (
+                  <SkeletonRows />
+                ) : paginated.length === 0 ? (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={6}>
                       <div className="empty-state">
                         <div className="empty-state__icon">🛡️</div>
                         <p className="empty-state__text">Sin resultados</p>
@@ -248,70 +214,51 @@ export default function GestionRoles() {
                     </td>
                     <td>
                       <div className="rol-icon-wrap" style={{ cursor: "default" }}>
-                        {rol.iconoPreview && <img src={rol.iconoPreview} alt={rol.nombre} />}
-                        {!rol.iconoPreview && <span style={{ fontSize: 20 }}>{rol.icono}</span>}
+                        {rol.iconoPreview
+                          ? <img src={rol.iconoPreview} alt={rol.nombre} />
+                          : <span style={{ fontSize: 20 }}>{rol.icono}</span>}
                       </div>
                     </td>
                     <td>
                       <span className="cat-name">{rol.nombre}</span>
                       {rol.esAdmin && (
                         <span style={{
-                          marginLeft: 6,
-                          fontSize: 10,
-                          fontWeight: 700,
-                          color: "#f9a825",
-                          background: "#fff8e1",
-                          border: "1px solid #ffe082",
-                          borderRadius: 6,
-                          padding: "1px 6px",
-                        }}>
-                          protegido
-                        </span>
+                          marginLeft: 6, fontSize: 10, fontWeight: 700,
+                          color: "#f9a825", background: "#fff8e1",
+                          border: "1px solid #ffe082", borderRadius: 6, padding: "1px 6px",
+                        }}>protegido</span>
                       )}
                     </td>
                     <td>
                       <span style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: (usuariosPorRol[rol.nombre] ?? 0) > 0 ? "#2e7d32" : "#bdbdbd",
-                        background: (usuariosPorRol[rol.nombre] ?? 0) > 0 ? "#e8f5e9" : "#fafafa",
-                        border: `1px solid ${(usuariosPorRol[rol.nombre] ?? 0) > 0 ? "#c8e6c9" : "#eeeeee"}`,
-                        borderRadius: 20,
-                        padding: "2px 10px",
+                        fontSize: 12, fontWeight: 700,
+                        color: (rol.totalUsuarios ?? 0) > 0 ? "#2e7d32" : "#bdbdbd",
+                        background: (rol.totalUsuarios ?? 0) > 0 ? "#e8f5e9" : "#fafafa",
+                        border: `1px solid ${(rol.totalUsuarios ?? 0) > 0 ? "#c8e6c9" : "#eeeeee"}`,
+                        borderRadius: 20, padding: "2px 10px",
                       }}>
-                        {usuariosPorRol[rol.nombre] ?? 0}
+                        {rol.totalUsuarios ?? 0}
                       </span>
                     </td>
                     <td>
-                      {/* Toggle protegido por handleToggleClick */}
-                      <Toggle
-                        value={rol.estado}
-                        onChange={() => handleToggleClick(rol)}
-                      />
+                      <Toggle value={rol.estado} onChange={() => handleToggleClick(rol)} />
                     </td>
-                    <td><span className="date-badge">{rol.fecha}</span></td>
                     <td>
                       <div className="actions-cell">
                         <button
                           className="act-btn act-btn--view"
                           onClick={() => setModal({ mode: "view", rol })}
-                        >
-                          👁
-                        </button>
+                        >👁</button>
                         {!rol.esAdmin && (
                           <>
                             <button
                               className="act-btn act-btn--edit"
                               onClick={() => setModal({ mode: "edit", rol })}
-                            >
-                              ✎
-                            </button>
+                            >✎</button>
                             <button
                               className="act-btn act-btn--delete"
-                              onClick={() => handleDeleteClick(rol)}
-                            >
-                              🗑️
-                            </button>
+                              onClick={() => setModal({ mode: "delete", rol })}
+                            >🗑️</button>
                           </>
                         )}
                       </div>
@@ -328,28 +275,15 @@ export default function GestionRoles() {
             </span>
             <div className="pagination-btns">
               <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
-              <button
-                className="pg-btn-arrow"
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={safePage === 1}
-              >
-                ‹
-              </button>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
               <span className="pg-pill">Página {safePage} de {totalPages}</span>
-              <button
-                className="pg-btn-arrow"
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={safePage === totalPages}
-              >
-                ›
-              </button>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
               <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>»</button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ── Modales ── */}
       {modal?.mode === "new"    && <CrearRol onClose={() => setModal(null)} onSave={handleSave} />}
       {modal?.mode === "edit"   && <EditarRol rol={modal.rol} mode="edit" onClose={() => setModal(null)} onSave={handleSave} />}
       {modal?.mode === "view"   && <EditarRol rol={modal.rol} mode="view" onClose={() => setModal(null)} />}
@@ -357,17 +291,9 @@ export default function GestionRoles() {
         <ModalEliminarValidado
           titulo="Eliminar rol"
           descripcion={`¿Está seguro de que desea eliminar el rol "${modal.rol.nombre}"?`}
-          validacion={canDeleteRol(modal.rol.id)}
+          validacion={{ ok: true }}
           onClose={() => setModal(null)}
           onConfirm={handleDeleteConfirm}
-        />
-      )}
-      {modal?.mode === "toggleBlock" && (
-        <AdvertenciaModal
-          titulo={modal.titulo}
-          mensaje={modal.mensaje}
-          bloqueado
-          onClose={() => setModal(null)}
         />
       )}
 
