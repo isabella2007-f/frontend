@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { useApp } from "../../../AppContext.jsx";
+import { useState, useEffect } from "react";
+import { getUsuarios, editarUsuario } from "../../../services/usuariosService.js";
+import { getProductos } from "../../../services/productosService.js";
 import { DEPARTAMENTOS, getCiudades } from "../../../utils/departamentosYCiudades.js";
 import "./Pedidos.css";
 
@@ -128,8 +129,7 @@ function ProductoItemFijo({ item }) {
 }
 
 /* ─── BuscadorProducto ───────────────────────────────────── */
-function BuscadorProducto({ productosSeleccionados, onAgregar }) {
-  const { productos, getCatProducto } = useApp();
+function BuscadorProducto({ productosSeleccionados, onAgregar, productos = [] }) {
   const [query,   setQuery]   = useState("");
   const [abierto, setAbierto] = useState(false);
 
@@ -174,7 +174,7 @@ function BuscadorProducto({ productosSeleccionados, onAgregar }) {
                 <div>
                   <div className="product-option__name">{prod.nombre}</div>
                   <div style={{ fontSize: 11, color: "#9e9e9e" }}>
-                    {getCatProducto(prod.idCategoria)?.nombre}
+                    {prod.categoria || ""}
                   </div>
                 </div>
                 <div className="product-option__right">
@@ -200,7 +200,23 @@ function BuscadorProducto({ productosSeleccionados, onAgregar }) {
    MODAL EDITAR PEDIDO
 ═══════════════════════════════════════════════════════════ */
 export default function EditarPedido({ pedido, onClose, onSave }) {
-  const { clientesActivos: clientes, editarCliente, cambiarEstadoPedido } = useApp();
+  const [clientes,  setClientes]  = useState([]);
+  const [productos, setProductos] = useState([]);
+
+  useEffect(() => {
+    getUsuarios({ porPagina: 100 }).then(u => setClientes(u.filter(x => x.tipo === "cliente"))).catch(() => {});
+    getProductos({ porPagina: 100 }).then(data => {
+      const lista = (data.productos || data || []).map(p => ({
+        id:          p.ID_Producto || p.id,
+        nombre:      p.Nombre      || p.nombre      || "",
+        precio:      p.Precio_Venta|| p.precio      || 0,
+        stock:       p.Stock       || p.stock       || 0,
+        stockMinimo: p.Stock_Minimo|| p.stockMinimo || 0,
+        categoria:   p.nombre_categoria || p.categoria || "",
+      }));
+      setProductos(lista);
+    }).catch(() => {});
+  }, []);
 
   const ESTADOS_FLUJO = ["Pendiente", "En producción", "Listo", "En camino", "Entregado", "Cancelado"];
   const ESTADO_CFG = {
@@ -275,9 +291,16 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
     setEditandoCliente(true);
   };
 
-  const guardarDatosCliente = () => {
+  const guardarDatosCliente = async () => {
     if (!datosCliente) return;
-    editarCliente({ ...clienteActual, ...datosCliente });
+    try {
+      await editarUsuario("cliente", clienteActual.id, {
+        Nombre: datosCliente.nombre, Apellidos: datosCliente.apellidos,
+        Correo: datosCliente.correo, Telefono: datosCliente.telefono,
+        Direccion: datosCliente.direccion, Departamento: datosCliente.departamento,
+        Municipio: datosCliente.municipio,
+      });
+    } catch { /* silencioso — el cambio local ya se aplica */ }
     if (form.domicilio) {
       setForm(f => ({
         ...f,
@@ -324,9 +347,6 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaved(true);
-    if (form.estadoPedido !== pedido.estado) {
-      cambiarEstadoPedido(pedido.id, form.estadoPedido);
-    }
     const clienteObj = clientes.find(c => c.id === form.idCliente);
     const payload = {
       id:     pedido.id,
@@ -347,6 +367,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
       subtotal:          permisos.productos ? subtotal  : pedido.subtotal,
       total:             permisos.productos ? total     : pedido.total,
       orden_produccion:  permisos.productos ? hayProductosSinStock : pedido.orden_produccion,
+      estadoPedido:      form.estadoPedido,
     };
     setTimeout(() => onSave(payload), 900);
   };
@@ -580,7 +601,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
           <p className="section-label" style={{ textTransform: "none" }}>Productos</p>
           {permisos.productos ? (
             <>
-              <BuscadorProducto productosSeleccionados={form.productosItems} onAgregar={agregarProducto} />
+              <BuscadorProducto productosSeleccionados={form.productosItems} onAgregar={agregarProducto} productos={productos} />
               {errors.productos && <span className="field-error" style={{ marginTop: -4 }}>{errors.productos}</span>}
               {form.productosItems.length > 0 && (
                 <div className="productos-list">

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
-import { useApp } from "../../../AppContext.jsx";
 import { DEPARTAMENTOS, getCiudades } from "../../../utils/departamentosYCiudades.js";
+import { getUsuarios } from "../../../services/usuariosService.js";
+import { getProductos } from "../../../services/productosService.js";
 import "./Pedidos.css";
 
 /* ─── Helpers ────────────────────────────────────────────── */
@@ -35,8 +36,7 @@ function SelectArrow() {
 }
 
 /* ─── BuscadorProducto ───────────────────────────────────── */
-function BuscadorProducto({ productosSeleccionados, onAgregar }) {
-  const { productos, getCatProducto } = useApp();
+function BuscadorProducto({ productosSeleccionados, onAgregar, productos = [] }) {
   const [query,   setQuery]   = useState("");
   const [abierto, setAbierto] = useState(false);
   const ref = useRef();
@@ -89,7 +89,7 @@ function BuscadorProducto({ productosSeleccionados, onAgregar }) {
                 <div>
                   <div className="product-option__name">{prod.nombre}</div>
                   <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 1 }}>
-                    {getCatProducto(prod.idCategoria)?.nombre}
+                    {prod.categoria || ""}
                   </div>
                 </div>
                 <div className="product-option__right">
@@ -187,12 +187,27 @@ function StepsBar({ current }) {
    MODAL CREAR PEDIDO
    ═══════════════════════════════════════════════════════════ */
 export default function CrearPedido({ onClose, onSave }) {
-  const { clientesActivos: clientes } = useApp();
-
+  const [clientes,  setClientes]  = useState([]);
+  const [productos, setProductos] = useState([]);
   const [form, setForm]     = useState({ ...EMPTY_FORM });
   const [errors, setErrors] = useState({});
   const [saved,  setSaved]  = useState(false);
   const [step,   setStep]   = useState(1);
+
+  useEffect(() => {
+    getUsuarios({ porPagina: 100 }).then(u => setClientes(u.filter(x => x.tipo === "cliente"))).catch(() => {});
+    getProductos({ porPagina: 100 }).then(data => {
+      const lista = (data.productos || data || []).map(p => ({
+        id:          p.ID_Producto || p.id,
+        nombre:      p.Nombre      || p.nombre      || "",
+        precio:      p.Precio_Venta|| p.precio      || 0,
+        stock:       p.Stock       || p.stock       || 0,
+        stockMinimo: p.Stock_Minimo|| p.stockMinimo || 0,
+        categoria:   p.nombre_categoria || p.categoria || "",
+      }));
+      setProductos(lista);
+    }).catch(() => {});
+  }, []);
 
   const set = (k, v) => {
     setForm(f => ({ ...f, [k]: v }));
@@ -396,6 +411,7 @@ export default function CrearPedido({ onClose, onSave }) {
                 <BuscadorProducto
                   productosSeleccionados={form.productosItems}
                   onAgregar={agregarProducto}
+                  productos={productos}
                 />
                 {errors.productos && (
                   <span className="field-error" style={{ marginTop: 8, display: "block" }}>{errors.productos}</span>

@@ -1,11 +1,6 @@
-import { useState } from "react";
-import {
-  useApp,
-  calcularTotal,
-  diasHasta,
-  estadoLote,
-  sumarDias,
-} from "../../../AppContext.jsx";
+import { useState, useEffect } from "react";
+import { getProveedores } from "../../../services/proveedoresService.js";
+import { getInsumos } from "../../../services/insumosService.js";
 import { DEPARTAMENTOS, getCiudades } from "../../../utils/departamentosYCiudades.js";
 import "./compras.css";
 
@@ -20,6 +15,22 @@ const COP = (n) =>
     currency: "COP",
     maximumFractionDigits: 0,
   }).format(n);
+
+const calcularTotal = (items) =>
+  (items || []).reduce((s, i) => s + (Number(i.cantidad) || 0) * (Number(i.precioUnd) || 0), 0);
+
+const sumarDias = (n) => {
+  const d = new Date();
+  d.setDate(d.getDate() + Number(n));
+  return d.toISOString().split("T")[0];
+};
+
+const diasHasta = (fecha) => {
+  if (!fecha) return null;
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  return Math.round((new Date(fecha) - hoy) / (1000 * 60 * 60 * 24));
+};
 
 const emptyDetalle = () => ({
   _key:             Date.now() + Math.random(),
@@ -61,85 +72,18 @@ function StepsBar({ current }) {
 }
 
 /* ── Panel de lotes ─────────────────────────────────────── */
-export function LotesInsumoPanel({ idInsumo }) {
-  const { getLotesDeInsumo, getUnidad, getInsumo } = useApp();
-  const ins      = getInsumo(idInsumo);
-  const unidad   = ins ? getUnidad(ins.idUnidad) : null;
-  const lotesOrd = getLotesDeInsumo(idInsumo);
-
-  if (!lotesOrd.length) {
-    return (
-      <div className="lotes-empty">
-        <span>📦</span>
-        <p>No hay lotes registrados para este insumo todavía.</p>
-        <p className="lotes-empty__sub">Los lotes se crean automáticamente al completar una compra.</p>
-      </div>
-    );
-  }
-
-  const ESTADO_CONFIG = {
-    "activo":     { label: "Activo",           color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7", icon: "✅" },
-    "por-vencer": { label: "Próximo a vencer", color: "#e65100", bg: "#fff3e0", border: "#ffcc80", icon: "⚠️" },
-    "vencido":    { label: "Vencido",          color: "#c62828", bg: "#ffebee", border: "#ef9a9a", icon: "🚨" },
-    "agotado":    { label: "Agotado",          color: "#757575", bg: "#f5f5f5", border: "#e0e0e0", icon: "📭" },
-  };
-
+export function LotesInsumoPanel() {
   return (
-    <div className="lotes-panel">
-      <div className="lotes-resumen">
-        <div className="lotes-resumen__item">
-          <span className="lotes-resumen__num">{lotesOrd.length}</span>
-          <span className="lotes-resumen__label">Lotes totales</span>
-        </div>
-        <div className="lotes-resumen__item">
-          <span className="lotes-resumen__num">
-            {lotesOrd.filter(l => ["activo", "por-vencer"].includes(estadoLote(l))).length}
-          </span>
-          <span className="lotes-resumen__label">Con stock</span>
-        </div>
-      </div>
-      <div className="lotes-lista">
-        {lotesOrd.map(lote => {
-          const estado = estadoLote(lote);
-          const cfg    = ESTADO_CONFIG[estado];
-          return (
-            <div key={lote.id} className="lote-item" style={{ borderColor: cfg.border }}>
-              <div className="lote-item__head">
-                <span className="lote-item__id">{lote.id}</span>
-                <span className="lote-estado-chip" style={{ color: cfg.color, background: cfg.bg, borderColor: cfg.border }}>
-                  {cfg.icon} {cfg.label}
-                </span>
-              </div>
-              <div className="lote-item__body">
-                <div className="lote-dato">
-                  <span className="lote-dato__label">Cantidad</span>
-                  <span className="lote-dato__val">{lote.cantidadActual} {unidad?.simbolo}</span>
-                </div>
-                <div className="lote-dato">
-                  <span className="lote-dato__label">Vencimiento</span>
-                  <span className="lote-dato__val">📅 {lote.fechaVencimiento}</span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+    <div className="lotes-empty">
+      <span>📦</span>
+      <p>No hay lotes registrados para este insumo todavía.</p>
+      <p className="lotes-empty__sub">Los lotes se crean automáticamente al completar una compra.</p>
     </div>
   );
 }
 
 /* ── Modal anular ───────────────────────────────────────── */
-export function AnularCompraModal({ compra, onClose, onConfirm }) {
-  const { canAnularCompra, canDeleteCompra } = useApp();
-  const check    = (canAnularCompra || canDeleteCompra)(compra.id);
-  const [deleting, setDeleting] = useState(false);
-
-  const run = async () => {
-    setDeleting(true);
-    await new Promise(r => setTimeout(r, 400));
-    onConfirm(compra.id);
-  };
-
+export function AnularCompraModal({ compra, onClose }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
@@ -147,21 +91,13 @@ export function AnularCompraModal({ compra, onClose, onConfirm }) {
           <div className="delete-icon-wrap">🚫</div>
           <h3 className="delete-title">Anular compra</h3>
           <p className="delete-body">Compra <strong>{compra.id}</strong></p>
-          {!check.ok ? (
-            <div className="stock-aviso stock-aviso--block" style={{ marginTop: 12 }}>
-              🔒 {check.razon}
-            </div>
-          ) : (
-            <div className="stock-aviso stock-aviso--warn" style={{ marginTop: 12, textAlign: "left" }}>
-              ⚠️ Esta acción generará una <strong>salida automática de stock</strong> para reversar el ingreso de los insumos.
-            </div>
-          )}
+          <div className="stock-aviso stock-aviso--block" style={{ marginTop: 12 }}>
+            🔒 La anulación de compras no está disponible aún en el servidor.
+          </div>
         </div>
         <div className="modal-footer modal-footer--center">
-          <button className="btn-cancel-full" onClick={onClose}>Cancelar</button>
-          <button className="btn-danger" onClick={run} disabled={!check.ok || deleting}>
-            {deleting ? "Anulando…" : "Confirmar Anulación"}
-          </button>
+          <button className="btn-cancel-full" onClick={onClose}>Cerrar</button>
+          <button className="btn-danger" disabled>Confirmar Anulación</button>
         </div>
       </div>
     </div>
@@ -170,10 +106,28 @@ export function AnularCompraModal({ compra, onClose, onConfirm }) {
 
 /* ── EditarCompra / VerCompra ───────────────────────────── */
 export default function EditarCompra({ compra, mode, onClose, onSave }) {
-  const {
-    proveedores, insumosActivos,
-    getProveedor, getInsumo, getCatInsumo, getUnidad,
-  } = useApp();
+  const [proveedores,    setProveedores]    = useState([]);
+  const [insumosActivos, setInsumosActivos] = useState([]);
+
+  useEffect(() => {
+    getProveedores({ porPagina: 100 })
+      .then(d => setProveedores(d.proveedores || d || []))
+      .catch(() => {});
+    getInsumos({ porPagina: 100 })
+      .then(d => {
+        const lista = (d.insumos || d || []).map(i => ({
+          id:     i.ID_Insumo || i.id,
+          nombre: i.Nombre    || i.nombre || "",
+          unidad: i.unidad    || "",
+          estado: i.Estado !== 0,
+        }));
+        setInsumosActivos(lista.filter(i => i.estado));
+      })
+      .catch(() => {});
+  }, []);
+
+  const getInsumoById    = (id) => insumosActivos.find(i => i.id === Number(id)) || null;
+  const getProveedorById = (id) => proveedores.find(p => (p.ID_Proveedor || p.id) === id || (p.ID_Proveedor || p.id) === Number(id)) || null;
 
   const isView   = mode === "view";
   const isLocked = compra.stockAplicado === true;
@@ -188,14 +142,15 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
     departamento: String(compra.departamento || ""),
     ciudad:       String(compra.ciudad       || ""),
     notas:        String(compra.notas        || ""),
+    fecha_llegada: compra.fecha_llegada || "",
   });
 
   const [comprobante, setComprobante] = useState(null);
 
   const [detalles, setDetalles] = useState(
-    compra.detalles.map(d => ({
+    (compra.items || []).map(d => ({
       ...d,
-      _key:             d.id || Date.now() + Math.random(),
+      _key:             d.idInsumo || Date.now() + Math.random(),
       vencimientoTipo:  "fecha",
       vencimientoValor: "30",
       isExpanded:       false,
@@ -205,7 +160,6 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
-  const proveedor = getProveedor(compra.idProveedor);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const setDetalle   = (key, field, value) =>
@@ -245,21 +199,17 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
       notas:            d.notas?.trim() || "",
       fechaVencimiento: d.vencimientoTipo === "dias"
         ? sumarDias(d.vencimientoValor)
-        : d.fechaVencimiento || d.fechaVencimiento,
+        : d.fechaVencimiento || "",
     }));
     onSave({
       ...compra,
       ...form,
-      departamento: form.departamento,
-      ciudad:       form.ciudad,
       comprobante:  comprobante || compra.comprobante || null,
       detalles:     detallesLimpios,
     });
   };
 
-  /* ── SHARED WIDTH ── */
   const modalStyle = {
-    /* ── FIX 1: modal más ancho ── */
     maxWidth: 860,
     width: "95vw",
     display: "flex",
@@ -270,6 +220,8 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
 
   /* ── Vista detalle ── */
   if (isView) {
+    const _prov = getProveedorById(compra.idProveedor);
+    const provNombre = compra.proveedor || _prov?.Responsable || _prov?.responsable || "—";
     return (
       <div className="modal-overlay" onClick={onClose}>
         <div className="modal-card" onClick={e => e.stopPropagation()} style={modalStyle}>
@@ -280,7 +232,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <span className={`estado-chip estado-chip--${compra.estado}`}>
-                {compra.estado.toUpperCase()}
+                {String(compra.estado || "").charAt(0).toUpperCase() + String(compra.estado || "").slice(1)}
               </span>
               <button type="button" className="modal-close-btn" onClick={onClose}>✕</button>
             </div>
@@ -290,7 +242,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
             <div className="ver-compra-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
               <div className="ver-field">
                 <span className="ver-field__label">Proveedor</span>
-                <span className="ver-field__value">🏭 {proveedor?.responsable}</span>
+                <span className="ver-field__value">🏭 {provNombre}</span>
               </div>
               <div className="ver-field">
                 <span className="ver-field__label">Fecha</span>
@@ -315,6 +267,12 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                   <span className="ver-field__value">{compra.ciudad}</span>
                 </div>
               )}
+              {compra.fecha_llegada && (
+                <div className="ver-field">
+                  <span className="ver-field__label">Fecha llegada</span>
+                  <span className="ver-field__value">📦 {compra.fecha_llegada}</span>
+                </div>
+              )}
               {compra.notas && (
                 <div className="ver-field" style={{ gridColumn: "1 / -1" }}>
                   <span className="ver-field__label">Notas</span>
@@ -323,32 +281,21 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
               )}
             </div>
 
-            {compra.comprobante && (
-              <div className="ver-field" style={{ marginTop: 8 }}>
-                <span className="ver-field__label">Comprobante</span>
-                <span className="ver-field__value">
-                  📎 {compra.comprobante.name || "Comprobante adjunto"}
-                </span>
-              </div>
-            )}
-
             <p className="section-label" style={{ marginTop: 16 }}>Insumos Comprados</p>
             <div className="insumos-cards-grid">
-              {compra.detalles.map(d => {
-                const ins  = getInsumo(d.idInsumo);
-                const cat  = ins ? getCatInsumo(ins.idCategoria) : null;
-                const uni  = ins ? getUnidad(ins.idUnidad)       : null;
+              {(compra.items || []).map((d, idx) => {
+                const ins  = getInsumoById(d.idInsumo);
                 const dias = diasHasta(d.fechaVencimiento);
                 return (
-                  <div key={d.id || d._key} className="insumo-card">
+                  <div key={d.idInsumo || idx} className="insumo-card">
                     <div className="insumo-card__head">
-                      <span className="insumo-card__icon">{cat?.icon || "📦"}</span>
-                      <span className="insumo-card__name">{ins?.nombre}</span>
+                      <span className="insumo-card__icon">📦</span>
+                      <span className="insumo-card__name">{d.nombre || ins?.nombre}</span>
                     </div>
                     <div className="insumo-card__body">
                       <div className="insumo-card__data">
                         <span className="insumo-card__label">Cantidad</span>
-                        <span className="insumo-card__val">{d.cantidad} {uni?.simbolo}</span>
+                        <span className="insumo-card__val">{d.cantidad} {ins?.unidad || ""}</span>
                       </div>
                       <div className="insumo-card__data">
                         <span className="insumo-card__label">Subtotal</span>
@@ -357,24 +304,28 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                         </span>
                       </div>
                     </div>
-                    <div className="insumo-card__footer">
-                      <div className="insumo-card__venc">
-                        📅 Vence: {d.fechaVencimiento}
-                        {dias <= 7 && (
-                          <span className={dias < 0 ? "venc-danger" : "venc-warn"}>
-                            {dias < 0 ? " (Vencido)" : ` (${dias}d)`}
-                          </span>
-                        )}
+                    {d.fechaVencimiento && (
+                      <div className="insumo-card__footer">
+                        <div className="insumo-card__venc">
+                          📅 Vence: {d.fechaVencimiento}
+                          {dias !== null && dias <= 7 && (
+                            <span className={dias < 0 ? "venc-danger" : "venc-warn"}>
+                              {dias < 0 ? " (Vencido)" : ` (${dias}d)`}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 );
               })}
             </div>
 
-            <div className="total-bar" style={{ marginTop: 20 }}>
-              <span className="total-bar__label">Total de la Compra</span>
-              <span className="total-bar__value">{COP(calcularTotal(compra.detalles))}</span>
+            <div style={{ marginTop: 20, borderTop: "1px solid #f0f0f0", paddingTop: 16 }}>
+              <div className="total-bar" style={{ marginTop: 12 }}>
+                <span className="total-bar__label">Total Final</span>
+                <span className="total-bar__value">{COP(compra.total)}</span>
+              </div>
             </div>
           </div>
 
@@ -391,7 +342,6 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" onClick={e => e.stopPropagation()} style={modalStyle}>
 
-        {/* Header */}
         <div className="modal-header" style={{ flexShrink: 0, padding: "18px 28px" }}>
           <div>
             <p className="modal-header__eyebrow">Compras · {compra.id}</p>
@@ -405,7 +355,6 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
           </div>
         </div>
 
-        {/* Locked: solo notas + método */}
         {isLocked ? (
           <>
             <div className="modal-body" style={{ flex: 1, overflowY: "auto", padding: "20px 28px" }}>
@@ -454,6 +403,16 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                 <label className="field-label">Notas</label>
                 <textarea className="field-input field-textarea" rows={3} value={form.notas} onChange={e => set("notas", e.target.value)} />
               </div>
+              <div className="field-wrap" style={{ marginTop: 8 }}>
+                <label className="field-label">Fecha de llegada</label>
+                <input
+                  type="date"
+                  className="field-input"
+                  value={form.fecha_llegada}
+                  max={new Date().toISOString().split('T')[0]}
+                  onChange={e => set("fecha_llegada", e.target.value)}
+                />
+              </div>
             </div>
             <div className="modal-footer">
               <button className="btn-ghost" onClick={onClose}>Cancelar</button>
@@ -463,13 +422,11 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
             </div>
           </>
         ) : (
-          /* Edición completa con steps */
           <>
             <StepsBar current={step} />
 
             <div className="modal-body" style={{ flex: 1, overflowY: "auto", padding: "22px 28px" }}>
 
-              {/* ── PASO 1 ── */}
               {step === 1 && (
                 <>
                   <div className="field-wrap">
@@ -536,27 +493,6 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                     {errors.metodoPago && <span className="field-error">{errors.metodoPago}</span>}
                   </div>
 
-                  {form.metodoPago === "transferencia" && (
-                    <div className="field-wrap comprobante-wrap">
-                      <label className="field-label">Comprobante de transferencia</label>
-                      <label className="comprobante-upload-btn">
-                        <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} onChange={e => setComprobante(e.target.files?.[0] || null)} />
-                        <span className="comprobante-upload-icon">📎</span>
-                        {comprobante
-                          ? <span className="comprobante-filename">{comprobante.name}</span>
-                          : compra.comprobante
-                            ? <span className="comprobante-filename">{compra.comprobante.name || "Comprobante existente"}</span>
-                            : <span>Adjuntar comprobante (imagen o PDF)</span>
-                        }
-                      </label>
-                      {(comprobante || compra.comprobante) && (
-                        <button type="button" className="comprobante-remove-btn" onClick={() => setComprobante(null)}>✕ Quitar archivo</button>
-                      )}
-                      <span className="field-hint">Opcional — puedes adjuntarlo ahora o más tarde</span>
-                    </div>
-                  )}
-
-                  {/* ── FIX 3: departamento/ciudad con valores precargados y pasados explícitamente ── */}
                   <div className="field-grid-2">
                     <div className="field-wrap">
                       <label className="field-label">Departamento</label>
@@ -564,10 +500,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                         <select
                           className="field-select"
                           value={form.departamento}
-                          onChange={e => {
-                            set("departamento", e.target.value);
-                            set("ciudad", "");
-                          }}
+                          onChange={e => { set("departamento", e.target.value); set("ciudad", ""); }}
                         >
                           <option value="">— Seleccionar —</option>
                           {DEPARTAMENTOS.map(dept => <option key={dept} value={dept}>{dept}</option>)}
@@ -607,7 +540,6 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                 </>
               )}
 
-              {/* ── PASO 2 ── */}
               {step === 2 && (
                 <>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
@@ -616,9 +548,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                   </div>
 
                   {detalles.map((d, i) => {
-                    const insumoSel = insumosActivos.find(ins => ins.id === Number(d.idInsumo));
-                    const cat       = insumoSel ? getCatInsumo(insumoSel.idCategoria) : null;
-                    const unidad    = insumoSel ? getUnidad(insumoSel.idUnidad)       : null;
+                    const insumoSel = getInsumoById(d.idInsumo);
 
                     if (!d.isExpanded) {
                       return (
@@ -630,11 +560,11 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                           <div className="detalle-summary">
                             <div className="detalle-summary__info">
                               <span className="detalle-num">{String(i + 1).padStart(2, "0")}</span>
-                              <span className="insumo-icon">{cat?.icon || "📦"}</span>
+                              <span className="insumo-icon">📦</span>
                               <div>
-                                <span className="detalle-summary__name">{insumoSel?.nombre || "Insumo"}</span>
+                                <span className="detalle-summary__name">{insumoSel?.nombre || d.nombre || "Insumo"}</span>
                                 <div className="detalle-summary__meta">
-                                  {d.cantidad ? `${d.cantidad} ${unidad?.simbolo || ""}` : "Sin cantidad"} ·{" "}
+                                  {d.cantidad ? `${d.cantidad} ${insumoSel?.unidad || ""}` : "Sin cantidad"} ·{" "}
                                   {d.precioUnd ? COP(d.precioUnd) : "—"}
                                 </div>
                               </div>
@@ -670,17 +600,9 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                                 value={d.idInsumo}
                                 onChange={e => {
                                   const selectedId = e.target.value;
-                                  const ins = insumosActivos.find(x => x.id === Number(selectedId));
-                                  // ── FIX 2: NO colapsar al seleccionar ──
                                   setDetalles(ds => ds.map(det =>
                                     det._key === d._key
-                                      ? {
-                                          ...det,
-                                          idInsumo:         selectedId,
-                                          vencimientoTipo:  ins?.vencimientoTipo  || "dias",
-                                          vencimientoValor: ins?.vencimientoValor || "30",
-                                          // isExpanded: sin tocar — mantiene true
-                                        }
+                                      ? { ...det, idInsumo: selectedId }
                                       : det
                                   ));
                                 }}
@@ -695,19 +617,13 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                                       String(ins.id) !== String(d.idInsumo)
                                     }
                                   >
-                                    {getCatInsumo(ins.idCategoria).icon} {ins.nombre} · Stock: {ins.stockActual}
+                                    {ins.nombre}
                                   </option>
                                 ))}
                               </select>
                               <span className="select-arrow">▾</span>
                             </div>
                             {errors[`ins_${i}`] && <span className="field-error">{errors[`ins_${i}`]}</span>}
-                            {insumoSel && (
-                              <div className="insumo-sel-chips">
-                                <span className="chip chip--cat">{cat?.icon} {cat?.nombre}</span>
-                                <span className="chip chip--uni">📏 {unidad?.simbolo}</span>
-                              </div>
-                            )}
                           </div>
 
                           <div className="field-wrap" style={{ gridColumn: "span 1" }}>
@@ -781,7 +697,6 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
               )}
             </div>
 
-            {/* Footer con total */}
             <div style={{ flexShrink: 0, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 28px 20px", borderTop: "1px solid #f5f5f5" }}>
               <div className="total-bar" style={{ margin: 0 }}>
                 <span className="total-bar__label">Total</span>

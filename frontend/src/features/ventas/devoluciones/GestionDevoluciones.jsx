@@ -359,7 +359,7 @@ export default function GestionDevoluciones() {
   const cargarDatos = async () => {
     setLoading(true);
     try {
-      const data = await getDevoluciones({ porPagina: 200 });
+      const data = await getDevoluciones({ porPagina: 100 });
       setDevoluciones(data.devoluciones);
     } catch (err) {
       showToast(err.message || "Error al cargar devoluciones", "error");

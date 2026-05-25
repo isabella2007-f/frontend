@@ -32,9 +32,9 @@ const handleSubmit = async (e) => {
   };
 
   return (
+    <>
+    <Navbar isLanding={true} />
     <div className="auth-page">
-      <Navbar isLanding={true} />
-
       <div className="auth-bg">
         <div className="auth-blob auth-blob--1" />
         <div className="auth-blob auth-blob--2" />
@@ -152,6 +152,7 @@ const handleSubmit = async (e) => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 

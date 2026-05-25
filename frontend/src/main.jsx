@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import AppRouter from "./routes/AppRouter";
 import { AppProvider, useApp } from "./AppContext.jsx";
 import { NotificacionesProvider } from "./features/notificaciones/context/NotificacionesContext";
+import { PrivilegiosProvider } from "./context/PrivilegiosContext.jsx";
 import "./shared/index.css";
 
 // ── Wrapper intermedio: ya tiene acceso a AppContext ──────
@@ -23,10 +24,12 @@ function NotificacionesWrapper({ children }) {
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <AppProvider>                        {/* 1° AppProvider — expone insumos, lotes, etc. */}
-      <NotificacionesWrapper>            {/* 2° lee esos datos y los pasa al provider */}
-        <AppRouter />
-      </NotificacionesWrapper>
-    </AppProvider>
+    <PrivilegiosProvider>               {/* 0° carga privilegios del rol al iniciar sesión */}
+      <AppProvider>                     {/* 1° AppProvider — expone insumos, lotes, etc. */}
+        <NotificacionesWrapper>         {/* 2° lee esos datos y los pasa al provider */}
+          <AppRouter />
+        </NotificacionesWrapper>
+      </AppProvider>
+    </PrivilegiosProvider>
   </React.StrictMode>
 );

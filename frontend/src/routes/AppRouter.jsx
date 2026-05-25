@@ -10,7 +10,6 @@ import Empleados from "../features/configuracion/empleados/Empleados";
 import Roles from "../features/configuracion/roles/Roles";
 import GestionSalidas from "../features/salidas/GestionSalidas.jsx";
 
-
 /* ─── PRODUCCIÓN ─── */
 import CategoriaProductos from "../features/produccion/categoria_productos/Categoriaproductos";
 import Productos from "../features/produccion/Productos/Productos";
@@ -41,11 +40,16 @@ import Login from "../pages/Login";
 import Register from "../pages/Register";
 import ForgotPassword from "../pages/Forgotpassword";
 import LandingPage from "../pages/LandingPage";
+import SinAcceso from "../pages/SinAcceso";
 import ProtectedRoute from "../components/ProtectedRoute";
+import PrivilegioRoute from "../components/PrivilegioRoute";
 import { initUsers } from "../services/userService";
 
 /* ─── INIT ─── */
 initUsers();
+
+/* ─── HELPER ─── */
+const PR = ({ clave, el }) => <PrivilegioRoute clave={clave}>{el}</PrivilegioRoute>;
 
 const AppRouter = () => {
   return (
@@ -57,37 +61,38 @@ const AppRouter = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/recuperar" element={<ForgotPassword />} />
+        <Route path="/sin-acceso" element={<SinAcceso />} />
 
         {/* ───────────── ADMIN ───────────── */}
         <Route element={<ProtectedRoute allowedRoles={["empleado"]} />}>
           <Route path="/admin" element={<MainLayout />}>
-            
-            <Route index element={<Dashboard />} />
+
+            <Route index element={<PR clave="Dashboard_ver" el={<Dashboard />} />} />
 
             {/* Configuración */}
-            <Route path="usuarios" element={<GestionUsuarios />} />
-            <Route path="empleados" element={<Empleados />} />
-            <Route path="roles" element={<Roles />} />
-            <Route path="salidas" element={<GestionSalidas />} />
-
+            <Route path="usuarios"   element={<PR clave="Usuarios_ver"      el={<GestionUsuarios />} />} />
+            <Route path="empleados"  element={<PR clave="Usuarios_ver"      el={<Empleados />} />} />
+            <Route path="roles"      element={<PR clave="Roles_ver"         el={<Roles />} />} />
+            <Route path="salidas"    element={<PR clave="GestionSalidas_ver" el={<GestionSalidas />} />} />
 
             {/* Producción */}
-            <Route path="categorias_productos" element={<CategoriaProductos />} />
-            <Route path="products" element={<Productos />} />
-            <Route path="ordenes-produccion" element={<GestionOrdenesProduccion />} />
+            <Route path="categorias_productos"  element={<PR clave="CategoriaProductos_ver" el={<CategoriaProductos />} />} />
+            <Route path="products"              element={<PR clave="GestionProductos_ver"   el={<Productos />} />} />
+            <Route path="ordenes-produccion"    element={<PR clave="OrdenesProduccion_ver"  el={<GestionOrdenesProduccion />} />} />
 
             {/* Ventas */}
-            <Route path="clientes" element={<GestionClientes />} />
-            <Route path="pedidos" element={<GestionPedidos />} />
-            <Route path="devoluciones" element={<GestionDevoluciones />} />
-            <Route path="domicilios" element={<GestionDomicilios />} />
+            <Route path="clientes"    element={<PR clave="Pedidos_ver"      el={<GestionClientes />} />} />
+            <Route path="pedidos"     element={<PR clave="Pedidos_ver"      el={<GestionPedidos />} />} />
+            <Route path="devoluciones" element={<PR clave="Devoluciones_ver" el={<GestionDevoluciones />} />} />
+            <Route path="domicilios"  element={<PR clave="Domicilios_ver"   el={<GestionDomicilios />} />} />
 
             {/* Compras */}
-            <Route path="categorias_insumos" element={<CategoriaInsumos />} />
-            <Route path="gestion-insumos" element={<GestionInsumos />} />
-            <Route path="compras" element={<GestionCompras />} />
-            <Route path="proveedores" element={<Proveedores />} />
+            <Route path="categorias_insumos" element={<PR clave="CategoriaInsumos_ver" el={<CategoriaInsumos />} />} />
+            <Route path="gestion-insumos"    element={<PR clave="Insumos_ver"          el={<GestionInsumos />} />} />
+            <Route path="compras"            element={<PR clave="Compras_ver"          el={<GestionCompras />} />} />
+            <Route path="proveedores"        element={<PR clave="Proveedores_ver"      el={<Proveedores />} />} />
 
+            {/* Perfil — sin restricción */}
             <Route path="perfil" element={<ProfilePage />} />
 
           </Route>
@@ -96,15 +101,14 @@ const AppRouter = () => {
         {/* ───────────── CLIENTE ───────────── */}
         <Route element={<ProtectedRoute allowedRoles={["usuario"]} />}>
           <Route path="/cliente" element={<MainLayout />}>
-            
-            <Route index element={<LandingPage hideNavbar={true} />} />
 
-            <Route path="inicio" element={<LandingPage hideNavbar={true} />} />
-            <Route path="hacer-pedidos" element={<OrdersPage />} />
-            <Route path="pedidos" element={<PedidosClientePage />} />
-            <Route path="domicilios" element={<DeliveryPage />} />
-            <Route path="devoluciones" element={<ReturnsPage />} />
-            <Route path="perfil" element={<ProfilePage />} />
+            <Route index element={<LandingPage hideNavbar={true} />} />
+            <Route path="inicio"         element={<LandingPage hideNavbar={true} />} />
+            <Route path="hacer-pedidos"  element={<OrdersPage />} />
+            <Route path="pedidos"        element={<PedidosClientePage />} />
+            <Route path="domicilios"     element={<DeliveryPage />} />
+            <Route path="devoluciones"   element={<ReturnsPage />} />
+            <Route path="perfil"         element={<ProfilePage />} />
 
           </Route>
         </Route>

@@ -675,7 +675,7 @@ export default function GestionDomicilios() {
     setLoading(true);
     try {
       const [dData, uData] = await Promise.all([
-        getDomicilios({ porPagina: 200 }),
+        getDomicilios({ porPagina: 100 }),
         getUsuarios({ porPagina: 100 }),
       ]);
       setDomicilios(dData.domicilios);

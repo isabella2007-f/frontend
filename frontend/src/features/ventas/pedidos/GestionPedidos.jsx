@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { useApp } from "../../../AppContext.jsx";
-import { getPedidos, confirmarPedido, cancelarPedido } from "../../../services/pedidosService.js";
+import { getPedidos, confirmarPedido, cancelarPedido, crearPedido, editarPedido, eliminarPedido } from "../../../services/pedidosService.js";
+import { getUsuarios } from "../../../services/usuariosService.js";
+import CrearPedido from "./CrearPedido.jsx";
+import EditarPedido from "./EditarPedido.jsx";
 import { 
   Eye, Edit3, Trash2, Truck, Package, 
   RotateCcw, ChevronRight, X, AlertCircle, 
@@ -490,9 +492,9 @@ function SkeletonRows({ cols = 8, rows = 5 }) {
    COMPONENTE PRINCIPAL
    ═══════════════════════════════════════════════════════════ */
 export default function GestionPedidos() {
-  const { usuarios } = useApp();
   const navigate = useNavigate();
-  const empleados = (usuarios || []).filter(u => u.rol === "Empleado" && u.estado);
+  const [usuarios, setUsuarios] = useState([]);
+  const empleados = (usuarios || []).filter(u => u.tipo === "empleado" && u.estado);
 
   const [pedidos,      setPedidos]      = useState([]);
   const [loading,      setLoading]      = useState(true);
@@ -514,7 +516,7 @@ export default function GestionPedidos() {
   const cargarDatos = async () => {
     setLoading(true);
     try {
-      const data = await getPedidos({ porPagina: 200 });
+      const data = await getPedidos({ porPagina: 100 });
       setPedidos(data.pedidos);
     } catch (err) {
       showToast(err.message || "Error al cargar pedidos", "error");
@@ -523,7 +525,10 @@ export default function GestionPedidos() {
     }
   };
 
-  useEffect(() => { cargarDatos(); }, []);
+  useEffect(() => {
+    cargarDatos();
+    getUsuarios({ porPagina: 100 }).then(setUsuarios).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const h = e => { if (filterRef.current && !filterRef.current.contains(e.target)) setShowFilter(false); };
@@ -590,6 +595,63 @@ export default function GestionPedidos() {
     }
   };
 
+  const handleCrearPedido = async (formData) => {
+    try {
+      const payload = {
+        ID_Cliente:        Number(formData.idCliente),
+        productos:         (formData.productosItems || []).map(p => ({
+          ID_Producto: Number(p.idProducto),
+          Cantidad:    Number(p.cantidad),
+        })),
+        Metodo_Pago:       formData.metodo_pago,
+        Domicilio:         formData.domicilio,
+        Direccion_Entrega: formData.direccion_entrega || null,
+        Subtotal:          formData.subtotal,
+        Descuento:         formData.descuento,
+        Total:             formData.total,
+        Notas:             formData.notas || null,
+      };
+      await crearPedido(payload);
+      await cargarDatos();
+      showToast("Pedido creado correctamente");
+      setModal(null);
+    } catch (err) {
+      showToast(err.message || "Error al crear pedido", "error");
+    }
+  };
+
+  const handleEditarPedido = async (formData) => {
+    try {
+      const payload = {
+        Metodo_Pago:       formData.metodo_pago,
+        Domicilio:         formData.domicilio,
+        Direccion_Entrega: formData.direccion_entrega || null,
+        Subtotal:          formData.subtotal,
+        Descuento:         formData.descuento,
+        Total:             formData.total,
+        Notas:             formData.notas || null,
+        ...(formData.estadoPedido ? { Estado: formData.estadoPedido } : {}),
+      };
+      await editarPedido(formData.id, payload);
+      await cargarDatos();
+      showToast("Pedido actualizado");
+      setModal(null);
+    } catch (err) {
+      showToast(err.message || "Error al actualizar pedido", "error");
+    }
+  };
+
+  const handleEliminarPedido = async (id) => {
+    try {
+      await eliminarPedido(id);
+      await cargarDatos();
+      showToast("Pedido eliminado", "warn");
+    } catch (err) {
+      showToast(err.message || "Error al eliminar", "error");
+    }
+    setModal(null);
+  };
+
   return (
     <div className="page-wrapper">
       <div className="page-header">
@@ -649,6 +711,10 @@ export default function GestionPedidos() {
               </div>
             )}
           </div>
+
+          <button className="btn-agregar" onClick={() => setModal({ type: "crear" })}>
+            Nuevo pedido <span style={{ fontSize: 18 }}>+</span>
+          </button>
         </div>
 
         <div className="card">
@@ -710,8 +776,10 @@ export default function GestionPedidos() {
                       <td>
                         <div className="actions-cell flex items-center gap-1">
                           <button className="act-btn act-btn--view bg-green-50 text-green-600 hover:bg-green-600 hover:text-white transition-all p-1.5 rounded-lg border border-green-100" onClick={() => setModal({ type: "ver", pedido: ped })}>👁</button>
+                          {!["Entregado","Cancelado"].includes(ped.estado) && <button className="act-btn act-btn--edit bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white transition-all p-1.5 rounded-lg border border-amber-100" onClick={() => setModal({ type: "editar", pedido: ped })}>✎</button>}
                           {canAdvance && <button className="act-btn act-btn--success bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all p-1.5 rounded-lg border border-blue-100" disabled={actionSaving} onClick={() => handleCambiarEstadoDirecto(ped)}>🔄</button>}
                           {canCancel && <button className="act-btn act-btn--delete bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-all p-1.5 rounded-lg border border-red-100" disabled={actionSaving} onClick={() => handleCancelarPedido(ped)}>✕</button>}
+                          {!["Entregado"].includes(ped.estado) && <button className="act-btn bg-gray-50 text-gray-500 hover:bg-gray-600 hover:text-white transition-all p-1.5 rounded-lg border border-gray-200" onClick={() => setModal({ type: "eliminar", pedido: ped })}>🗑️</button>}
                         </div>
                       </td>
                     </tr>
@@ -734,8 +802,11 @@ export default function GestionPedidos() {
         </div>
       </div>
 
-      {modal?.type === "ver" && <ModalVerPedido pedido={modal.pedido} empleados={empleados} onClose={() => setModal(null)} onEdit={() => setModal(null)} />}
+      {modal?.type === "ver" && <ModalVerPedido pedido={modal.pedido} empleados={empleados} onClose={() => setModal(null)} onEdit={(ped) => setModal({ type: "editar", pedido: ped })} />}
       {modal?.type === "confirmarEstado" && <ModalConfirmarEstado pedido={modal.pedido} nuevoEstado={modal.nuevoEstado} onClose={() => setModal(null)} onConfirm={handleConfirmarCambioEstado} />}
+      {modal?.type === "crear" && <CrearPedido onClose={() => setModal(null)} onSave={handleCrearPedido} />}
+      {modal?.type === "editar" && <EditarPedido pedido={modal.pedido} onClose={() => setModal(null)} onSave={handleEditarPedido} />}
+      {modal?.type === "eliminar" && <ModalEliminarPedido pedido={modal.pedido} onClose={() => setModal(null)} onConfirm={handleEliminarPedido} />}
 
       <Toast toast={toast} />
     </div>

@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { useApp } from '../../../AppContext';
 import { getCurrentUser } from '../../client/profile/services/profileService.js';
 import ReturnForm        from './components/ReturnForm';
 import ReturnList        from './components/ReturnList';
 import ReturnDetailModal from './components/ReturnDetailModal';
-import { getReturns }    from './services/returnService';
+import { getPedidos }    from '../../../services/pedidosService';
+import { getDevoluciones } from '../../../services/devolucionesService';
 import { 
   RefreshCw, Leaf, PackageSearch, Package, Calendar, 
   MapPin, DollarSign, ChevronRight, ArrowRight, History, 
@@ -19,27 +19,33 @@ const COP = (n) =>
   }).format(n);
 
 const ReturnsPage = () => {
-  const { pedidos, productos } = useApp();
-  const [user, setUser] = useState(null);
-  const [returns, setReturns] = useState([]);
+  const [pedidos,  setPedidos]  = useState([]);
+  const [user,     setUser]     = useState(null);
+  const [returns,  setReturns]  = useState([]);
   const [selectedReturn, setSelectedReturn] = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const [toast, setToast] = useState(null);
-  
-  // Estado para el pedido seleccionado para devolución
+  const [toast,    setToast]    = useState(null);
   const [selectedOrderForReturn, setSelectedOrderForReturn] = useState(null);
-  
+
   const location = useLocation();
   const defaultValues = location.state || {};
 
-  const loadReturns = () => setReturns(getReturns());
+  const loadReturns = () => {
+    getDevoluciones({ porPagina: 100 }).then(data => setReturns(data.devoluciones || [])).catch(() => {});
+  };
 
-  useEffect(() => { 
+  useEffect(() => {
+    const currentUser = getCurrentUser();
+    setUser(currentUser);
     loadReturns();
-    setUser(getCurrentUser());
+    getPedidos({ porPagina: 100 }).then(data => {
+      const todos = data.pedidos || [];
+      if (currentUser) {
+        setPedidos(todos.filter(p => p.cliente?.correo === currentUser.correo || p.idCliente === currentUser.id));
+      }
+    }).catch(() => {});
   }, []);
 
-  // Si viene del detalle de pedidos, pre-seleccionar el pedido
   useEffect(() => {
     if (defaultValues.orderNumber && pedidos.length > 0) {
       const order = pedidos.find(p => p.numero === defaultValues.orderNumber);

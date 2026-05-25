@@ -85,6 +85,9 @@ export function buildPrivilegios(overrides = []) {
       map[p] = true;
     } else if (p && p.modulo) {
       map[p.id] = p.estado;
+    } else if (p && (p.Clave || p.clave)) {
+      // API returns {ID_Permiso, Clave, ...}
+      map[p.Clave || p.clave] = true;
     }
   });
 

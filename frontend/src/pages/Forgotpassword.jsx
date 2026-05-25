@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { recuperarContrasena, verificarCodigo, resetearContrasena } from "../services/authService";
+import Navbar from "../shared/components/Navbar";
 import { Mail, Lock, Eye, EyeOff, Key, ChevronRight, CheckCircle, ArrowLeft, ShieldCheck } from "lucide-react";
 import "./Auth.css";
+
+const COOLDOWN = 60; // segundos entre reenvíos
 
 const ForgotPassword = () => {
   const [step, setStep]         = useState(1); // 1: Email | 2: Code | 3: Password | 4: Success
@@ -14,6 +17,24 @@ const ForgotPassword = () => {
   const [showConf, setShowConf] = useState(false);
   const [error, setError]       = useState("");
   const [loading, setLoading]   = useState(false);
+  const [resending, setResending]   = useState(false);
+  const [resendMsg, setResendMsg]   = useState("");   // mensaje de éxito del reenvío
+  const [countdown, setCountdown]   = useState(0);   // segundos restantes
+  const timerRef = useRef(null);
+
+  // Limpia el intervalo al desmontar
+  useEffect(() => () => clearInterval(timerRef.current), []);
+
+  const startCountdown = () => {
+    setCountdown(COOLDOWN);
+    clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) { clearInterval(timerRef.current); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  };
 
   const handleEmailSubmit = async (e) => {
     e.preventDefault();
@@ -22,10 +43,28 @@ const ForgotPassword = () => {
     try {
       await recuperarContrasena(email);
       setStep(2);
+      startCountdown();
     } catch (err) {
       setError(err.message || "No encontramos una cuenta con ese correo.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (countdown > 0 || resending) return;
+    setResending(true);
+    setResendMsg("");
+    setError("");
+    try {
+      await recuperarContrasena(email);
+      setResendMsg("Código reenviado. Revisa tu correo.");
+      setCode("");
+      startCountdown();
+    } catch (err) {
+      setError(err.message || "No se pudo reenviar el código.");
+    } finally {
+      setResending(false);
     }
   };
 
@@ -71,6 +110,7 @@ const ForgotPassword = () => {
 
   return (
     <div className="auth-page">
+      <Navbar isLanding={true} />
       <div className="auth-bg">
         <div className="auth-blob auth-blob--1" />
         <div className="auth-blob auth-blob--2" />
@@ -153,13 +193,26 @@ const ForgotPassword = () => {
                   <ShieldCheck size={20} color="#2e7d32" />
                 </div>
                 <h1 className="auth-brand-name">Código de seguridad</h1>
-                <p className="auth-brand-sub">Hemos enviado un código a {email}</p>
+                <p className="auth-brand-sub">
+                  Hemos enviado un código a <strong>{email}</strong>
+                </p>
               </div>
 
               {error && (
                 <div className="auth-error">
                   <span className="auth-error-icon">⚠</span>
                   {error}
+                </div>
+              )}
+
+              {resendMsg && (
+                <div style={{
+                  padding: "10px 14px", borderRadius: 9, marginBottom: 8,
+                  background: "#e8f5e9", border: "1px solid #a5d6a7",
+                  color: "#2e7d32", fontSize: 13, fontWeight: 600,
+                  display: "flex", alignItems: "center", gap: 8,
+                }}>
+                  ✓ {resendMsg}
                 </div>
               )}
 
@@ -181,7 +234,7 @@ const ForgotPassword = () => {
                       className="auth-input"
                       style={{ letterSpacing: '0.5em', textAlign: 'center', paddingLeft: 14 }}
                       value={code}
-                      onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                      onChange={(e) => { setCode(e.target.value.replace(/\D/g, '')); setResendMsg(""); }}
                     />
                   </div>
                 </div>
@@ -198,7 +251,33 @@ const ForgotPassword = () => {
                     </>
                   )}
                 </button>
-                <button type="button" onClick={() => setStep(1)} className="auth-forgot" style={{ textAlign: 'center', marginTop: 10 }}>
+
+                {/* Reenviar código */}
+                <div style={{ textAlign: 'center', marginTop: 14 }}>
+                  {countdown > 0 ? (
+                    <p style={{ fontSize: 13, color: '#9e9e9e', margin: 0 }}>
+                      Puedes reenviar en{' '}
+                      <span style={{ fontWeight: 700, color: '#2e7d32' }}>{countdown}s</span>
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleResend}
+                      disabled={resending}
+                      className="auth-forgot"
+                      style={{ fontWeight: 600 }}
+                    >
+                      {resending ? 'Reenviando…' : '¿No recibiste el código? Reenviar'}
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => { setStep(1); setError(""); setResendMsg(""); setCode(""); }}
+                  className="auth-forgot"
+                  style={{ textAlign: 'center', marginTop: 6 }}
+                >
                   Cambiar correo electrónico
                 </button>
               </form>

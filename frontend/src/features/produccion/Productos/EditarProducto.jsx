@@ -9,7 +9,6 @@
 //   5. Llamar onSave() para que GestionProductos recargue
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useRef } from "react";
-import { useApp } from "../../../AppContext.jsx";
 import { ModalOverlay } from "./ui.jsx";
 import {
   editarProducto as apiEditarProducto,
@@ -78,7 +77,8 @@ function Toggle({ value, onChange }) {
    COMPONENTE PRINCIPAL
 ══════════════════════════════════════════════════════════ */
 export default function EditarProducto({ product, categorias = [], onClose, onSave }) {
-  const { calcularCostoProduccion, sugerirPrecioConGanancia } = useApp();
+  const calcularCostoProduccion = null;
+  const sugerirPrecioConGanancia = null;
 
   // ── Estado del form ──────────────────────────────────────────────────────
   // Separamos imágenes en tres grupos:
@@ -86,11 +86,14 @@ export default function EditarProducto({ product, categorias = [], onClose, onSa
   //   archivosNuevos     → File objects del <input> que el usuario acaba de agregar
   //   imagenesABorrar    → IDs de imágenes existentes que el usuario quitó
   const [form, setForm] = useState(() => ({
-    nombre:      product.nombre ?? "",
-    idCategoria: String(product.idCategoria ?? ""),
-    precio:      String(product.precio ?? ""),
-    stockMinimo: String(product.stockMinimo ?? "10"),
-    activo:      product.activo !== false,
+    nombre:            product.nombre ?? "",
+    idCategoria:       String(product.idCategoria ?? ""),
+    precio:            String(product.precio ?? ""),
+    stockMinimo:       String(product.stockMinimo ?? "10"),
+    activo:            product.activo !== false,
+    publicado:         product.publicado !== false,
+    descripcion_corta: product.descripcion_corta ?? "",
+    descripcion_larga: product.descripcion_larga ?? "",
 
     // Imágenes existentes (array de { ID_Producto_Img, url })
     imagenesExistentes: product.imagenesApi ?? [],
@@ -211,12 +214,14 @@ export default function EditarProducto({ product, categorias = [], onClose, onSa
 
       // ── 1. Editar datos del producto ────────────────────
       await apiEditarProducto(id, {
-        nombre:       form.nombre.trim(),
-        ID_Categoria: Number(form.idCategoria),
-        Precio_venta: Number(form.precio),
-        Stock_Minimo: Number(form.stockMinimo),
-        Estado:       form.activo ? 1 : 0,
-        // Stock NO se edita aquí: lo maneja producción
+        nombre:            form.nombre.trim(),
+        ID_Categoria:      Number(form.idCategoria),
+        Precio_venta:      Number(form.precio),
+        Stock_Minimo:      Number(form.stockMinimo),
+        Estado:            form.activo ? 1 : 0,
+        Publicado:         form.publicado ? 1 : 0,
+        Descripcion_Corta: form.descripcion_corta.trim(),
+        Descripcion_Larga: form.descripcion_larga.trim(),
       });
 
       // ── 2. Borrar imágenes marcadas ─────────────────────
@@ -318,13 +323,49 @@ export default function EditarProducto({ product, categorias = [], onClose, onSa
               <label className="form-label">Activo</label>
               <div className="estado-row">
                 <Toggle value={form.activo} onChange={(v) => set("activo", v)} />
-                <span
-                  className="estado-label"
-                  style={{ color: form.activo ? "#2e7d32" : "#9e9e9e" }}
-                >
+                <span className="estado-label" style={{ color: form.activo ? "#2e7d32" : "#9e9e9e" }}>
                   {form.activo ? "Activo" : "Inactivo"}
                 </span>
               </div>
+            </div>
+
+            {/* Toggle publicado */}
+            <div className="form-group">
+              <label className="form-label">Publicado en tienda</label>
+              <div className="estado-row">
+                <Toggle value={form.publicado} onChange={(v) => set("publicado", v)} />
+                <span className="estado-label" style={{ color: form.publicado ? "#1565c0" : "#9e9e9e" }}>
+                  {form.publicado ? "Visible en la tienda" : "Oculto en la tienda"}
+                </span>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">
+                Descripción corta{" "}
+                <span style={{ color: "#9e9e9e", fontWeight: 400, fontSize: 11 }}>
+                  ({(form.descripcion_corta || "").length}/150)
+                </span>
+              </label>
+              <input
+                className="field-input"
+                maxLength={150}
+                value={form.descripcion_corta}
+                onChange={(e) => set("descripcion_corta", e.target.value)}
+                placeholder="Ej. Chips crocantes de plátano verde, perfectos para snack."
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Descripción larga</label>
+              <textarea
+                className="field-input"
+                rows={3}
+                value={form.descripcion_larga}
+                onChange={(e) => set("descripcion_larga", e.target.value)}
+                placeholder="Descripción detallada del producto para la tienda..."
+                style={{ resize: "vertical", minHeight: 70 }}
+              />
             </div>
           </>
         )}

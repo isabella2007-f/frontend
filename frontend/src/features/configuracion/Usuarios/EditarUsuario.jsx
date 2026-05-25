@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useApp } from "../../../AppContext.jsx";
+import { useState, useEffect } from "react";
+import { getPedidos } from "../../../services/pedidosService.js";
 import { Avatar } from "./CrearUsuario.jsx";
 import { Ic } from "./usuariosIcons.jsx";
 import { getRolStyle } from "./usuariosUtils.js";
@@ -62,24 +62,20 @@ const NAV_ITEMS_BASE = [
 
 // ─── MODAL VER USUARIO — SIDE PANEL ──────────────────────
 export function ModalVerUsuario({ user, roles = [], onClose }) {
-  const { creditosClientes, clientes, pedidos } = useApp();
   const [activeSection, setActiveSection] = useState("personal");
+  const [pedidosCliente, setPedidosCliente] = useState([]);
 
-  const esCliente = user.rol === "Cliente";
+  const esCliente = user.tipo !== "empleado";
+  const saldoFavor = 0;
 
-  // Buscar el cliente vinculado por correo o cédula
-  const clienteVinculado = esCliente
-    ? clientes.find(c => c.correo === user.correo || c.numDoc === user.cedula)
-    : null;
-
-  const saldoFavor = clienteVinculado
-    ? (creditosClientes[clienteVinculado.id] || 0)
-    : 0;
-
-  // Pedidos del cliente vinculado
-  const pedidosCliente = clienteVinculado
-    ? pedidos.filter(p => p.idCliente === clienteVinculado.id)
-    : [];
+  useEffect(() => {
+    if (esCliente) {
+      getPedidos({ porPagina: 100 }).then(data => {
+        const todos = data.pedidos || [];
+        setPedidosCliente(todos.filter(p => p.cliente?.correo === user.correo || p.idCliente === user.id));
+      }).catch(() => {});
+    }
+  }, [user, esCliente]);
 
   const navItems = esCliente
     ? [...NAV_ITEMS_BASE, { id: "cliente", label: "Saldo", icon: "💰" }]
@@ -283,7 +279,7 @@ export function ModalVerUsuario({ user, roles = [], onClose }) {
                 </div>
 
                 {/* Resumen de pedidos del cliente */}
-                {clienteVinculado && (
+                {pedidosCliente.length > 0 && (
                   <>
                     <p className="section-label">Actividad del cliente</p>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -313,7 +309,7 @@ export function ModalVerUsuario({ user, roles = [], onClose }) {
                   </>
                 )}
 
-                {!clienteVinculado && (
+                {pedidosCliente.length === 0 && (
                   <div style={{ textAlign: "center", padding: "24px 0", color: "#9e9e9e", fontSize: 13 }}>
                     <div style={{ fontSize: 28, marginBottom: 8 }}>🔍</div>
                     No se encontró un registro de cliente vinculado a este usuario.

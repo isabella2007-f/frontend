@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { usePrivilegio } from "../../../context/PrivilegiosContext";
 import { registrarSalida } from "../../../services/salidasService";
 import CrearInsumo from "./CrearInsumo.jsx";
 import EditarInsumo from "./EditarInsumo.jsx";
@@ -118,6 +119,10 @@ function SkeletonRows() {
 }
 
 export default function GestionInsumos() {
+  const puedeCrear    = usePrivilegio("Insumos_crear");
+  const puedeEditar   = usePrivilegio("Insumos_editar");
+  const puedeEliminar = usePrivilegio("Insumos_eliminar");
+
   const [insumos,    setInsumos]    = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [loading,    setLoading]    = useState(true);
@@ -303,9 +308,11 @@ export default function GestionInsumos() {
             )}
           </div>
 
-          <button className="btn-agregar" onClick={() => setModal({ type: "crear" })}>
-            Agregar <span style={{ fontSize: 18 }}>+</span>
-          </button>
+          {puedeCrear && (
+            <button className="btn-agregar" onClick={() => setModal({ type: "crear" })}>
+              Agregar <span style={{ fontSize: 18 }}>+</span>
+            </button>
+          )}
         </div>
 
         <div className="card">
@@ -361,9 +368,9 @@ export default function GestionInsumos() {
                       <td>
                         <div className="actions-cell">
                           <button className="act-btn act-btn--view"   title="Ver detalle"      onClick={() => setModal({ type: "ver",      ins })}>👁</button>
-                          <button className="act-btn act-btn--edit"   title="Editar"           onClick={() => setModal({ type: "editar",   ins })}>✎</button>
+                          {puedeEditar   && <button className="act-btn act-btn--edit"   title="Editar"           onClick={() => setModal({ type: "editar",   ins })}>✎</button>}
                           <button className="act-btn act-btn--salida" title="Registrar salida" onClick={() => setModal({ type: "salida",   ins })}>🚚</button>
-                          <button className="act-btn act-btn--delete" title="Eliminar"         onClick={() => setModal({ type: "eliminar", ins })}>🗑️</button>
+                          {puedeEliminar && <button className="act-btn act-btn--delete" title="Eliminar"         onClick={() => setModal({ type: "eliminar", ins })}>🗑️</button>}
                         </div>
                       </td>
                     </tr>

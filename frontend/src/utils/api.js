@@ -7,36 +7,47 @@ function getToken() {
 
 export async function apiFetch(endpoint, options = {}) {
   const token = getToken();
-
-  // Solo agregar Content-Type si hay body (POST, PUT, PATCH)
   const hasBody = options.body !== undefined;
 
-  const res = await fetch(`${API_URL}${endpoint}`, {
-    ...options,
-    headers: {
-      ...(hasBody ? { "Content-Type": "application/json" } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  });
+  const controller = new AbortController();
+  const timeoutId  = setTimeout(() => controller.abort(), 15000);
 
-  if (res.status === 401) {
-    localStorage.removeItem("token");
-    localStorage.removeItem("usuario");
-    window.location.href = "/login";
-    return;
-  }
+  try {
+    const res = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        ...(hasBody ? { "Content-Type": "application/json" } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options.headers,
+      },
+    });
 
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({}));
-    let mensaje = "Error en la petición";
-    if (typeof error.detail === "string") {
-      mensaje = error.detail;
-    } else if (Array.isArray(error.detail)) {
-      mensaje = error.detail.map(e => e.msg).join(", ");
+    if (res.status === 401) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("usuario");
+      window.location.href = "/login";
+      return;
     }
-    throw new Error(mensaje);
-  }
 
-  return res.json();
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({}));
+      let mensaje = "Error en la petición";
+      if (typeof error.detail === "string") {
+        mensaje = error.detail;
+      } else if (Array.isArray(error.detail)) {
+        mensaje = error.detail.map(e => e.msg).join(", ");
+      }
+      throw new Error(mensaje);
+    }
+
+    return res.json();
+  } catch (err) {
+    if (err.name === "AbortError") {
+      throw new Error("La solicitud tardó demasiado. Verifica tu conexión e intenta de nuevo.");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }

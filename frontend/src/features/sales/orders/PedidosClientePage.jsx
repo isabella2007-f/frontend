@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useApp } from '../../../AppContext';
+import { getPedidos } from '../../../services/pedidosService';
 import { getCurrentUser } from '../../client/profile/services/profileService.js';
 import { 
   Package, Calendar, MapPin, DollarSign, Leaf, Search, 
@@ -74,8 +74,8 @@ const ESTADO_CONFIG = {
 };
 
 const PedidosClientePage = () => {
-  const { pedidos } = useApp();
-  const [user, setUser] = useState(null);
+  const [pedidos,    setPedidos]    = useState([]);
+  const [user,       setUser]       = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPedido, setSelectedPedido] = useState(null);
   const [filterEstado, setFilterEstado] = useState('todos');
@@ -84,10 +84,11 @@ const PedidosClientePage = () => {
   useEffect(() => {
     const currentUser = getCurrentUser();
     setUser(currentUser);
+    getPedidos({ porPagina: 100 }).then(data => setPedidos(data.pedidos || [])).catch(() => {});
   }, []);
 
   const userPedidos = user
-    ? pedidos.filter(p => p.idCliente === user.cedula)
+    ? pedidos.filter(p => p.cliente?.correo === user.correo || p.idCliente === user.id)
     : [];
 
   const filteredPedidos = userPedidos.filter(p => {

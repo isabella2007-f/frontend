@@ -14,6 +14,7 @@ const adaptPedido = (p) => {
     total:            p.Total           || p.total           || 0,
     notas:            p.Notas           || p.notas           || "",
     fecha_pedido:     p.Fecha_Pedido    || p.fecha_pedido    || "",
+    idCliente:        p.ID_Cliente       || p.id_cliente       || null,
     idEmpleado:       p.ID_Empleado     || p.id_empleado     || null,
     orden_produccion: !!(p.Orden_Produccion ?? p.orden_produccion),
     comprobante:      !!(p.Comprobante  ?? p.comprobante),
@@ -52,4 +53,16 @@ export const confirmarPedido = async (id) => {
 
 export const cancelarPedido = async (id) => {
   return apiFetch(`/pedidos/${id}/cancelar`, { method: "PATCH" });
+};
+
+export const crearPedido = async (data) => {
+  return apiFetch("/pedidos/", { method: "POST", body: JSON.stringify(data) });
+};
+
+export const editarPedido = async (id, data) => {
+  return apiFetch(`/pedidos/${id}`, { method: "PUT", body: JSON.stringify(data) });
+};
+
+export const eliminarPedido = async (id) => {
+  return apiFetch(`/pedidos/${id}`, { method: "DELETE" });
 };

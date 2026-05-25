@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import { useApp } from "../../AppContext.jsx";
 import { getSalidas, registrarSalida, anularSalida } from "../../services/salidasService.js";
 import { getProductos } from "../../services/productosService.js";
 import { getInsumos } from "../../services/insumosService.js";
@@ -157,7 +156,7 @@ function RegistrarSalida({ productos, insumos, onClose, onRegistrada }) {
 
   const lista = entidadTipo === "producto" ? productos : insumos;
   const filtrados = lista.filter(e =>
-    e.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+    (e.nombre || "").toLowerCase().includes(busqueda.toLowerCase()) ||
     (e._label || "").toLowerCase().includes(busqueda.toLowerCase())
   );
 
@@ -571,10 +570,16 @@ function HistorialSalidas({ salidas, loading, onAgregarClick, cargarSalidas }) {
 }
 
 /* ══════════════════════════════════════════════════════════
-   TAB VENCIDOS — mantiene useApp para lotes (sin endpoint)
+   TAB VENCIDOS — sin endpoint de lotes en la API
 ══════════════════════════════════════════════════════════ */
 function Vencidos() {
-  const { productos, insumos, getLotesProducto, getLotesDeInsumo, getCatProducto, getCatInsumo, getUnidad } = useApp();
+  const productos = [];
+  const insumos   = [];
+  const getLotesProducto = () => [];
+  const getLotesDeInsumo = () => [];
+  const getCatProducto   = () => null;
+  const getCatInsumo     = () => null;
+  const getUnidad        = () => null;
   const [filtro, setFiltro] = useState("todos");
 
   const lotesProductosVencidos = productos.flatMap(p =>
@@ -716,7 +721,7 @@ export default function GestionSalidas() {
             .filter(p => p.Estado !== 0)
             .map(p => ({
               id:         p.ID_Producto,
-              nombre:     p.Nombre,
+              nombre:     p.nombre || p.Nombre || "",
               _tipo:      "producto",
               _stock:     p.Stock_Actual ?? p.Stock ?? 0,
               _label:     p.nombre_categoria || "",

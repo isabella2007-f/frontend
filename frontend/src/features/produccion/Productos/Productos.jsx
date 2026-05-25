@@ -8,7 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation } from "react-router-dom";
-import { useApp } from "../../../AppContext.jsx";
+import { crearFicha, editarFicha } from "../../../services/fichaTecnicaService.js";
 import { Toast } from "./ui.jsx";
 import CrearProducto from "./CrearProducto.jsx";
 import EditarProducto from "./EditarProducto.jsx";
@@ -21,9 +21,11 @@ import {
   getCategorias,
   eliminarProducto as apiEliminarProducto,
   toggleEstadoProducto as apiToggleEstado,
+  togglePublicadoProducto as apiTogglePublicado,
   editarProducto as apiEditarProducto,
 } from "../../../services/productosService";
 import { registrarSalida } from "../../../services/salidasService";
+import { usePrivilegio } from "../../../context/PrivilegiosContext";
 import "./Productos.css";
 
 const ITEMS_PER_PAGE = 5;
@@ -77,19 +79,20 @@ const TIPO_COLORS = {
  */
 function adaptarProducto(p) {
   return {
-    id:              p.ID_Producto,
-    nombre:          p.nombre,
-    idCategoria:     p.ID_Categoria ?? null,
-    precio:          parseFloat(p.Precio_venta ?? 0),
-    stock:           p.Stock ?? 0,
-    stockMinimo:     p.Stock_Minimo ?? 10,
-    activo:          p.Estado === 1,
-    estado:          p.estado_label ?? null,
-    // Imágenes: array original de la API (para poder borrar por ID)
-    imagenesApi:     p.imagenes ?? [],
-    // URLs para mostrar en la UI
-    imagenesPreview: (p.imagenes ?? []).map((img) => img.url).filter(Boolean),
-    ficha:           p.ficha_tecnica ?? null,
+    id:               p.ID_Producto,
+    nombre:           p.nombre,
+    idCategoria:      p.ID_Categoria ?? null,
+    precio:           parseFloat(p.Precio_venta ?? 0),
+    stock:            p.Stock ?? 0,
+    stockMinimo:      p.Stock_Minimo ?? 10,
+    activo:           p.Estado === 1,
+    publicado:        !!p.Publicado,
+    descripcion_corta: p.Descripcion_Corta ?? "",
+    descripcion_larga: p.Descripcion_Larga ?? "",
+    estado:           p.estado_label ?? null,
+    imagenesApi:      p.imagenes ?? [],
+    imagenesPreview:  (p.imagenes ?? []).map((img) => img.url).filter(Boolean),
+    ficha:            p.ficha_tecnica ?? null,
   };
 }
 
@@ -253,9 +256,8 @@ function ProductImg({ previews, nombre }) {
 /* ══════════════════════════════════════════════════════════
    LOTES PANEL — Solo lectura
 ══════════════════════════════════════════════════════════ */
-function LotesProductoPanel({ idProducto }) {
-  const { getLotesProducto } = useApp();
-  const lotes = getLotesProducto ? getLotesProducto(idProducto) : [];
+function LotesProductoPanel() {
+  const lotes = [];
 
   return (
     <div>
@@ -352,15 +354,14 @@ function LotesProductoPanel({ idProducto }) {
    VER PRODUCTO
 ══════════════════════════════════════════════════════════ */
 function VerProducto({ product, catObj, onClose }) {
-  const { getSalidasProducto, getLotesVencidosProducto } = useApp();
   const [tab, setTab]    = useState("info");
   const [imgIdx, setImgIdx] = useState(0);
 
   const minimo   = product.stockMinimo ?? 10;
   const estado   = calcEstado(product.stock, minimo);
   const s        = ESTADO_STYLES[estado];
-  const salidas  = getSalidasProducto       ? getSalidasProducto(product.id)       : [];
-  const vencidos = getLotesVencidosProducto ? getLotesVencidosProducto(product.id) : [];
+  const salidas  = [];
+  const vencidos = [];
 
   const resumenSalidas = salidas.reduce((acc, sal) => {
     acc[sal.tipo] = (acc[sal.tipo] || 0) + sal.cantidad;
@@ -664,17 +665,12 @@ function LoadingSkeleton() {
    PÁGINA PRINCIPAL
 ══════════════════════════════════════════════════════════ */
 export default function GestionProductos() {
-  // Solo usamos del contexto lo que aún no está migrado a API
-  const {
-    canDeleteProducto,
-    registrarSalidaProducto,
-    guardarFicha,
-    getSalidasProducto,
-    getLotesVencidosProducto,
-    getLotesProducto,
-  } = useApp();
+  const canDeleteProducto = null;
 
-  const location = useLocation();
+  const location   = useLocation();
+  const puedeCrear   = usePrivilegio("GestionProductos_crear");
+  const puedeEditar  = usePrivilegio("GestionProductos_editar");
+  const puedeEliminar = usePrivilegio("GestionProductos_eliminar");
 
   /* ── Estado ── */
   const [productosRaw, setProductosRaw] = useState([]); // datos crudos de la API
@@ -813,7 +809,6 @@ export default function GestionProductos() {
   const handleToggleActivo = async (producto) => {
     try {
       await apiToggleEstado(producto.id, producto.activo);
-      // Actualización optimista: no esperamos recarga para que el toggle se vea fluido
       setProductosRaw((prev) =>
         prev.map((p) =>
           p.ID_Producto === producto.id
@@ -823,13 +818,37 @@ export default function GestionProductos() {
       );
     } catch (e) {
       showToast("Error cambiando estado: " + e.message, "error");
-      await cargarDatos(); // revert
+      await cargarDatos();
+    }
+  };
+
+  const handleTogglePublicado = async (producto) => {
+    try {
+      await apiTogglePublicado(producto.id, producto.publicado);
+      setProductosRaw((prev) =>
+        prev.map((p) =>
+          p.ID_Producto === producto.id
+            ? { ...p, Publicado: producto.publicado ? 0 : 1 }
+            : p
+        )
+      );
+    } catch (e) {
+      showToast("Error cambiando visibilidad: " + e.message, "error");
+      await cargarDatos();
     }
   };
 
   const handleSaveFicha = async (ficha) => {
-    // guardarFicha puede seguir en contexto local hasta que se migre ese endpoint
-    if (guardarFicha) guardarFicha(modal.product.id, ficha);
+    try {
+      if (modal.product.ficha?.id) {
+        await editarFicha(modal.product.ficha.id, ficha);
+      } else {
+        await crearFicha({ ...ficha, ID_Producto: modal.product.id });
+      }
+    } catch (e) {
+      showToast(e.message || "Error al guardar la ficha", "error");
+      return;
+    }
     await cargarDatos();
     showToast("Ficha técnica guardada");
     setModal(null);
@@ -951,9 +970,11 @@ export default function GestionProductos() {
             )}
           </div>
 
-          <button className="btn-agregar" onClick={() => setModal({ type: "crear" })}>
-            Agregar <span style={{ fontSize: 18 }}>+</span>
-          </button>
+          {puedeCrear && (
+            <button className="btn-agregar" onClick={() => setModal({ type: "crear" })}>
+              Agregar <span style={{ fontSize: 18 }}>+</span>
+            </button>
+          )}
         </div>
 
         {/* ── Tabla ── */}
@@ -973,13 +994,14 @@ export default function GestionProductos() {
                     <th>Precio</th>
                     <th>Stock</th>
                     <th>Activo</th>
+                    <th>Tienda</th>
                     <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {paginated.length === 0 ? (
                     <tr>
-                      <td colSpan={7}>
+                      <td colSpan={8}>
                         <div className="empty-state">
                           <div className="empty-state__icon">🍌</div>
                           <p className="empty-state__text">Sin resultados</p>
@@ -1018,17 +1040,25 @@ export default function GestionProductos() {
                             />
                           </td>
                           <td>
+                            <Toggle
+                              value={p.publicado}
+                              onChange={() => handleTogglePublicado(p)}
+                            />
+                          </td>
+                          <td>
                             <div className="actions-cell">
                               <button
                                 className="act-btn act-btn--view"
                                 title="Ver detalle"
                                 onClick={() => setModal({ type: "ver", product: p })}
                               >👁</button>
-                              <button
-                                className="act-btn act-btn--edit"
-                                title="Editar"
-                                onClick={() => setModal({ type: "editar", product: p })}
-                              >✎</button>
+                              {puedeEditar && (
+                                <button
+                                  className="act-btn act-btn--edit"
+                                  title="Editar"
+                                  onClick={() => setModal({ type: "editar", product: p })}
+                                >✎</button>
+                              )}
                               <button
                                 className="act-btn act-btn--ficha"
                                 title="Ficha técnica"
@@ -1039,11 +1069,13 @@ export default function GestionProductos() {
                                 title="Registrar salida"
                                 onClick={() => setModal({ type: "salida", product: p })}
                               >🚚</button>
-                              <button
-                                className="act-btn act-btn--delete"
-                                title="Eliminar"
-                                onClick={() => setModal({ type: "eliminar", product: p })}
-                              >🗑️</button>
+                              {puedeEliminar && (
+                                <button
+                                  className="act-btn act-btn--delete"
+                                  title="Eliminar"
+                                  onClick={() => setModal({ type: "eliminar", product: p })}
+                                >🗑️</button>
+                              )}
                             </div>
                           </td>
                         </tr>

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { TIPOS_DOC, ROLES_EMPLEADO, uid, fmtTel, toInputDate, fromInputDate } from "./empleadosUtils.js";
+import { getUsuarios } from "../../../services/usuariosService.js";
 import "./Empleados.css";
 
 /* ─── RolBadge ───────────────────────────────────────────── */
@@ -119,7 +120,10 @@ function StepsBar({ current }) {
 
 /* ─── CrearEmpleado ──────────────────────────────────────── */
 export default function CrearEmpleado({ onClose, onSave }) {
-  const { usuarios: existing } = useApp();
+  const [existing, setExisting] = useState([]);
+  useEffect(() => {
+    getUsuarios({ porPagina: 100 }).then(list => setExisting(list)).catch(() => {});
+  }, []);
   const empty = {
     tipoDoc:"CC", numDoc:"", nombre:"", apellidos:"", correo:"",
     telefono:"", direccion:"", departamento:"", municipio:"",

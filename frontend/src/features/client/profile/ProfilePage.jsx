@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react';
 import ProfileView from './components/ProfileView.jsx';
 import ProfileForm from './components/ProfileForm.jsx';
 import { getCurrentUser, updateUser } from './services/profileService.js';
-import { useApp } from '../../../AppContext.jsx';
+import { getPedidos } from '../../../services/pedidosService.js';
 import { UserCircle, Leaf, ShieldCheck, Package } from 'lucide-react';
 import '../../../styles/Client.css';
 
 const ProfilePage = () => {
-  const { pedidos } = useApp();
+  const [pedidos,   setPedidos]   = useState([]);
   const [user,      setUser]      = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [toast,     setToast]     = useState(null);
@@ -15,10 +15,11 @@ const ProfilePage = () => {
   useEffect(() => {
     const currentUser = getCurrentUser();
     setUser(currentUser);
+    getPedidos({ porPagina: 100 }).then(data => setPedidos(data.pedidos || [])).catch(() => {});
   }, []);
 
-  const userPedidos = user ? pedidos.filter(p => p.idCliente === user.cedula) : [];
-  const totalPedidos = userPedidos.length; // ✅ FIX: variable estaba sin declarar
+  const userPedidos  = user ? pedidos.filter(p => p.cliente?.correo === user.correo || p.idCliente === user.id) : [];
+  const totalPedidos = userPedidos.length;
 
   const handleSave = async (updatedData) => {
     try {

@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useApp } from '../../../AppContext';
 import { addToCart, getCart, getCartCount, clearCart } from './services/cartService';
+import { getProductos } from '../../../services/productosService';
+import { getCategorias } from '../../../services/categoriasProductosService';
+import { crearPedido } from '../../../services/pedidosService';
 import ProductCard from './components/ProductCard';
 import {
   Search, SlidersHorizontal, ShoppingBag, Leaf,
@@ -13,8 +15,8 @@ import '../../../styles/Client.css';
 
 /* ─── OrdersPage principal ────────────────────────────── */
 const OrdersPage = () => {
-  const { productos, categoriasProductosActivas, crearPedido } = useApp();
-
+  const [productos,   setProductos]   = useState([]);
+  const [categorias,  setCategorias]  = useState([]);
   const [searchTerm,       setSearchTerm]       = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [activeProducts,   setActiveProducts]   = useState([]);
@@ -23,6 +25,29 @@ const OrdersPage = () => {
   const [checkoutOpen,     setCheckoutOpen]     = useState(false);
   const [orderDetails,     setOrderDetails]     = useState(null);
   const [toast,            setToast]            = useState(null);
+
+  useEffect(() => {
+    getProductos({ porPagina: 100 }).then(data => {
+      const lista = (data.productos || data || []).map(p => ({
+        id:          p.ID_Producto || p.id,
+        nombre:      p.Nombre      || p.nombre      || "",
+        precio:      p.Precio_Venta|| p.precio      || 0,
+        stock:       p.Stock       || p.stock       || 0,
+        idCategoria: p.ID_Categoria|| p.idCategoria || null,
+        publicado:   !!p.Publicado,
+        imagen:      p.Imagen      || p.imagen      || null,
+      }));
+      setProductos(lista.filter(p => p.publicado && p.stock > 0));
+    }).catch(() => {});
+    getCategorias({ porPagina: 100 }).then(data => {
+      const lista = (data.categorias || data || []).map(c => ({
+        id:    c.ID_Categoria || c.id,
+        nombre:c.Nombre       || c.nombre || "",
+        estado:c.Estado !== 0,
+      }));
+      setCategorias(lista.filter(c => c.estado));
+    }).catch(() => {});
+  }, []);
 
   /* Sincroniza el contador del carrito */
   const syncCount = useCallback(() => setCartCount(getCartCount()), []);
@@ -34,15 +59,14 @@ const OrdersPage = () => {
 
   /* Filtra productos */
   useEffect(() => {
-    const activeCatIds = new Set((categoriasProductosActivas || []).map(c => Number(c.id)));
+    const activeCatIds = new Set((categorias || []).map(c => Number(c.id)));
     const filtered = (productos || []).filter(p =>
-      activeCatIds.has(Number(p.idCategoria)) &&
+      (activeCatIds.size === 0 || activeCatIds.has(Number(p.idCategoria))) &&
       (p.nombre || '').toLowerCase().includes(searchTerm.toLowerCase()) &&
-      (selectedCategory === 'all' || Number(p.idCategoria) === Number(selectedCategory)) &&
-      (p.stock || 0) > 0
+      (selectedCategory === 'all' || Number(p.idCategoria) === Number(selectedCategory))
     );
     setActiveProducts(filtered);
-  }, [productos, categoriasProductosActivas, searchTerm, selectedCategory]);
+  }, [productos, categorias, searchTerm, selectedCategory]);
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -66,48 +90,36 @@ const OrdersPage = () => {
     setCheckoutOpen(true);
   };
 
-  const handleConfirmOrder = (paymentMethod, onBehalfOf, comprobante) => {
+  const handleConfirmOrder = async (paymentMethod, onBehalfOf, comprobante) => {
     const user = getUser();
     const cart = getCart();
     const total = cart.reduce((a, i) => a + i.precio * i.cantidad, 0);
 
-    const fullAddress = `${orderDetails.address}, ${orderDetails.municipio}, ${orderDetails.departamento}`;
-
-    const pedido = {
-      idCliente:      user?.cedula || '',
-      cliente: {
-        nombre:   user ? `${user.nombre} ${user.apellidos || ''}`.trim() : onBehalfOf,
-        correo:   user?.correo   || '',
-        telefono: user?.telefono || '',
-      },
-      productosItems: cart.map(item => ({
-        idProducto:   item.id,
-        nombre:       item.nombre,
-        precio:       item.precio,
-        cantidad:     item.cantidad,
-        stockOk:      true,
+    const payload = {
+      ID_Cliente: user?.id || null,
+      productos:  cart.map(item => ({
+        ID_Producto: Number(item.id),
+        Cantidad:    Number(item.cantidad),
       })),
-      subtotal:          total,
-      descuento:         0,
-      total:             total,
-      metodo_pago:       paymentMethod === 'digital' ? 'Transferencia' : 'Efectivo',
-      domicilio:         true,
-      direccion_entrega: fullAddress,
-      notas:             '',
-      estado:            'Pendiente',
-      orden_produccion:  false,
-      comprobante:       !!comprobante,
+      Metodo_Pago:       paymentMethod === 'digital' ? 'Transferencia 🏦' : 'Efectivo 💵',
+      Domicilio:         true,
+      Direccion_Entrega: orderDetails?.address
+        ? `${orderDetails.address}, ${orderDetails.municipio || ''}, ${orderDetails.departamento || ''}`
+        : null,
+      Subtotal:  total,
+      Descuento: 0,
+      Total:     total,
+      Notas:     null,
     };
 
-    const res = crearPedido(pedido);
-    if (res && res.error) {
-       alert(res.error);
-       return;
+    try {
+      const res = await crearPedido(payload);
+      clearCart();
+      setCheckoutOpen(false);
+      showToast(`¡Pedido creado exitosamente! 🎉`);
+    } catch (err) {
+      showToast(err.message || 'Error al crear el pedido', 'error');
     }
-
-    clearCart();
-    setCheckoutOpen(false);
-    showToast(`¡Pedido ${res.numero} creado exitosamente! 🎉`);
   };
 
   return (
@@ -221,7 +233,7 @@ const OrdersPage = () => {
             >
               Todos
             </button>
-            {(categoriasProductosActivas || []).map(cat => (
+            {(categorias || []).map(cat => (
               <button
                 key={cat.id}
                 className={`chip ${selectedCategory === cat.id ? 'chip--active' : 'chip--default'}`}

@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { useApp, calcularTotal, sumarDias } from "../../../AppContext.jsx";
+import { useState, useEffect } from "react";
+import { getProveedores } from "../../../services/proveedoresService.js";
+import { getInsumos } from "../../../services/insumosService.js";
 import { DEPARTAMENTOS, getCiudades } from "../../../utils/departamentosYCiudades.js";
 import "./compras.css";
 
@@ -52,7 +53,21 @@ function StepsBar({ current }) {
 }
 
 export default function CrearCompra({ onClose, onSave }) {
-  const { proveedores, insumosActivos, getCatInsumo, getUnidad } = useApp();
+  const [proveedores,  setProveedores]  = useState([]);
+  const [insumosActivos, setInsumosActivos] = useState([]);
+
+  useEffect(() => {
+    getProveedores({ porPagina: 100 }).then(d => setProveedores(d.proveedores || d || [])).catch(() => {});
+    getInsumos({ porPagina: 100 }).then(d => {
+      const lista = (d.insumos || d || []).map(i => ({
+        id:        i.ID_Insumo || i.id,
+        nombre:    i.Nombre    || i.nombre    || "",
+        unidad:    i.unidad    || "",
+        estado:    i.Estado !== 0,
+      }));
+      setInsumosActivos(lista.filter(i => i.estado));
+    }).catch(() => {});
+  }, []);
 
   const [form, setForm] = useState({
     idProveedor:  "",
@@ -80,9 +95,7 @@ export default function CrearCompra({ onClose, onSave }) {
   const [saving,   setSaving]   = useState(false);
   const [step,     setStep]     = useState(1);
 
-  const subtotalInsumos = calcularTotal(
-    detalles.map(d => ({ cantidad: Number(d.cantidad) || 0, precioUnd: Number(d.precioUnd) || 0 }))
-  );
+  const subtotalInsumos = detalles.reduce((s, d) => s + (Number(d.cantidad) || 0) * (Number(d.precioUnd) || 0), 0);
 
   // Cálculos de porcentajes
   const valorIva = (subtotalInsumos * (Number(gastos.iva) || 0)) / 100;
@@ -164,7 +177,7 @@ export default function CrearCompra({ onClose, onSave }) {
         precioUnd:        Number(d.precioUnd),
         notas:            d.notas.trim(),
         fechaVencimiento: d.vencimientoTipo === "dias"
-          ? sumarDias(d.vencimientoValor)
+          ? (() => { const f = new Date(); f.setDate(f.getDate() + Number(d.vencimientoValor)); return f.toISOString().split("T")[0]; })()
           : d.fechaVencimiento,
       }));
       onSave({
@@ -251,38 +264,38 @@ export default function CrearCompra({ onClose, onSave }) {
                   {errors.fecha && <span className="field-error">{errors.fecha}</span>}
                 </div>
                 <div className="field-wrap">
-                  <label className="field-label">Estado</label>
-                  <div className="estado-toggle-wrap">
-                    {["pendiente", "completada"].map(est => (
-                      <button
-                        key={est}
-                        type="button"
-                        className={`estado-toggle-btn ${form.estado === est ? `estado-toggle-btn--${est}` : ""}`}
-                        onClick={() => set("estado", est)}
-                      >
-                        {est === "pendiente" ? "⏳" : "✅"} {est.charAt(0).toUpperCase() + est.slice(1)}
-                      </button>
-                    ))}
+                  <label className="field-label">Método de pago <span className="required">*</span></label>
+                  <div className="select-wrap">
+                    <select
+                      className={`field-select ${errors.metodoPago ? "error" : ""}`}
+                      value={form.metodoPago}
+                      onChange={e => { set("metodoPago", e.target.value); setComprobante(null); }}
+                    >
+                      <option value="">— Seleccionar método —</option>
+                      {METODOS_PAGO.map(m => (
+                        <option key={m.value} value={m.value}>{m.icon} {m.label}</option>
+                      ))}
+                    </select>
+                    <span className="select-arrow">▾</span>
                   </div>
+                  {errors.metodoPago && <span className="field-error">{errors.metodoPago}</span>}
                 </div>
               </div>
 
               <div className="field-wrap">
-                <label className="field-label">Método de pago <span className="required">*</span></label>
-                <div className="select-wrap">
-                  <select
-                    className={`field-select ${errors.metodoPago ? "error" : ""}`}
-                    value={form.metodoPago}
-                    onChange={e => { set("metodoPago", e.target.value); setComprobante(null); }}
-                  >
-                    <option value="">— Seleccionar método —</option>
-                    {METODOS_PAGO.map(m => (
-                      <option key={m.value} value={m.value}>{m.icon} {m.label}</option>
-                    ))}
-                  </select>
-                  <span className="select-arrow">▾</span>
+                <label className="field-label">Estado inicial</label>
+                <div className="estado-toggle-wrap">
+                  {["pendiente", "completada"].map(est => (
+                    <button
+                      key={est}
+                      type="button"
+                      className={`estado-toggle-btn ${form.estado === est ? `estado-toggle-btn--${est}` : ""}`}
+                      onClick={() => set("estado", est)}
+                    >
+                      {est === "pendiente" ? "⏳" : "✅"} {est.charAt(0).toUpperCase() + est.slice(1)}
+                    </button>
+                  ))}
                 </div>
-                {errors.metodoPago && <span className="field-error">{errors.metodoPago}</span>}
               </div>
 
               {form.metodoPago === "transferencia" && (
@@ -374,8 +387,8 @@ export default function CrearCompra({ onClose, onSave }) {
 
               {detalles.map((d, i) => {
                 const insumoSel = insumosActivos.find(ins => ins.id === Number(d.idInsumo));
-                const cat       = insumoSel ? getCatInsumo(insumoSel.idCategoria) : null;
-                const unidad    = insumoSel ? getUnidad(insumoSel.idUnidad)       : null;
+                const cat       = null;
+                const unidad    = insumoSel ? { simbolo: insumoSel.unidad || "uds." } : null;
 
                 if (!d.isExpanded) {
                   return (
@@ -453,7 +466,7 @@ export default function CrearCompra({ onClose, onSave }) {
                                   String(ins.id) !== String(d.idInsumo)
                                 }
                               >
-                                {getCatInsumo(ins.idCategoria).icon} {ins.nombre} · Stock: {ins.stockActual}
+                                {ins.nombre}
                               </option>
                             ))}
                           </select>

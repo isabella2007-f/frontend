@@ -1,5 +1,11 @@
 import { useRef, useEffect, useState } from "react";
-import { useApp } from "../../../AppContext.jsx";
+import {
+  getUsuarios,
+  crearCliente as crearClienteAPI,
+  editarUsuario,
+  toggleEstadoUsuario,
+  eliminarUsuario,
+} from "../../../services/usuariosService.js";
 import CrearCliente from "./CrearCliente.jsx";
 import { ModalVerCliente, ModalEditarCliente } from "./EditarCliente.jsx";
 import ModalEliminarValidado from "../../../ModalEliminarValidado";
@@ -30,15 +36,23 @@ function Toast({ toast }) {
 }
 
 export default function GestionClientes() {
-  const { clientes, crearCliente, editarCliente, toggleCliente, eliminarCliente, canDeleteCliente } = useApp();
+  const [clientes,    setClientes]    = useState([]);
+  const [search,      setSearch]      = useState("");
+  const [filter,      setFilter]      = useState("todos");
+  const [showFilter,  setShowFilter]  = useState(false);
+  const [page,        setPage]        = useState(1);
+  const [modal,       setModal]       = useState(null);
+  const [toast,       setToast]       = useState(null);
+  const filterRef = useRef();
 
-  const [search, setSearch]         = useState("");
-  const [filter, setFilter]         = useState("todos");
-  const [showFilter, setShowFilter] = useState(false);
-  const [page, setPage]             = useState(1);
-  const [modal, setModal]           = useState(null);
-  const [toast, setToast]           = useState(null);
-  const filterRef                   = useRef();
+  const cargarDatos = async () => {
+    try {
+      const lista = await getUsuarios({ porPagina: 100 });
+      setClientes(lista.filter(u => u.tipo === "cliente"));
+    } catch { /* silently fail */ }
+  };
+
+  useEffect(() => { cargarDatos(); }, []);
 
   useEffect(() => {
     const h = e => { if (filterRef.current && !filterRef.current.contains(e.target)) setShowFilter(false); };
@@ -48,12 +62,14 @@ export default function GestionClientes() {
 
   const showToast = (msg, type = "success") => { setToast({ message: msg, type }); setTimeout(() => setToast(null), 3000); };
 
+  const canDeleteCliente = () => ({ ok: true });
+
   const filtered = clientes.filter(c => {
     const q = search.toLowerCase();
     const matchQ = `${c.nombre} ${c.apellidos}`.toLowerCase().includes(q)
-      || c.correo.toLowerCase().includes(q)
+      || (c.correo || "").toLowerCase().includes(q)
       || (c.municipio || "").toLowerCase().includes(q)
-      || (c.numDoc || "").toLowerCase().includes(q);
+      || (c.cedula || "").toLowerCase().includes(q);
     const matchE = filter === "todos" || (filter === "activo" ? c.estado : !c.estado);
     return matchQ && matchE;
   });
@@ -63,10 +79,69 @@ export default function GestionClientes() {
   const paginated  = filtered.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
   useEffect(() => setPage(1), [search, filter]);
 
-  const handleCreate      = (data) => { crearCliente(data);  showToast("Cliente creado");    setModal(null); };
-  const handleEdit        = (data) => { editarCliente(data); showToast("Cambios guardados"); setModal(null); };
-  const handleDeleteClick = (c)    => { const check = canDeleteCliente(c.id); setModal({ mode: "delete", cliente: c, razon: check.ok ? null : check.razon }); };
-  const handleDelete      = ()     => { eliminarCliente(modal.cliente.id); showToast("Cliente eliminado", "error"); setModal(null); };
+  const handleCreate = async (data) => {
+    try {
+      await crearClienteAPI({
+        Nombre:         data.nombre,
+        Apellidos:      data.apellidos,
+        Correo:         data.correo,
+        Contrasena:     data.contrasena,
+        Telefono:       data.telefono,
+        Cedula:         data.numDoc,
+        Tipo_Documento: data.tipoDoc,
+        Departamento:   data.departamento,
+        Municipio:      data.municipio,
+        Direccion:      data.direccion || "",
+      });
+      await cargarDatos();
+      showToast("Cliente creado");
+      setModal(null);
+    } catch (err) {
+      showToast(err.message || "Error al crear cliente", "error");
+    }
+  };
+
+  const handleEdit = async (data) => {
+    try {
+      await editarUsuario("cliente", data.id, {
+        Nombre:         data.nombre,
+        Apellidos:      data.apellidos,
+        Correo:         data.correo,
+        Telefono:       data.telefono,
+        Cedula:         data.numDoc,
+        Tipo_Documento: data.tipoDoc,
+        Departamento:   data.departamento,
+        Municipio:      data.municipio,
+        Direccion:      data.direccion || "",
+        ...(data.contrasena ? { Contrasena: data.contrasena } : {}),
+      });
+      await cargarDatos();
+      showToast("Cambios guardados");
+      setModal(null);
+    } catch (err) {
+      showToast(err.message || "Error al editar cliente", "error");
+    }
+  };
+
+  const handleDeleteClick = (c) => setModal({ mode: "delete", cliente: c });
+
+  const handleDelete = async () => {
+    try {
+      await eliminarUsuario("cliente", modal.cliente.id);
+      await cargarDatos();
+      showToast("Cliente eliminado", "error");
+      setModal(null);
+    } catch (err) {
+      showToast(err.message || "Error al eliminar cliente", "error");
+    }
+  };
+
+  const handleToggle = async (c) => {
+    try {
+      await toggleEstadoUsuario("cliente", c.id, c.estado);
+      await cargarDatos();
+    } catch { /* silently fail */ }
+  };
 
   return (
     <div className="page-wrapper">
@@ -145,10 +220,10 @@ export default function GestionClientes() {
                         </div>
                       </div>
                     </td>
-                    <td><div className="doc-badge"><span className="doc-type">{c.tipoDoc}</span><span className="doc-num">{c.numDoc}</span></div></td>
+                    <td><div className="doc-badge"><span className="doc-type">{c.tipoDocumento}</span><span className="doc-num">{c.cedula}</span></div></td>
                     <td><span className="phone-cell"><span className="phone-icon">📞</span>{c.telefono}</span></td>
                     <td><div className="location-city">{c.municipio}</div><div className="location-dept">{c.departamento}</div></td>
-                    <td><Toggle value={c.estado} onChange={() => toggleCliente(c.id)} /></td>
+                    <td><Toggle value={c.estado} onChange={() => handleToggle(c)} /></td>
                     <td><span className="date-badge">{c.fechaCreacion}</span></td>
                     <td>
                       <div className="actions-cell">
@@ -182,7 +257,7 @@ export default function GestionClientes() {
         <ModalEliminarValidado
           titulo="Eliminar cliente"
           descripcion={`¿Está seguro de que desea eliminar permanentemente al cliente "${modal.cliente.nombre} ${modal.cliente.apellidos}"?`}
-          validacion={canDeleteCliente(modal.cliente.id)}
+          validacion={canDeleteCliente()}
           onClose={() => setModal(null)}
           onConfirm={handleDelete}
         />

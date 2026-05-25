@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { apiFetch } from '../utils/api';
+import Navbar from '../shared/components/Navbar';
 import { User, Mail, Lock, Eye, EyeOff, Check, Leaf, ChevronRight } from 'lucide-react';
 import './Auth.css';
 
@@ -63,7 +64,7 @@ const Register = () => {
         rol:       data.rol,
       }));
 
-      navigate('/'); // cliente va a la landing
+      navigate('/cliente');
     } catch (err) {
       setErrors({ global: err.message });
     } finally {
@@ -73,6 +74,7 @@ const Register = () => {
 
   return (
     <div className="auth-page">
+      <Navbar isLanding={true} />
       <div className="auth-bg">
         <div className="auth-blob auth-blob--1" />
         <div className="auth-blob auth-blob--2" />

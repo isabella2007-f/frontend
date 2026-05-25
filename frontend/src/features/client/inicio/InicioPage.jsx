@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useApp } from '../../../AppContext.jsx';
+import { getPedidos } from '../../../services/pedidosService.js';
+import { getProductos } from '../../../services/productosService.js';
 import { getCurrentUser } from '../profile/services/profileService.js';
 import { Package, Clock, CheckCircle, UserCircle, Leaf } from 'lucide-react';
 import '../../../styles/Client.css';
@@ -14,23 +15,34 @@ const COP = (n) =>
 
 
 const InicioPage = () => {
-  const { productos, pedidos, categoriasProductos } = useApp();
-  const [user, setUser] = useState(null);
+  const [productos,   setProductos]   = useState([]);
+  const [user,        setUser]        = useState(null);
   const [userPedidos, setUserPedidos] = useState([]);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
     setUser(currentUser);
+    getProductos({ porPagina: 100 }).then(data => {
+      const lista = (data.productos || data || []).map(p => ({
+        id:          p.ID_Producto || p.id,
+        nombre:      p.Nombre      || p.nombre      || "",
+        precio:      p.Precio_Venta|| p.precio      || 0,
+        stock:       p.Stock       || p.stock       || 0,
+        publicado:   !!p.Publicado,
+        imagen:      p.Imagen      || p.imagen      || null,
+        categoria:   p.nombre_categoria || "",
+      }));
+      setProductos(lista.filter(p => p.publicado));
+    }).catch(() => {});
     if (currentUser) {
-      const filteredPedidos = pedidos.filter(p => p.idCliente === currentUser.cedula);
-      setUserPedidos(filteredPedidos);
+      getPedidos({ porPagina: 100 }).then(data => {
+        const todos = data.pedidos || [];
+        setUserPedidos(todos.filter(p => p.cliente?.correo === currentUser.correo || p.idCliente === currentUser.id));
+      }).catch(() => {});
     }
-  }, [pedidos]);
+  }, []);
 
-  const getCategoriaNombre = (idCategoria) => {
-    const cat = categoriasProductos.find(c => c.id === idCategoria);
-    return cat ? cat.nombre : 'Sin categoría';
-  };
+  const getCategoriaNombre = (p) => p.categoria || 'Sin categoría';
 
   const getEstadoColor = (estado) => {
     switch (estado) {
@@ -123,7 +135,7 @@ const InicioPage = () => {
                     {producto.nombre}
                   </h3>
                   <p style={{ margin: 0, fontSize: 12, color: 'var(--gray-500)', marginBottom: 8 }}>
-                    {getCategoriaNombre(producto.idCategoria)}
+                    {getCategoriaNombre(producto)}
                   </p>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--green-700)' }}>

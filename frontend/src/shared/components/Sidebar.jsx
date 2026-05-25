@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { getUser, logout } from "../../services/authService";
-import { getRoles } from "../../services/rolesService";
+import { usePrivilegios } from "../../context/PrivilegiosContext";
 import LogoutModal from "./LogoutModal";
 import "./Sidebar.css";
 
@@ -85,40 +85,24 @@ export default function Sidebar({ isOpen, onToggle }) {
 
   const [search,          setSearch]          = useState("");
   const [user,            setUser]            = useState(null);
-  const [privilegios,     setPrivilegios]     = useState(null); // null=loading, "admin"=all, string[]=modules
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const navigate  = useNavigate();
   const location  = useLocation();
+  const { hasPrivilegio, isAdmin, loading } = usePrivilegios();
 
   useEffect(() => {
-    const u = getUser();
-    setUser(u);
-    if (u?.tipo === "empleado") {
-      getRoles()
-        .then(roles => {
-          const rolObj = roles.find(r => r.nombre === u.rol);
-          if (!rolObj || rolObj.esAdmin) {
-            setPrivilegios("admin");
-          } else {
-            const modulos = [...new Set(
-              (rolObj.permisos || []).map(p => {
-                if (typeof p === "string") return p.split("_")[0];
-                if (p && p.modulo) return p.modulo;
-                return null;
-              }).filter(Boolean)
-            )];
-            setPrivilegios(modulos);
-          }
-        })
-        .catch(() => setPrivilegios("admin"));
-    }
+    const sync = () => setUser(getUser());
+    sync();
+    window.addEventListener("session-changed", sync);
+    return () => window.removeEventListener("session-changed", sync);
   }, []);
 
   const canSeeItem = (item) => {
-    if (!item.privilegioKey) return true;
-    if (privilegios === null || privilegios === "admin") return true;
-    return privilegios.includes(item.privilegioKey);
+    if (!item.privilegioKey) return true;      // sin restricción → siempre visible
+    if (loading) return true;                  // aún cargando → mostrar todo
+    if (isAdmin) return true;                  // admin → todo visible
+    return hasPrivilegio(`${item.privilegioKey}_ver`);
   };
 
   const menuItems = user?.tipo === "empleado" ? adminMenuItems : clienteMenuItems;

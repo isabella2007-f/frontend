@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { useApp } from "../../AppContext";
 import { getUser, logout } from "../../services/authService";
+import { crearPedido } from "../../services/pedidosService";
 import { Menu, X, ShoppingCart, Bell } from "lucide-react";
 import "./Navbar.css";
 import { getCartCount, getCart, getTotal } from "../../features/sales/orders/services/cartService";
@@ -26,7 +26,6 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
   const navigate = useNavigate();
 
   const { noLeidas, agregarNotificacion } = useNotificaciones();
-  const { crearPedido } = useApp();
 
   useEffect(() => {
     setUser(getUser());
@@ -61,41 +60,32 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
 
   const handleLoginRequired = () => navigate("/login");
 
-  const handleConfirmOrder = (paymentMethod, onBehalfOf, comprobante) => {
+  const handleConfirmOrder = async (paymentMethod, onBehalfOf, comprobante) => {
     const currentUser = getUser();
     const currentCart = getCart();
     const total = getTotal();
 
-    const pedido = {
-      idCliente:      currentUser?.id || '',
-      cliente: {
-        nombre:   currentUser ? `${currentUser.nombre} ${currentUser.apellidos || ''}`.trim() : onBehalfOf,
-        correo:   currentUser?.correo   || '',
-        telefono: currentUser?.telefono || '',
-      },
-      productosItems: currentCart.map(item => ({
-        idProducto:   item.id,
-        nombre:       item.nombre,
-        precio:       item.precio,
-        cantidad:     item.cantidad,
-        stockOk:      true,
+    const payload = {
+      ID_Cliente:        currentUser?.id || null,
+      productos:         currentCart.map(item => ({
+        ID_Producto: Number(item.id),
+        Cantidad:    Number(item.cantidad),
       })),
-      subtotal:          total,
-      descuento:         0,
-      total:             total,
-      metodo_pago:       paymentMethod === 'digital' ? 'Transferencia' : 'Efectivo',
-      domicilio:         true,
-      direccion_entrega: orderDetails.address,
-      notas:             '',
-      estado:            'Pendiente',
-      orden_produccion:  false,
-      comprobante:       !!comprobante,
+      Metodo_Pago:       paymentMethod === 'digital' ? 'Transferencia 🏦' : 'Efectivo 💵',
+      Domicilio:         true,
+      Direccion_Entrega: orderDetails.address,
+      Subtotal:          total,
+      Descuento:         0,
+      Total:             total,
+      Notas:             null,
+      Comprobante:       !!comprobante,
     };
 
-    const res = crearPedido(pedido);
-    if (res && res.error) {
-       alert(res.error);
-       return;
+    try {
+      await crearPedido(payload);
+    } catch (err) {
+      alert(err.message || "Error al registrar el pedido");
+      return;
     }
 
     setIsCheckoutOpen(false);

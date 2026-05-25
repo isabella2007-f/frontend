@@ -5,8 +5,8 @@ import {
   Plus, Minus, ShoppingCart, CheckCircle2,
   ChevronRight, Zap, Edit3, Save, X as CloseIcon
 } from 'lucide-react';
-import { useApp } from '../AppContext.jsx';
 import { getUser } from '../services/authService.js';
+import { crearPedido } from '../services/pedidosService.js';
 import { getProductos, getCategorias } from '../services/productosService.js';
 import { useNotificaciones, TIPOS } from '../features/notificaciones/context/NotificacionesContext.jsx';
 import Navbar from '../shared/components/Navbar.jsx';
@@ -36,7 +36,6 @@ const DEFAULT_CONTENT = {
 ═══════════════════════════════════════════ */
 const LandingPage = ({ hideNavbar = false }) => {
   const navigate = useNavigate();
-  const { crearPedido } = useApp();
   const { agregarNotificacion } = useNotificaciones();
   const [activeTab, setActiveTab] = useState('Todos');
   const [user, setUser] = useState(null);
@@ -90,14 +89,15 @@ const LandingPage = ({ hideNavbar = false }) => {
         setCategoriasMap(map);
         setProductos(
           (pData.productos || [])
-            .filter(p => p.Estado !== 0)
+            .filter(p => p.Estado !== 0 && !!p.Publicado)
             .map(p => ({
-              id:          p.ID_Producto,
-              nombre:      p.Nombre,
-              precio:      p.Precio_venta,
-              stock:       p.Stock,
-              idCategoria: p.ID_Categoria,
-              imagen:      p.Imagenes?.[0]?.URL_Imagen || null,
+              id:               p.ID_Producto,
+              nombre:           p.Nombre ?? p.nombre,
+              precio:           p.Precio_venta,
+              stock:            p.Stock,
+              idCategoria:      p.ID_Categoria,
+              imagen:           p.Imagenes?.[0]?.URL_Imagen || p.imagenes?.[0]?.url || null,
+              descripcion_corta: p.Descripcion_Corta ?? "",
             }))
         );
       } catch {
@@ -145,51 +145,43 @@ const LandingPage = ({ hideNavbar = false }) => {
     setCheckoutOpen(true);
   };
 
-  const handleConfirmOrder = (paymentMethod, onBehalfOf, comprobante) => {
+  const handleConfirmOrder = async (paymentMethod, onBehalfOf, comprobante) => {
     const currentUser = getUser();
     const currentCart = getCart();
     const total = currentCart.reduce((s, i) => s + i.precio * i.cantidad, 0);
 
-    const pedido = {
-      idCliente: currentUser?.cedula || '',
-      cliente: {
-        nombre:   currentUser ? `${currentUser.nombre} ${currentUser.apellidos || ''}`.trim() : onBehalfOf,
-        correo:   currentUser?.correo   || '',
-        telefono: currentUser?.telefono || '',
-      },
-      productosItems: currentCart.map(item => ({
-        idProducto:   item.id,
-        nombre:       item.nombre,
-        precio:       item.precio,
-        cantidad:     item.cantidad,
-        stockOk:      true,
+    const payload = {
+      ID_Cliente:        currentUser?.id || null,
+      productos:         currentCart.map(item => ({
+        ID_Producto: Number(item.id),
+        Cantidad:    Number(item.cantidad),
       })),
-      subtotal:          total,
-      descuento:         0,
-      total:             total,
-      metodo_pago:       paymentMethod === 'digital' ? 'Transferencia' : 'Efectivo',
-      domicilio:         true,
-      direccion_entrega: orderDetails.address,
-      notas:             '',
-      estado:            'Pendiente',
-      orden_produccion:  false,
-      comprobante:       comprobante ? true : false,
+      Metodo_Pago:       paymentMethod === 'digital' ? 'Transferencia 🏦' : 'Efectivo 💵',
+      Domicilio:         true,
+      Direccion_Entrega: orderDetails?.address || '',
+      Subtotal:          total,
+      Descuento:         0,
+      Total:             total,
+      Notas:             null,
+      Comprobante:       !!comprobante,
     };
 
-    const res = crearPedido(pedido);
-    if (res && res.error) {
-       alert(res.error);
-       return;
+    let res;
+    try {
+      res = await crearPedido(payload);
+    } catch (err) {
+      alert(err.message || "Error al registrar el pedido");
+      return;
     }
 
     clearCart();
     setCheckoutOpen(false);
     setOrderDone(true);
-    
+
     agregarNotificacion({
       tipo: TIPOS.PEDIDO_NUEVO,
       titulo: "¡Pedido registrado!",
-      mensaje: `Hemos recibido tu orden ${res.numero} correctamente.`,
+      mensaje: `Hemos recibido tu orden ${res?.Numero_Pedido || res?.numero_pedido || res?.ID_Venta || ""} correctamente.`,
     });
 
     setTimeout(() => setOrderDone(false), 4000);

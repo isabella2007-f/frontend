@@ -250,7 +250,8 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
   const [form, setForm] = useState(() => {
     if (isEdit) {
       const { contrasena: _c, confirmar: _cf, ...rest } = user;
-      return { ...rest, contrasena: "", confirmar: "" };
+      const rol = rest.rol || (rest.tipo !== "empleado" ? "Cliente" : "");
+      return { ...rest, rol, contrasena: "", confirmar: "" };
     }
     return { ...EMPTY_FORM };
   });

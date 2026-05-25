@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { getUsuarios } from "../../../services/usuariosService.js";
 import "./clientes.css";
 
 const TIPOS_DOC = ["CC", "TI", "CE", "Pasaporte", "NIT", "PPT"];
@@ -96,7 +97,10 @@ function StepsBar({ current }) {
 
 /* ── CrearCliente ─────────────────────────────────────────── */
 export default function CrearCliente({ onClose, onSave }) {
-  const { usuarios: existing } = useApp();
+  const [existing, setExisting] = useState([]);
+  useEffect(() => {
+    getUsuarios({ porPagina: 100 }).then(list => setExisting(list)).catch(() => {});
+  }, []);
   const [form, setForm] = useState({
     tipoDoc: "CC", numDoc: "", nombre: "", apellidos: "",
     correo: "", telefono: "", direccion: "", departamento: "",

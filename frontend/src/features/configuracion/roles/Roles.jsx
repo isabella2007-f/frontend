@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { usePrivilegio } from "../../../context/PrivilegiosContext";
 import { getRoles, eliminarRol, toggleEstadoRol } from "../../../services/rolesService.js";
 import CrearRol from "./CrearRol.jsx";
 import EditarRol from "./EditarRol.jsx";
@@ -49,6 +50,10 @@ function SkeletonRows() {
 }
 
 export default function GestionRoles() {
+  const puedeCrear    = usePrivilegio("Roles_crear");
+  const puedeEditar   = usePrivilegio("Roles_editar");
+  const puedeEliminar = usePrivilegio("Roles_eliminar");
+
   const [roles,      setRoles]      = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [search,     setSearch]     = useState("");
@@ -175,9 +180,11 @@ export default function GestionRoles() {
             )}
           </div>
 
-          <button className="btn-agregar" onClick={() => setModal({ mode: "new" })}>
-            Agregar <span style={{ fontSize: 18 }}>+</span>
-          </button>
+          {puedeCrear && (
+            <button className="btn-agregar" onClick={() => setModal({ mode: "new" })}>
+              Agregar <span style={{ fontSize: 18 }}>+</span>
+            </button>
+          )}
         </div>
 
         <div className="card">
@@ -251,14 +258,18 @@ export default function GestionRoles() {
                         >👁</button>
                         {!rol.esAdmin && (
                           <>
-                            <button
-                              className="act-btn act-btn--edit"
-                              onClick={() => setModal({ mode: "edit", rol })}
-                            >✎</button>
-                            <button
-                              className="act-btn act-btn--delete"
-                              onClick={() => setModal({ mode: "delete", rol })}
-                            >🗑️</button>
+                            {puedeEditar && (
+                              <button
+                                className="act-btn act-btn--edit"
+                                onClick={() => setModal({ mode: "edit", rol })}
+                              >✎</button>
+                            )}
+                            {puedeEliminar && (
+                              <button
+                                className="act-btn act-btn--delete"
+                                onClick={() => setModal({ mode: "delete", rol })}
+                              >🗑️</button>
+                            )}
                           </>
                         )}
                       </div>

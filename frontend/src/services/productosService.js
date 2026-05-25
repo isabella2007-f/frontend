@@ -114,6 +114,13 @@ export async function toggleEstadoProducto(id, activoActual) {
   });
 }
 
+export async function togglePublicadoProducto(id, publicadoActual) {
+  return apiFetch(`/productos/${id}`, {
+    method: "PUT",
+    body: JSON.stringify({ Publicado: publicadoActual ? 0 : 1 }),
+  });
+}
+
 /* ══════════════════════════════════════════════════════════
    IMÁGENES
 ══════════════════════════════════════════════════════════ */

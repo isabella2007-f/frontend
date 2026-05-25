@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { useApp, calcularTotal } from "../../../AppContext.jsx";
+import { getCompras, crearCompra as apiCrearCompra } from "../../../services/comprasService.js";
+import { getProveedores } from "../../../services/proveedoresService.js";
 import CrearCompra from "./CrearCompra.jsx";
 import EditarCompra, { AnularCompraModal } from "./EditarCompra.jsx";
 import "./compras.css";
@@ -26,24 +27,81 @@ function Toast({ toast }) {
   );
 }
 
+/* ── Mini-modal: Registrar fecha de llegada ───────────────── */
+function ModalRegistrarLlegada({ compra, onClose, onConfirm }) {
+  const hoy = new Date().toISOString().split('T')[0];
+  const [fecha, setFecha] = useState(compra.fecha_llegada || hoy);
+  const [err,   setErr]   = useState("");
+
+  const handleOk = () => {
+    if (!fecha) { setErr("Selecciona la fecha de llegada"); return; }
+    onConfirm(compra.id, fecha);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box--sm" style={{ maxWidth: 360 }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: "24px 24px 16px" }}>
+          <h3 style={{ margin: "0 0 6px", fontSize: 16, fontWeight: 700, color: "#1a1a1a" }}>
+            {compra.stockAplicado ? "Editar fecha de llegada" : "Registrar llegada"}
+          </h3>
+          <p style={{ margin: "0 0 18px", fontSize: 13, color: "#616161" }}>
+            Compra <strong>{compra.id}</strong>
+            {!compra.stockAplicado && " — se marcará como recibida y se aplicará el stock"}
+          </p>
+          <div className="field-wrap">
+            <label className="field-label">Fecha de llegada</label>
+            <input
+              type="date"
+              className={`field-input${err ? " error" : ""}`}
+              value={fecha}
+              max={hoy}
+              onChange={e => { setFecha(e.target.value); setErr(""); }}
+            />
+            {err && <span className="field-error">{err}</span>}
+          </div>
+        </div>
+        <div className="modal-footer modal-footer--center">
+          <button className="btn-ghost" onClick={onClose}>Cancelar</button>
+          <button className="btn-save" onClick={handleOk}>Confirmar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Página principal ─────────────────────────────────────── */
 export default function GestionCompras() {
-  const {
-    compras, proveedores,
-    crearCompra, editarCompra, eliminarCompra, anularCompra, completarCompra,
-    getProveedor,
-  } = useApp();
-
+  const [compras,      setCompras]      = useState([]);
+  const [proveedores,  setProveedores]  = useState([]);
+  const [loading,      setLoading]      = useState(true);
   const [search,        setSearch]        = useState("");
   const [filterEstado,  setFilterEstado]  = useState("todos");
   const [filterProv,    setFilterProv]    = useState("todos");
   const [showFilter,    setShowFilter]    = useState(false);
   const [page,          setPage]          = useState(1);
   const [modal,         setModal]         = useState(null);
+  const [llegadaModal,  setLlegadaModal]  = useState(null);
   const [toast,         setToast]         = useState(null);
   const filterRef = useRef();
 
-  /* Cerrar dropdown al hacer clic fuera */
+  const getProveedor = (id) => proveedores.find(p => (p.ID_Proveedor || p.id) === id) || null;
+
+  const cargarDatos = async () => {
+    setLoading(true);
+    try {
+      const [cData, pData] = await Promise.all([
+        getCompras({ porPagina: 100 }),
+        getProveedores({ porPagina: 100 }),
+      ]);
+      setCompras(cData.compras || []);
+      setProveedores(pData.proveedores || pData || []);
+    } catch { /* toast shown below */ }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { cargarDatos(); }, []);
+
   useEffect(() => {
     const h = e => {
       if (filterRef.current && !filterRef.current.contains(e.target)) setShowFilter(false);
@@ -59,17 +117,15 @@ export default function GestionCompras() {
 
   /* ── Filtrado ── */
   const filtered = compras.filter(c => {
-    const prov = getProveedor(c.idProveedor);
-    const q    = search.toLowerCase();
+    const q = search.toLowerCase();
     const matchQ = (
-      c.id.toLowerCase().includes(q) ||
-      (prov?.responsable || "").toLowerCase().includes(q) ||
-      (prov?.ciudad      || "").toLowerCase().includes(q) ||
-      (c.metodoPago      || "").toLowerCase().includes(q) ||
-      (c.notas           || "").toLowerCase().includes(q)
+      String(c.id).toLowerCase().includes(q) ||
+      (c.proveedor   || "").toLowerCase().includes(q) ||
+      (c.metodoPago  || "").toLowerCase().includes(q) ||
+      (c.notas       || "").toLowerCase().includes(q)
     );
     const matchEstado = filterEstado === "todos" || c.estado === filterEstado;
-    const matchProv   = filterProv   === "todos" || c.idProveedor === filterProv;
+    const matchProv   = filterProv   === "todos" || String(c.idProveedor) === String(filterProv);
     return matchQ && matchEstado && matchProv;
   });
 
@@ -82,32 +138,35 @@ export default function GestionCompras() {
   const hasFilter = filterEstado !== "todos" || filterProv !== "todos";
 
   /* ── CRUD handlers ── */
-  const handleCreate = (form) => {
-    crearCompra(form);
-    showToast("Compra registrada correctamente");
-    setModal(null);
-  };
-
-  const handleEdit = (form) => {
-    editarCompra(form);
-    showToast("Compra actualizada");
-    setModal(null);
-  };
-
-  // ✅ FIX: siempre llama setModal(null) pase lo que pase
-  const handleAnular = (id) => {
-    const result = anularCompra(id);
-    if (!result || result.ok) {
-      showToast("Compra anulada", "error");
-    } else {
-      showToast(result.razon || "No se pudo anular la compra", "error");
+  const handleCreate = async (form) => {
+    try {
+      await apiCrearCompra(form);
+      await cargarDatos();
+      showToast("Compra registrada correctamente");
+      setModal(null);
+    } catch (err) {
+      showToast(err.message || "Error al registrar la compra", "error");
     }
-    setModal(null); // siempre cerrar el modal
+  };
+
+  const handleEdit = () => {
+    showToast("Edición de compras no disponible aún en el servidor", "error");
+    setModal(null);
+  };
+
+  const handleAnular = () => {
+    showToast("Anulación de compras no disponible aún en el servidor", "error");
+    setModal(null);
   };
 
   const handleCompletarRapido = (id) => {
-    completarCompra(id);
-    showToast("Compra marcada como completada — stock actualizado");
+    const compra = compras.find(c => c.id === id);
+    if (compra) setLlegadaModal(compra);
+  };
+
+  const handleConfirmarLlegada = () => {
+    showToast("El stock ya fue aplicado automáticamente al crear la compra", "success");
+    setLlegadaModal(null);
   };
 
   return (
@@ -218,13 +277,14 @@ export default function GestionCompras() {
                   <th>Método</th>
                   <th>Total</th>
                   <th>Estado</th>
+                  <th>Llegada</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {paginated.length === 0 ? (
                   <tr>
-                    <td colSpan={8}>
+                    <td colSpan={9}>
                       <div className="empty-state">
                         <div className="empty-state__icon">🛒</div>
                         <p className="empty-state__text">
@@ -234,8 +294,7 @@ export default function GestionCompras() {
                     </td>
                   </tr>
                 ) : paginated.map((c, idx) => {
-                  const prov   = getProveedor(c.idProveedor);
-                  const total  = calcularTotal(c.detalles);
+                  const prov  = getProveedor(c.idProveedor);
                   const metodo = METODOS_LABEL[c.metodoPago];
 
                   return (
@@ -258,8 +317,8 @@ export default function GestionCompras() {
                         <div className="prov-cell">
                           <div className="prov-avatar">🏭</div>
                           <div>
-                            <div className="prov-name">{prov?.responsable || "—"}</div>
-                            <div className="prov-id">{prov?.ciudad || ""}</div>
+                            <div className="prov-name">{c.proveedor || prov?.Responsable || prov?.responsable || "—"}</div>
+                            <div className="prov-id">{prov?.Ciudad || prov?.ciudad || ""}</div>
                           </div>
                         </div>
                       </td>
@@ -278,7 +337,7 @@ export default function GestionCompras() {
 
                       {/* Total */}
                       <td>
-                        <span className="total-cell">{COP(total)}</span>
+                        <span className="total-cell">{COP(c.total)}</span>
                       </td>
 
                       {/* Estado */}
@@ -288,6 +347,14 @@ export default function GestionCompras() {
                           {c.estado === "completada" && "✅ Completada"}
                           {c.estado === "anulada"    && "🚫 Anulada"}
                         </span>
+                      </td>
+
+                      {/* Fecha llegada */}
+                      <td>
+                        {c.fecha_llegada
+                          ? <span className="date-badge">📦 {c.fecha_llegada}</span>
+                          : <span style={{ fontSize: 11, color: "#bdbdbd", fontWeight: 600 }}>Pendiente</span>
+                        }
                       </td>
 
                       {/* Acciones */}
@@ -302,9 +369,16 @@ export default function GestionCompras() {
                           {c.estado === "pendiente" && (
                             <button
                               className="act-btn act-btn--success"
-                              title="Marcar como recibida"
+                              title="Registrar llegada"
                               onClick={() => handleCompletarRapido(c.id)}
                             >✅</button>
+                          )}
+                          {c.estado === "completada" && (
+                            <button
+                              className="act-btn act-btn--view"
+                              title="Editar fecha de llegada"
+                              onClick={() => setLlegadaModal(c)}
+                            >📅</button>
                           )}
 
                           <button
@@ -379,6 +453,14 @@ export default function GestionCompras() {
           compra={modal.compra}
           onClose={() => setModal(null)}
           onConfirm={handleAnular}
+        />
+      )}
+
+      {llegadaModal && (
+        <ModalRegistrarLlegada
+          compra={llegadaModal}
+          onClose={() => setLlegadaModal(null)}
+          onConfirm={handleConfirmarLlegada}
         />
       )}
 

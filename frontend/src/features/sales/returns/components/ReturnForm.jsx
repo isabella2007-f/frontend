@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { addReturn }  from '../services/returnService.js';
-import { useApp }     from '../../../../AppContext.jsx';
-import { PackageMinus, AlertCircle, FileText, Hash, Image } from 'lucide-react';
+import { PackageMinus, AlertCircle, FileText, Image } from 'lucide-react';
 
 const MOTIVOS = [
   'Producto en mal estado',

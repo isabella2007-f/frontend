@@ -87,11 +87,11 @@ const initLotes = [
 const initSalidas = [];
 
 const initProductos = [
-  { id: 1, nombre: "Muffin de plátano",      idCategoria: 2, precio: 10000, stock: 50, stockMinimo: 10, imagen: null, imagenPreview: null, fecha: "12/12/2025", ficha: null },
-  { id: 2, nombre: "Palito de queso",         idCategoria: 1, precio: 5000,  stock: 20, stockMinimo: 10, imagen: null, imagenPreview: null, fecha: "12/12/2025", ficha: null },
-  { id: 3, nombre: "Chips de plátano verde",  idCategoria: 3, precio: 3500,  stock: 7,  stockMinimo: 15, imagen: null, imagenPreview: null, fecha: "01/01/2026", ficha: null },
-  { id: 4, nombre: "Harina de plátano 500g",  idCategoria: 4, precio: 12000, stock: 80, stockMinimo: 20, imagen: null, imagenPreview: null, fecha: "20/02/2026", ficha: null },
-  { id: 5, nombre: "Tostones orgánicos",       idCategoria: 5, precio: 7500,  stock: 15, stockMinimo: 10, imagen: null, imagenPreview: null, fecha: "28/02/2026", ficha: null },
+  { id: 1, nombre: "Muffin de plátano",      idCategoria: 2, precio: 10000, stock: 50, stockMinimo: 10, imagen: null, imagenPreview: null, fecha: "12/12/2025", ficha: null, publicado: true,  descripcion_corta: "Delicioso muffin elaborado con plátano maduro.",       descripcion_larga: "" },
+  { id: 2, nombre: "Palito de queso",         idCategoria: 1, precio: 5000,  stock: 20, stockMinimo: 10, imagen: null, imagenPreview: null, fecha: "12/12/2025", ficha: null, publicado: true,  descripcion_corta: "Palitos crujientes rellenos de queso y plátano.",        descripcion_larga: "" },
+  { id: 3, nombre: "Chips de plátano verde",  idCategoria: 3, precio: 3500,  stock: 7,  stockMinimo: 15, imagen: null, imagenPreview: null, fecha: "01/01/2026", ficha: null, publicado: true,  descripcion_corta: "Chips crocantes de plátano verde, perfectos para snack.", descripcion_larga: "" },
+  { id: 4, nombre: "Harina de plátano 500g",  idCategoria: 4, precio: 12000, stock: 80, stockMinimo: 20, imagen: null, imagenPreview: null, fecha: "20/02/2026", ficha: null, publicado: false, descripcion_corta: "Harina 100% plátano verde, sin gluten.",                  descripcion_larga: "" },
+  { id: 5, nombre: "Tostones orgánicos",       idCategoria: 5, precio: 7500,  stock: 15, stockMinimo: 10, imagen: null, imagenPreview: null, fecha: "28/02/2026", ficha: null, publicado: true,  descripcion_corta: "Tostones de plátano orgánico certificado.",              descripcion_larga: "" },
 ];
 
 const initLotesProductos      = {};
@@ -279,7 +279,18 @@ export const getVencimientoMasAntiguo = (detalles = []) => {
 };
 
 const nextCompraId       = (arr) => { const nums = arr.map(c => parseInt(c.id.replace("C-", "")) || 0);    return `C-${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`; };
-const nextLoteId         = (arr) => { const nums = arr.map(l => parseInt(l.id.replace("LC-", "")) || 0);   return `LC-${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`; };
+const nextLoteId = (arr) => {
+  const hoy = new Date(); const yyyy = hoy.getFullYear(); const mm = String(hoy.getMonth() + 1).padStart(2, "0");
+  const prefix = `LOT-${yyyy}-${mm}-`;
+  const nums = arr.filter(l => l.id && l.id.startsWith(prefix)).map(l => parseInt(l.id.replace(prefix, "")) || 0);
+  return `${prefix}${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`;
+};
+const nextLoteProductoId = (arr) => {
+  const hoy = new Date(); const yyyy = hoy.getFullYear(); const mm = String(hoy.getMonth() + 1).padStart(2, "0");
+  const prefix = `PROD-${yyyy}-${mm}-`;
+  const nums = arr.filter(l => l.id && l.id.startsWith(prefix)).map(l => parseInt(l.id.replace(prefix, "")) || 0);
+  return `${prefix}${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`;
+};
 const nextPedidoNumero   = (arr) => { const nums = arr.map(p => parseInt(p.numero.replace("PED-", "")) || 0); return `PED-${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`; };
 const nextOrdenId        = (arr) => { const nums = arr.map(o => parseInt(o.id.replace("OP-", "")) || 0);   return `OP-${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`; };
 const nextDevolucionNum  = (arr) => { const nums = arr.map(d => parseInt(d.numero.replace("DEV-", "")) || 0); return `DEV-${String(Math.max(0, ...nums) + 1).padStart(3, "0")}`; };
@@ -726,7 +737,8 @@ export function AppProvider({ children }) {
   const editarProducto   = f            => setProductos(p => p.map(x => x.id === f.id ? f : x));
   const eliminarProducto = id           => setProductos(p => p.filter(x => x.id !== id));
   const guardarFicha     = (pId, ficha) => setProductos(p => p.map(x => x.id === pId ? { ...x, ficha } : x));
-  const toggleActivoProducto = (id)     => setProductos(p => p.map(x => x.id === id ? { ...x, activo: !x.activo } : x));
+  const toggleActivoProducto    = (id) => setProductos(p => p.map(x => x.id === id ? { ...x, activo: !x.activo } : x));
+  const togglePublicadoProducto = (id) => setProductos(p => p.map(x => x.id === id ? { ...x, publicado: !x.publicado } : x));
 
   /* ── CRUD roles ─────────────────────────────────────── */
   const crearRol  = (form) => setRoles(p => [{ ...form, id: Date.now(), fecha: new Date().toLocaleDateString("es-CO"), esAdmin: false }, ...p]);
@@ -836,7 +848,7 @@ export function AppProvider({ children }) {
     }));
   };
 
-  const completarCompra = (id) => {
+  const completarCompra = (id, fechaLlegada) => {
     setCompras(prevCompras => {
       const compra = prevCompras.find(c => c.id === id);
       if (!compra || compra.stockAplicado) return prevCompras;
@@ -847,9 +859,15 @@ export function AppProvider({ children }) {
       _subirStock(detallesConId);
 
       return prevCompras.map(c =>
-        c.id === id ? { ...c, estado: "completada", detalles: detallesConId, stockAplicado: true } : c
+        c.id === id ? { ...c, estado: "completada", detalles: detallesConId, stockAplicado: true, fecha_llegada: fechaLlegada || new Date().toISOString().split('T')[0] } : c
       );
     });
+  };
+
+  const registrarLlegadaCompra = (id, fechaLlegada) => {
+    setCompras(prev => prev.map(c =>
+      c.id === id ? { ...c, fecha_llegada: fechaLlegada } : c
+    ));
   };
 
   const anularCompra = (id) => {
@@ -1112,62 +1130,92 @@ export function AppProvider({ children }) {
   };
 
   const cambiarEstadoOrden = (ordenId, nuevoEstado) => {
+    const orden = ordenes.find(o => o.id === ordenId);
+    if (!orden || orden.estado === nuevoEstado) return;
+
+    const yaDescontados = orden.insumosDescontados || false;
+    const yaSumadosProd = orden.productosSumados   || false;
+    const fechaCierre   = nuevoEstado === "Completada" ? fechaHoy() : orden.fechaCierre;
+
+    if ((nuevoEstado === "En proceso" || nuevoEstado === "Completada") && !yaDescontados) {
+      (orden.insumos || []).forEach(ins => {
+        registrarSalidaInsumo({
+          idInsumo: ins.idInsumo,
+          tipo: "produccion",
+          cantidad: ins.cantidad,
+          motivo: `Consumo por orden de producción ${ordenId}`,
+          usuario: "sistema",
+        });
+      });
+    }
+
+    if (nuevoEstado === "Completada" && !yaSumadosProd) {
+      const productosOrden = orden.productos || [];
+      const allLotes = Object.values(lotesProductos).flat();
+      const nuevosLotes = [];
+      productosOrden.forEach(item => {
+        const id = nextLoteProductoId([...allLotes, ...nuevosLotes]);
+        nuevosLotes.push({
+          id,
+          idProducto:        item.idProducto,
+          idOrdenProduccion: ordenId,
+          cantidadInicial:   item.cantidad,
+          cantidadActual:    item.cantidad,
+          fechaProduccion:   fechaHoy(),
+          fechaVencimiento:  orden.fechaVencimiento || null,
+          estado:            "activo",
+        });
+      });
+
+      setLotesProductos(prev => {
+        const next = { ...prev };
+        nuevosLotes.forEach(lote => {
+          next[lote.idProducto] = [...(next[lote.idProducto] || []), lote];
+        });
+        return next;
+      });
+
+      if (!orden.idPedido) {
+        setProductos(prods => prods.map(prod => {
+          const item = productosOrden.find(p => p.idProducto === prod.id);
+          if (!item) return prod;
+          const nuevoStock = prod.stock + item.cantidad;
+          const minimo = prod.stockMinimo ?? 10;
+          return { ...prod, stock: nuevoStock, estado: nuevoStock > 0 && nuevoStock >= minimo ? "Disponible" : "No disponible" };
+        }));
+      }
+
+      if (orden.idPedido) {
+        setPedidos(prevP => prevP.map(p => p.id !== orden.idPedido ? p : { ...p, estado: "Listo" }));
+      }
+
+      agregarNotifInterna({
+        tipo:  NOTIF_TIPOS.SISTEMA,
+        clave: `orden-completada-${ordenId}`,
+        titulo: `Orden de producción completada: ${ordenId}`,
+        mensaje: `La orden ${ordenId} fue marcada como completada. El stock de los productos e insumos fue actualizado.`,
+        idReferencia: ordenId, refNombre: ordenId,
+        idDestinatario: 'admin',
+      });
+    }
+
+    if (nuevoEstado === "Cancelada" && yaDescontados) {
+      (orden.insumos || []).forEach(ins => {
+        setInsumos(prevI => prevI.map(i => i.id === ins.idInsumo ? { ...i, stockActual: i.stockActual + ins.cantidad } : i));
+      });
+    }
+
     setOrdenes(prev => prev.map(o => {
       if (o.id !== ordenId) return o;
-      if (o.estado === nuevoEstado) return o;
-
-      const fechaCierre = nuevoEstado === "Completada" ? fechaHoy() : o.fechaCierre;
-      const yaDescontados = o.insumosDescontados || false;
-      const yaSumadosProd = o.productosSumados || false;
-
-      let nextOrden = { ...o, estado: nuevoEstado, fechaCierre };
-
-      if ((nuevoEstado === "En proceso" || nuevoEstado === "Completada") && !yaDescontados) {
-        (o.insumos || []).forEach(ins => {
-          registrarSalidaInsumo({
-            idInsumo: ins.idInsumo,
-            tipo: "produccion",
-            cantidad: ins.cantidad,
-            motivo: `Consumo por orden de producción ${ordenId}`,
-            usuario: "sistema",
-          });
-        });
-        nextOrden.insumosDescontados = true;
-      }
-
-      if (nuevoEstado === "Completada" && !yaSumadosProd) {
-        if (!o.idPedido) {
-          setProductos(prods => prods.map(prod => {
-            const item = (o.productos || []).find(p => p.idProducto === prod.id);
-            if (!item) return prod;
-            return { ...prod, stock: prod.stock + item.cantidad };
-          }));
-        }
-
-        if (o.idPedido) {
-          setPedidos(prevP => prevP.map(p => p.id !== o.idPedido ? p : { ...p, estado: "Listo" }));
-        }
-
-        agregarNotifInterna({
-          tipo:  NOTIF_TIPOS.SISTEMA,
-          clave: `orden-completada-${ordenId}`,
-          titulo: `Orden de producción completada: ${ordenId}`,
-          mensaje: `La orden ${ordenId} fue marcada como completada. El stock de los productos e insumos fue actualizado.`,
-          idReferencia: ordenId, refNombre: ordenId,
-          idDestinatario: 'admin',
-        });
-
-        nextOrden.productosSumados = true;
-      }
-
-      if (nuevoEstado === "Cancelada" && yaDescontados) {
-        (o.insumos || []).forEach(ins => {
-          setInsumos(prevI => prevI.map(i => i.id === ins.idInsumo ? { ...i, stockActual: i.stockActual + ins.cantidad } : i));
-        });
-        nextOrden.insumosDescontados = false;
-      }
-
-      return nextOrden;
+      return {
+        ...o,
+        estado:            nuevoEstado,
+        fechaCierre,
+        insumosDescontados: nuevoEstado === "Cancelada" ? false
+          : ((nuevoEstado === "En proceso" || nuevoEstado === "Completada") && !yaDescontados) ? true
+          : o.insumosDescontados,
+        productosSumados: nuevoEstado === "Completada" && !yaSumadosProd ? true : o.productosSumados,
+      };
     }));
   };
 
@@ -1287,12 +1335,12 @@ export function AppProvider({ children }) {
       crearCatProducto, editarCatProducto, toggleCatProducto, eliminarCatProducto,
       crearCatInsumo,   editarCatInsumo,   toggleCatInsumo,   eliminarCatInsumo,
       crearInsumo,      editarInsumo,      toggleInsumo,      eliminarInsumo,
-      crearProducto,    editarProducto,    eliminarProducto,  guardarFicha, toggleActivoProducto,
+      crearProducto,    editarProducto,    eliminarProducto,  guardarFicha, toggleActivoProducto, togglePublicadoProducto,
       crearRol,         editarRol,         toggleRol,         eliminarRol,
       crearUsuario,     editarUsuario,     toggleUsuario,     eliminarUsuario,
       crearCliente,     editarCliente,     toggleCliente,     eliminarCliente,
       crearProveedor,   editarProveedor,   toggleProveedor,   eliminarProveedor,
-      crearCompra,      editarCompra,      eliminarCompra,    anularCompra, completarCompra,
+      crearCompra,      editarCompra,      eliminarCompra,    anularCompra, completarCompra, registrarLlegadaCompra,
       registrarSalidaInsumo, editarSalidaInsumo, eliminarSalidaInsumo,
       descontarStockFIFO,
       crearPedido,      editarPedido,      eliminarPedido,

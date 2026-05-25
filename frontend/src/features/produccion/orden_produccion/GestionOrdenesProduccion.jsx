@@ -340,10 +340,13 @@ function ModalFormOrden({ orden, productos, insumos, onClose, onSave }) {
   };
 
   const handleSave = async () => {
+    const today = new Date().toISOString().split('T')[0];
     const e = {};
-    if (!form.idProducto)                 e.idProducto   = "Seleccione un producto";
-    if (!form.cantidad || form.cantidad < 1) e.cantidad  = "Ingrese una cantidad válida";
-    if (!form.fechaEntrega)               e.fechaEntrega = "La fecha de entrega es obligatoria";
+    if (!form.idProducto)                    e.idProducto   = "Seleccione un producto";
+    if (!form.cantidad || form.cantidad < 1) e.cantidad     = "Ingrese una cantidad válida";
+    if (!form.fechaEntrega)                  e.fechaEntrega = "La fecha de entrega es obligatoria";
+    else if (form.fechaEntrega < today)      e.fechaEntrega = "La fecha no puede ser anterior al día de hoy";
+    if (form.fechaInicio && form.fechaInicio < today) e.fechaInicio = "La fecha de inicio no puede ser anterior al día de hoy";
     if (Object.keys(e).length) { setErrors(e); return; }
 
     setSaving(true);
@@ -445,16 +448,19 @@ function ModalFormOrden({ orden, productos, insumos, onClose, onSave }) {
               <label className="form-label">Fecha de inicio</label>
               <input
                 type="date"
-                className="field-input"
+                className={`field-input${errors.fechaInicio ? " error" : ""}`}
+                min={new Date().toISOString().split('T')[0]}
                 value={form.fechaInicio}
                 onChange={e => set("fechaInicio", e.target.value)}
               />
+              {errors.fechaInicio && <span className="field-error">{errors.fechaInicio}</span>}
             </div>
             <div className="form-group">
               <label className="form-label">Fecha de entrega <span className="required">*</span></label>
               <input
                 type="date"
                 className={`field-input${errors.fechaEntrega ? " error" : ""}`}
+                min={new Date().toISOString().split('T')[0]}
                 value={form.fechaEntrega}
                 onChange={e => set("fechaEntrega", e.target.value)}
               />
@@ -515,7 +521,7 @@ export default function GestionOrdenesProduccion() {
       setProductos(
         (pData.productos || [])
           .filter(p => p.Estado !== 0)
-          .map(p => ({ id: p.ID_Producto, nombre: p.Nombre }))
+          .map(p => ({ id: p.ID_Producto, nombre: p.nombre || p.Nombre || "" }))
       );
       setInsumos(
         (iData.insumos || [])

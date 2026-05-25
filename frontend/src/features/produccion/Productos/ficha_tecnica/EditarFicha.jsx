@@ -29,14 +29,16 @@ export default function EditarFicha({ ficha, mode = "edit", onClose, onSave }) {
     }).catch(() => {});
   }, [mode]);
 
-  const [form,   setForm]   = useState({ ...ficha });
+  const normalizeInsumos = (f) => Array.isArray(f?.insumos) ? f.insumos : [];
+
+  const [form,   setForm]   = useState({ ...ficha, insumos: normalizeInsumos(ficha) });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [tab,    setTab]    = useState("insumos");
   const fotoRef = useRef();
   const isView  = mode === "view";
 
-  useEffect(() => { if (ficha) setForm({ ...ficha }); }, [ficha]);
+  useEffect(() => { if (ficha) setForm({ ...ficha, insumos: normalizeInsumos(ficha) }); }, [ficha]);
 
   const set = (k, v) => { setForm(p => ({ ...p, [k]: v })); setErrors(p => ({ ...p, [k]: "" })); };
 
@@ -48,16 +50,18 @@ export default function EditarFicha({ ficha, mode = "edit", onClose, onSave }) {
     reader.readAsDataURL(file);
   };
 
+  const getInsumosList = (p) => Array.isArray(p.insumos) ? p.insumos : [];
+
   const addInsumo = () => setForm(p => ({
     ...p,
-    insumos: [...(p.insumos || []), { id: Date.now(), idCategoria: "", idInsumo: "", nombre: "", cantidad: "", unidad: "" }],
+    insumos: [...getInsumosList(p), { id: Date.now(), idCategoria: "", idInsumo: "", nombre: "", cantidad: "", unidad: "" }],
   }));
 
-  const delInsumo = id => setForm(p => ({ ...p, insumos: (p.insumos || []).filter(i => i.id !== id) }));
+  const delInsumo = id => setForm(p => ({ ...p, insumos: getInsumosList(p).filter(i => i.id !== id) }));
 
   const setInsumo = (id, k, v) => setForm(p => ({
     ...p,
-    insumos: (p.insumos || []).map(i => {
+    insumos: getInsumosList(p).map(i => {
       if (i.id !== id) return i;
       if (k === "idCategoria") return { ...i, idCategoria: v, idInsumo: "", nombre: "" };
       if (k === "idInsumo") {

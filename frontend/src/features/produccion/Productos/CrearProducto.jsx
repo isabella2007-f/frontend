@@ -8,7 +8,6 @@
 //   4. Llamar onSave() para que GestionProductos recargue la lista
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useRef } from "react";
-import { useApp } from "../../../AppContext.jsx";
 import CrearFicha from "./ficha_tecnica/CrearFicha.jsx";
 import {
   crearProducto as apiCrearProducto,
@@ -57,17 +56,20 @@ function StepsBar({ current }) {
    COMPONENTE PRINCIPAL
 ══════════════════════════════════════════════════════════ */
 export default function CrearProducto({ categorias = [], onClose, onSave }) {
-  // calcularCostoProduccion y sugerirPrecioConGanancia pueden seguir en contexto local
-  const { calcularCostoProduccion, sugerirPrecioConGanancia } = useApp();
+  const calcularCostoProduccion = () => 0;
+  const sugerirPrecioConGanancia = () => 0;
 
   const [form, setForm] = useState({
-    nombre:          "",
-    idCategoria:     "",
-    precio:          "",
-    stockMinimo:     "10",
-    archivos:        [], // File objects reales para subir a la API
-    imagenesPreview: [], // base64 para mostrar en la UI
-    ficha:           null,
+    nombre:           "",
+    idCategoria:      "",
+    precio:           "",
+    stockMinimo:      "10",
+    descripcion_corta: "",
+    descripcion_larga: "",
+    publicado:         true,
+    archivos:         [], // File objects reales para subir a la API
+    imagenesPreview:  [], // base64 para mostrar en la UI
+    ficha:            null,
   });
   const [errors,    setErrors]    = useState({});
   const [saving,    setSaving]    = useState(false);
@@ -153,11 +155,14 @@ export default function CrearProducto({ categorias = [], onClose, onSave }) {
     try {
       // ── 1. Crear el producto en la API ──────────────────
       const payload = {
-        nombre:       form.nombre.trim(),
-        ID_Categoria: Number(form.idCategoria),
-        Precio_venta: Number(form.precio),
-        Stock:        0,                      // siempre inicia en 0; producción lo sube
-        Stock_Minimo: Number(form.stockMinimo),
+        nombre:            form.nombre.trim(),
+        ID_Categoria:      Number(form.idCategoria),
+        Precio_venta:      Number(form.precio),
+        Stock:             0,
+        Stock_Minimo:      Number(form.stockMinimo),
+        Descripcion_Corta: form.descripcion_corta.trim(),
+        Descripcion_Larga: form.descripcion_larga.trim(),
+        Publicado:         form.publicado ? 1 : 0,
         ...(form.ficha
           ? {
               ficha_tecnica: {
@@ -271,6 +276,59 @@ export default function CrearProducto({ categorias = [], onClose, onSave }) {
                   {errors.idCategoria && (
                     <p className="field-error">{errors.idCategoria}</p>
                   )}
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">
+                    Descripción corta{" "}
+                    <span style={{ color: "#9e9e9e", fontWeight: 400, fontSize: 11 }}>
+                      ({form.descripcion_corta.length}/150)
+                    </span>
+                  </label>
+                  <input
+                    className="field-input"
+                    maxLength={150}
+                    value={form.descripcion_corta}
+                    onChange={(e) => set("descripcion_corta", e.target.value)}
+                    placeholder="Ej. Chips crocantes de plátano verde, perfectos para snack."
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Descripción larga</label>
+                  <textarea
+                    className="field-input"
+                    rows={3}
+                    value={form.descripcion_larga}
+                    onChange={(e) => set("descripcion_larga", e.target.value)}
+                    placeholder="Descripción detallada del producto para la tienda..."
+                    style={{ resize: "vertical", minHeight: 70 }}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Publicado en tienda</label>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => set("publicado", !form.publicado)}
+                      style={{
+                        width: 52, height: 28, borderRadius: 14, border: "none",
+                        background: form.publicado ? "#43a047" : "#bdbdbd",
+                        position: "relative", cursor: "pointer", transition: "background 0.2s",
+                      }}
+                    >
+                      <span style={{
+                        position: "absolute", top: 3,
+                        left: form.publicado ? 26 : 3,
+                        width: 22, height: 22, borderRadius: "50%",
+                        background: "#fff", transition: "left 0.2s",
+                      }} />
+                    </button>
+                    <span style={{ fontSize: 13, color: form.publicado ? "#2e7d32" : "#9e9e9e" }}>
+                      {form.publicado ? "Visible en la tienda" : "Oculto en la tienda"}
+                    </span>
+                  </div>
                 </div>
               </>
             )}

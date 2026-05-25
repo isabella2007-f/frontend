@@ -36,6 +36,7 @@ const buildBody = (payload) => ({
   Fecha:           payload.fecha,
   Procedimiento:   payload.procedimiento,
   Observaciones:   payload.observaciones || "",
+  ...(payload.ID_Producto ? { ID_Producto: Number(payload.ID_Producto) } : {}),
   insumos: (payload.insumos || [])
     .filter(i => i.idInsumo && i.cantidad)
     .map(i => ({

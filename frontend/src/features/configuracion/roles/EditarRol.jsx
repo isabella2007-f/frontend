@@ -10,7 +10,7 @@ const ICON_OPTIONS = ["👤","👑","🛡️","🔧","📦","💼","🧑‍💻"
 export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
   const normalize = (p) => (p?.length > 0 && p[0].modulo ? p : buildPrivilegios(p || []));
 
-  const [form, setForm]                       = useState({ ...rol, privilegios: normalize(rol.privilegios) });
+  const [form, setForm]                       = useState({ ...rol, privilegios: normalize(rol.permisos) });
   const [errors, setErrors]                   = useState({});
   const [saving, setSaving]                   = useState(false);
   const [pickingIcon, setPickingIcon]         = useState(false);
@@ -20,7 +20,7 @@ export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
   const isView  = mode === "view";
 
   useEffect(() => {
-    if (rol) setForm({ ...rol, privilegios: normalize(rol.privilegios) });
+    if (rol) setForm({ ...rol, privilegios: normalize(rol.permisos) });
   }, [rol]);
 
   const set = (k, v) => {

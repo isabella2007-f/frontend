@@ -1,69 +1,91 @@
 import { useState, useEffect } from "react";
-import { 
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, 
-  PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, 
-  CartesianGrid, Legend, 
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, AreaChart, Area,
+  CartesianGrid, Legend,
 } from "recharts";
 import "./dashboard.css";
-import { useApp } from "../../AppContext";
-
-
-/* ── Data ─────────────────────────────────────────────────── */
-const VENTAS_HOY = [
-  { hora: "8am", ventas: 12 }, { hora: "9am", ventas: 28 }, { hora: "10am", ventas: 19 },
-  { hora: "11am", ventas: 35 }, { hora: "12pm", ventas: 47 }, { hora: "1pm", ventas: 31 },
-  { hora: "2pm", ventas: 22 }, { hora: "3pm", ventas: 38 }, { hora: "4pm", ventas: 42 },
-];
-const VENTAS_SEMANA = [
-  { hora: "Lun", ventas: 120 }, { hora: "Mar", ventas: 185 }, { hora: "Mié", ventas: 97 },
-  { hora: "Jue", ventas: 210 }, { hora: "Vie", ventas: 260 }, { hora: "Sáb", ventas: 340 },
-  { hora: "Dom", ventas: 180 },
-];
-const VENTAS_MES = [
-  { hora: "Sem 1", ventas: 820 }, { hora: "Sem 2", ventas: 1150 },
-  { hora: "Sem 3", ventas: 970 }, { hora: "Sem 4", ventas: 1380 },
-];
-
-const PEDIDOS_HOY = [
-  { name: "Plátano Tostón", value: 38, color: "#43a047" },
-  { name: "Muffin",         value: 22, color: "#ef5350" },
-  { name: "Chips",          value: 18, color: "#fb8c00" },
-  { name: "Batido",         value: 12, color: "#5c6bc0" },
-  { name: "Harina",         value: 10, color: "#26c6da" },
-];
-
-const TIEMPO_HOY = [
-  { t: "8am",  actual: 12, anterior: 8  },
-  { t: "9am",  actual: 28, anterior: 15 },
-  { t: "10am", actual: 19, anterior: 22 },
-  { t: "11am", actual: 35, anterior: 28 },
-  { t: "12pm", actual: 47, anterior: 31 },
-  { t: "1pm",  actual: 31, anterior: 26 },
-  { t: "2pm",  actual: 22, anterior: 18 },
-  { t: "3pm",  actual: 38, anterior: 29 },
-];
-const TIEMPO_SEMANA = [
-  { t: "Lun", actual: 120, anterior: 95  },
-  { t: "Mar", actual: 185, anterior: 140 },
-  { t: "Mié", actual: 97,  anterior: 110 },
-  { t: "Jue", actual: 210, anterior: 160 },
-  { t: "Vie", actual: 260, anterior: 195 },
-  { t: "Sáb", actual: 340, anterior: 280 },
-  { t: "Dom", actual: 180, anterior: 150 },
-];
+import { getPedidos } from "../../services/pedidosService";
 
 const PERIODOS      = ["hoy", "semana", "mes"];
 const PERIODO_LABEL = { hoy: "Hoy", semana: "Esta semana", mes: "Este mes" };
 
+const HORAS_LABELS = ["8am","9am","10am","11am","12pm","1pm","2pm","3pm","4pm","5pm"];
+const HORAS_NUM    = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
+const DIAS_LABELS  = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+
+/* ── Helpers de tiempo ────────────────────────────────── */
+const startOfToday = () => { const d = new Date(); d.setHours(0,0,0,0); return d; };
+const startOfMonday = (ref = startOfToday()) => {
+  const d = new Date(ref);
+  const day = d.getDay(); // 0=Dom
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  return d;
+};
+
+const filtrarHoy = (lista) => {
+  const hoy = startOfToday();
+  return lista.filter(p => p.fecha_pedido && new Date(p.fecha_pedido) >= hoy);
+};
+const filtrarAyer = (lista) => {
+  const hoy = startOfToday();
+  const ayer = new Date(hoy); ayer.setDate(hoy.getDate() - 1);
+  return lista.filter(p => p.fecha_pedido && new Date(p.fecha_pedido) >= ayer && new Date(p.fecha_pedido) < hoy);
+};
+const filtrarSemana = (lista) => {
+  const ini = startOfMonday();
+  return lista.filter(p => p.fecha_pedido && new Date(p.fecha_pedido) >= ini);
+};
+const filtrarSemanaAnterior = (lista) => {
+  const ini = startOfMonday();
+  const iniAnt = new Date(ini); iniAnt.setDate(ini.getDate() - 7);
+  return lista.filter(p => p.fecha_pedido && new Date(p.fecha_pedido) >= iniAnt && new Date(p.fecha_pedido) < ini);
+};
+const filtrarMes = (lista) => {
+  const hoy = startOfToday();
+  const ini = new Date(hoy); ini.setDate(hoy.getDate() - 30);
+  return lista.filter(p => p.fecha_pedido && new Date(p.fecha_pedido) >= ini);
+};
+const filtrarMesAnterior = (lista) => {
+  const hoy = startOfToday();
+  const ini = new Date(hoy); ini.setDate(hoy.getDate() - 30);
+  const iniAnt = new Date(hoy); iniAnt.setDate(hoy.getDate() - 60);
+  return lista.filter(p => p.fecha_pedido && new Date(p.fecha_pedido) >= iniAnt && new Date(p.fecha_pedido) < ini);
+};
+
+const filtrarPorPeriodo = (lista, periodo) => {
+  if (periodo === "hoy")   return filtrarHoy(lista);
+  if (periodo === "semana") return filtrarSemana(lista);
+  if (periodo === "mes")    return filtrarMes(lista);
+  return lista;
+};
+const filtrarPeriodoAnterior = (lista, periodo) => {
+  if (periodo === "hoy")   return filtrarAyer(lista);
+  if (periodo === "semana") return filtrarSemanaAnterior(lista);
+  if (periodo === "mes")    return filtrarMesAnterior(lista);
+  return [];
+};
+
+const pctDelta = (cur, prev) => {
+  if (prev === 0 && cur === 0) return { delta: "0%", positive: true };
+  if (prev === 0) return { delta: "+100%", positive: true };
+  const pct = Math.round(((cur - prev) / prev) * 100);
+  return { delta: `${pct >= 0 ? "+" : ""}${pct}%`, positive: pct >= 0 };
+};
+
+const clienteKey = (p) => p.cliente?.correo || p.cliente?.nombre || p.cliente?.telefono || "?";
+
 /* ── Custom Tooltip ─────────────────────────────────────── */
-function CustomTooltip({ active, payload, label, prefix = "$" }) {
+function CustomTooltip({ active, payload, label, prefix = "" }) {
   if (!active || !payload?.length) return null;
   return (
     <div style={{ background: "#fff", border: "1px solid #e0e0e0", borderRadius: 10, padding: "8px 14px", boxShadow: "0 4px 16px rgba(0,0,0,0.1)", fontSize: 13 }}>
       <p style={{ margin: "0 0 4px", fontWeight: 700, color: "#424242" }}>{label}</p>
       {payload.map((p, i) => (
         <p key={i} style={{ margin: "2px 0", color: p.fill || p.color || p.stroke || "#43a047", fontWeight: 600 }}>
-          {p.name}: {prefix === "$" ? `$${(p.value || 0).toLocaleString("es-CO")}` : p.value}
+          {p.name}: {prefix === "$"
+            ? `$${(p.value || 0).toLocaleString("es-CO")}`
+            : p.value}
         </p>
       ))}
     </div>
@@ -101,7 +123,6 @@ function KpiCard({ icon, label, valor, delta, positive, color }) {
 /* ── Chart Card desplegable ─────────────────────────────── */
 function ChartCard({ title, period, onPeriod, children, defaultOpen = true, className = "" }) {
   const [open, setOpen] = useState(defaultOpen);
-
   return (
     <div className={`chart-card${open ? " chart-card--open" : ""} ${className}`.trim()}>
       <div className="chart-card__header" onClick={() => setOpen(v => !v)}>
@@ -119,118 +140,135 @@ function ChartCard({ title, period, onPeriod, children, defaultOpen = true, clas
           </div>
         </div>
       </div>
-
-      <div className="chart-card__body">
-        {children}
-      </div>
+      <div className="chart-card__body">{children}</div>
     </div>
   );
 }
 
 /* ── Main Dashboard ─────────────────────────────────────── */
 export default function Dashboard() {
-  const { pedidos } = useApp();
-
-  const [animated,  setAnimated]  = useState(false);
-  const [pVentas,   setPVentas]   = useState("hoy");
-  const [pPedidos,  setPPedidos]  = useState("hoy");
-  const [pTiempo,   setPTiempo]   = useState("hoy");
-  const [pKpi,      setPKpi]      = useState("hoy");
+  const [allPedidos, setAllPedidos] = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [animated,   setAnimated]   = useState(false);
+  const [pVentas,    setPVentas]    = useState("hoy");
+  const [pPedidos,   setPPedidos]   = useState("hoy");
+  const [pTiempo,    setPTiempo]    = useState("hoy");
+  const [pKpi,       setPKpi]       = useState("hoy");
 
   useEffect(() => {
     const t = setTimeout(() => setAnimated(true), 50);
     return () => clearTimeout(t);
   }, []);
 
-  /* ── Procesamiento de Datos Reales ── */
-  
-  const filtrarPorPeriodo = (lista, periodo, fechaCampo = "fecha_pedido") => {
-    const hoy = new Date();
-    hoy.setHours(0,0,0,0);
-    
-    return lista.filter(item => {
-      const fecha = new Date(item[fechaCampo]);
-      if (periodo === "hoy") return fecha >= hoy;
-      if (periodo === "semana") {
-        const hace7dias = new Date(hoy);
-        hace7dias.setDate(hoy.getDate() - 7);
-        return fecha >= hace7dias;
-      }
-      if (periodo === "mes") {
-        const hace30dias = new Date(hoy);
-        hace30dias.setDate(hoy.getDate() - 30);
-        return fecha >= hace30dias;
-      }
-      return true;
-    });
-  };
+  useEffect(() => {
+    getPedidos({ porPagina: 100 })
+      .then(res => setAllPedidos(res.pedidos || []))
+      .catch(() => setAllPedidos([]))
+      .finally(() => setLoading(false));
+  }, []);
 
-  // 1. Ventas por hora/día (Bar Chart)
+  /* ── Flujo de Pedidos (Bar Chart) ── */
   const getVentasData = () => {
-    const filtered = filtrarPorPeriodo(pedidos, pVentas);
+    const filtered = filtrarPorPeriodo(allPedidos, pVentas);
     if (pVentas === "hoy") {
-      const horas = ["8am", "9am", "10am", "11am", "12pm", "1pm", "2pm", "3pm", "4pm", "5pm"];
-      const data = horas.map(h => ({
-        hora: h,
-        ventas: filtered.filter(p => {
-          const hr = new Date(p.fecha_pedido).getHours();
-          const hStr = hr >= 12 ? (hr === 12 ? "12pm" : `${hr-12}pm`) : `${hr}am`;
-          return hStr === h;
-        }).length
+      return HORAS_NUM.map((h, i) => ({
+        hora: HORAS_LABELS[i],
+        ventas: filtered.filter(p => new Date(p.fecha_pedido).getHours() === h).length,
       }));
-      if (data.every(d => d.ventas === 0)) return VENTAS_HOY;
-      return data;
     }
-    if (pVentas === "mes") return VENTAS_MES;
-    return VENTAS_SEMANA;
+    if (pVentas === "semana") {
+      return DIAS_LABELS.map((d, i) => ({
+        hora: d,
+        ventas: filtered.filter(p => {
+          const day = new Date(p.fecha_pedido).getDay();
+          return (day === 0 ? 6 : day - 1) === i;
+        }).length,
+      }));
+    }
+    // mes → semanas del mes
+    return ["Sem 1","Sem 2","Sem 3","Sem 4"].map((label, i) => ({
+      hora: label,
+      ventas: filtered.filter(p => Math.floor((new Date(p.fecha_pedido).getDate() - 1) / 7) === i).length,
+    }));
   };
 
-  // 2. Pedidos por Producto (Pie Chart)
+  /* ── Top Productos (Pie Chart) ── */
   const getPedidosPorProducto = () => {
-    const filtered = filtrarPorPeriodo(pedidos, pPedidos);
+    const filtered = filtrarPorPeriodo(allPedidos, pPedidos);
     const conteo = {};
     filtered.forEach(ped => {
       (ped.productosItems || []).forEach(item => {
-        conteo[item.nombre] = (conteo[item.nombre] || 0) + item.cantidad;
+        conteo[item.nombre] = (conteo[item.nombre] || 0) + (item.cantidad || 1);
       });
     });
-    
-    const colors = ["#43a047", "#ef5350", "#fb8c00", "#5c6bc0", "#26c6da", "#ec407a", "#7e57c2"];
-    const sorted = Object.entries(conteo)
+    const colors = ["#43a047","#ef5350","#fb8c00","#5c6bc0","#26c6da","#ec407a","#7e57c2"];
+    return Object.entries(conteo)
       .map(([name, value], i) => ({ name, value, color: colors[i % colors.length] }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 5);
-
-    return sorted.length > 0 ? sorted : PEDIDOS_HOY;
   };
 
-  // 3. Ventas en el tiempo (Area Chart)
+  /* ── Ventas en el Tiempo (Area Chart) ── */
   const getTiempoData = () => {
-    if (pTiempo === "hoy") return TIEMPO_HOY;
-    return TIEMPO_SEMANA;
+    if (pTiempo === "hoy") {
+      const hoy   = filtrarHoy(allPedidos);
+      const ayer  = filtrarAyer(allPedidos);
+      return HORAS_NUM.map((h, i) => ({
+        t:        HORAS_LABELS[i],
+        actual:   hoy.filter(p  => new Date(p.fecha_pedido).getHours() === h).length,
+        anterior: ayer.filter(p => new Date(p.fecha_pedido).getHours() === h).length,
+      }));
+    }
+    // semana
+    const estaSemana  = filtrarSemana(allPedidos);
+    const semanaAnt   = filtrarSemanaAnterior(allPedidos);
+    return DIAS_LABELS.map((d, i) => {
+      const dayFilter = (lista) => lista.filter(p => {
+        const day = new Date(p.fecha_pedido).getDay();
+        return (day === 0 ? 6 : day - 1) === i;
+      }).length;
+      return { t: d, actual: dayFilter(estaSemana), anterior: dayFilter(semanaAnt) };
+    });
   };
 
-  // 4. Cálculos de KPI
+  /* ── KPIs ── */
   const calculateKPI = (periodo) => {
-    const current = filtrarPorPeriodo(pedidos, periodo);
-    const totalVentas = current.reduce((sum, p) => sum + (p.total || 0), 0);
-    const totalPedidos = current.length;
-    const uniqueClients = new Set(current.map(p => p.idCliente)).size;
-    const ticketPromedio = totalPedidos > 0 ? totalVentas / totalPedidos : 0;
+    const current  = filtrarPorPeriodo(allPedidos, periodo);
+    const previous = filtrarPeriodoAnterior(allPedidos, periodo);
+
+    const totalVentas   = current.reduce((s, p) => s + (p.total || 0), 0);
+    const totalPedidos  = current.length;
+    const uniqueClients = new Set(current.map(clienteKey)).size;
+    const ticket        = totalPedidos > 0 ? totalVentas / totalPedidos : 0;
+
+    const prevVentas    = previous.reduce((s, p) => s + (p.total || 0), 0);
+    const prevPedidos   = previous.length;
+    const prevClients   = new Set(previous.map(clienteKey)).size;
+    const prevTicket    = prevPedidos > 0 ? prevVentas / prevPedidos : 0;
 
     return {
-      ventas:   { valor: `$${totalVentas.toLocaleString("es-CO")}`, delta: "+5%", positive: true },
-      pedidos:  { valor: totalPedidos.toString(), delta: "+2%", positive: true },
-      clientes: { valor: uniqueClients.toString(), delta: "+1%", positive: true },
-      ticket:   { valor: `$${Math.round(ticketPromedio).toLocaleString("es-CO")}`, delta: "0%", positive: true },
+      ventas:   { valor: `$${totalVentas.toLocaleString("es-CO")}`,        ...pctDelta(totalVentas,  prevVentas)  },
+      pedidos:  { valor: totalPedidos.toString(),                           ...pctDelta(totalPedidos, prevPedidos) },
+      clientes: { valor: uniqueClients.toString(),                          ...pctDelta(uniqueClients,prevClients) },
+      ticket:   { valor: `$${Math.round(ticket).toLocaleString("es-CO")}`, ...pctDelta(ticket,       prevTicket)  },
     };
   };
 
-  const ventasData = getVentasData();
-  const pedidosData = getPedidosPorProducto();
-  const totalPedidos = pedidosData.reduce((s, p) => s + p.value, 0);
-  const tiempoData = getTiempoData();
-  const kpi = calculateKPI(pKpi);
+  const ventasData   = getVentasData();
+  const pedidosData  = getPedidosPorProducto();
+  const totalUds     = pedidosData.reduce((s, p) => s + p.value, 0);
+  const tiempoData   = getTiempoData();
+  const kpi          = calculateKPI(pKpi);
+
+  if (loading) {
+    return (
+      <div className="dash-wrapper dash-wrapper--in">
+        <div className="dash-inner" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 300 }}>
+          <span style={{ color: "#9e9e9e", fontSize: 14 }}>Cargando datos…</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`dash-wrapper${animated ? " dash-wrapper--in" : ""}`}>
@@ -252,36 +290,42 @@ export default function Dashboard() {
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="hora" tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} />
-                <Tooltip content={<CustomTooltip prefix="" />} cursor={{ fill: "#f1f8f1" }} />
-                <Bar dataKey="ventas" name="Ventas" fill="url(#barGradient)" radius={[6, 6, 0, 0]} maxBarSize={36} />
+                <YAxis tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip content={<CustomTooltip />} cursor={{ fill: "#f1f8f1" }} />
+                <Bar dataKey="ventas" name="Pedidos" fill="url(#barGradient)" radius={[6,6,0,0]} maxBarSize={36} />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
 
           <ChartCard title="Top Productos" period={pPedidos} onPeriod={setPPedidos}>
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-              <ResponsiveContainer width="55%" height={200}>
-                <PieChart>
-                  <Pie data={pedidosData} cx="50%" cy="50%" innerRadius={50} outerRadius={85}
-                    dataKey="value" paddingAngle={3} strokeWidth={0}>
-                    {pedidosData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                  </Pie>
-                  <Tooltip formatter={(v) => [`${v} uds (${Math.round(v / (totalPedidos || 1) * 100)}%)`, ""]} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
-                {pedidosData.map((p, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                    <span style={{ width: 10, height: 10, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
-                    <span style={{ fontSize: 11, color: "#424242", flex: 1, fontWeight: 500 }}>{p.name}</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "#1a1a1a" }}>
-                      {Math.round(p.value / (totalPedidos || 1) * 100)}%
-                    </span>
-                  </div>
-                ))}
+            {pedidosData.length === 0 ? (
+              <div style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center", color: "#bdbdbd", fontSize: 13 }}>
+                Sin pedidos en este período
               </div>
-            </div>
+            ) : (
+              <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                <ResponsiveContainer width="55%" height={200}>
+                  <PieChart>
+                    <Pie data={pedidosData} cx="50%" cy="50%" innerRadius={50} outerRadius={85}
+                      dataKey="value" paddingAngle={3} strokeWidth={0}>
+                      {pedidosData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                    </Pie>
+                    <Tooltip formatter={(v) => [`${v} uds (${Math.round(v / (totalUds || 1) * 100)}%)`, ""]} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+                  {pedidosData.map((p, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
+                      <span style={{ fontSize: 11, color: "#424242", flex: 1, fontWeight: 500 }}>{p.name}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "#1a1a1a" }}>
+                        {Math.round(p.value / (totalUds || 1) * 100)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </ChartCard>
         </div>
 
@@ -291,40 +335,42 @@ export default function Dashboard() {
             <div className="stat-big">
               <div className="stat-amount">{kpi.ventas.valor}</div>
               <div className={"stat-change" + (kpi.ventas.positive ? " stat-change--up" : " stat-change--down")}>
-                <span>{kpi.ventas.positive ? "↑" : "↓"}</span> {kpi.ventas.delta} vs periodo anterior
+                <span>{kpi.ventas.positive ? "↑" : "↓"}</span> {kpi.ventas.delta} vs período anterior
               </div>
             </div>
-            <div className="stat-badges">
-              {pedidosData.slice(0, 3).map((p, i) => (
-                <div key={i} className="stat-badge">
-                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
-                  <span>{p.name}</span>
-                  <strong>{p.value}</strong>
-                </div>
-              ))}
-            </div>
+            {pedidosData.length > 0 && (
+              <div className="stat-badges">
+                {pedidosData.slice(0, 3).map((p, i) => (
+                  <div key={i} className="stat-badge">
+                    <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
+                    <span>{p.name}</span>
+                    <strong>{p.value}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
           </ChartCard>
 
-          <ChartCard title="Ventas en el Tiempo" period={pTiempo} onPeriod={setPTiempo}>
+          <ChartCard title="Pedidos en el Tiempo" period={pTiempo} onPeriod={setPTiempo}>
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={tiempoData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorActual" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#43a047" stopOpacity={0.3}/>
+                    <stop offset="5%"  stopColor="#43a047" stopOpacity={0.3}/>
                     <stop offset="95%" stopColor="#43a047" stopOpacity={0}/>
                   </linearGradient>
                   <linearGradient id="colorAnterior" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#fb8c00" stopOpacity={0.2}/>
+                    <stop offset="5%"  stopColor="#fb8c00" stopOpacity={0.2}/>
                     <stop offset="95%" stopColor="#fb8c00" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f5" vertical={false} />
                 <XAxis dataKey="t" tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} />
-                <Tooltip content={<CustomTooltip prefix="" />} />
+                <YAxis tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-                <Area type="monotone" dataKey="actual" name="Actual" stroke="#43a047" strokeWidth={2.5} fill="url(#colorActual)" />
-                <Area type="monotone" dataKey="anterior" name="Anterior" stroke="#fb8c00" strokeWidth={2} fill="url(#colorAnterior)" strokeDasharray="5 5" />
+                <Area type="monotone" dataKey="actual"   name="Actual"   stroke="#43a047" strokeWidth={2.5} fill="url(#colorActual)"   />
+                <Area type="monotone" dataKey="anterior" name="Anterior" stroke="#fb8c00" strokeWidth={2}   fill="url(#colorAnterior)" strokeDasharray="5 5" />
               </AreaChart>
             </ResponsiveContainer>
           </ChartCard>

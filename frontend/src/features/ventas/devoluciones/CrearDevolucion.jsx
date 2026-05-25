@@ -168,7 +168,7 @@ export default function CrearDevolucion({ onClose, onSave, saving }) {
   const [pedidosEntregados, setPedidosEntregados] = useState([]);
 
   useEffect(() => {
-    getPedidos({ porPagina: 200 })
+    getPedidos({ porPagina: 100 })
       .then(data => setPedidosEntregados((data.pedidos || []).filter(p => p.estado === "Entregado")))
       .catch(() => {});
   }, []);
