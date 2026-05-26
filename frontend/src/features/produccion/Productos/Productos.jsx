@@ -79,20 +79,20 @@ const TIPO_COLORS = {
  */
 function adaptarProducto(p) {
   return {
-    id:               p.ID_Producto,
-    nombre:           p.nombre,
-    idCategoria:      p.ID_Categoria ?? null,
-    precio:           parseFloat(p.Precio_venta ?? 0),
-    stock:            p.Stock ?? 0,
-    stockMinimo:      p.Stock_Minimo ?? 10,
-    activo:           p.Estado === 1,
-    publicado:        !!p.Publicado,
+    id:                p.ID_Producto,
+    nombre:            p.nombre,
+    idCategoria:       p.ID_Categoria ?? null,
+    precio:            parseFloat(p.Precio_venta ?? 0),
+    stock:             p.Stock ?? 0,
+    stockMinimo:       p.Stock_Minimo ?? 10,
+    activo:            p.Estado === 1,
+    publicado:         (p.Publicado ?? 0) === 1,
     descripcion_corta: p.Descripcion_Corta ?? "",
     descripcion_larga: p.Descripcion_Larga ?? "",
-    estado:           p.estado_label ?? null,
-    imagenesApi:      p.imagenes ?? [],
-    imagenesPreview:  (p.imagenes ?? []).map((img) => img.url).filter(Boolean),
-    ficha:            p.ficha_tecnica ?? null,
+    estado:            p.estado_label ?? null,
+    imagenesApi:       p.imagenes ?? [],
+    imagenesPreview:   (p.imagenes ?? []).map((img) => img.url).filter(Boolean),
+    ficha:             p.ficha_tecnica ?? null,
   };
 }
 
@@ -841,7 +841,7 @@ export default function GestionProductos() {
   const handleSaveFicha = async (ficha) => {
     try {
       if (modal.product.ficha?.id) {
-        await editarFicha(modal.product.ficha.id, ficha);
+        await editarFicha(modal.product.id, ficha);
       } else {
         await crearFicha({ ...ficha, ID_Producto: modal.product.id });
       }
@@ -1140,7 +1140,7 @@ export default function GestionProductos() {
         <ModalEliminarValidado
           titulo="Eliminar producto"
           descripcion={`¿Está seguro de que desea eliminar el producto "${modal.product.nombre}"?`}
-          validacion={canDeleteProducto ? canDeleteProducto(modal.product.id) : { puede: true }}
+          validacion={canDeleteProducto ? canDeleteProducto(modal.product.id) : { ok: true }}
           onClose={() => setModal(null)}
           onConfirm={handleDelete}
         />

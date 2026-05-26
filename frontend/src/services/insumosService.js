@@ -26,6 +26,6 @@ export async function eliminarInsumo(id) {
 export async function toggleEstadoInsumo(id, estadoActual) {
   return apiFetch(`/insumos/${id}/estado`, {
     method: "PATCH",
-    body: JSON.stringify({ Estado: estadoActual ? 0 : 1 }),
+    body: JSON.stringify({ Estado: estadoActual ? 2 : 1 }),
   });
 }

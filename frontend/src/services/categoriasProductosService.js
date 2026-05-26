@@ -25,6 +25,6 @@ export async function eliminarCategoria(id) {
 export async function toggleEstadoCategoria(id, estadoActual) {
   return apiFetch(`/categoria-productos/${id}/estado`, {
     method: "PATCH",
-    body: JSON.stringify({ Estado: estadoActual ? 0 : 1 }),
+    body: JSON.stringify({ Estado: estadoActual ? 2 : 1 }),
   });
 }

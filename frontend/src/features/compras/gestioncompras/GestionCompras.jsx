@@ -234,15 +234,19 @@ export default function GestionCompras() {
                       >
                         <span className="filter-dot" style={{ background: "#bdbdbd" }} />Todos
                       </button>
-                      {proveedores.map(p => (
-                        <button
-                          key={p.id}
-                          className={"filter-option" + (filterProv === p.id ? " active" : "")}
-                          onClick={() => { setFilterProv(p.id); setPage(1); }}
-                        >
-                          <span className="filter-dot" style={{ background: "#2e7d32" }} />{p.responsable.split(" ")[0]}
-                        </button>
-                      ))}
+                      {proveedores.map(p => {
+                        const pid = String(p.ID_Proveedor || p.id || "");
+                        return (
+                          <button
+                            key={pid}
+                            className={"filter-option" + (filterProv === pid ? " active" : "")}
+                            onClick={() => { setFilterProv(pid); setPage(1); }}
+                          >
+                            <span className="filter-dot" style={{ background: "#2e7d32" }} />
+                            {(p.responsable || p.Responsable || "").split(" ")[0]}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -273,7 +277,6 @@ export default function GestionCompras() {
                   <th style={{ width: 48 }}>Nº</th>
                   <th>ID Compra</th>
                   <th>Proveedor</th>
-                  <th>Fecha</th>
                   <th>Método</th>
                   <th>Total</th>
                   <th>Estado</th>
@@ -284,7 +287,7 @@ export default function GestionCompras() {
               <tbody>
                 {paginated.length === 0 ? (
                   <tr>
-                    <td colSpan={9}>
+                    <td colSpan={8}>
                       <div className="empty-state">
                         <div className="empty-state__icon">🛒</div>
                         <p className="empty-state__text">
@@ -321,11 +324,6 @@ export default function GestionCompras() {
                             <div className="prov-id">{prov?.Ciudad || prov?.ciudad || ""}</div>
                           </div>
                         </div>
-                      </td>
-
-                      {/* Fecha */}
-                      <td>
-                        <span className="date-badge">📅 {c.fecha}</span>
                       </td>
 
                       {/* Método */}

@@ -243,8 +243,10 @@ export default function CrearCompra({ onClose, onSave }) {
                     onChange={e => set("idProveedor", e.target.value)}
                   >
                     <option value="">— Seleccionar proveedor —</option>
-                    {proveedores.filter(p => p.estado).map(p => (
-                      <option key={p.id} value={p.id}>{p.responsable} · {p.ciudad}</option>
+                    {proveedores.map(p => (
+                      <option key={p.ID_Proveedor || p.id} value={p.ID_Proveedor || p.id}>
+                        {p.Responsable || p.responsable} · {p.Municipio || p.ciudad}
+                      </option>
                     ))}
                   </select>
                   <span className="select-arrow">▾</span>

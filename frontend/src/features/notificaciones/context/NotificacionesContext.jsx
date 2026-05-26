@@ -51,16 +51,28 @@ const fechaHoy = () => new Date().toISOString();
 ══════════════════════════════════════════════════════════ */
 const NotificacionesContext = createContext(null);
 
+const NOTIF_VERSION = "2";
+
 const loadFromLS = (key, def) => {
   try { const s = localStorage.getItem(key); return s ? JSON.parse(s) : def; }
   catch { return def; }
 };
 
+// Limpia notificaciones guardadas si son de una versión anterior (datos mock).
+const initNotificaciones = () => {
+  if (localStorage.getItem("notif_version") !== NOTIF_VERSION) {
+    localStorage.removeItem("notificaciones");
+    localStorage.setItem("notif_version", NOTIF_VERSION);
+    return [];
+  }
+  return loadFromLS("notificaciones", []);
+};
+
 export function NotificacionesProvider({ children, insumos = [], lotes = [], pedidos = [], compras = [] }) {
 
-  const [notificaciones, setNotificaciones] = useState(() => loadFromLS("notificaciones", []));
+  const [notificaciones, setNotificaciones] = useState(() => initNotificaciones());
   const [user, setLocalUser] = useState(() => {
-    const session = sessionStorage.getItem("session") || localStorage.getItem("session");
+    const session = localStorage.getItem("usuario");
     return session ? JSON.parse(session) : null;
   });
 
@@ -79,7 +91,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
   // Obtener usuario actual para filtrar notificaciones automáticas
   useEffect(() => {
     const checkUser = () => {
-      const session = sessionStorage.getItem("session") || localStorage.getItem("session");
+      const session = localStorage.getItem("usuario");
       const u = session ? JSON.parse(session) : null;
       setLocalUser(u);
     };
@@ -94,7 +106,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
       if (e.key === "notif_autoActivo" && e.newValue) {
         setAutoActivo(JSON.parse(e.newValue));
       }
-      if (e.key === "session") {
+      if (e.key === "usuario") {
         checkUser();
       }
     };
@@ -246,25 +258,23 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
 
   const marcarTodasLeidas = useCallback(() => {
     setNotificaciones(prev => prev.map(n => {
-      const session = sessionStorage.getItem("session") || localStorage.getItem("session");
-      const currentUser = session ? JSON.parse(session) : user;
+      const currentUser = JSON.parse(localStorage.getItem("usuario") || "null") || user;
       const rol = currentUser?.rol?.toLowerCase();
       const isAdmin = rol === 'admin' || rol === 'administrador';
-      const isForCurrent = (isAdmin && n.idDestinatario === 'admin') || (n.idDestinatario === currentUser?.cedula);
+      const isForCurrent = (isAdmin && n.idDestinatario === 'admin') || (n.idDestinatario === currentUser?.id);
       return isForCurrent ? { ...n, leida: true } : n;
     }));
   }, [user]);
 
   const filtrar = useCallback(({ tipo, estado, texto }) => {
     return notificaciones.filter(n => {
-      const session = sessionStorage.getItem("session") || localStorage.getItem("session");
-      const currentUser = session ? JSON.parse(session) : user;
+      const currentUser = JSON.parse(localStorage.getItem("usuario") || "null") || user;
       const rol = currentUser?.rol?.toLowerCase();
       const isAdmin = rol === 'admin' || rol === 'administrador';
       const isClient = rol === 'cliente';
 
       const isForAdmin = isAdmin && n.idDestinatario === 'admin';
-      const isForClient = isClient && n.idDestinatario === currentUser?.cedula;
+      const isForClient = isClient && n.idDestinatario === currentUser?.id;
       
       if (!isForAdmin && !isForClient) return false;
 
@@ -290,7 +300,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
     const isAdmin = rol === 'admin' || rol === 'administrador';
     const isClient = rol === 'cliente';
     const isForAdmin = isAdmin && n.idDestinatario === 'admin';
-    const isForClient = isClient && n.idDestinatario === user?.cedula;
+    const isForClient = isClient && n.idDestinatario === user?.id;
     return isForAdmin || isForClient;
   });
 

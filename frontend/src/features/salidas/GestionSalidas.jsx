@@ -142,7 +142,7 @@ function RegistrarSalida({ productos, insumos, onClose, onRegistrada }) {
   const [entidadTipo,  setEntidadTipo]  = useState("producto");
   const [busqueda,     setBusqueda]     = useState("");
   const [seleccionado, setSeleccionado] = useState(null);
-  const [tipoSalida,   setTipoSalida]   = useState("vencimiento");
+  const [tipoSalida,   setTipoSalida]   = useState("daño");
   const [cantidad,     setCantidad]     = useState("");
   const [motivo,       setMotivo]       = useState("");
   const [errors,       setErrors]       = useState({});
@@ -276,7 +276,7 @@ function RegistrarSalida({ productos, insumos, onClose, onRegistrada }) {
               <div className="form-group" style={{ marginTop: 14 }}>
                 <label className="sl-label">Tipo de salida</label>
                 <div className="sl-tipos-grid">
-                  {TIPOS.map(t => (
+                  {TIPOS.filter(t => t.val !== "vencimiento").map(t => (
                     <button key={t.val} onClick={() => setTipoSalida(t.val)}
                       className={`sl-tipo-btn${tipoSalida === t.val ? " active" : ""}`}
                       style={tipoSalida === t.val ? { borderColor: t.border, background: t.bg, color: t.color } : {}}>

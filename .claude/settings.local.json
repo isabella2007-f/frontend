@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -X POST \"https://api-tostonapp.onrender.com/api/auth/recuperar-contrasena\" -H \"Content-Type: application/json\" -d \"{\\\\\"correo\\\\\":\\\\\"TostonApp@gmail.com\\\\\"}\")",
+      "Bash(pip --version)",
+      "Bash(python -c \"import sys; print\\(sys.version\\); print\\(sys.executable\\)\")"
+    ]
+  }
+}

@@ -200,7 +200,7 @@ export default function CrearPedido({ onClose, onSave }) {
       const lista = (data.productos || data || []).map(p => ({
         id:          p.ID_Producto || p.id,
         nombre:      p.Nombre      || p.nombre      || "",
-        precio:      p.Precio_Venta|| p.precio      || 0,
+        precio:      p.Precio_venta || p.Precio_Venta || p.precio || 0,
         stock:       p.Stock       || p.stock       || 0,
         stockMinimo: p.Stock_Minimo|| p.stockMinimo || 0,
         categoria:   p.nombre_categoria || p.categoria || "",

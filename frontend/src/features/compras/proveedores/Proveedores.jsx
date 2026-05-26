@@ -13,13 +13,14 @@ import {
 const ITEMS_PER_PAGE = 5;
 
 const ADAPT = raw => ({
-  id:           raw.ID_Proveedor,
-  responsable:  raw.Responsable,
-  direccion:    raw.Direccion    ?? "",
-  ciudad:       raw.Municipio    ?? "",
-  departamento: raw.Departamento ?? "",
-  celular:      raw.Telefono     ?? "",
-  correo:       raw.Correo       ?? "",
+  id:            raw.ID_Proveedor,
+  responsable:   raw.Responsable,
+  direccion:     raw.Direccion    ?? "",
+  ciudad:        raw.Municipio    ?? "",
+  departamento:  raw.Departamento ?? "",
+  celular:       raw.Telefono     ?? "",
+  correo:        raw.Correo       ?? "",
+  totalCompras:  raw.total_compras ?? 0,
 });
 
 function Toast({ toast }) {
@@ -313,7 +314,11 @@ export default function GestionProveedores() {
         <ModalEliminarValidado
           titulo="Eliminar proveedor"
           descripcion={`¿Está seguro de que desea eliminar al proveedor "${modal.proveedor.responsable}"?`}
-          validacion={{ ok: true }}
+          validacion={
+            modal.proveedor.totalCompras > 0
+              ? { ok: false, razon: `Este proveedor tiene ${modal.proveedor.totalCompras} compra(s) registrada(s) y no puede eliminarse.` }
+              : { ok: true }
+          }
           onClose={() => setModal(null)}
           onConfirm={handleDelete}
         />

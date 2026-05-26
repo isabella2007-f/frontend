@@ -56,7 +56,7 @@ export const cancelarPedido = async (id) => {
 };
 
 export const crearPedido = async (data) => {
-  return apiFetch("/pedidos/", { method: "POST", body: JSON.stringify(data) });
+  return apiFetch("/ventas/", { method: "POST", body: JSON.stringify(data) });
 };
 
 export const editarPedido = async (id, data) => {

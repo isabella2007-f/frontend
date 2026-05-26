@@ -15,15 +15,14 @@ import { useState } from "react";
  */
 
 const TIPOS = [
-  { val: "vencido",    label: "Vencido",     icon: "🕒", color: "#e65100", bg: "#fff3e0", border: "#ffcc80" },
-  { val: "dañado",     label: "Dañado",      icon: "💥", color: "#c62828", bg: "#ffebee", border: "#ef9a9a" },
+  { val: "daño",       label: "Dañado",      icon: "💥", color: "#c62828", bg: "#ffebee", border: "#ef9a9a" },
   { val: "ajuste",     label: "Ajuste",      icon: "⚖️", color: "#1565c0", bg: "#e3f2fd", border: "#90caf9" },
   { val: "consumo",    label: "Consumo",     icon: "🍽️", color: "#4a148c", bg: "#f3e5f5", border: "#ce93d8" },
-  { val: "devolucion", label: "Devolución",  icon: "↩️", color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7" },
+  { val: "devolución", label: "Devolución",  icon: "↩️", color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7" },
 ];
 
 export default function SalidaModal({ entidad, tipo, stockActual, unidadLabel = "uds.", onClose, onConfirm }) {
-  const [tipoSalida, setTipoSalida] = useState("vencido");
+  const [tipoSalida, setTipoSalida] = useState("daño");
   const [cantidad,   setCantidad]   = useState("");
   const [motivo,     setMotivo]     = useState("");
   const [errors,     setErrors]     = useState({});

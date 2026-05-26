@@ -13,7 +13,7 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "" }) {
     Promise.all([getCategorias(), getInsumos()]).then(([catData, insData]) => {
       const cats = (catData.categorias || catData.items || [])
         .filter(c => c.Estado === 1 || c.estado === true)
-        .map(c => ({ id: c.ID_Categoria || c.id, nombre: c.Nombre || c.nombre, icon: c.Icono || c.icono || "📦" }));
+        .map(c => ({ id: c.ID_Categoria || c.id, nombre: c.Nombre_Categoria || c.Nombre || c.nombre, icon: c.Icono || c.icono || "📦" }));
       setCategoriasInsumosActivas(cats);
 
       const map = {};

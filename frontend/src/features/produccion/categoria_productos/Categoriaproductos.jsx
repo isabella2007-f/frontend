@@ -21,8 +21,8 @@ function adaptCat(c) {
     descripcion: c.Descripcion ?? "",
     icon: c.Icono ?? "📦",
     estado: c.Estado === 1,
-    fecha: c.Fecha_Creacion
-      ? new Date(c.Fecha_Creacion).toLocaleDateString("es-CO")
+    fecha: (c.Fecha_creacion || c.Fecha_Creacion)
+      ? new Date(c.Fecha_creacion || c.Fecha_Creacion).toLocaleDateString("es-CO")
       : "",
     totalProductos: c.total_productos ?? 0,
   };

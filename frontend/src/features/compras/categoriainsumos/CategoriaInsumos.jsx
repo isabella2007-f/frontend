@@ -15,12 +15,13 @@ import "./CategoriaInsumos.css";
 const ITEMS_PER_PAGE = 5;
 
 const ADAPT = raw => ({
-  id:          raw.ID_Categoria,
-  nombre:      raw.Nombre_Categoria,
-  descripcion: raw.Descripcion ?? "",
-  icon:        raw.Icono ?? "🧺",
-  estado:      raw.Estado === 1,
-  fecha:       raw.Fecha_creacion ?? "",
+  id:           raw.ID_Categoria,
+  nombre:       raw.Nombre_Categoria,
+  descripcion:  raw.Descripcion ?? "",
+  icon:         raw.Icono ?? "🧺",
+  estado:       raw.Estado === 1,
+  fecha:        raw.Fecha_creacion ?? "",
+  totalInsumos: raw.total_insumos ?? 0,
 });
 
 function Toggle({ value, onChange }) {
@@ -355,13 +356,41 @@ export default function CategoriaInsumos() {
       {modal?.type === "editar"   && <EditarCategoriaInsumo cat={modal.cat} onClose={() => setModal(null)} onSave={handleEdit} />}
       {modal?.type === "ver"      && <VerCategoria cat={modal.cat} onClose={() => setModal(null)} />}
       {modal?.type === "eliminar" && (
-        <ModalEliminarValidado
-          titulo="Eliminar categoría"
-          descripcion={`¿Está seguro de que desea eliminar la categoría "${modal.cat.nombre}"?`}
-          validacion={{ ok: true }}
-          onClose={() => setModal(null)}
-          onConfirm={handleDelete}
-        />
+        modal.cat.totalInsumos > 0 ? (
+          <ModalOverlay onClose={() => setModal(null)}>
+            <div className="modal-header">
+              <div>
+                <p className="modal-header__eyebrow">Categorías de Insumo</p>
+                <h2 className="modal-header__title">No se puede eliminar</h2>
+              </div>
+              <button className="modal-close-btn" onClick={() => setModal(null)}>✕</button>
+            </div>
+            <div className="modal-body" style={{ padding: "20px 24px 24px" }}>
+              <div style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: "16px", borderRadius: 10, background: "#fff3e0", border: "1px solid #ffcc80" }}>
+                <span style={{ fontSize: 28, lineHeight: 1 }}>⚠️</span>
+                <div>
+                  <p style={{ margin: 0, fontWeight: 700, color: "#e65100", fontSize: 14 }}>
+                    La categoría tiene {modal.cat.totalInsumos} insumo{modal.cat.totalInsumos !== 1 ? "s" : ""} asociado{modal.cat.totalInsumos !== 1 ? "s" : ""}
+                  </p>
+                  <p style={{ margin: "6px 0 0", fontSize: 13, color: "#424242" }}>
+                    Debes reasignar o eliminar los insumos antes de poder eliminar la categoría <strong>"{modal.cat.nombre}"</strong>.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-ghost" onClick={() => setModal(null)}>Entendido</button>
+            </div>
+          </ModalOverlay>
+        ) : (
+          <ModalEliminarValidado
+            titulo="Eliminar categoría"
+            descripcion={`¿Está seguro de que desea eliminar la categoría "${modal.cat.nombre}"?`}
+            validacion={{ ok: true }}
+            onClose={() => setModal(null)}
+            onConfirm={handleDelete}
+          />
+        )
       )}
 
       <Toast toast={toast} />

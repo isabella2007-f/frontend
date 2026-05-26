@@ -5,11 +5,16 @@ const adaptCompra = (c) => ({
   idProveedor:  c.ID_Proveedor     || c.id_proveedor   || null,
   proveedor:    c.nombre_proveedor || c.proveedor       || "",
   metodoPago:   c.Metodo_Pago      || c.metodo_pago     || "",
-  total:        c.Total            || c.total           || 0,
+  total:        c.Total_Pago       || c.Total           || c.total           || 0,
   estado:       (() => {
+    const label = c.estado_label;
+    if (label) {
+      const m = { pendiente: "pendiente", confirmado: "completada", cancelado: "anulada", anulada: "anulada", completada: "completada" };
+      return m[label.toLowerCase()] || "pendiente";
+    }
     const raw = c.Estado ?? c.estado;
     if (typeof raw === "string") return raw.toLowerCase();
-    const m = { 1: "pendiente", 2: "completada", 3: "anulada" };
+    const m = { 3: "pendiente", 4: "completada", 5: "anulada", 12: "anulada" };
     return m[raw] || "pendiente";
   })(),
   fecha:        c.Fecha_Compra     || c.fecha_compra    || c.fecha || "",

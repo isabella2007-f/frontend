@@ -597,19 +597,22 @@ export default function GestionPedidos() {
 
   const handleCrearPedido = async (formData) => {
     try {
+      const metodoPago = (formData.metodo_pago || "").split(" ")[0]; // strip emoji
       const payload = {
-        ID_Cliente:        Number(formData.idCliente),
-        productos:         (formData.productosItems || []).map(p => ({
+        ID_Usuario: Number(formData.idCliente),
+        Metodo_Pago: metodoPago,
+        productos: (formData.productosItems || []).map(p => ({
           ID_Producto: Number(p.idProducto),
           Cantidad:    Number(p.cantidad),
         })),
-        Metodo_Pago:       formData.metodo_pago,
-        Domicilio:         formData.domicilio,
-        Direccion_Entrega: formData.direccion_entrega || null,
-        Subtotal:          formData.subtotal,
-        Descuento:         formData.descuento,
-        Total:             formData.total,
-        Notas:             formData.notas || null,
+        domicilio: formData.domicilio
+          ? {
+              Direccion_entrega:    formData.direccion_entrega || "",
+              Municipio_entrega:    formData.municipio         || "",
+              Departamento_entrega: formData.departamento      || "",
+              Observaciones:        formData.notas             || null,
+            }
+          : null,
       };
       await crearPedido(payload);
       await cargarDatos();

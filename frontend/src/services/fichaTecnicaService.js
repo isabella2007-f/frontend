@@ -47,17 +47,27 @@ const buildBody = (payload) => ({
 });
 
 export const crearFicha = async (payload) => {
-  const data = await apiFetch("/fichas_tecnicas/", {
+  const idProducto = payload.ID_Producto;
+  if (!idProducto) throw new Error("ID_Producto requerido para crear ficha");
+  const data = await apiFetch(`/productos/${idProducto}/ficha`, {
     method: "POST",
-    body: JSON.stringify(buildBody(payload)),
+    body: JSON.stringify({
+      Version:       payload.version       || null,
+      Observaciones: payload.observaciones || null,
+      Procedimiento: payload.procedimiento || null,
+    }),
   });
   return adaptFicha(data);
 };
 
-export const editarFicha = async (id, payload) => {
-  return apiFetch(`/fichas_tecnicas/${id}`, {
+export const editarFicha = async (idProducto, payload) => {
+  return apiFetch(`/productos/${idProducto}/ficha`, {
     method: "PUT",
-    body: JSON.stringify(buildBody(payload)),
+    body: JSON.stringify({
+      Version:       payload.version       || null,
+      Observaciones: payload.observaciones || null,
+      Procedimiento: payload.procedimiento || null,
+    }),
   });
 };
 

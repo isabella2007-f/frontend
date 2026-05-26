@@ -78,62 +78,63 @@ export default function VerInsumo({ ins, categorias, unidades, onClose }) {
           {tab === "info" && (
             <>
               {est !== "disponible" && (
-                <div className="ver-ins-alerta" style={{ borderColor: ec.border, background: ec.bg, color: ec.color }}>
+                <div className="ver-ins-alerta" style={{ borderColor: ec.border, background: ec.bg, color: ec.color, marginBottom: 12 }}>
                   {ec.icon} <strong>{ec.label}</strong>
                   {est === "bajo"    && ` — faltan ${ins.stockMinimo - ins.stockActual} ${unidad.simbolo} para alcanzar el mínimo`}
                   {est === "agotado" && " — este insumo no tiene stock disponible"}
                 </div>
               )}
 
-              <p className="ver-ins-section-label" style={{ textTransform: "none" }}>Clasificación</p>
-              <div className="ver-ins-grid">
-                <div className="ver-ins-field">
-                  <span className="ver-ins-field__label">Categoría</span>
-                  <span className="cat-chip" style={{ display: "inline-flex" }}>
-                    <span className="cat-chip__icon">{cat.icon}</span>{cat.nombre}
-                  </span>
-                </div>
-                <div className="ver-ins-field">
-                  <span className="ver-ins-field__label">Unidad de medida</span>
-                  <span className="unidad-badge">{unidad.simbolo} — {unidad.nombre}</span>
-                </div>
-                <div className="ver-ins-field">
-                  <span className="ver-ins-field__label">Estado operativo</span>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <Toggle value={ins.estado} />
-                    <span style={{ fontSize: 12, color: ins.estado ? "#2e7d32" : "#9e9e9e", fontWeight: 700 }}>
-                      {ins.estado ? "Activo" : "Inactivo"}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                {/* Columna izquierda: clasificación */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div className="ver-ins-field">
+                    <span className="ver-ins-field__label">Categoría</span>
+                    <span className="cat-chip" style={{ display: "inline-flex" }}>
+                      <span className="cat-chip__icon">{cat.icon}</span>{cat.nombre}
                     </span>
                   </div>
+                  <div className="ver-ins-field">
+                    <span className="ver-ins-field__label">Unidad de medida</span>
+                    <span className="unidad-badge">{unidad.simbolo} — {unidad.nombre}</span>
+                  </div>
+                  <div className="ver-ins-field">
+                    <span className="ver-ins-field__label">Estado operativo</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <Toggle value={ins.estado} />
+                      <span style={{ fontSize: 12, color: ins.estado ? "#2e7d32" : "#9e9e9e", fontWeight: 700 }}>
+                        {ins.estado ? "Activo" : "Inactivo"}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              <p className="ver-ins-section-label" style={{ textTransform: "none" }}>Stock</p>
-              <div className="ver-ins-stock-cards">
-                <div className="ver-ins-stock-card ver-ins-stock-card--actual">
-                  <span className="ver-ins-stock-card__num">{ins.stockActual}</span>
-                  <span className="ver-ins-stock-card__label">Stock actual</span>
-                  <span className="ver-ins-stock-card__uni">{unidad.simbolo}</span>
+                {/* Columna derecha: stock */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div className="ver-ins-stock-cards" style={{ marginBottom: 0 }}>
+                    <div className="ver-ins-stock-card ver-ins-stock-card--actual">
+                      <span className="ver-ins-stock-card__num">{ins.stockActual}</span>
+                      <span className="ver-ins-stock-card__label">Stock actual</span>
+                      <span className="ver-ins-stock-card__uni">{unidad.simbolo}</span>
+                    </div>
+                    <div className="ver-ins-stock-card ver-ins-stock-card--minimo">
+                      <span className="ver-ins-stock-card__num">{ins.stockMinimo}</span>
+                      <span className="ver-ins-stock-card__label">Stock mínimo</span>
+                      <span className="ver-ins-stock-card__uni">{unidad.simbolo}</span>
+                    </div>
+                  </div>
+                  <StockBar actual={ins.stockActual} minimo={ins.stockMinimo} />
                 </div>
-                <div className="ver-ins-stock-card ver-ins-stock-card--minimo">
-                  <span className="ver-ins-stock-card__num">{ins.stockMinimo}</span>
-                  <span className="ver-ins-stock-card__label">Stock mínimo</span>
-                  <span className="ver-ins-stock-card__uni">{unidad.simbolo}</span>
-                </div>
-              </div>
-
-              <div style={{ marginTop: 12 }}>
-                <StockBar actual={ins.stockActual} minimo={ins.stockMinimo} />
               </div>
             </>
           )}
 
           {(tab === "lotes" || tab === "vencidos") && (
-            <div style={{ textAlign: "center", padding: "48px 20px", color: "#9e9e9e" }}>
-              <span style={{ fontSize: 32, display: "block", marginBottom: 12 }}>
+            <div style={{ textAlign: "center", padding: "32px 20px", color: "#9e9e9e" }}>
+              <span style={{ fontSize: 28, display: "block", marginBottom: 8 }}>
                 {tab === "lotes" ? "📦" : "⏰"}
               </span>
-              <p style={{ margin: 0, fontSize: 14 }}>
+              <p style={{ margin: 0, fontSize: 13 }}>
                 {tab === "lotes"
                   ? "La gestión de lotes estará disponible próximamente."
                   : "El historial de vencidos estará disponible próximamente."}

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { getUser } from '../services/authService.js';
 import { crearPedido } from '../services/pedidosService.js';
-import { getProductos, getCategorias } from '../services/productosService.js';
+import { getProductos } from '../services/productosService.js';
 import { useNotificaciones, TIPOS } from '../features/notificaciones/context/NotificacionesContext.jsx';
 import Navbar from '../shared/components/Navbar.jsx';
 
@@ -81,22 +81,31 @@ const LandingPage = ({ hideNavbar = false }) => {
   useEffect(() => {
     const cargar = async () => {
       try {
-        const [pData, cData] = await Promise.all([getProductos(), getCategorias()]);
+        const pData = await getProductos({ publicado: 1 });
+        const lista = pData.productos || [];
+
+        // Construir mapa de categorías a partir de los propios productos
         const map = {};
-        (cData.categorias || []).forEach(c => {
-          map[c.ID_Categoria] = { nombre: c.Nombre, descripcion: c.Descripcion, icon: c.Icon };
+        lista.forEach(p => {
+          if (p.ID_Categoria && p.nombre_categoria) {
+            map[p.ID_Categoria] = {
+              nombre: p.nombre_categoria,
+              icon:   p.icono_categoria || "📦",
+            };
+          }
         });
         setCategoriasMap(map);
+
         setProductos(
-          (pData.productos || [])
-            .filter(p => p.Estado !== 0 && !!p.Publicado)
+          lista
+            .filter(p => p.Estado !== 15)   // excluir agotados
             .map(p => ({
               id:               p.ID_Producto,
-              nombre:           p.Nombre ?? p.nombre,
+              nombre:           p.nombre,
               precio:           p.Precio_venta,
               stock:            p.Stock,
               idCategoria:      p.ID_Categoria,
-              imagen:           p.Imagenes?.[0]?.URL_Imagen || p.imagenes?.[0]?.url || null,
+              imagen:           p.imagenes?.[0]?.url || null,
               descripcion_corta: p.Descripcion_Corta ?? "",
             }))
         );

@@ -34,10 +34,12 @@ export async function getProductos({
   pagina = 1,
   porPagina = 100,
   busqueda = "",
+  publicado = null,
 } = {}) {
   const q = busqueda ? `&busqueda=${encodeURIComponent(busqueda)}` : "";
+  const p = publicado !== null ? `&publicado=${publicado}` : "";
   return apiFetch(
-    `/productos/?pagina=${pagina}&por_pagina=${porPagina}${q}`
+    `/productos/?pagina=${pagina}&por_pagina=${porPagina}${q}${p}`
   );
 }
 

@@ -47,6 +47,6 @@ export async function eliminarUsuario(tipo, id) {
 export async function toggleEstadoUsuario(tipo, id, estadoActual) {
   return apiFetch(`/usuarios/${tipo}/${id}/estado`, {
     method: "PATCH",
-    body: JSON.stringify({ Estado: estadoActual ? 0 : 1 }),
+    body: JSON.stringify({ Estado: estadoActual ? 2 : 1 }),
   });
 }
