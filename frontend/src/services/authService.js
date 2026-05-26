@@ -58,10 +58,11 @@ export const hasRole = (rol) => {
 };
 
 export const recuperarContrasena = async (correo) => {
+  // Render free tier cold start: 30-60s + SMTP send ~10s. Use 75s to survive worst case.
   return apiFetch("/auth/recuperar-contrasena", {
     method: "POST",
     body: JSON.stringify({ correo }),
-    timeout: 45000,
+    timeout: 75000,
   });
 };
 

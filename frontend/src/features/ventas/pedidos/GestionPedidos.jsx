@@ -626,14 +626,15 @@ export default function GestionPedidos() {
   const handleEditarPedido = async (formData) => {
     try {
       const payload = {
-        Metodo_Pago:       formData.metodo_pago,
-        Domicilio:         formData.domicilio,
-        Direccion_Entrega: formData.direccion_entrega || null,
-        Subtotal:          formData.subtotal,
-        Descuento:         formData.descuento,
-        Total:             formData.total,
-        Notas:             formData.notas || null,
-        ...(formData.estadoPedido ? { Estado: formData.estadoPedido } : {}),
+        Metodo_Pago:          (formData.metodo_pago || "").split(" ")[0] || null,
+        Domicilio:            formData.domicilio,
+        Direccion_Entrega:    formData.direccion_entrega    || null,
+        Municipio_entrega:    formData.municipio            || null,
+        Departamento_entrega: formData.departamento         || null,
+        Subtotal:             formData.subtotal,
+        Descuento:            formData.descuento,
+        Total:                formData.total,
+        Notas:                formData.notas || null,
       };
       await editarPedido(formData.id, payload);
       await cargarDatos();

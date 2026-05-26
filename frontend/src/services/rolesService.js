@@ -198,3 +198,21 @@ export async function gestionarPermisos(id, clavas) {
     body: JSON.stringify({ permisos_ids }),
   });
 }
+
+// Calls /auth/mis-permisos (no special permission required, just a valid token)
+// and maps backend permission names to frontend clave strings.
+export async function getMisPermisos() {
+  const data = await apiFetch("/auth/mis-permisos");
+  const nombres = data.permisos || [];
+  const claves = [];
+  nombres.forEach(nombre => {
+    const mapped = PERMISOS_REVERSE[nombre];
+    if (!mapped) return;
+    if (Array.isArray(mapped)) {
+      mapped.forEach(c => { if (!claves.includes(c)) claves.push(c); });
+    } else {
+      if (!claves.includes(mapped)) claves.push(mapped);
+    }
+  });
+  return claves;
+}

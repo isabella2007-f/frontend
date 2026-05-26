@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { getUser } from "../services/authService";
-import { getRoles } from "../services/rolesService";
+import { getMisPermisos } from "../services/rolesService";
 
 /* ══════════════════════════════════════════════════════════
    CONTEXT
@@ -35,25 +35,19 @@ export function PrivilegiosProvider({ children }) {
       return;
     }
 
-    try {
-      const roles  = await getRoles();
-      const rolObj = roles.find(r => r.nombre === user.rol);
+    // Admin (rol protegido, nunca renombrable) → acceso total sin llamada extra
+    if (user.rol === "Admin") {
+      setPrivilegios([]);
+      setIsAdmin(true);
+      setLoading(false);
+      return;
+    }
 
-      if (!rolObj || rolObj.esAdmin) {
-        // Rol de administrador → acceso total
-        setPrivilegios([]);
-        setIsAdmin(true);
-      } else {
-        // Normalizar: el backend puede devolver strings "Modulo_accion"
-        // o objetos { id, modulo, accion, estado }
-        const flat = (rolObj.permisos || []).flatMap(p => {
-          if (typeof p === "string") return [p];
-          if (p?.id && p.estado !== false) return [p.id];
-          return [];
-        });
-        setPrivilegios(flat);
-        setIsAdmin(false);
-      }
+    try {
+      // /auth/mis-permisos solo requiere token válido, no ver_roles
+      const claves = await getMisPermisos();
+      setPrivilegios(claves);
+      setIsAdmin(false);
     } catch {
       // Si falla la carga, denegar por defecto (principio de menor privilegio)
       setPrivilegios([]);

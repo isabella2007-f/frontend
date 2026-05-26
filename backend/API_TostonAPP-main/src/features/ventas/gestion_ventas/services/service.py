@@ -71,8 +71,11 @@ def _formato_venta(venta: Venta, db: Session) -> dict:
         "Fecha_Venta":        venta.Fecha_Venta,
         "Fecha_pedido":       venta.Fecha_pedido,
         "productos":          productos,
-        "tiene_domicilio":    domicilio is not None,
-        "ID_Domicilio":       domicilio.ID_Domicilio if domicilio else None,
+        "tiene_domicilio":      domicilio is not None,
+        "ID_Domicilio":         domicilio.ID_Domicilio          if domicilio else None,
+        "direccion_entrega":    domicilio.Direccion_entrega      if domicilio else None,
+        "municipio_entrega":    domicilio.Municipio_entrega      if domicilio else None,
+        "departamento_entrega": domicilio.Departamento_entrega   if domicilio else None,
     }
 
 

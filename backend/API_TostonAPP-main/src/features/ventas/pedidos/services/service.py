@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
-from src.shared.services.models import Venta, Estado
+from src.shared.services.models import Venta, Estado, DetalleVenta, Domicilio
 from src.features.ventas.gestion_ventas.services.service import _formato_venta
 
 
@@ -60,6 +60,55 @@ def obtener_pedido(db: Session, id_venta: int) -> dict:
             status_code=404,
             detail="Pedido no encontrado o ya fue procesado"
         )
+    return _formato_venta(pedido, db)
+
+
+def editar_pedido(db: Session, id_venta: int, datos: dict) -> dict:
+    """
+    Actualiza los campos editables de un pedido Pendiente:
+    Metodo_Pago, montos, domicilio y su dirección.
+    El cambio de estado se maneja por los endpoints /confirmar y /cancelar.
+    """
+    pedido = db.query(Venta).filter(
+        Venta.ID_Venta == id_venta,
+        Venta.Estado   == ESTADO_PENDIENTE,
+    ).first()
+    if not pedido:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado o ya fue procesado")
+
+    if datos.get("Metodo_Pago"):
+        pedido.Metodo_Pago = datos["Metodo_Pago"].split(" ")[0].strip()
+
+    if datos.get("Total") is not None:
+        pedido.Total = datos["Total"]
+
+    detalle = db.query(DetalleVenta).filter(DetalleVenta.ID_Venta == id_venta).first()
+    if detalle:
+        if datos.get("Descuento") is not None:
+            detalle.Descuento = datos["Descuento"]
+        if datos.get("Subtotal") is not None:
+            detalle.SubTotal = datos["Subtotal"]
+
+    quiere_domicilio = datos.get("Domicilio")
+    domicilio = db.query(Domicilio).filter(Domicilio.ID_Venta == id_venta).first()
+
+    if quiere_domicilio is True:
+        if domicilio is None:
+            domicilio = Domicilio(ID_Venta=id_venta, Estado=ESTADO_PENDIENTE)
+            db.add(domicilio)
+        if datos.get("Direccion_Entrega") is not None:
+            domicilio.Direccion_entrega = datos["Direccion_Entrega"]
+        if datos.get("Municipio_entrega") is not None:
+            domicilio.Municipio_entrega = datos["Municipio_entrega"]
+        if datos.get("Departamento_entrega") is not None:
+            domicilio.Departamento_entrega = datos["Departamento_entrega"]
+        if datos.get("Notas") is not None:
+            domicilio.Observaciones = datos["Notas"]
+    elif quiere_domicilio is False and domicilio is not None:
+        db.delete(domicilio)
+
+    db.commit()
+    db.refresh(pedido)
     return _formato_venta(pedido, db)
 
 

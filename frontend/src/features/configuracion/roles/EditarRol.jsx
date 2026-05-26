@@ -4,6 +4,7 @@ import "./Roles.css";
 import { editarRol, gestionarPermisos } from "../../../services/rolesService.js";
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
 import PrivilegiosModal, { buildPrivilegios } from "./PrivilegiosModal.jsx";
+import { usePrivilegios } from "../../../context/PrivilegiosContext.jsx";
 
 const ICON_OPTIONS = ["👤","👑","🛡️","🔧","📦","💼","🧑‍💻","📊","🔑","⚙️","👷","🧑‍🍳"];
 
@@ -16,8 +17,9 @@ export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
   const [pickingIcon, setPickingIcon]         = useState(false);
   const [showPrivilegios, setShowPrivilegios] = useState(false);
   const [iconFile, setIconFile]               = useState(null);
-  const fileRef = useRef();
-  const isView  = mode === "view";
+  const fileRef   = useRef();
+  const isView    = mode === "view";
+  const { recargar: recargarPrivilegios } = usePrivilegios();
 
   useEffect(() => {
     if (rol) setForm({ ...rol, privilegios: normalize(rol.permisos) });
@@ -57,6 +59,7 @@ export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
       await editarRol(rol.id, payload);
       const activeIds = (form.privilegios || []).filter(p => p.estado).map(p => p.id);
       await gestionarPermisos(rol.id, activeIds);
+      recargarPrivilegios();
       onSave?.();
     } catch (e) {
       setErrors({ _api: e.message || "Error al guardar" });

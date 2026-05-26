@@ -4,8 +4,8 @@ from typing import Optional
 
 from src.shared.services.database import get_db
 from src.features.auth.services.dependencies import requiere_permiso, obtener_usuario_actual
-from .schemas import PedidoResponse, PedidoListResponse
-from .service import obtener_pedidos, obtener_pedido, confirmar_pedido, cancelar_pedido
+from .schemas import PedidoResponse, PedidoListResponse, PedidoUpdate
+from .service import obtener_pedidos, obtener_pedido, confirmar_pedido, cancelar_pedido, editar_pedido
 
 router = APIRouter(prefix="/pedidos", tags=["Pedidos"])
 
@@ -30,6 +30,17 @@ def ver_pedido(
 ):
     """Retorna el detalle de un pedido pendiente."""
     return obtener_pedido(db, id_venta)
+
+
+@router.put("/{id_venta}", response_model=PedidoResponse)
+def editar(
+    id_venta: int,
+    datos:    PedidoUpdate,
+    db:       Session = Depends(get_db),
+    _:        dict    = Depends(requiere_permiso("editar_pedidos")),
+):
+    """Actualiza campos editables de un pedido Pendiente (metodo_pago, montos, domicilio)."""
+    return editar_pedido(db, id_venta, datos.model_dump())
 
 
 @router.patch("/{id_venta}/confirmar", response_model=PedidoResponse)
