@@ -9,16 +9,19 @@ import "./OrdenesProduccion.css";
 
 const PER_PAGE = 5;
 
-const ESTADOS_ORDEN = ["Pendiente", "En proceso", "Pausada", "Completada", "Cancelada"];
+const ESTADOS_ORDEN = ["Pendiente", "En proceso", "Completada", "Cancelada"];
 
+// IDs reales en la tabla Estados del backend
 const ESTADO_TO_NUM = {
-  "Pendiente": 1, "En proceso": 2, "Pausada": 3, "Completada": 4, "Cancelada": 5,
+  "Pendiente":  1,
+  "En proceso": 13,
+  "Completada": 11,
+  "Cancelada":  5,
 };
 
 const ESTADO_CONFIG = {
   "Pendiente":  { dot: "#f9a825" },
   "En proceso": { dot: "#1976d2" },
-  "Pausada":    { dot: "#8e24aa" },
   "Completada": { dot: "#43a047" },
   "Cancelada":  { dot: "#e53935" },
 };
@@ -200,7 +203,6 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
                   const COLORS = {
                     "Pendiente":  { bg: "#fff8e1", color: "#f9a825", border: "#ffe082" },
                     "En proceso": { bg: "#e3f2fd", color: "#1565c0", border: "#90caf9" },
-                    "Pausada":    { bg: "#f3e5f5", color: "#6a1b9a", border: "#ce93d8" },
                     "Completada": { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7" },
                     "Cancelada":  { bg: "#ffebee", color: "#c62828", border: "#ef9a9a" },
                   };

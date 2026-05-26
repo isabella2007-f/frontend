@@ -273,23 +273,20 @@ def asignar_permisos(db: Session, id_rol: int, permisos_ids: list[int]):
     if not rol:
         raise HTTPException(status_code=404, detail="Rol no encontrado")
 
-    # Valida todos los permisos primero — antes de tocar la BD
-    for id_permiso in permisos_ids:
-        permiso = db.query(Permiso).filter(Permiso.ID_Permiso == id_permiso).first()
-        if not permiso:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Permiso con ID {id_permiso} no encontrado"
-            )
-
     # Elimina todos los permisos actuales del rol
     db.query(RolXPermiso).filter(RolXPermiso.ID_Rol == id_rol).delete(
         synchronize_session=False
     )
 
-    # Asigna los nuevos permisos
+    # Asigna los nuevos permisos; IDs inexistentes en la BD se omiten sin error
+    seen = set()
     for id_permiso in permisos_ids:
-        db.add(RolXPermiso(ID_Rol=id_rol, ID_Permiso=id_permiso))
+        if id_permiso in seen:
+            continue
+        seen.add(id_permiso)
+        permiso = db.query(Permiso).filter(Permiso.ID_Permiso == id_permiso).first()
+        if permiso:
+            db.add(RolXPermiso(ID_Rol=id_rol, ID_Permiso=id_permiso))
 
     db.commit()
     return _formato_rol(rol, db)

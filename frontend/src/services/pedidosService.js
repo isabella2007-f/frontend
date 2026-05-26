@@ -1,33 +1,43 @@
 import { apiFetch } from "../utils/api";
 
+const ESTADO_PEDIDO_MAP = {
+  1:  "Pendiente",
+  3:  "Cancelado",
+  4:  "Confirmado",
+  5:  "Cancelado",
+  8:  "Entregado",
+  9:  "En camino",
+  13: "En proceso",
+};
+
 const adaptPedido = (p) => {
-  const cli = p.cliente || p.Cliente || {};
+  const estado = ESTADO_PEDIDO_MAP[p.Estado] || p.estado_label || "Pendiente";
   return {
-    id:               p.ID_Venta        || p.id,
-    numero:           p.Numero_Pedido   || p.numero_pedido   || p.numero   || `V-${p.ID_Venta || p.id}`,
-    estado:           p.Estado          || p.estado          || "Pendiente",
-    metodo_pago:      p.Metodo_Pago     || p.metodo_pago     || "",
-    domicilio:        !!(p.Domicilio    ?? p.domicilio),
+    id:               p.ID_Venta          || p.id,
+    numero:           p.Numero_Pedido     || p.numero_pedido   || p.numero || `V-${p.ID_Venta || p.id}`,
+    estado,
+    metodo_pago:      p.Metodo_Pago       || p.metodo_pago     || "",
+    domicilio:        !!(p.tiene_domicilio ?? p.Domicilio ?? p.domicilio),
     direccion_entrega:p.Direccion_Entrega || p.direccion_entrega || "",
-    subtotal:         p.Subtotal        || p.subtotal        || 0,
-    descuento:        p.Descuento       || p.descuento       || 0,
-    total:            p.Total           || p.total           || 0,
-    notas:            p.Notas           || p.notas           || "",
-    fecha_pedido:     p.Fecha_Pedido    || p.fecha_pedido    || "",
-    idCliente:        p.ID_Cliente       || p.id_cliente       || null,
-    idEmpleado:       p.ID_Empleado     || p.id_empleado     || null,
+    subtotal:         p.subtotal_bruto    || p.Subtotal         || p.subtotal || 0,
+    descuento:        p.credito_aplicado  || p.Descuento        || p.descuento || 0,
+    total:            p.Total             || p.total            || 0,
+    notas:            p.Notas             || p.notas            || "",
+    fecha_pedido:     p.Fecha_pedido      || p.Fecha_Pedido     || p.fecha_pedido || "",
+    idCliente:        p.ID_Usuario        || p.ID_Cliente       || p.id_cliente   || null,
+    idEmpleado:       p.ID_Empleado       || p.id_empleado      || null,
     orden_produccion: !!(p.Orden_Produccion ?? p.orden_produccion),
-    comprobante:      !!(p.Comprobante  ?? p.comprobante),
+    comprobante:      !!(p.Comprobante    ?? p.comprobante),
     cliente: {
-      nombre:   cli.Nombre   || cli.nombre   || "",
-      correo:   cli.Correo   || cli.correo   || "",
-      telefono: cli.Telefono || cli.telefono || "",
+      nombre:   p.nombre_cliente   || "",
+      correo:   p.correo_cliente   || "",
+      telefono: p.telefono_cliente || "",
     },
     productosItems: (p.productos || p.Productos || []).map(i => ({
-      idProducto: i.ID_Producto || i.id_producto,
-      nombre:     i.Nombre     || i.nombre     || "",
-      precio:     i.Precio_venta || i.precio   || 0,
-      cantidad:   i.Cantidad   || i.cantidad   || 0,
+      idProducto: i.ID_Producto    || i.id_producto,
+      nombre:     i.nombre_producto || i.Nombre || i.nombre || "",
+      precio:     i.precio_unitario || i.Precio_venta || i.precio || 0,
+      cantidad:   i.Cantidad        || i.cantidad || 0,
     })),
   };
 };

@@ -59,6 +59,8 @@ def _formato_venta(venta: Venta, db: Session) -> dict:
         "ID_Venta":           venta.ID_Venta,
         "ID_Usuario":         venta.ID_Usuario,
         "nombre_cliente":     f"{usuario.Nombre} {usuario.Apellidos}" if usuario else None,
+        "correo_cliente":     usuario.Correo    if usuario else None,
+        "telefono_cliente":   usuario.Telefono  if usuario else None,
         "Total":              venta.Total,
         "subtotal_bruto":     subtotal_bruto,
         "credito_aplicado":   credito_aplicado,

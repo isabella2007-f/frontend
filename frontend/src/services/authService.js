@@ -61,6 +61,7 @@ export const recuperarContrasena = async (correo) => {
   return apiFetch("/auth/recuperar-contrasena", {
     method: "POST",
     body: JSON.stringify({ correo }),
+    timeout: 45000,
   });
 };
 

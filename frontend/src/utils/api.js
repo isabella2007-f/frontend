@@ -8,13 +8,14 @@ function getToken() {
 export async function apiFetch(endpoint, options = {}) {
   const token = getToken();
   const hasBody = options.body !== undefined;
+  const { timeout: timeoutMs = 15000, ...fetchOptions } = options;
 
   const controller = new AbortController();
-  const timeoutId  = setTimeout(() => controller.abort(), 15000);
+  const timeoutId  = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const res = await fetch(`${API_URL}${endpoint}`, {
-      ...options,
+      ...fetchOptions,
       signal: controller.signal,
       headers: {
         ...(hasBody ? { "Content-Type": "application/json" } : {}),

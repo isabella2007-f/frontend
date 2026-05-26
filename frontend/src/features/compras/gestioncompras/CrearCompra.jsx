@@ -62,7 +62,7 @@ export default function CrearCompra({ onClose, onSave }) {
       const lista = (d.insumos || d || []).map(i => ({
         id:        i.ID_Insumo || i.id,
         nombre:    i.Nombre    || i.nombre    || "",
-        unidad:    i.unidad    || "",
+        unidad:    i.simbolo_unidad || i.unidad || "",
         estado:    i.Estado !== 0,
       }));
       setInsumosActivos(lista.filter(i => i.estado));

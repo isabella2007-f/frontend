@@ -1,6 +1,16 @@
 import { apiFetch } from "../utils/api";
 
+// El backend usa Estado=1 ("Activo" en la tabla Estados) para órdenes nuevas/pendientes.
+// El frontend las muestra como "Pendiente" para claridad.
+const ESTADO_DISPLAY_MAP = {
+  "Activo":     "Pendiente",
+  "En proceso": "En proceso",
+  "Completada": "Completada",
+  "Cancelado":  "Cancelada",
+};
+
 function adaptarOrden(o) {
+  const label = o.estado_label || "";
   return {
     id:             o.ID_Orden_Produccion,
     idProducto:     o.ID_Producto,
@@ -12,7 +22,7 @@ function adaptarOrden(o) {
     cantidad:       o.Cantidad,
     fechaInicio:    o.Fecha_inicio,
     fechaEntrega:   o.Fecha_Entrega,
-    estado:         o.estado_label,
+    estado:         ESTADO_DISPLAY_MAP[label] || label || "Pendiente",
     costo:          parseFloat(o.Costo ?? 0),
   };
 }

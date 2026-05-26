@@ -46,14 +46,20 @@ export async function getCompra(id) {
 }
 
 export async function crearCompra(payload) {
+  // El backend valida contra {"Efectivo", "Transferencia", "Crédito", "Cheque"} (Primera letra mayúscula)
+  const raw = payload.metodoPago || "";
+  const metodoPago = raw.charAt(0).toUpperCase() + raw.slice(1);
+
   const body = {
     ID_Proveedor: Number(payload.idProveedor),
-    Metodo_Pago:  payload.metodoPago,
-    Notas:        payload.notas || null,
-    items: (payload.items || []).map(i => ({
-      ID_Insumo:  Number(i.idInsumo),
-      Cantidad:   Number(i.cantidad),
-      Precio_Und: Number(i.precioUnd),
+    Metodo_Pago:  metodoPago,
+    Fecha_Compra: payload.fecha || null,
+    detalles: (payload.detalles || []).map(i => ({
+      ID_Insumo:         Number(i.idInsumo),
+      Cantidad:          Number(i.cantidad),
+      Precio_Und:        Number(i.precioUnd),
+      Notas:             i.notas || null,
+      Fecha_Vencimiento: i.fechaVencimiento || null,
     })),
   };
   const data = await apiFetch("/compras/", { method: "POST", body: JSON.stringify(body) });

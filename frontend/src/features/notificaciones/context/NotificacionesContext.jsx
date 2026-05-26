@@ -153,7 +153,19 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
 
     setNotificaciones(prev => {
       const nuevas = [];
-      const notificacionesActuales = prev;
+
+      // Purga notificaciones obsoletas cuyo insumo/lote ya no existe en los datos actuales
+      const insumoIds = new Set(insumos.map(i => i.id));
+      const loteIds   = new Set(lotes.map(l => l.id));
+      const notificacionesActuales = prev.filter(n => {
+        if ([TIPOS.STOCK_MINIMO, TIPOS.STOCK_AGOTADO].includes(n.tipo)) {
+          return insumoIds.has(n.idReferencia);
+        }
+        if ([TIPOS.LOTE_POR_VENCER, TIPOS.LOTE_VENCIDO].includes(n.tipo)) {
+          return loteIds.has(n.idReferencia);
+        }
+        return true;
+      });
 
       insumos.forEach(ins => {
         const minimo = nivelesMinimos[ins.id] !== undefined ? nivelesMinimos[ins.id] : ins.stockMinimo;
@@ -241,8 +253,8 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
         }
       });
 
-      if (nuevas.length > 0) {
-        return [...nuevas, ...prev];
+      if (nuevas.length > 0 || notificacionesActuales.length !== prev.length) {
+        return [...nuevas, ...notificacionesActuales];
       }
       return prev;
     });
