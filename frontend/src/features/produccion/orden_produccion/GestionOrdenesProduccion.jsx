@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   getOrdenes, crearOrden, editarOrden, eliminarOrden, cambiarEstadoOrden,
 } from "../../../services/ordenesProduccionService.js";
@@ -20,7 +20,7 @@ const ESTADO_TO_NUM = {
 };
 
 const ESTADO_CONFIG = {
-  "Pendiente":  { dot: "#f9a825" },
+  "Pendiente":  { dot: "#9e9e9e" },
   "En proceso": { dot: "#1976d2" },
   "Completada": { dot: "#43a047" },
   "Cancelada":  { dot: "#e53935" },
@@ -48,7 +48,7 @@ const urgenciaFecha = (fechaISO) => {
 /* ─── Componentes base ─────────────────────────────────── */
 function EstadoBadge({ estado }) {
   const COLORS = {
-    "Pendiente":  { bg: "#fff8e1", color: "#f9a825", border: "#ffe082" },
+    "Pendiente":  { bg: "#f5f5f5", color: "#757575", border: "#e0e0e0" },
     "En proceso": { bg: "#e3f2fd", color: "#1565c0", border: "#90caf9" },
     "Pausada":    { bg: "#f3e5f5", color: "#6a1b9a", border: "#ce93d8" },
     "Completada": { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7" },
@@ -99,6 +99,7 @@ function SkeletonRows() {
    MODAL VER DETALLES
    ═══════════════════════════════════════════════════════════ */
 function ModalDetallesOrden({ orden, onClose }) {
+  const navigate = useNavigate();
   if (!orden) return null;
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -123,7 +124,7 @@ function ModalDetallesOrden({ orden, onClose }) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             {[
               { label: "Cantidad",  value: orden.cantidad, bg: "#e8f5e9", color: "#2e7d32" },
-              { label: "Costo",     value: fmt(orden.costo), bg: "#fff8e1", color: "#f9a825" },
+              { label: "Costo est.", value: fmt(orden.costo), bg: "#fff8e1", color: "#f9a825" },
             ].map(s => (
               <div key={s.label} style={{ background: s.bg, borderRadius: 12, padding: "12px 14px" }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: s.color, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>{s.label}</div>
@@ -144,15 +145,47 @@ function ModalDetallesOrden({ orden, onClose }) {
           </div>
 
           {/* Insumo */}
-          {orden.nombreInsumo && (
-            <div className="field-input field-input--disabled" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 18 }}>🗂️</span>
+          {orden.nombreInsumo && (() => {
+            const stockOk = orden.stockInsumo === null || orden.stockInsumo >= orden.cantidad;
+            const esPendiente = orden.estado === "Pendiente";
+            return (
               <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: 1 }}>Insumo</div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "#424242" }}>{orden.nombreInsumo}</div>
+                <div className="field-input field-input--disabled" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 18 }}>🗂️</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: 1 }}>Insumo requerido</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#424242" }}>{orden.nombreInsumo}</div>
+                  </div>
+                  {orden.stockInsumo !== null && (
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div style={{ fontSize: 10, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: 0.5 }}>Disponible</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: stockOk ? "#2e7d32" : "#c62828" }}>
+                        {orden.stockInsumo}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {esPendiente && !stockOk && (
+                  <div style={{
+                    marginTop: 8, padding: "10px 14px", borderRadius: 10,
+                    background: "#ffebee", border: "1px solid #ef9a9a",
+                    display: "flex", alignItems: "flex-start", gap: 10,
+                  }}>
+                    <span style={{ fontSize: 18, flexShrink: 0 }}>⚠️</span>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: "#c62828", marginBottom: 2 }}>
+                        Stock insuficiente
+                      </div>
+                      <div style={{ fontSize: 12, color: "#7f0000", lineHeight: 1.4 }}>
+                        Se necesitan <strong>{orden.cantidad}</strong> unidades de <strong>{orden.nombreInsumo}</strong>, pero solo hay <strong>{orden.stockInsumo}</strong> disponibles.
+                        No se podrá iniciar la producción hasta que haya suficiente stock.
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Fechas */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -165,8 +198,49 @@ function ModalDetallesOrden({ orden, onClose }) {
               <div style={{ fontSize: 13, fontWeight: 600 }}>{fmtFecha(orden.fechaEntrega)}</div>
             </div>
           </div>
+
+          {/* Lote — solo si la orden está completada */}
+          {orden.lote && (
+            <div style={{ background: "#e8f5e9", border: "1px solid #a5d6a7", borderRadius: 12, padding: "14px 16px" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#2e7d32", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>
+                Lote generado
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <div>
+                  <div style={{ fontSize: 10, color: "#616161", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Nº Lote</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#1a1a1a" }}>{orden.lote.numeroLote}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: "#616161", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Cantidad</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#2e7d32" }}>{orden.lote.cantidad}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: "#616161", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Producción</div>
+                  <div style={{ fontSize: 12, fontWeight: 600 }}>{fmtFecha(orden.lote.fechaProduccion)}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: "#616161", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>Vencimiento</div>
+                  <div style={{ fontSize: 12, fontWeight: 600 }}>{fmtFecha(orden.lote.fechaVencimiento)}</div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
+        {orden.idFicha && (
+          <div style={{ background: "#e3f2fd", border: "1px solid #90caf9", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 20, flexShrink: 0 }}>📋</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#1565c0", marginBottom: 2 }}>Ficha técnica disponible</div>
+              <div style={{ fontSize: 12, color: "#1976d2" }}>Consulta los insumos, cantidades y procedimiento detallado del producto.</div>
+            </div>
+            <button
+              onClick={() => { onClose(); navigate("/products", { state: { searchTerm: orden.nombreProducto } }); }}
+              style={{ background: "#1976d2", color: "#fff", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+              Ver ficha
+            </button>
+          </div>
+        )}
         <div className="modal-footer" style={{ justifyContent: "flex-end" }}>
           <button className="btn-ghost" onClick={onClose}>Cerrar</button>
         </div>
@@ -201,7 +275,7 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {ESTADOS_ORDEN.map(est => {
                   const COLORS = {
-                    "Pendiente":  { bg: "#fff8e1", color: "#f9a825", border: "#ffe082" },
+                    "Pendiente":  { bg: "#f5f5f5", color: "#757575", border: "#e0e0e0" },
                     "En proceso": { bg: "#e3f2fd", color: "#1565c0", border: "#90caf9" },
                     "Completada": { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7" },
                     "Cancelada":  { bg: "#ffebee", color: "#c62828", border: "#ef9a9a" },

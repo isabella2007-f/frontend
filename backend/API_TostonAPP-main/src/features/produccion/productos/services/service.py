@@ -3,7 +3,7 @@ from fastapi import HTTPException
 from datetime import datetime
 from decimal import Decimal
 
-from src.shared.services.models import Producto, CategoriaProducto, ProductoImagen, FichaTecnica
+from src.shared.services.models import Producto, CategoriaProducto, ProductoImagen, FichaTecnica, OrdenProduccion, VentaXProducto, DevolucionDetalle
 from .schemas import ProductoCreate, ProductoUpdate, FichaTecnicaInput
 
 
@@ -114,8 +114,50 @@ def obtener_producto(db: Session, id_producto: int) -> dict:
     return _formato_producto(producto, db)
 
 
+def verificar_puede_eliminar_producto(db: Session, id_producto: int) -> dict:
+    """Verifica si el producto puede eliminarse revisando registros dependientes."""
+    ordenes = db.query(OrdenProduccion).filter(
+        OrdenProduccion.ID_Producto == id_producto
+    ).count()
+    if ordenes > 0:
+        return {
+            "ok": False,
+            "razon": f"Este producto tiene {ordenes} orden(es) de producción asociada(s). Elimínalas primero desde Gestión de Órdenes.",
+        }
+
+    ventas = db.query(VentaXProducto).filter(
+        VentaXProducto.ID_Producto == id_producto
+    ).count()
+    if ventas > 0:
+        return {
+            "ok": False,
+            "razon": f"Este producto está en {ventas} venta(s) registrada(s) y no puede eliminarse.",
+        }
+
+    devoluciones = db.query(DevolucionDetalle).filter(
+        DevolucionDetalle.ID_Producto == id_producto
+    ).count()
+    if devoluciones > 0:
+        return {
+            "ok": False,
+            "razon": f"Este producto tiene {devoluciones} devolución(es) asociada(s) y no puede eliminarse.",
+        }
+
+    return {"ok": True}
+
+
 def crear_producto(db: Session, datos: ProductoCreate) -> dict:
     """Crea el producto, calcula estado automático y crea ficha técnica si viene."""
+    duplicado = db.query(Producto).filter(
+        Producto.nombre == datos.nombre,
+        Producto.ID_Categoria == datos.ID_Categoria,
+    ).first()
+    if duplicado:
+        raise HTTPException(
+            status_code=400,
+            detail="Ya existe un producto con ese nombre en esta categoría.",
+        )
+
     estado_id, _ = _calcular_estado(datos.Stock, datos.Stock_Minimo)
 
     nuevo = Producto(
@@ -155,6 +197,20 @@ def editar_producto(db: Session, id_producto: int, datos: ProductoUpdate) -> dic
     producto = db.query(Producto).filter(Producto.ID_Producto == id_producto).first()
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
+
+    nombre_nuevo    = datos.nombre        if datos.nombre        is not None else producto.nombre
+    categoria_nueva = datos.ID_Categoria  if datos.ID_Categoria  is not None else producto.ID_Categoria
+    if nombre_nuevo != producto.nombre or categoria_nueva != producto.ID_Categoria:
+        dup = db.query(Producto).filter(
+            Producto.nombre       == nombre_nuevo,
+            Producto.ID_Categoria == categoria_nueva,
+            Producto.ID_Producto  != id_producto,
+        ).first()
+        if dup:
+            raise HTTPException(
+                status_code=400,
+                detail="Ya existe un producto con ese nombre en esta categoría.",
+            )
 
     for campo, valor in datos.model_dump(exclude_none=True).items():
         setattr(producto, campo, valor)
@@ -230,15 +286,12 @@ def eliminar_producto(db: Session, id_producto: int) -> dict:
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-    # Elimina imágenes asociadas
-    db.query(ProductoImagen).filter(
-        ProductoImagen.ID_Producto == id_producto
-    ).delete()
+    check = verificar_puede_eliminar_producto(db, id_producto)
+    if not check["ok"]:
+        raise HTTPException(status_code=400, detail=check["razon"])
 
-    # Elimina fichas técnicas asociadas
-    db.query(FichaTecnica).filter(
-        FichaTecnica.ID_Producto == id_producto
-    ).delete()
+    db.query(ProductoImagen).filter(ProductoImagen.ID_Producto == id_producto).delete()
+    db.query(FichaTecnica).filter(FichaTecnica.ID_Producto == id_producto).delete()
 
     db.delete(producto)
     db.commit()

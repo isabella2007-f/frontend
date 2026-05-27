@@ -18,15 +18,16 @@ router = APIRouter(prefix="/domicilios", tags=["Domicilios"])
 
 @router.get("/", response_model=DomicilioListResponse)
 def listar_domicilios(
-    pagina:     int            = Query(1, ge=1),
-    por_pagina: int            = Query(10, ge=1, le=100),
-    busqueda:   Optional[str]  = Query(None),
-    estado:     Optional[int]  = Query(None),
-    db:         Session        = Depends(get_db),
-    _:          dict           = Depends(requiere_permiso("ver_domicilios"))
+    pagina:       int            = Query(1, ge=1),
+    por_pagina:   int            = Query(10, ge=1, le=100),
+    busqueda:     Optional[str]  = Query(None),
+    estado:       Optional[int]  = Query(None),
+    id_empleado:  Optional[int]  = Query(None),
+    db:           Session        = Depends(get_db),
+    _:            dict           = Depends(requiere_permiso("ver_domicilios"))
 ):
-    """Lista paginada de domicilios. Busca por cliente, repartidor o dirección."""
-    return obtener_domicilios(db, pagina, por_pagina, busqueda, estado)
+    """Lista paginada de domicilios. Busca por cliente, repartidor o dirección. Filtra por empleado asignado."""
+    return obtener_domicilios(db, pagina, por_pagina, busqueda, estado, id_empleado)
 
 
 @router.get("/{id_domicilio}", response_model=DomicilioResponse)
@@ -76,7 +77,7 @@ def actualizar_estado(
     id_domicilio: int,
     datos:        DomicilioEstado,
     db:           Session = Depends(get_db),
-    _:            dict    = Depends(requiere_permiso("editar_domicilios"))
+    _:            dict    = Depends(requiere_permiso("cambiar_estado_domicilios"))
 ):
-    """Cambia el estado. Si es Entregado → registra Fecha_entrega automáticamente."""
-    return cambiar_estado(db, id_domicilio, datos.Estado)
+    """Cambia el estado. Si es Entregado → registra Fecha_entrega automáticamente. Acepta Observaciones opcional."""
+    return cambiar_estado(db, id_domicilio, datos.Estado, datos.Observaciones)

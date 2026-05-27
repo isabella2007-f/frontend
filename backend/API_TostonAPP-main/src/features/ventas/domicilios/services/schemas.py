@@ -30,7 +30,8 @@ class AsignarRepartidor(BaseModel):
 
 # -- Cambiar estado --
 class DomicilioEstado(BaseModel):
-    Estado: int
+    Estado:        int
+    Observaciones: Optional[str] = None  # comentario del repartidor al cambiar estado
 
 
 # -- Respuesta de un domicilio --

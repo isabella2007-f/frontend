@@ -101,6 +101,10 @@ export async function eliminarProducto(id) {
   return apiFetch(`/productos/${id}`, { method: "DELETE" });
 }
 
+export async function validarEliminarProducto(id) {
+  return apiFetch(`/productos/${id}/validar-eliminar`);
+}
+
 /**
  * Activa o desactiva un producto.
  * Internamente hace PUT con Estado: 1 o 0.

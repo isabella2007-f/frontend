@@ -39,6 +39,39 @@ app = FastAPI(
     description="API para gestión de producción y ventas"
 )
 
+
+@app.on_event("startup")
+def migrate_db():
+    """Agrega columnas nuevas y tablas si no existen (migraciones manuales)."""
+    from sqlalchemy import text
+    from src.shared.services.database import engine
+    with engine.connect() as conn:
+        for stmt in [
+            "ALTER TABLE Orden_Produccion ADD COLUMN ID_Venta INT NULL",
+            "ALTER TABLE Orden_Produccion MODIFY COLUMN ID_Insumo INT NULL",
+            "ALTER TABLE Orden_Produccion MODIFY COLUMN ID_Ficha  INT NULL",
+            "ALTER TABLE Ficha_Tecnica ADD COLUMN Dias_Vida_Util INT NULL",
+            "ALTER TABLE Compras ADD COLUMN Fecha_Llegada DATETIME NULL",
+            """CREATE TABLE IF NOT EXISTS Lote_Producto (
+                ID_Lote_Producto    INT AUTO_INCREMENT PRIMARY KEY,
+                ID_Orden_Produccion INT,
+                ID_Producto         INT,
+                Numero_Lote         VARCHAR(50),
+                Fecha_Produccion    DATETIME,
+                Fecha_Vencimiento   DATETIME,
+                Cantidad            INT,
+                Estado              INT DEFAULT 1,
+                FOREIGN KEY (ID_Orden_Produccion) REFERENCES Orden_Produccion(ID_Orden_Produccion),
+                FOREIGN KEY (ID_Producto)         REFERENCES Productos(ID_Producto),
+                FOREIGN KEY (Estado)              REFERENCES Estados(ID_Estados)
+            )""",
+        ]:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception:
+                pass  # ya existe
+
 # ── CORS ──
 app.add_middleware(
     CORSMiddleware,

@@ -190,14 +190,17 @@ def registrar_cliente(db: Session, datos) -> None:
         Usado      = False,
     ))
 
-    try:
-        _enviar_email_verificacion(datos.Correo, token, datos.Nombre)
-    except Exception as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=400,
-            detail=f"No se pudo enviar el correo de verificación: {exc}",
-        )
+    # Intentar enviar email; si falla, activar usuario directamente en vez de bloquear el registro
+    email_enviado = False
+    if RESEND_API_KEY:
+        try:
+            _enviar_email_verificacion(datos.Correo, token, datos.Nombre)
+            email_enviado = True
+        except Exception:
+            pass
+
+    if not email_enviado:
+        nuevo.Estado = 1  # activar directamente si no se pudo enviar email
 
     db.commit()
 

@@ -5,7 +5,7 @@ import "./FichasTecnicas.css";
 
 const UNIDADES = ["kg","g","l","ml","unidad","taza","cucharada","cucharadita"];
 
-export default function EditarFicha({ ficha, mode = "edit", onClose, onSave }) {
+export default function EditarFicha({ ficha, mode = "edit", onClose, onSave, productoNombre = "", productoFoto = null }) {
   const [categoriasInsumosActivas, setCategoriasInsumosActivas] = useState([]);
   const [insumosPorCategoriaId,    setInsumosPorCategoriaId]    = useState({});
 
@@ -14,7 +14,7 @@ export default function EditarFicha({ ficha, mode = "edit", onClose, onSave }) {
     Promise.all([getCategorias(), getInsumos()]).then(([catData, insData]) => {
       const cats = (catData.categorias || catData.items || [])
         .filter(c => c.Estado === 1 || c.estado === true)
-        .map(c => ({ id: c.ID_Categoria || c.id, nombre: c.Nombre || c.nombre, icon: c.Icono || c.icono || "📦" }));
+        .map(c => ({ id: c.ID_Categoria || c.id, nombre: c.Nombre_Categoria || c.Nombre || c.nombre, icon: c.Icono || c.icono || "📦" }));
       setCategoriasInsumosActivas(cats);
 
       const map = {};
@@ -31,14 +31,14 @@ export default function EditarFicha({ ficha, mode = "edit", onClose, onSave }) {
 
   const normalizeInsumos = (f) => Array.isArray(f?.insumos) ? f.insumos : [];
 
-  const [form,   setForm]   = useState({ ...ficha, insumos: normalizeInsumos(ficha) });
+  const [form,   setForm]   = useState({ ...ficha, producto: ficha?.producto || productoNombre || "", fotoPreview: ficha?.fotoPreview || productoFoto || null, insumos: normalizeInsumos(ficha) });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [tab,    setTab]    = useState("insumos");
   const fotoRef = useRef();
   const isView  = mode === "view";
 
-  useEffect(() => { if (ficha) setForm({ ...ficha, insumos: normalizeInsumos(ficha) }); }, [ficha]);
+  useEffect(() => { if (ficha) setForm({ ...ficha, producto: ficha?.producto || productoNombre || "", fotoPreview: ficha?.fotoPreview || productoFoto || null, insumos: normalizeInsumos(ficha) }); }, [ficha, productoNombre, productoFoto]);
 
   const set = (k, v) => { setForm(p => ({ ...p, [k]: v })); setErrors(p => ({ ...p, [k]: "" })); };
 
@@ -74,7 +74,6 @@ export default function EditarFicha({ ficha, mode = "edit", onClose, onSave }) {
 
   const validate = () => {
     const e = {};
-    if (!form.producto?.trim())      e.producto      = "Campo requerido";
     if (!form.procedimiento?.trim()) e.procedimiento = "El procedimiento es requerido";
     return e;
   };
@@ -125,15 +124,7 @@ export default function EditarFicha({ ficha, mode = "edit", onClose, onSave }) {
           <div className="ficha-modal__info-grid">
             <div className="form-group">
               <label className="form-label">Nombre del producto</label>
-              {isView
-                ? <div className="field-input field-input--disabled">{form.producto}</div>
-                : <>
-                    <input className={`field-input${errors.producto ? " field-input--error" : ""}`}
-                      value={form.producto || ""} onChange={e => set("producto", e.target.value)}
-                      onFocus={e => e.target.style.borderColor = "#4caf50"} onBlur={e => e.target.style.borderColor = errors.producto ? "#e53935" : "#e0e0e0"} />
-                    {errors.producto && <p className="field-error">{errors.producto}</p>}
-                  </>
-              }
+              <div className="field-input field-input--disabled">{form.producto || "—"}</div>
             </div>
             <div className="form-group">
               <label className="form-label">Fecha</label>

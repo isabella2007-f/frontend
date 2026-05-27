@@ -7,7 +7,7 @@ const ESTADO_PEDIDO_MAP = {
   5:  "Cancelado",
   8:  "Entregado",
   9:  "En camino",
-  13: "En proceso",
+  13: "En producción",
 };
 
 const adaptPedido = (p) => {
@@ -28,7 +28,7 @@ const adaptPedido = (p) => {
     fecha_pedido:     p.Fecha_pedido      || p.Fecha_Pedido     || p.fecha_pedido || "",
     idCliente:        p.ID_Usuario        || p.ID_Cliente       || p.id_cliente   || null,
     idEmpleado:       p.ID_Empleado       || p.id_empleado      || null,
-    orden_produccion: !!(p.Orden_Produccion ?? p.orden_produccion),
+    orden_produccion: (p.ordenes_produccion_pendientes > 0) || !!(p.Orden_Produccion ?? p.orden_produccion),
     comprobante:      !!(p.Comprobante    ?? p.comprobante),
     cliente: {
       nombre:   p.nombre_cliente   || "",

@@ -241,12 +241,13 @@ class Proveedor(Base):
 class Compra(Base):
     __tablename__ = "Compras"
 
-    ID_Compra    = Column(Integer, primary_key=True, index=True)
-    ID_Proveedor = Column(Integer, ForeignKey("Proveedores.ID_Proveedor"))
-    Total_Pago   = Column(Numeric(30, 2))
-    Fecha_Compra = Column(DateTime)
-    Estado       = Column(Integer, ForeignKey("Estados.ID_Estados"))
-    Metodo_Pago  = Column(String(20))
+    ID_Compra     = Column(Integer, primary_key=True, index=True)
+    ID_Proveedor  = Column(Integer, ForeignKey("Proveedores.ID_Proveedor"))
+    Total_Pago    = Column(Numeric(30, 2))
+    Fecha_Compra  = Column(DateTime)
+    Fecha_Llegada = Column(DateTime, nullable=True)
+    Estado        = Column(Integer, ForeignKey("Estados.ID_Estados"))
+    Metodo_Pago   = Column(String(20))
 
     proveedor = relationship("Proveedor", back_populates="compras")
     detalles  = relationship("DetalleCompra", back_populates="compra")
@@ -309,14 +310,15 @@ class Producto(Base):
 class FichaTecnica(Base):
     __tablename__ = "Ficha_Tecnica"
 
-    ID_Ficha       = Column(Integer, primary_key=True, index=True)
-    ID_Producto    = Column(Integer, ForeignKey("Productos.ID_Producto"))
-    Version        = Column(String(25))
-    ID_Categoria   = Column(Integer, ForeignKey("Categoria_Producto.ID_Categoria"))
-    Estado         = Column(Integer, ForeignKey("Estados.ID_Estados"))
-    Observaciones  = Column(Text)
-    Procedimiento  = Column(Text)
-    Fecha_Creacion = Column(DateTime)
+    ID_Ficha        = Column(Integer, primary_key=True, index=True)
+    ID_Producto     = Column(Integer, ForeignKey("Productos.ID_Producto"))
+    Version         = Column(String(25))
+    ID_Categoria    = Column(Integer, ForeignKey("Categoria_Producto.ID_Categoria"))
+    Estado          = Column(Integer, ForeignKey("Estados.ID_Estados"))
+    Observaciones   = Column(Text)
+    Procedimiento   = Column(Text)
+    Fecha_Creacion  = Column(DateTime)
+    Dias_Vida_Util  = Column(Integer, nullable=True)
 
     producto  = relationship("Producto", back_populates="fichas_tecnicas")
     categoria = relationship("CategoriaProducto", back_populates="fichas_tecnicas")
@@ -327,9 +329,10 @@ class OrdenProduccion(Base):
     __tablename__ = "Orden_Produccion"
 
     ID_Orden_Produccion = Column(Integer, primary_key=True, index=True)
+    ID_Venta            = Column(Integer, ForeignKey("Ventas.ID_Venta"), nullable=True)
     ID_Producto         = Column(Integer, ForeignKey("Productos.ID_Producto"))
-    ID_Insumo           = Column(Integer, ForeignKey("Insumos.ID_Insumo"))
-    ID_Ficha            = Column(Integer, ForeignKey("Ficha_Tecnica.ID_Ficha"))
+    ID_Insumo           = Column(Integer, ForeignKey("Insumos.ID_Insumo"), nullable=True)
+    ID_Ficha            = Column(Integer, ForeignKey("Ficha_Tecnica.ID_Ficha"), nullable=True)
     Cantidad            = Column(Integer)
     Fecha_inicio        = Column(DateTime)
     Fecha_Entrega       = Column(DateTime)
@@ -338,6 +341,23 @@ class OrdenProduccion(Base):
 
     insumo = relationship("Insumo", back_populates="ordenes")
     ficha  = relationship("FichaTecnica", back_populates="ordenes")
+    venta  = relationship("Venta", back_populates="ordenes_produccion")
+    lote   = relationship("LoteProducto", back_populates="orden", uselist=False)
+
+
+class LoteProducto(Base):
+    __tablename__ = "Lote_Producto"
+
+    ID_Lote_Producto    = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    ID_Orden_Produccion = Column(Integer, ForeignKey("Orden_Produccion.ID_Orden_Produccion"))
+    ID_Producto         = Column(Integer, ForeignKey("Productos.ID_Producto"))
+    Numero_Lote         = Column(String(50))
+    Fecha_Produccion    = Column(DateTime)
+    Fecha_Vencimiento   = Column(DateTime, nullable=True)
+    Cantidad            = Column(Integer)
+    Estado              = Column(Integer, ForeignKey("Estados.ID_Estados"), default=1)
+
+    orden = relationship("OrdenProduccion", back_populates="lote")
 
 
 # ─────────────────────────────────────────
@@ -355,11 +375,12 @@ class Venta(Base):
     Fecha_Venta  = Column(DateTime)
     Fecha_pedido = Column(DateTime)
 
-    usuario      = relationship("Usuario", back_populates="ventas")
-    productos    = relationship("VentaXProducto", back_populates="venta")
-    detalle      = relationship("DetalleVenta", back_populates="venta")
-    domicilios   = relationship("Domicilio", back_populates="venta")
-    devoluciones = relationship("Devolucion", back_populates="venta")
+    usuario            = relationship("Usuario", back_populates="ventas")
+    productos          = relationship("VentaXProducto", back_populates="venta")
+    detalle            = relationship("DetalleVenta", back_populates="venta")
+    domicilios         = relationship("Domicilio", back_populates="venta")
+    devoluciones       = relationship("Devolucion", back_populates="venta")
+    ordenes_produccion = relationship("OrdenProduccion", back_populates="venta")
 
 
 class VentaXProducto(Base):

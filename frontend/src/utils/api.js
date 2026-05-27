@@ -44,8 +44,15 @@ export async function apiFetch(endpoint, options = {}) {
 
     return res.json();
   } catch (err) {
-    if (err.name === "AbortError") {
-      throw new Error("La solicitud tardó demasiado. Verifica tu conexión e intenta de nuevo.");
+    if (
+      err.name === "AbortError" ||
+      (err instanceof TypeError && err.message.toLowerCase().includes("fetch"))
+    ) {
+      throw new Error(
+        "No se pudo conectar con el servidor. " +
+        "Si es la primera solicitud del día, el servidor puede estar iniciando (espera ~60 seg). " +
+        "Intenta de nuevo en un momento."
+      );
     }
     throw err;
   } finally {

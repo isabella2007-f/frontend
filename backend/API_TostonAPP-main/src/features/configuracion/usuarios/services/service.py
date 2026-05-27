@@ -1,9 +1,10 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
-from datetime import datetime
+from datetime import datetime, timedelta
+import uuid
 
-from src.shared.services.models import Empleado, Usuario, Rol
-from src.features.auth.services.service import hashear_contrasena
+from src.shared.services.models import Empleado, Usuario, Rol, UsuarioXRol, Venta, Domicilio, VerificacionEmail
+from src.features.auth.services.service import hashear_contrasena, _enviar_email_verificacion, RESEND_API_KEY
 from .schemas import EmpleadoCreate, UsuarioCreate, PersonaUpdate
 
 
@@ -122,6 +123,8 @@ def crear_cliente(db: Session, datos: UsuarioCreate) -> dict:
     if _cedula_en_uso(db, datos.Cedula):
         raise HTTPException(status_code=400, detail="Cédula ya registrada")
 
+    rol_cliente = db.query(Rol).filter(Rol.Rol == "Cliente").first()
+
     nuevo = Usuario(
         Cedula         = datos.Cedula,
         Tipo_Documento = datos.Tipo_Documento,
@@ -134,9 +137,33 @@ def crear_cliente(db: Session, datos: UsuarioCreate) -> dict:
         Telefono       = datos.Telefono,
         Contrasena     = hashear_contrasena(datos.Contrasena),
         Fecha_creacion = datetime.now(),
-        Estado         = 1
+        Estado         = 2,   # inactivo hasta verificar correo
     )
     db.add(nuevo)
+    db.flush()
+
+    if rol_cliente:
+        db.add(UsuarioXRol(ID_Rol=rol_cliente.ID_Rol, ID_Usuario=nuevo.ID_Usuario))
+
+    token = str(uuid.uuid4())
+    db.add(VerificacionEmail(
+        ID_Usuario = nuevo.ID_Usuario,
+        Token      = token,
+        Expira_En  = datetime.utcnow() + timedelta(hours=24),
+        Usado      = False,
+    ))
+
+    email_enviado = False
+    if RESEND_API_KEY:
+        try:
+            _enviar_email_verificacion(datos.Correo, token, datos.Nombre)
+            email_enviado = True
+        except Exception:
+            pass
+
+    if not email_enviado:
+        nuevo.Estado = 1  # activar directamente si no hay servicio de email
+
     db.commit()
     db.refresh(nuevo)
     return _formato_persona(nuevo, "cliente")
@@ -185,11 +212,24 @@ def cambiar_estado(db: Session, id_persona: int, tipo: str, nuevo_estado: int) -
 def eliminar_persona(db: Session, id_persona: int, tipo: str) -> dict:
     if tipo == "empleado":
         registro = db.query(Empleado).filter(Empleado.ID_Empleado == id_persona).first()
+        if not registro:
+            raise HTTPException(status_code=404, detail="Persona no encontrada")
+        domicilios = db.query(Domicilio).filter(Domicilio.ID_Empleado == id_persona).count()
+        if domicilios > 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No se puede eliminar: el empleado tiene {domicilios} domicilio(s) asignado(s).",
+            )
     else:
         registro = db.query(Usuario).filter(Usuario.ID_Usuario == id_persona).first()
-
-    if not registro:
-        raise HTTPException(status_code=404, detail="Persona no encontrada")
+        if not registro:
+            raise HTTPException(status_code=404, detail="Persona no encontrada")
+        ventas = db.query(Venta).filter(Venta.ID_Usuario == id_persona).count()
+        if ventas > 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No se puede eliminar: el cliente tiene {ventas} venta(s) registrada(s).",
+            )
 
     db.delete(registro)
     db.commit()

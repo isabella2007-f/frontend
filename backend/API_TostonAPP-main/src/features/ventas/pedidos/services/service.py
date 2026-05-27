@@ -7,8 +7,11 @@ from src.features.ventas.gestion_ventas.services.service import _formato_venta
 
 # IDs de estado — ajusta según tu tabla Estados
 ESTADO_PENDIENTE   = 1      # pedido en carrito / sin confirmar
+ESTADO_EN_PROCESO  = 13     # esperando órdenes de producción
 ESTADO_CONFIRMADO  = 2      # venta confirmada / pagada
 ESTADO_CANCELADO   = 3      # pedido cancelado
+
+ESTADOS_ACTIVOS = (ESTADO_PENDIENTE, ESTADO_EN_PROCESO)
 
 
 def obtener_pedidos(
@@ -23,7 +26,7 @@ def obtener_pedidos(
     """
     from src.shared.services.models import Usuario
 
-    query = db.query(Venta).filter(Venta.Estado == ESTADO_PENDIENTE)
+    query = db.query(Venta).filter(Venta.Estado.in_(ESTADOS_ACTIVOS))
 
     if busqueda:
         termino      = f"%{busqueda}%"
@@ -53,7 +56,7 @@ def obtener_pedido(db: Session, id_venta: int) -> dict:
     """Retorna un pedido por ID. Solo si está en estado Pendiente."""
     pedido = db.query(Venta).filter(
         Venta.ID_Venta == id_venta,
-        Venta.Estado   == ESTADO_PENDIENTE
+        Venta.Estado.in_(ESTADOS_ACTIVOS),
     ).first()
     if not pedido:
         raise HTTPException(
@@ -71,7 +74,7 @@ def editar_pedido(db: Session, id_venta: int, datos: dict) -> dict:
     """
     pedido = db.query(Venta).filter(
         Venta.ID_Venta == id_venta,
-        Venta.Estado   == ESTADO_PENDIENTE,
+        Venta.Estado.in_(ESTADOS_ACTIVOS),
     ).first()
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado o ya fue procesado")
@@ -119,12 +122,12 @@ def confirmar_pedido(db: Session, id_venta: int) -> dict:
     """
     pedido = db.query(Venta).filter(
         Venta.ID_Venta == id_venta,
-        Venta.Estado   == ESTADO_PENDIENTE
+        Venta.Estado   == ESTADO_PENDIENTE,   # solo confirmar si ya no hay órdenes pendientes
     ).first()
     if not pedido:
         raise HTTPException(
             status_code=404,
-            detail="Pedido no encontrado o ya fue procesado"
+            detail="Pedido no encontrado, ya fue procesado, o tiene órdenes de producción pendientes"
         )
 
     pedido.Estado = ESTADO_CONFIRMADO
@@ -146,7 +149,7 @@ def cancelar_pedido(db: Session, id_venta: int, actual: dict = None) -> dict:
 
     pedido = db.query(Venta).filter(
         Venta.ID_Venta == id_venta,
-        Venta.Estado   == ESTADO_PENDIENTE
+        Venta.Estado.in_(ESTADOS_ACTIVOS),
     ).first()
     if not pedido:
         raise HTTPException(

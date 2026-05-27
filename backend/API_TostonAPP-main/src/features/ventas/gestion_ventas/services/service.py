@@ -6,7 +6,7 @@ from decimal import Decimal
 from src.shared.services.models import (
     Venta, VentaXProducto, DetalleVenta, Producto, Usuario,
     Estado, Domicilio, CreditoCliente, MovimientoCredito,
-    Descuento, DescuentoXUsuario, DescuentoXVenta
+    Descuento, DescuentoXUsuario, DescuentoXVenta, OrdenProduccion, FichaTecnica
 )
 from src.shared.services.notificaciones_utils import notificar, descartar_notificacion, notificar_stock_producto
 from .schemas import VentaCreate, DomicilioVentaInput
@@ -55,6 +55,11 @@ def _formato_venta(venta: Venta, db: Session) -> dict:
     domicilio      = db.query(Domicilio).filter(Domicilio.ID_Venta == venta.ID_Venta).first()
     subtotal_bruto = sum(p["subtotal"] for p in productos)
 
+    ordenes_pendientes = db.query(OrdenProduccion).filter(
+        OrdenProduccion.ID_Venta == venta.ID_Venta,
+        OrdenProduccion.Estado.notin_([11, 5]),
+    ).count()
+
     return {
         "ID_Venta":           venta.ID_Venta,
         "ID_Usuario":         venta.ID_Usuario,
@@ -71,11 +76,12 @@ def _formato_venta(venta: Venta, db: Session) -> dict:
         "Fecha_Venta":        venta.Fecha_Venta,
         "Fecha_pedido":       venta.Fecha_pedido,
         "productos":          productos,
-        "tiene_domicilio":      domicilio is not None,
-        "ID_Domicilio":         domicilio.ID_Domicilio          if domicilio else None,
-        "direccion_entrega":    domicilio.Direccion_entrega      if domicilio else None,
-        "municipio_entrega":    domicilio.Municipio_entrega      if domicilio else None,
-        "departamento_entrega": domicilio.Departamento_entrega   if domicilio else None,
+        "tiene_domicilio":              domicilio is not None,
+        "ID_Domicilio":                 domicilio.ID_Domicilio          if domicilio else None,
+        "direccion_entrega":            domicilio.Direccion_entrega      if domicilio else None,
+        "municipio_entrega":            domicilio.Municipio_entrega      if domicilio else None,
+        "departamento_entrega":         domicilio.Departamento_entrega   if domicilio else None,
+        "ordenes_produccion_pendientes": ordenes_pendientes,
     }
 
 
@@ -266,20 +272,16 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
             detail="Debes registrar tu número de teléfono en tu perfil antes de solicitar un domicilio"
         )
 
-    # Valida productos y calcula subtotal
+    # Valida productos y calcula subtotal (sin bloquear por stock)
     subtotal_bruto = Decimal("0")
     for p in datos.productos:
         producto = db.query(Producto).filter(Producto.ID_Producto == p.ID_Producto).first()
         if not producto:
             raise HTTPException(status_code=404, detail=f"Producto {p.ID_Producto} no encontrado")
-        if producto.Stock < p.Cantidad:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Stock insuficiente para {producto.nombre}"
-            )
         subtotal_bruto += producto.Precio_venta * Decimal(str(p.Cantidad))
 
-    ESTADO_PENDIENTE = 1
+    ESTADO_PENDIENTE  = 1
+    ESTADO_EN_PROCESO = 13
 
     nueva_venta = Venta(
         ID_Usuario   = datos.ID_Usuario,
@@ -304,6 +306,61 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
             ID_Producto = p.ID_Producto,
             Cantidad    = p.Cantidad,
         ))
+
+    # Auto-crear órdenes de producción para productos sin stock suficiente
+    necesita_produccion = False
+    for p in datos.productos:
+        prod         = db.query(Producto).filter(Producto.ID_Producto == p.ID_Producto).first()
+        stock_actual = prod.Stock or 0
+        if stock_actual < p.Cantidad:
+            shortfall = p.Cantidad - stock_actual
+
+            # Buscar ficha técnica activa del producto
+            ficha = (
+                db.query(FichaTecnica)
+                .filter(FichaTecnica.ID_Producto == p.ID_Producto, FichaTecnica.Estado == 1)
+                .order_by(FichaTecnica.ID_Ficha.desc())
+                .first()
+            )
+            # Tomar insumo de la orden más reciente del mismo producto como referencia
+            template = (
+                db.query(OrdenProduccion)
+                .filter(
+                    OrdenProduccion.ID_Producto == p.ID_Producto,
+                    OrdenProduccion.ID_Insumo   != None,
+                    OrdenProduccion.Estado      != 5,
+                )
+                .order_by(OrdenProduccion.ID_Orden_Produccion.desc())
+                .first()
+            )
+            id_ficha  = ficha.ID_Ficha        if ficha    else (template.ID_Ficha  if template else None)
+            id_insumo = template.ID_Insumo    if template else None
+
+            # Usar savepoint para que un fallo aquí no revierta la venta completa
+            try:
+                sp = db.begin_nested()
+                db.add(OrdenProduccion(
+                    ID_Venta     = nueva_venta.ID_Venta,
+                    ID_Producto  = p.ID_Producto,
+                    ID_Insumo    = id_insumo,
+                    ID_Ficha     = id_ficha,
+                    Cantidad     = shortfall,
+                    Fecha_inicio = datetime.now(),
+                    Estado       = ESTADO_PENDIENTE,
+                    Costo        = Decimal("0"),
+                ))
+                sp.commit()
+                necesita_produccion = True
+            except Exception:
+                sp.rollback()
+
+    if necesita_produccion:
+        nueva_venta.Estado = ESTADO_EN_PROCESO
+        notificar(
+            db, "produccion_requerida", "Orden de producción requerida",
+            f"El pedido #{nueva_venta.ID_Venta} requiere producción antes de confirmarse",
+            nueva_venta.ID_Venta, "/produccion/ordenes",
+        )
 
     monto_restante   = subtotal_bruto
     credito_aplicado = Decimal("0")
@@ -330,8 +387,9 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
     ))
 
     if datos.domicilio:
-        ESTADO_ASIGNADO = 2
-        estado_dom      = ESTADO_ASIGNADO if datos.domicilio.ID_Empleado else ESTADO_PENDIENTE
+        ESTADO_ASIGNADO = 10
+        ESTADO_DOM_PENDIENTE = 3
+        estado_dom      = ESTADO_ASIGNADO if datos.domicilio.ID_Empleado else ESTADO_DOM_PENDIENTE
         db.add(Domicilio(
             ID_Venta             = nueva_venta.ID_Venta,
             ID_Empleado          = datos.domicilio.ID_Empleado,

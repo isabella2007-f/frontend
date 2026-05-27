@@ -257,11 +257,10 @@ export default function CrearPedido({ onClose, onSave }) {
 
   const handleBack = () => setStep(s => s - 1);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const e = validateStep(4);
     if (Object.keys(e).length) { setErrors(e); return; }
 
-    // Alerta si hay productos sin stock - Se creará orden de producción automáticamente
     if (hayProductosSinStock) {
       const confirmProd = window.confirm(
         "Algunos productos no tienen stock suficiente. Se generará una orden de producción automáticamente. ¿Deseas continuar?"
@@ -296,7 +295,11 @@ export default function CrearPedido({ onClose, onSave }) {
       orden_produccion:  hayProductosSinStock,
     };
 
-    setTimeout(() => onSave(payload), 900);
+    try {
+      await onSave(payload);
+    } catch {
+      setSaved(false);
+    }
   };
 
   const handleFile = (e) => {
@@ -708,12 +711,6 @@ export default function CrearPedido({ onClose, onSave }) {
           </div>
         </div>
 
-        {saved && (
-          <div className="modal-success-toast">
-            <span>✓</span>
-            <span>Pedido registrado correctamente</span>
-          </div>
-        )}
       </div>
     </div>
   );

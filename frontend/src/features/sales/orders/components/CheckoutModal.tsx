@@ -180,27 +180,59 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
               </button>
             </div>
 
-            {/* Zona de Comprobante - Compacta */}
+            {/* Info bancaria + comprobante */}
             {paymentMethod === 'digital' && (
-              <div className="relative group animate-in slide-in-from-top-2 duration-300">
-                <input
-                  type="file"
-                  accept="image/*,application/pdf"
-                  onChange={(e) => setComprobante(e.target.files?.[0] || null)}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                />
-                <div className="border-2 border-dashed border-emerald-200 bg-white group-hover:bg-emerald-50 transition-all rounded-xl p-3 text-center">
-                  {comprobante ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <CheckCircle2 size={14} className="text-emerald-500" />
-                      <p className="text-[9px] font-black text-emerald-700 truncate max-w-[150px]">{comprobante.name}</p>
+              <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
+                {/* Datos bancarios */}
+                <div className="bg-white rounded-xl border border-blue-100 shadow-sm overflow-hidden">
+                  <div className="px-3 py-1.5 border-b border-blue-50 flex items-center gap-1.5" style={{ background: '#eff6ff' }}>
+                    <CreditCard size={10} className="text-blue-500" />
+                    <span className="text-[8px] font-black text-blue-600 uppercase tracking-widest">Datos para transferencia</span>
+                  </div>
+                  <div className="flex gap-3 p-3">
+                    {/* QR placeholder */}
+                    <div className="flex-shrink-0 w-16 h-16 rounded-lg border-2 border-dashed border-blue-200 flex flex-col items-center justify-center bg-blue-50 text-blue-400">
+                      <span style={{ fontSize: 28, lineHeight: 1 }}>📱</span>
+                      <span className="text-[7px] font-black uppercase tracking-wide mt-0.5">QR Nequi</span>
                     </div>
-                  ) : (
-                    <div className="flex flex-col items-center gap-1">
-                      <UploadCloud size={16} className="text-emerald-300" />
-                      <p className="text-[9px] font-black text-gray-500">Sube tu comprobante de pago</p>
+                    {/* Account rows */}
+                    <div className="flex-1 space-y-1.5">
+                      {[
+                        { label: 'Banco',    value: 'Nequi / Bancolombia' },
+                        { label: 'Número',   value: '316 453 7890' },
+                        { label: 'Tipo',     value: 'Cuenta de ahorros' },
+                        { label: 'Titular',  value: 'TostonApp S.A.S' },
+                      ].map(({ label, value }) => (
+                        <div key={label} className="flex items-baseline gap-1.5">
+                          <span className="text-[8px] font-black text-gray-400 uppercase tracking-wider w-12 shrink-0">{label}</span>
+                          <span className="text-[10px] font-black text-gray-800 leading-tight">{value}</span>
+                        </div>
+                      ))}
                     </div>
-                  )}
+                  </div>
+                </div>
+
+                {/* Zona de Comprobante */}
+                <div className="relative group">
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={(e) => setComprobante(e.target.files?.[0] || null)}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                  />
+                  <div className="border-2 border-dashed border-emerald-200 bg-white group-hover:bg-emerald-50 transition-all rounded-xl p-3 text-center">
+                    {comprobante ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <CheckCircle2 size={14} className="text-emerald-500" />
+                        <p className="text-[9px] font-black text-emerald-700 truncate max-w-[150px]">{comprobante.name}</p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-1">
+                        <UploadCloud size={16} className="text-emerald-300" />
+                        <p className="text-[9px] font-black text-gray-500">Sube tu comprobante de pago</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}

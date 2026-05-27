@@ -70,10 +70,14 @@ def obtener_domicilios(
     pagina: int = 1,
     por_pagina: int = 10,
     busqueda: str = None,
-    estado: int = None
+    estado: int = None,
+    id_empleado: int = None,
 ) -> dict:
-    """Lista paginada. Busca por nombre de cliente o repartidor. Filtra por estado."""
+    """Lista paginada. Busca por nombre de cliente o repartidor. Filtra por estado o empleado asignado."""
     query = db.query(Domicilio)
+
+    if id_empleado:
+        query = query.filter(Domicilio.ID_Empleado == id_empleado)
 
     if estado:
         query = query.filter(Domicilio.Estado == estado)
@@ -144,10 +148,9 @@ def crear_domicilio(db: Session, datos: DomicilioCreate) -> dict:
         if not db.query(Empleado).filter(Empleado.ID_Empleado == datos.ID_Empleado).first():
             raise HTTPException(status_code=404, detail="Empleado repartidor no encontrado")
 
-    # Estado inicial según si viene repartidor o no
-    # Ajusta los IDs según tu tabla Estados
-    ESTADO_PENDIENTE = 1
-    ESTADO_ASIGNADO  = 2
+    # Estado inicial según si viene repartidor o no (IDs de la tabla Estados global)
+    ESTADO_PENDIENTE = 3   # Pendiente
+    ESTADO_ASIGNADO  = 10  # Asignado
     estado_inicial   = ESTADO_ASIGNADO if datos.ID_Empleado else ESTADO_PENDIENTE
 
     nuevo = Domicilio(
@@ -192,8 +195,8 @@ def asignar_repartidor(db: Session, id_domicilio: int, id_empleado: int) -> dict
     if not db.query(Empleado).filter(Empleado.ID_Empleado == id_empleado).first():
         raise HTTPException(status_code=404, detail="Empleado repartidor no encontrado")
 
-    ESTADO_PENDIENTE = 1
-    ESTADO_ASIGNADO  = 2
+    ESTADO_PENDIENTE = 3   # Pendiente
+    ESTADO_ASIGNADO  = 10  # Asignado
 
     dom.ID_Empleado = id_empleado
     if dom.Estado == ESTADO_PENDIENTE:
@@ -204,13 +207,10 @@ def asignar_repartidor(db: Session, id_domicilio: int, id_empleado: int) -> dict
     return _formato_domicilio(dom, db)
 
 
-def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int) -> dict:
-    # Mapa domicilio -> venta segun lo que interpreta el mobile:
-    #   3 = en camino  ->  venta pasa a "en camino"
-    #   4 = entregado  ->  venta pasa a "entregado"
-    #   5 = cancelado  ->  venta pasa a "cancelado"
-    ESTADO_ENTREGADO = 4
-    ESTADOS_PROPAGAR = {3, 4, 5}
+def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observaciones: str = None) -> dict:
+    # Estados de la tabla global: 9=En camino, 8=Entregado, 5=Cancelado
+    ESTADO_ENTREGADO = 8
+    ESTADOS_PROPAGAR = {9, 8, 5}
 
     dom = db.query(Domicilio).filter(Domicilio.ID_Domicilio == id_domicilio).first()
     if not dom:
@@ -226,6 +226,10 @@ def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int) -> dict:
             venta.Estado = nuevo_estado
 
     dom.Estado = nuevo_estado
+
+    if observaciones is not None:
+        dom.Observaciones = observaciones
+
     db.commit()
     db.refresh(dom)
     return _formato_domicilio(dom, db)

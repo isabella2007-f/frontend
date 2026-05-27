@@ -83,6 +83,7 @@ def crear_categoria(db: Session, datos: CategoriaInsumoCreate) -> dict:
     nueva = CategoriaInsumo(
         Nombre_Categoria = datos.Nombre_Categoria,
         Descripcion      = datos.Descripcion,
+        Icono            = datos.Icono,
         Estado           = 1,
         Fecha_Creacion   = datetime.now(),
     )

@@ -56,9 +56,10 @@ const adminMenuItems = [
     section: "Ventas",
     icon: "💰",
     items: [
-      { label: "Pedidos",      icon: "🛍️", link: "/admin/pedidos",      privilegioKey: "Pedidos" },
-      { label: "Domicilios",   icon: "🚚", link: "/admin/domicilios",   privilegioKey: "Domicilios" },
-      { label: "Devoluciones", icon: "🔄", link: "/admin/devoluciones", privilegioKey: "Devoluciones" },
+      { label: "Pedidos",       icon: "🛍️", link: "/admin/pedidos",       privilegioKey: "Pedidos" },
+      { label: "Domicilios",    icon: "🚚", link: "/admin/domicilios",    privilegioKey: "Domicilios" },
+      { label: "Mis Entregas",  icon: "🛵", link: "/admin/mis-entregas",  clave: "Domicilios_cambiar_estado", hideFromAdmin: true },
+      { label: "Devoluciones",  icon: "🔄", link: "/admin/devoluciones",  privilegioKey: "Devoluciones" },
     ],
   },
 ];
@@ -99,9 +100,11 @@ export default function Sidebar({ isOpen, onToggle }) {
   }, []);
 
   const canSeeItem = (item) => {
-    if (!item.privilegioKey) return true;      // sin restricción → siempre visible
-    if (loading) return true;                  // aún cargando → mostrar todo
-    if (isAdmin) return true;                  // admin → todo visible
+    if (!item.privilegioKey && !item.clave) return true;  // sin restricción → siempre visible
+    if (loading) return true;                              // aún cargando → mostrar todo
+    if (item.hideFromAdmin && isAdmin) return false;       // ocultar al admin explícitamente
+    if (isAdmin) return true;                              // admin → todo lo demás visible
+    if (item.clave) return hasPrivilegio(item.clave);      // clave exacta (sin sufijo _ver)
     return hasPrivilegio(`${item.privilegioKey}_ver`);
   };
 

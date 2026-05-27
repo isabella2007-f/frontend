@@ -130,10 +130,11 @@ export default function GestionProveedores() {
   const handleDelete = async () => {
     try {
       await eliminarProveedor(modal.proveedor.id);
-      showToast("Proveedor eliminado", "error");
+      showToast("Proveedor eliminado");
       setModal(null);
       cargarDatos();
     } catch (e) {
+      setModal(null);
       showToast(e.message || "Error al eliminar el proveedor", "error");
     }
   };

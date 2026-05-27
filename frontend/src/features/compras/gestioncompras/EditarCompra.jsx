@@ -83,21 +83,53 @@ export function LotesInsumoPanel() {
 }
 
 /* ── Modal anular ───────────────────────────────────────── */
-export function AnularCompraModal({ compra, onClose }) {
+export function AnularCompraModal({ compra, onClose, onConfirm }) {
+  const [confirming, setConfirming] = useState(false);
+  const [checked,    setChecked]    = useState(false);
+
+  const handleConfirm = async () => {
+    if (!checked) return;
+    setConfirming(true);
+    await onConfirm(compra.id);
+    setConfirming(false);
+  };
+
+  const yaCompletada = compra.stockAplicado === true || compra.estado === "completada";
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
         <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
           <div className="delete-icon-wrap">🚫</div>
-          <h3 className="delete-title">Anular compra</h3>
-          <p className="delete-body">Compra <strong>{compra.id}</strong></p>
-          <div className="stock-aviso stock-aviso--block" style={{ marginTop: 12 }}>
-            🔒 La anulación de compras no está disponible aún en el servidor.
-          </div>
+          <h3 className="delete-title">Anular compra #{compra.id}</h3>
+          {yaCompletada ? (
+            <div className="stock-aviso stock-aviso--block" style={{ marginTop: 12, textAlign: "left" }}>
+              ⚠️ Esta compra ya fue <strong>completada</strong>. Al anularla se <strong>revertirá el stock</strong> de todos los insumos que ingresaron con esta compra.
+            </div>
+          ) : (
+            <p className="delete-body" style={{ marginTop: 8 }}>
+              La compra está <strong>pendiente</strong>. Se anulará sin afectar el stock.
+            </p>
+          )}
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 18, textAlign: "left", cursor: "pointer", fontSize: 13, color: "#424242" }}>
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={e => setChecked(e.target.checked)}
+              style={{ marginTop: 2, accentColor: "#c62828", flexShrink: 0 }}
+            />
+            Entiendo las consecuencias y confirmo la anulación.
+          </label>
         </div>
         <div className="modal-footer modal-footer--center">
-          <button className="btn-cancel-full" onClick={onClose}>Cerrar</button>
-          <button className="btn-danger" disabled>Confirmar Anulación</button>
+          <button className="btn-ghost" onClick={onClose} disabled={confirming}>Cancelar</button>
+          <button
+            className="btn-danger"
+            onClick={handleConfirm}
+            disabled={!checked || confirming}
+          >
+            {confirming ? "Anulando…" : "Confirmar Anulación"}
+          </button>
         </div>
       </div>
     </div>

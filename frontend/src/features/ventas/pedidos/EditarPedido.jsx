@@ -452,62 +452,72 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
             <>
               {!editandoCliente && (
                 <>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <div className="select-wrap" style={{ flex: 1 }}>
-                      <select
-                        className={`field-select${errors.idCliente ? " error" : ""}`}
-                        value={form.idCliente || ""}
-                        onChange={e => {
-                          const id  = e.target.value;
-                          const cli = clientes.find(c => c.id === id);
-                          set("idCliente", id);
-                          if (cli && form.domicilio) set("direccion_entrega", cli.direccion || "");
-                        }}
-                      >
-                        <option value="">Seleccione un cliente…</option>
-                        {clientes.map(c => (
-                          <option key={c.id} value={c.id}>
-                            {c.nombre} {c.apellidos} — {c.correo}
-                          </option>
-                        ))}
-                      </select>
-                      <SelectArrow />
-                    </div>
-                    {clienteActual && (
-                      <button
-                        onClick={abrirEditorCliente}
-                        style={{
-                          padding: "0 14px", borderRadius: 9, border: "1.5px solid #ffe082",
-                          background: "#fff8e1", color: "#f9a825", fontWeight: 700,
-                          fontSize: 13, cursor: "pointer", fontFamily: "inherit",
-                          whiteSpace: "nowrap", flexShrink: 0, transition: "all 0.15s",
-                        }}
-                      >
-                        ✎ Editar datos
-                      </button>
-                    )}
+                  <div className="select-wrap">
+                    <select
+                      className={`field-select${errors.idCliente ? " error" : ""}`}
+                      value={form.idCliente || ""}
+                      onChange={e => {
+                        const id  = e.target.value;
+                        const cli = clientes.find(c => c.id === id);
+                        set("idCliente", id);
+                        if (cli && form.domicilio) set("direccion_entrega", cli.direccion || "");
+                      }}
+                    >
+                      <option value="">Seleccione un cliente…</option>
+                      {clientes.map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.nombre} {c.apellidos} — {c.correo}
+                        </option>
+                      ))}
+                    </select>
+                    <SelectArrow />
                   </div>
                   {errors.idCliente && <span className="field-error">{errors.idCliente}</span>}
+
                   {clienteActual && (
-                    <div className="info-box info-box--success" style={{ marginTop: -2 }}>
-                      <span className="info-box__icon">👤</span>
-                      <div className="info-box__text">
-                        <span className="info-box__label">{clienteActual.nombre} {clienteActual.apellidos}</span>
-                        📞 {clienteActual.telefono || "—"} · 📍 {clienteActual.municipio || "Sin ciudad"}
+                    <div style={{
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      gap: 10, marginTop: 8,
+                      padding: "10px 14px",
+                      borderRadius: 10,
+                      background: "#f9f9f9",
+                      border: "1px solid #ebebeb",
+                    }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: "#212121", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {clienteActual.nombre} {clienteActual.apellidos}
+                        </span>
+                        <span style={{ fontSize: 11, color: "#9e9e9e" }}>
+                          {clienteActual.telefono || "Sin teléfono"} · {clienteActual.municipio || "Sin ciudad"}
+                        </span>
                         {clienteActual.direccion && form.domicilio && (
-                          <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ fontSize: 11 }}>Dir: <strong>{clienteActual.direccion}</strong></span>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 2 }}>
+                            <span style={{ fontSize: 11, color: "#757575", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {clienteActual.direccion}
+                            </span>
                             <button
                               onClick={() => set("direccion_entrega", clienteActual.direccion)}
                               style={{
-                                fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6,
-                                border: "1px solid #a5d6a7", background: "#e8f5e9",
-                                color: "#2e7d32", cursor: "pointer", fontFamily: "inherit",
+                                flexShrink: 0, fontSize: 10, fontWeight: 700,
+                                padding: "1px 7px", borderRadius: 5,
+                                border: "1px solid #c8e6c9", background: "#f1f8e9",
+                                color: "#388e3c", cursor: "pointer", fontFamily: "inherit",
                               }}
-                            >Usar esta ↓</button>
+                            >Usar ↓</button>
                           </div>
                         )}
                       </div>
+                      <button
+                        onClick={abrirEditorCliente}
+                        style={{
+                          flexShrink: 0, padding: "6px 12px", borderRadius: 8,
+                          border: "1px solid #e0e0e0", background: "#fff",
+                          color: "#616161", fontSize: 12, fontWeight: 600,
+                          cursor: "pointer", fontFamily: "inherit",
+                        }}
+                      >
+                        Editar
+                      </button>
                     </div>
                   )}
                 </>

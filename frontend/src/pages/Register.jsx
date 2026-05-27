@@ -11,6 +11,8 @@ const Register = () => {
   const [errors,  setErrors]  = useState({});
   const [showPass, setShowPass] = useState(false);
   const [showConf, setShowConf] = useState(false);
+  const [success,  setSuccess]  = useState(false);
+  const [successEmail, setSuccessEmail] = useState("");
 
   const [form, setForm] = useState({
     Nombre:               '',
@@ -43,7 +45,7 @@ const Register = () => {
     if (!validate()) return;
     setLoading(true);
     try {
-      const data = await apiFetch('/auth/registro', {
+      await apiFetch('/auth/registro', {
         method: 'POST',
         body: JSON.stringify({
           Nombre:               form.Nombre,
@@ -52,25 +54,53 @@ const Register = () => {
           Contrasena:           form.Contrasena,
           Confirmar_contrasena: form.Confirmar_contrasena,
         }),
+        timeout: 75000,
       });
-
-      // Guardar sesión igual que en login
-      localStorage.setItem('token', data.access_token);
-      localStorage.setItem('usuario', JSON.stringify({
-        id:        data.cedula,
-        nombre:    data.nombre,
-        apellidos: data.apellidos,
-        tipo:      data.tipo,
-        rol:       data.rol,
-      }));
-
-      navigate('/cliente');
+      setSuccessEmail(form.Correo);
+      setSuccess(true);
     } catch (err) {
       setErrors({ global: err.message });
     } finally {
       setLoading(false);
     }
   };
+
+  if (success) {
+    return (
+      <div className="auth-page">
+        <Navbar isLanding={true} />
+        <div className="auth-bg">
+          <div className="auth-blob auth-blob--1" />
+          <div className="auth-blob auth-blob--2" />
+          <div className="auth-card">
+            <div className="auth-topbar" />
+            <div className="auth-brand">
+              <div className="auth-brand-icon">
+                <Leaf size={22} color="#2a9d47" />
+              </div>
+              <h1 className="auth-brand-name">¡Cuenta creada!</h1>
+              <p className="auth-brand-sub">Revisa tu correo para activarla</p>
+            </div>
+            <div style={{ textAlign: 'center', padding: '8px 24px 24px' }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>📧</div>
+              <p style={{ fontSize: 14, color: '#555', lineHeight: 1.6, marginBottom: 8 }}>
+                Enviamos un enlace de verificación a:
+              </p>
+              <p style={{ fontSize: 15, fontWeight: 700, color: '#2a9d47', marginBottom: 20 }}>
+                {successEmail}
+              </p>
+              <p style={{ fontSize: 13, color: '#888', marginBottom: 24 }}>
+                Haz clic en el enlace del correo para activar tu cuenta. El enlace expira en 24 horas.
+              </p>
+              <button className="auth-submit" onClick={() => navigate('/login')}>
+                Ir al inicio de sesión <ChevronRight size={18} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="auth-page">

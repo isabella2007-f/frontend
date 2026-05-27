@@ -14,12 +14,13 @@ const adaptCompra = (c) => ({
     }
     const raw = c.Estado ?? c.estado;
     if (typeof raw === "string") return raw.toLowerCase();
-    const m = { 3: "pendiente", 4: "completada", 5: "anulada", 12: "anulada" };
+    const m = { 3: "pendiente", 4: "completada", 11: "completada", 5: "anulada", 12: "anulada" };
     return m[raw] || "pendiente";
   })(),
   fecha:        c.Fecha_Compra     || c.fecha_compra    || c.fecha || "",
+  fecha_llegada: c.Fecha_Llegada  ? new Date(c.Fecha_Llegada).toISOString().split('T')[0] : null,
   notas:        c.Notas            || c.notas           || "",
-  stockAplicado:true, // el backend aplica stock al crear
+  stockAplicado: [4, 11].includes(c.Estado ?? c.estado) || ["confirmado", "completada"].includes((c.estado_label || "").toLowerCase()),
   items: (c.items || c.detalles || []).map(i => ({
     idInsumo:   i.ID_Insumo    || i.id_insumo   || null,
     nombre:     i.nombre_insumo|| i.nombre      || "",
@@ -63,5 +64,17 @@ export async function crearCompra(payload) {
     })),
   };
   const data = await apiFetch("/compras/", { method: "POST", body: JSON.stringify(body) });
+  return adaptCompra(data);
+}
+
+export async function completarCompra(id, fecha = null) {
+  const opts = { method: "PATCH" };
+  if (fecha) opts.body = JSON.stringify({ Fecha_Llegada: fecha });
+  const data = await apiFetch(`/compras/${id}/completar`, opts);
+  return adaptCompra(data);
+}
+
+export async function anularCompra(id) {
+  const data = await apiFetch(`/compras/${id}/anular`, { method: "PATCH" });
   return adaptCompra(data);
 }

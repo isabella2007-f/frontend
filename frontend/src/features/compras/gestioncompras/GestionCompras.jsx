@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { getCompras, crearCompra as apiCrearCompra } from "../../../services/comprasService.js";
+import { getCompras, crearCompra as apiCrearCompra, completarCompra, anularCompra } from "../../../services/comprasService.js";
 import { getProveedores } from "../../../services/proveedoresService.js";
 import CrearCompra from "./CrearCompra.jsx";
 import EditarCompra, { AnularCompraModal } from "./EditarCompra.jsx";
@@ -154,9 +154,15 @@ export default function GestionCompras() {
     setModal(null);
   };
 
-  const handleAnular = () => {
-    showToast("Anulación de compras no disponible aún en el servidor", "error");
-    setModal(null);
+  const handleAnular = async (id) => {
+    setModal(null);  // cerrar modal antes de mostrar toast para evitar que quede detrás
+    try {
+      await anularCompra(id);
+      await cargarDatos();
+      showToast("Compra anulada correctamente");
+    } catch (err) {
+      showToast(err.message || "Error al anular la compra", "error");
+    }
   };
 
   const handleCompletarRapido = (id) => {
@@ -164,9 +170,16 @@ export default function GestionCompras() {
     if (compra) setLlegadaModal(compra);
   };
 
-  const handleConfirmarLlegada = () => {
-    showToast("El stock ya fue aplicado automáticamente al crear la compra", "success");
-    setLlegadaModal(null);
+  const handleConfirmarLlegada = async (id, fecha) => {
+    try {
+      await completarCompra(id, fecha);
+      await cargarDatos();
+      showToast("Compra completada y stock aplicado correctamente");
+      setLlegadaModal(null);
+    } catch (err) {
+      showToast(err.message || "Error al completar la compra", "error");
+      setLlegadaModal(null);
+    }
   };
 
   return (

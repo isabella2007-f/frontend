@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from decimal import Decimal
 
-from src.shared.services.models import OrdenProduccion, Producto, Insumo, FichaTecnica, Estado
+from src.shared.services.models import OrdenProduccion, Producto, Insumo, FichaTecnica, Estado, Venta, LoteProducto
 from src.shared.services.notificaciones_utils import notificar_stock_insumo, notificar_stock_producto
 from .schemas import OrdenCreate, OrdenUpdate
 
@@ -77,12 +77,18 @@ def _formato_orden(orden: OrdenProduccion, db: Session) -> dict:
         FichaTecnica.ID_Ficha == orden.ID_Ficha
     ).first() if orden.ID_Ficha else None
 
+    lote = db.query(LoteProducto).filter(
+        LoteProducto.ID_Orden_Produccion == orden.ID_Orden_Produccion
+    ).first()
+
     return {
         "ID_Orden_Produccion": orden.ID_Orden_Produccion,
+        "ID_Venta":            orden.ID_Venta,
         "ID_Producto":         orden.ID_Producto,
         "nombre_producto":     producto.nombre if producto else None,
         "ID_Insumo":           orden.ID_Insumo,
         "nombre_insumo":       insumo.Nombre if insumo else None,
+        "stock_insumo":        insumo.Stock_Actual if insumo else None,
         "ID_Ficha":            orden.ID_Ficha,
         "version_ficha":       ficha.Version if ficha else None,
         "Cantidad":            orden.Cantidad,
@@ -91,6 +97,13 @@ def _formato_orden(orden: OrdenProduccion, db: Session) -> dict:
         "Estado":              orden.Estado,
         "estado_label":        _label_estado(db, orden.Estado) if orden.Estado else None,
         "Costo":               orden.Costo,
+        "lote": {
+            "ID_Lote_Producto":  lote.ID_Lote_Producto,
+            "Numero_Lote":       lote.Numero_Lote,
+            "Fecha_Produccion":  lote.Fecha_Produccion,
+            "Fecha_Vencimiento": lote.Fecha_Vencimiento,
+            "Cantidad":          lote.Cantidad,
+        } if lote else None,
     }
 
 
@@ -211,14 +224,49 @@ def cambiar_estado(db: Session, id_orden: int, nuevo_estado: int) -> dict:
         _actualizar_estado_insumo(insumo)
         notificar_stock_insumo(db, insumo)
 
-    # Al completar (11=Completada): incrementar stock del producto
+    # Al completar (11=Completada): incrementar stock del producto y crear lote
     elif nuevo_estado == ESTADO_COMPLETADA and orden.Estado == ESTADO_EN_PROCESO:
+        from datetime import datetime, timedelta
+
         producto = db.query(Producto).filter(Producto.ID_Producto == orden.ID_Producto).first()
         if not producto:
             raise HTTPException(status_code=404, detail="Producto no encontrado")
         producto.Stock = (producto.Stock or 0) + orden.Cantidad
         _actualizar_estado_producto(producto)
         notificar_stock_producto(db, producto)
+
+        # Crear lote de producto
+        hoy = datetime.now()
+        ficha = db.query(FichaTecnica).filter(
+            FichaTecnica.ID_Ficha == orden.ID_Ficha
+        ).first() if orden.ID_Ficha else None
+
+        dias_vida = (ficha.Dias_Vida_Util if ficha and ficha.Dias_Vida_Util else None)
+        fecha_vencimiento = hoy + timedelta(days=dias_vida) if dias_vida else None
+
+        numero_lote = f"LP-{orden.ID_Orden_Produccion}-{hoy.strftime('%Y%m%d')}"
+
+        db.add(LoteProducto(
+            ID_Orden_Produccion = orden.ID_Orden_Produccion,
+            ID_Producto         = orden.ID_Producto,
+            Numero_Lote         = numero_lote,
+            Fecha_Produccion    = hoy,
+            Fecha_Vencimiento   = fecha_vencimiento,
+            Cantidad            = orden.Cantidad,
+            Estado              = 1,
+        ))
+
+        # Si la orden estaba ligada a un pedido, verificar si puede volver a Pendiente
+        if orden.ID_Venta:
+            venta = db.query(Venta).filter(Venta.ID_Venta == orden.ID_Venta).first()
+            if venta and venta.Estado == 13:  # En proceso
+                otras = db.query(OrdenProduccion).filter(
+                    OrdenProduccion.ID_Venta            == orden.ID_Venta,
+                    OrdenProduccion.ID_Orden_Produccion != orden.ID_Orden_Produccion,
+                ).all()
+                # La orden actual pasa a Completada; las demás deben ser Completadas o Canceladas
+                if all(o.Estado in {ESTADO_COMPLETADA, ESTADO_CANCELADA} for o in otras):
+                    venta.Estado = 1  # Vuelve a Pendiente — listo para que el admin confirme
 
     # Al cancelar (5): restaurar insumo si la orden estaba en proceso
     elif nuevo_estado == ESTADO_CANCELADA and orden.Estado == ESTADO_EN_PROCESO:

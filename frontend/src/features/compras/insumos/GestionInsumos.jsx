@@ -280,13 +280,13 @@ export default function GestionInsumos() {
                   <p className="filter-section-title">Categoría</p>
                   <div className="filter-grid">
                     <button className={`filter-option${filterCat === "todas" ? " active" : ""}`}
-                      onClick={() => setFilterCat("todas")}>
+                      onClick={() => { setFilterCat("todas"); setShowFilter(false); }}>
                       <span className="filter-dot" style={{ background: "#bdbdbd" }} />Todas
                     </button>
                     {categorias.map(c => (
                       <button key={c.id}
                         className={`filter-option${filterCat === c.id ? " active" : ""}`}
-                        onClick={() => setFilterCat(c.id)}>
+                        onClick={() => { setFilterCat(c.id); setShowFilter(false); }}>
                         <span style={{ fontSize: 14 }}>{c.icon}</span>{c.nombre}
                       </button>
                     ))}

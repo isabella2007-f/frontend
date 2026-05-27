@@ -45,7 +45,7 @@ const FILTER_OPTIONS = [
 /* ─── Componentes pequeños ───────────────────────────────── */
 function EstadoBadge({ estado }) {
   const cfg = ESTADO_CONFIG[estado] || { dot: "#bdbdbd", label: estado, desc: "" };
-  const cls = `estado-badge estado--${estado.replace(/ /g, "-")}`;
+  const cls = `estado-badge estado--${String(estado).replace(/ /g, "-")}`;
   return (
     <span className={cls} title={cfg.desc}>
       <span className="estado-badge__dot" />
@@ -679,7 +679,7 @@ export default function GestionDomicilios() {
         getUsuarios({ porPagina: 100 }),
       ]);
       setDomicilios(dData.domicilios);
-      setEmpleados((uData || []).filter(u => u.rol === "Empleado" && u.estado));
+      setEmpleados((uData || []).filter(u => u.tipo === "empleado" && u.estado));
     } catch (err) {
       showToast(err.message || "Error al cargar domicilios", "error");
     } finally {

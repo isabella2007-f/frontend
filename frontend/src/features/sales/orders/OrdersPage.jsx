@@ -93,30 +93,31 @@ const OrdersPage = () => {
   const handleConfirmOrder = async (paymentMethod, onBehalfOf, comprobante) => {
     const user = getUser();
     const cart = getCart();
-    const total = cart.reduce((a, i) => a + i.precio * i.cantidad, 0);
+
+    const direccion = orderDetails?.address || user?.direccion || '';
+    const municipio = orderDetails?.municipio || user?.municipio || '';
+    const departamento = orderDetails?.departamento || user?.departamento || '';
 
     const payload = {
-      ID_Cliente: user?.id || null,
+      ID_Usuario: user?.id || null,
       productos:  cart.map(item => ({
         ID_Producto: Number(item.id),
         Cantidad:    Number(item.cantidad),
       })),
-      Metodo_Pago:       paymentMethod === 'digital' ? 'Transferencia 🏦' : 'Efectivo 💵',
-      Domicilio:         true,
-      Direccion_Entrega: orderDetails?.address
-        ? `${orderDetails.address}, ${orderDetails.municipio || ''}, ${orderDetails.departamento || ''}`
-        : null,
-      Subtotal:  total,
-      Descuento: 0,
-      Total:     total,
-      Notas:     null,
+      Metodo_Pago:  paymentMethod === 'digital' ? 'Transferencia' : 'Efectivo',
+      A_Nombre_De: onBehalfOf || null,
+      domicilio: direccion ? {
+        Direccion_entrega:    direccion,
+        Municipio_entrega:    municipio || 'Sin municipio',
+        Departamento_entrega: departamento || 'Sin departamento',
+      } : null,
     };
 
     try {
-      const res = await crearPedido(payload);
+      await crearPedido(payload);
       clearCart();
       setCheckoutOpen(false);
-      showToast(`¡Pedido creado exitosamente! 🎉`);
+      showToast('¡Pedido creado exitosamente!');
     } catch (err) {
       showToast(err.message || 'Error al crear el pedido', 'error');
     }

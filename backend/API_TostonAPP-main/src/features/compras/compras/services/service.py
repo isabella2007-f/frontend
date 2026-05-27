@@ -10,20 +10,24 @@ from src.shared.services.notificaciones_utils import notificar_stock_insumo
 from .schemas import CompraCreate
 
 
+ESTADO_PENDIENTE  = 3
+ESTADO_COMPLETADA = 11
+ESTADO_ANULADA    = 12
+
+
 # ─────────────────────────────────────────
 # HELPERS DE STOCK
 # ─────────────────────────────────────────
 
 def _actualizar_estado_insumo(insumo: Insumo) -> None:
-    """Actualiza el estado del insumo según reglas de stock de CLAUDE.md."""
     stock  = insumo.Stock_Actual or 0
     minimo = insumo.Stock_Minimo or 0
     if stock == 0:
-        insumo.Estado = 15      # Agotado
+        insumo.Estado = 15
     elif stock <= minimo:
-        insumo.Estado = 14      # Stock bajo
+        insumo.Estado = 14
     else:
-        insumo.Estado = 1       # Activo
+        insumo.Estado = 1
 
 
 # ─────────────────────────────────────────
@@ -58,6 +62,7 @@ def _formato_compra(compra: Compra, db: Session) -> dict:
         "nombre_proveedor":  proveedor.Responsable if proveedor else None,
         "Total_Pago":        compra.Total_Pago,
         "Fecha_Compra":      compra.Fecha_Compra,
+        "Fecha_Llegada":     getattr(compra, "Fecha_Llegada", None),
         "Estado":            compra.Estado,
         "estado_label":      estado.Estado if estado else None,
         "Metodo_Pago":       compra.Metodo_Pago,
@@ -76,7 +81,6 @@ def obtener_compras(
     busqueda: str = None,
     id_proveedor: int = None,
 ) -> dict:
-    """Lista paginada de compras. Filtra por proveedor o busca por método de pago."""
     query = db.query(Compra)
 
     if id_proveedor:
@@ -99,7 +103,6 @@ def obtener_compras(
 
 
 def obtener_compra(db: Session, id_compra: int) -> dict:
-    """Retorna el detalle de una compra por ID o lanza 404."""
     compra = db.query(Compra).filter(Compra.ID_Compra == id_compra).first()
     if not compra:
         raise HTTPException(status_code=404, detail="Compra no encontrada")
@@ -108,40 +111,31 @@ def obtener_compra(db: Session, id_compra: int) -> dict:
 
 def crear_compra(db: Session, datos: CompraCreate) -> dict:
     """
-    Registra una compra completa:
-    1. Valida que el proveedor exista.
-    2. Por cada detalle: valida insumo, crea LoteCompra, actualiza Stock_Actual del insumo.
-    3. Crea la Compra con el total calculado.
-    4. Crea los DetalleCompra asociando lote e insumo.
-    5. Actualiza el estado de cada insumo y envía notificaciones de stock.
-    Todo en una sola transacción — si algo falla, se hace rollback completo.
+    Registra una compra en estado Pendiente (3).
+    El stock NO se aplica al crear — solo al confirmar con completar_compra().
     """
-    # Valida proveedor
     proveedor = db.query(Proveedor).filter(
         Proveedor.ID_Proveedor == datos.ID_Proveedor
     ).first()
     if not proveedor:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
 
-    # Calcula el total de la compra
     total_pago = sum(
         Decimal(str(d.Precio_Und)) * d.Cantidad
         for d in datos.detalles
     )
 
-    # Crea la compra principal
     nueva_compra = Compra(
         ID_Proveedor = datos.ID_Proveedor,
         Total_Pago   = total_pago,
         Fecha_Compra = datos.Fecha_Compra or datetime.now(),
-        Estado       = 4,           # 4 = Confirmado
+        Estado       = ESTADO_PENDIENTE,
         Metodo_Pago  = datos.Metodo_Pago,
     )
     db.add(nueva_compra)
-    db.flush()   # obtiene el ID sin commit aún
+    db.flush()
 
     for item in datos.detalles:
-        # Valida que el insumo exista
         insumo = db.query(Insumo).filter(Insumo.ID_Insumo == item.ID_Insumo).first()
         if not insumo:
             db.rollback()
@@ -150,17 +144,15 @@ def crear_compra(db: Session, datos: CompraCreate) -> dict:
                 detail=f"Insumo con ID {item.ID_Insumo} no encontrado"
             )
 
-        # Crea el LoteCompra para este ítem
         lote = LoteCompra(
             ID_Insumo         = item.ID_Insumo,
             Fecha_Vencimiento = item.Fecha_Vencimiento,
             Cantidad_Inicial  = item.Cantidad,
-            Estado            = 1,     # Activo
+            Estado            = 1,
         )
         db.add(lote)
-        db.flush()  # obtiene el ID del lote
+        db.flush()
 
-        # Crea el DetalleCompra
         detalle = DetalleCompra(
             ID_Compra      = nueva_compra.ID_Compra,
             ID_Insumo      = item.ID_Insumo,
@@ -171,23 +163,81 @@ def crear_compra(db: Session, datos: CompraCreate) -> dict:
         )
         db.add(detalle)
 
-        # Actualiza Stock_Actual del insumo
-        insumo.Stock_Actual = (insumo.Stock_Actual or 0) + item.Cantidad
-
-        # Actualiza el ID_Lote_Compra del insumo (último lote asociado)
-        insumo.ID_Lote_Compra = lote.ID_Lote_Compra
-
-        # Recalcula estado del insumo
-        _actualizar_estado_insumo(insumo)
-
     db.commit()
     db.refresh(nueva_compra)
+    return _formato_compra(nueva_compra, db)
 
-    # Notificaciones de stock (fuera de la transacción principal)
-    for item in datos.detalles:
-        insumo = db.query(Insumo).filter(Insumo.ID_Insumo == item.ID_Insumo).first()
+
+def completar_compra(db: Session, id_compra: int, fecha_llegada=None) -> dict:
+    """
+    Confirma la llegada de la compra: aplica el stock de cada insumo y pasa a Completada (4).
+    Solo puede completarse desde Pendiente (3).
+    """
+    compra = db.query(Compra).filter(Compra.ID_Compra == id_compra).first()
+    if not compra:
+        raise HTTPException(status_code=404, detail="Compra no encontrada")
+    if compra.Estado != ESTADO_PENDIENTE:
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se puede completar una compra en estado Pendiente"
+        )
+
+    detalles = db.query(DetalleCompra).filter(DetalleCompra.ID_Compra == id_compra).all()
+
+    for detalle in detalles:
+        insumo = db.query(Insumo).filter(Insumo.ID_Insumo == detalle.ID_Insumo).first()
+        if insumo:
+            insumo.Stock_Actual = (insumo.Stock_Actual or 0) + detalle.Cantidad
+            insumo.ID_Lote_Compra = detalle.ID_Lote_Compra
+            _actualizar_estado_insumo(insumo)
+
+    compra.Estado = ESTADO_COMPLETADA
+    if fecha_llegada:
+        compra.Fecha_Llegada = fecha_llegada
+    else:
+        from datetime import datetime as _dt
+        compra.Fecha_Llegada = _dt.now()
+    db.commit()
+    db.refresh(compra)
+
+    for detalle in detalles:
+        insumo = db.query(Insumo).filter(Insumo.ID_Insumo == detalle.ID_Insumo).first()
         if insumo:
             notificar_stock_insumo(db, insumo)
     db.commit()
 
-    return _formato_compra(nueva_compra, db)
+    return _formato_compra(compra, db)
+
+
+def anular_compra(db: Session, id_compra: int) -> dict:
+    """
+    Anula la compra.
+    - Desde Pendiente (3): solo cambia estado, sin afectar stock.
+    - Desde Completada (4): revierte el stock de cada insumo antes de anular.
+    """
+    compra = db.query(Compra).filter(Compra.ID_Compra == id_compra).first()
+    if not compra:
+        raise HTTPException(status_code=404, detail="Compra no encontrada")
+    if compra.Estado not in {ESTADO_PENDIENTE, ESTADO_COMPLETADA}:
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se pueden anular compras en estado Pendiente o Completada"
+        )
+
+    if compra.Estado == ESTADO_COMPLETADA:
+        detalles = db.query(DetalleCompra).filter(DetalleCompra.ID_Compra == id_compra).all()
+        for detalle in detalles:
+            insumo = db.query(Insumo).filter(Insumo.ID_Insumo == detalle.ID_Insumo).first()
+            if insumo:
+                insumo.Stock_Actual = max(0, (insumo.Stock_Actual or 0) - detalle.Cantidad)
+                _actualizar_estado_insumo(insumo)
+
+        for detalle in detalles:
+            insumo = db.query(Insumo).filter(Insumo.ID_Insumo == detalle.ID_Insumo).first()
+            if insumo:
+                notificar_stock_insumo(db, insumo)
+
+    compra.Estado = ESTADO_ANULADA
+    db.commit()
+    db.refresh(compra)
+    return _formato_compra(compra, db)

@@ -1,29 +1,43 @@
 import { apiFetch } from "../utils/api";
 
+const ESTADO_DOM_MAP = {
+  3:  "Pendiente",
+  5:  "Cancelado",
+  8:  "Entregado",
+  9:  "En camino",
+  10: "Asignado",
+};
+
 const adaptDomicilio = (d) => {
-  const cli = d.cliente || d.Cliente || {};
+  const estadoRaw = d.estado_label || d.Estado || d.estado;
+  const estado = typeof estadoRaw === "number"
+    ? (ESTADO_DOM_MAP[estadoRaw] || "Pendiente")
+    : (estadoRaw || "Pendiente");
   return {
-    id:                d.ID_Domicilio       || d.id,
-    numero:            d.Numero_Pedido      || d.numero_pedido      || d.numero      || `DOM-${d.ID_Domicilio || d.id}`,
-    estado:            d.Estado             || d.estado             || "Pendiente",
-    idEmpleado:        d.ID_Empleado        || d.id_empleado        || null,
-    direccion_entrega: d.Direccion_Entrega  || d.direccion_entrega  || "",
-    obs_domicilio:     d.Observaciones      || d.obs_domicilio      || "",
-    fecha_pedido:      d.Fecha_Pedido       || d.fecha_pedido       || "",
-    fecha_entrega_real:d.Fecha_Entrega_Real || d.fecha_entrega_real || null,
-    total:             d.Total              || d.total              || 0,
+    id:                d.ID_Domicilio,
+    numero:            `DOM-${d.ID_Domicilio}`,
+    estado,
+    idEmpleado:        d.ID_Empleado        || null,
+    nombre_repartidor: d.nombre_repartidor  || "",
+    direccion_entrega: d.Direccion_entrega  || "",
+    obs_domicilio:     d.Observaciones      || "",
+    fecha_pedido:      d.Fecha_asignacion   || "",
+    fecha_entrega_real:d.Fecha_entrega      || null,
+    total:             d.total              || 0,
     domicilio:         true,
     cliente: {
-      nombre:   cli.Nombre   || cli.nombre   || "",
-      correo:   cli.Correo   || cli.correo   || "",
-      telefono: cli.Telefono || cli.telefono || "",
+      nombre:   d.nombre_cliente  || "",
+      correo:   "",
+      telefono: "",
     },
   };
 };
 
-export const getDomicilios = async ({ pagina = 1, porPagina = 100, estado = "" } = {}) => {
-  const q = estado ? `&estado=${encodeURIComponent(estado)}` : "";
-  const data = await apiFetch(`/domicilios/?pagina=${pagina}&por_pagina=${porPagina}${q}`);
+export const getDomicilios = async ({ pagina = 1, porPagina = 100, estado = "", idEmpleado = null } = {}) => {
+  const params = new URLSearchParams({ pagina, por_pagina: porPagina });
+  if (estado)     params.append("estado",      encodeURIComponent(estado));
+  if (idEmpleado) params.append("id_empleado", idEmpleado);
+  const data = await apiFetch(`/domicilios/?${params}`);
   return {
     total:      data.total,
     pagina:     data.pagina,
@@ -39,10 +53,12 @@ export const asignarRepartidor = async (id, idEmpleado) => {
   });
 };
 
-export const cambiarEstadoDomicilio = async (id, estado) => {
+export const cambiarEstadoDomicilio = async (id, estado, observaciones = null) => {
+  const body = { Estado: estado };
+  if (observaciones !== null) body.Observaciones = observaciones;
   return apiFetch(`/domicilios/${id}/estado`, {
     method: "PATCH",
-    body: JSON.stringify({ Estado: estado }),
+    body: JSON.stringify(body),
   });
 };
 

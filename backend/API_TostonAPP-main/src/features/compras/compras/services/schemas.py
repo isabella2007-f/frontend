@@ -1,9 +1,14 @@
 from pydantic import BaseModel, model_validator
-from typing import Optional, Literal
+from typing import Optional
 from datetime import datetime
 from decimal import Decimal
 
 METODOS_PAGO_COMPRA = {"Efectivo", "Transferencia", "Crédito", "Cheque"}
+
+
+# ── Completar compra (body opcional) ──
+class CompletarCompraInput(BaseModel):
+    Fecha_Llegada: Optional[datetime] = None
 
 
 # ── Detalle de un ítem dentro de la compra ──
@@ -53,15 +58,16 @@ class DetalleCompraResponse(BaseModel):
 
 # ── Respuesta de una compra ──
 class CompraResponse(BaseModel):
-    ID_Compra:    int
-    ID_Proveedor: Optional[int]      = None
-    nombre_proveedor: Optional[str]  = None
-    Total_Pago:   Optional[Decimal]  = None
-    Fecha_Compra: Optional[datetime] = None
-    Estado:       Optional[int]      = None
-    estado_label: Optional[str]      = None
-    Metodo_Pago:  Optional[str]      = None
-    detalles:     list[DetalleCompraResponse] = []
+    ID_Compra:        int
+    ID_Proveedor:     Optional[int]      = None
+    nombre_proveedor: Optional[str]      = None
+    Total_Pago:       Optional[Decimal]  = None
+    Fecha_Compra:     Optional[datetime] = None
+    Fecha_Llegada:    Optional[datetime] = None
+    Estado:           Optional[int]      = None
+    estado_label:     Optional[str]      = None
+    Metodo_Pago:      Optional[str]      = None
+    detalles:         list[DetalleCompraResponse] = []
 
     class Config:
         from_attributes = True

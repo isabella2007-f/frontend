@@ -20,6 +20,7 @@ import GestionClientes from "../features/ventas/clientes/GestionClientes";
 import GestionPedidos from "../features/ventas/pedidos/GestionPedidos";
 import GestionDevoluciones from "../features/ventas/devoluciones/GestionDevoluciones";
 import GestionDomicilios from "../features/ventas/domicilios/Gestiondomicilios";
+import GestionDomiciliosRepartidor from "../features/ventas/domicilios/GestionDomiciliosRepartidor";
 
 /* ─── CLIENTE REAL ─── */
 import OrdersPage from "../features/sales/orders/OrdersPage";
@@ -84,7 +85,8 @@ const AppRouter = () => {
             <Route path="clientes"    element={<PR clave="Pedidos_ver"      el={<GestionClientes />} />} />
             <Route path="pedidos"     element={<PR clave="Pedidos_ver"      el={<GestionPedidos />} />} />
             <Route path="devoluciones" element={<PR clave="Devoluciones_ver" el={<GestionDevoluciones />} />} />
-            <Route path="domicilios"  element={<PR clave="Domicilios_ver"   el={<GestionDomicilios />} />} />
+            <Route path="domicilios"     element={<PR clave="Domicilios_ver"          el={<GestionDomicilios />} />} />
+            <Route path="mis-entregas"   element={<PR clave="Domicilios_cambiar_estado" el={<GestionDomiciliosRepartidor />} />} />
 
             {/* Compras */}
             <Route path="categorias_insumos" element={<PR clave="CategoriaInsumos_ver" el={<CategoriaInsumos />} />} />

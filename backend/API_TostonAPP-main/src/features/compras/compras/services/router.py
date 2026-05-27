@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Body
 from sqlalchemy.orm import Session
 from typing import Optional
 
 from src.shared.services.database import get_db
 from src.features.auth.services.dependencies import requiere_permiso
-from .schemas import CompraCreate, CompraResponse, CompraListResponse
-from .service import obtener_compras, obtener_compra, crear_compra
+from .schemas import CompraCreate, CompraResponse, CompraListResponse, CompletarCompraInput
+from .service import obtener_compras, obtener_compra, crear_compra, completar_compra, anular_compra
 
 router = APIRouter(prefix="/compras", tags=["Compras"])
 
@@ -39,9 +39,27 @@ def registrar_compra(
     db:    Session = Depends(get_db),
     _:     dict    = Depends(requiere_permiso("crear_insumos")),
 ):
-    """
-    Registra una compra completa con sus detalles.
-    Por cada ítem: crea un LoteCompra y actualiza el Stock_Actual del insumo.
-    El total se calcula automáticamente sumando (precio_und * cantidad) de cada ítem.
-    """
+    """Registra la compra en estado Pendiente. El stock se aplica al confirmar llegada."""
     return crear_compra(db, datos)
+
+
+@router.patch("/{id_compra}/completar", response_model=CompraResponse)
+def confirmar_llegada(
+    id_compra: int,
+    datos:     Optional[CompletarCompraInput] = Body(None),
+    db:        Session = Depends(get_db),
+    _:         dict    = Depends(requiere_permiso("editar_insumos")),
+):
+    """Confirma la llegada de la compra: aplica stock y la marca como Completada."""
+    fecha_llegada = datos.Fecha_Llegada if datos else None
+    return completar_compra(db, id_compra, fecha_llegada)
+
+
+@router.patch("/{id_compra}/anular", response_model=CompraResponse)
+def anular(
+    id_compra: int,
+    db:        Session = Depends(get_db),
+    _:         dict    = Depends(requiere_permiso("editar_insumos")),
+):
+    """Anula la compra. Si estaba Completada, revierte el stock de los insumos."""
+    return anular_compra(db, id_compra)

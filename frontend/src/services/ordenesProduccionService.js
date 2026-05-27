@@ -17,13 +17,21 @@ function adaptarOrden(o) {
     nombreProducto: o.nombre_producto,
     idInsumo:       o.ID_Insumo,
     nombreInsumo:   o.nombre_insumo,
+    stockInsumo:    o.stock_insumo ?? null,
     idFicha:        o.ID_Ficha,
     versionFicha:   o.version_ficha,
     cantidad:       o.Cantidad,
-    fechaInicio:    o.Fecha_inicio,
-    fechaEntrega:   o.Fecha_Entrega,
+    fechaInicio:    o.Fecha_inicio  ? String(o.Fecha_inicio).split("T")[0]  : null,
+    fechaEntrega:   o.Fecha_Entrega ? String(o.Fecha_Entrega).split("T")[0] : null,
     estado:         ESTADO_DISPLAY_MAP[label] || label || "Pendiente",
     costo:          parseFloat(o.Costo ?? 0),
+    lote: o.lote ? {
+      id:               o.lote.ID_Lote_Producto,
+      numeroLote:       o.lote.Numero_Lote,
+      fechaProduccion:  o.lote.Fecha_Produccion  ? String(o.lote.Fecha_Produccion).split("T")[0]  : null,
+      fechaVencimiento: o.lote.Fecha_Vencimiento ? String(o.lote.Fecha_Vencimiento).split("T")[0] : null,
+      cantidad:         o.lote.Cantidad,
+    } : null,
   };
 }
 

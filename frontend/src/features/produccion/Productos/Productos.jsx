@@ -23,6 +23,7 @@ import {
   toggleEstadoProducto as apiToggleEstado,
   togglePublicadoProducto as apiTogglePublicado,
   editarProducto as apiEditarProducto,
+  validarEliminarProducto,
 } from "../../../services/productosService";
 import { registrarSalida } from "../../../services/salidasService";
 import { usePrivilegio } from "../../../context/PrivilegiosContext";
@@ -78,6 +79,7 @@ const TIPO_COLORS = {
  * Centralizado aquí para que todos los componentes hijos reciban el mismo shape.
  */
 function adaptarProducto(p) {
+  const ft = p.ficha_tecnica;
   return {
     id:                p.ID_Producto,
     nombre:            p.nombre,
@@ -92,7 +94,15 @@ function adaptarProducto(p) {
     estado:            p.estado_label ?? null,
     imagenesApi:       p.imagenes ?? [],
     imagenesPreview:   (p.imagenes ?? []).map((img) => img.url).filter(Boolean),
-    ficha:             p.ficha_tecnica ?? null,
+    ficha: ft ? {
+      id:            ft.ID_Ficha,
+      version:       ft.Version       ?? "",
+      procedimiento: ft.Procedimiento ?? "",
+      observaciones: ft.Observaciones ?? "",
+      fecha:         ft.Fecha_Creacion ?? "",
+      estado:        ft.Estado,
+      insumos:       [],
+    } : null,
   };
 }
 
@@ -795,11 +805,20 @@ export default function GestionProductos() {
     setModal(null);
   };
 
+  const handleOpenDelete = async (product) => {
+    try {
+      const validation = await validarEliminarProducto(product.id);
+      setModal({ type: "eliminar", product, validation });
+    } catch {
+      setModal({ type: "eliminar", product, validation: { ok: true } });
+    }
+  };
+
   const handleDelete = async () => {
     try {
       await apiEliminarProducto(modal.product.id);
       await cargarDatos();
-      showToast("Producto eliminado", "error");
+      showToast("Producto eliminado", "warn");
     } catch (e) {
       showToast("Error al eliminar: " + e.message, "error");
     }
@@ -1073,7 +1092,7 @@ export default function GestionProductos() {
                                 <button
                                   className="act-btn act-btn--delete"
                                   title="Eliminar"
-                                  onClick={() => setModal({ type: "eliminar", product: p })}
+                                  onClick={() => handleOpenDelete(p)}
                                 >🗑️</button>
                               )}
                             </div>
@@ -1140,7 +1159,7 @@ export default function GestionProductos() {
         <ModalEliminarValidado
           titulo="Eliminar producto"
           descripcion={`¿Está seguro de que desea eliminar el producto "${modal.product.nombre}"?`}
-          validacion={canDeleteProducto ? canDeleteProducto(modal.product.id) : { ok: true }}
+          validacion={modal.validation ?? { ok: true }}
           onClose={() => setModal(null)}
           onConfirm={handleDelete}
         />

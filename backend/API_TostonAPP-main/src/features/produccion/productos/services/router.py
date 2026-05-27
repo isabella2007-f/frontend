@@ -7,7 +7,8 @@ from src.features.auth.services.dependencies import requiere_permiso
 from .schemas import ProductoCreate, ProductoUpdate, ProductoResponse, ProductoListResponse, ImagenesUrlInput, FichaTecnicaInput
 from .service import (
     obtener_productos, obtener_producto, crear_producto,
-    editar_producto, agregar_imagenes, eliminar_imagen, eliminar_producto, gestionar_ficha
+    editar_producto, agregar_imagenes, eliminar_imagen, eliminar_producto,
+    gestionar_ficha, verificar_puede_eliminar_producto,
 )
 
 router = APIRouter(prefix="/productos", tags=["Gesti\u00f3n de Productos"])
@@ -95,6 +96,16 @@ def editar_ficha(
 ):
     """Actualiza la ficha técnica de un producto existente."""
     return gestionar_ficha(db, id_producto, datos)
+
+
+@router.get("/{id_producto}/validar-eliminar")
+def validar_eliminar_producto(
+    id_producto: int,
+    db:          Session = Depends(get_db),
+    _:           dict    = Depends(requiere_permiso("eliminar_productos")),
+):
+    """Comprueba si el producto puede eliminarse sin violar dependencias."""
+    return verificar_puede_eliminar_producto(db, id_producto)
 
 
 @router.delete("/{id_producto}")

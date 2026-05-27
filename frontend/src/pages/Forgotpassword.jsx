@@ -171,7 +171,10 @@ const ForgotPassword = () => {
 
                 <button type="submit" className="auth-submit" disabled={loading}>
                   {loading ? (
-                    <span className="auth-spinner" />
+                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span className="auth-spinner" />
+                      Conectando… puede tardar hasta 60 seg
+                    </span>
                   ) : (
                     <>
                       Verificar correo
