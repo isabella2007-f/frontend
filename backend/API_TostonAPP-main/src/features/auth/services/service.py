@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from typing import Dict, Any
 import json
 import urllib.request
+import urllib.error
 import random
 import uuid
 import os
@@ -230,10 +231,14 @@ def _resend_http(to_email: str, subject: str, html: str) -> None:
         method  = "POST",
     )
 
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        if resp.status >= 400:
-            body = resp.read().decode()
-            raise ValueError(f"Resend API error {resp.status}: {body}")
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            resp.read()  # consume body (2xx OK)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        raise ValueError(f"Resend respondió {e.code}: {body}")
+    except urllib.error.URLError as e:
+        raise ValueError(f"No se pudo conectar con Resend: {e.reason}")
 
 
 def _enviar_email_verificacion(correo_destino: str, token: str, nombre: str = "") -> None:
