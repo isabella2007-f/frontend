@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { getCompras, crearCompra as apiCrearCompra, completarCompra, anularCompra } from "../../../services/comprasService.js";
+import { getCompras, crearCompra as apiCrearCompra, editarCompra, completarCompra, anularCompra } from "../../../services/comprasService.js";
 import { getProveedores } from "../../../services/proveedoresService.js";
 import CrearCompra from "./CrearCompra.jsx";
 import EditarCompra, { AnularCompraModal } from "./EditarCompra.jsx";
@@ -11,9 +11,10 @@ const COP = (n) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(n);
 
 const METODOS_LABEL = {
-  efectivo:      { label: "Efectivo",      icon: "💵" },
-  transferencia: { label: "Transferencia", icon: "🏦" },
-  crédito:       { label: "Crédito",       icon: "💳" },
+  efectivo:      { label: "Efectivo",      icon: "💵", bg: "#e8f5e9", color: "#2e7d32", border: "#c8e6c9" },
+  transferencia: { label: "Transferencia", icon: "🏦", bg: "#e3f2fd", color: "#1565c0", border: "#90caf9" },
+  crédito:       { label: "Crédito",       icon: "💳", bg: "#f3e5f5", color: "#6a1b9a", border: "#ce93d8" },
+  cheque:        { label: "Cheque",        icon: "📄", bg: "#fff8e1", color: "#f57f17", border: "#ffe082" },
 };
 
 /* ── Toast ────────────────────────────────────────────────── */
@@ -96,8 +97,11 @@ export default function GestionCompras() {
       ]);
       setCompras(cData.compras || []);
       setProveedores(pData.proveedores || pData || []);
-    } catch { /* toast shown below */ }
-    finally { setLoading(false); }
+    } catch (err) {
+      showToast(err?.message || "Error al cargar las compras. Intenta de nuevo.", "error");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { cargarDatos(); }, []);
@@ -149,9 +153,15 @@ export default function GestionCompras() {
     }
   };
 
-  const handleEdit = () => {
-    showToast("Edición de compras no disponible aún en el servidor", "error");
-    setModal(null);
+  const handleEdit = async (form) => {
+    try {
+      await editarCompra(form.id, form);
+      await cargarDatos();
+      showToast("Compra actualizada correctamente");
+      setModal(null);
+    } catch (err) {
+      showToast(err.message || "Error al actualizar la compra", "error");
+    }
   };
 
   const handleAnular = async (id) => {
@@ -298,7 +308,15 @@ export default function GestionCompras() {
                 </tr>
               </thead>
               <tbody>
-                {paginated.length === 0 ? (
+                {loading ? (
+                  Array.from({ length: 5 }, (_, i) => (
+                    <tr key={i}>
+                      {Array.from({ length: 8 }, (_, j) => (
+                        <td key={j}><div className="skeleton-cell" /></td>
+                      ))}
+                    </tr>
+                  ))
+                ) : paginated.length === 0 ? (
                   <tr>
                     <td colSpan={8}>
                       <div className="empty-state">
@@ -311,7 +329,7 @@ export default function GestionCompras() {
                   </tr>
                 ) : paginated.map((c, idx) => {
                   const prov  = getProveedor(c.idProveedor);
-                  const metodo = METODOS_LABEL[c.metodoPago];
+                  const metodo = METODOS_LABEL[(c.metodoPago || "").toLowerCase()];
 
                   return (
                     <tr key={c.id} className="tbl-row">
@@ -341,7 +359,14 @@ export default function GestionCompras() {
 
                       {/* Método */}
                       <td>
-                        <span className="metodo-badge">
+                        <span style={{
+                          display: "inline-flex", alignItems: "center", gap: 5,
+                          padding: "4px 10px", borderRadius: 20, fontSize: 12, fontWeight: 700,
+                          background: metodo?.bg || "#f5f5f5",
+                          color:      metodo?.color || "#757575",
+                          border:     `1px solid ${metodo?.border || "#e0e0e0"}`,
+                          whiteSpace: "nowrap",
+                        }}>
                           {metodo?.icon} {metodo?.label || c.metodoPago}
                         </span>
                       </td>
@@ -384,14 +409,6 @@ export default function GestionCompras() {
                               onClick={() => handleCompletarRapido(c.id)}
                             >✅</button>
                           )}
-                          {c.estado === "completada" && (
-                            <button
-                              className="act-btn act-btn--view"
-                              title="Editar fecha de llegada"
-                              onClick={() => setLlegadaModal(c)}
-                            >📅</button>
-                          )}
-
                           <button
                             className="act-btn act-btn--edit"
                             title="Editar"

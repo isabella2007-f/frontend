@@ -8,7 +8,7 @@ from src.features.auth.services.service import hashear_contrasena, _enviar_email
 from .schemas import EmpleadoCreate, UsuarioCreate, PersonaUpdate
 
 
-def _formato_persona(registro, tipo: str, rol_nombre: str = None) -> dict:
+def _formato_persona(registro, tipo: str, rol_nombre: str = None, id_rol: int = None) -> dict:
     id_persona = registro.ID_Empleado if tipo == "empleado" else registro.ID_Usuario
     return {
         "id":             id_persona,
@@ -21,7 +21,7 @@ def _formato_persona(registro, tipo: str, rol_nombre: str = None) -> dict:
         "Municipio":      registro.Municipio,
         "Departamento":   registro.Departamento,
         "Telefono":       registro.Telefono,
-        "ID_Rol":         getattr(registro, "ID_Rol", None),
+        "ID_Rol":         id_rol if id_rol is not None else getattr(registro, "ID_Rol", None),
         "nombre_rol":     rol_nombre,
         "Estado":         registro.Estado,
         "Fecha_creacion": registro.Fecha_creacion,
@@ -54,7 +54,9 @@ def obtener_todos(db: Session, pagina: int = 1, por_pagina: int = 10, busqueda: 
         rol = db.query(Rol).filter(Rol.ID_Rol == emp.ID_Rol).first()
         resultado.append(_formato_persona(emp, "empleado", rol.Rol if rol else None))
     for cli in q_usr.all():
-        resultado.append(_formato_persona(cli, "cliente"))
+        uxr = db.query(UsuarioXRol).filter(UsuarioXRol.ID_Usuario == cli.ID_Usuario).first()
+        rol = db.query(Rol).filter(Rol.ID_Rol == uxr.ID_Rol).first() if uxr else None
+        resultado.append(_formato_persona(cli, "cliente", rol.Rol if rol else None, uxr.ID_Rol if uxr else None))
 
     total    = len(resultado)
     offset   = (pagina - 1) * por_pagina
@@ -70,10 +72,11 @@ def obtener_persona(db: Session, id_persona: int, tipo: str) -> dict:
         return _formato_persona(registro, tipo, rol.Rol if rol else None)
     else:
         registro = db.query(Usuario).filter(Usuario.ID_Usuario == id_persona).first()
-
-    if not registro:
-        raise HTTPException(status_code=404, detail="Persona no encontrada")
-    return _formato_persona(registro, tipo)
+        if not registro:
+            raise HTTPException(status_code=404, detail="Persona no encontrada")
+        uxr = db.query(UsuarioXRol).filter(UsuarioXRol.ID_Usuario == id_persona).first()
+        rol = db.query(Rol).filter(Rol.ID_Rol == uxr.ID_Rol).first() if uxr else None
+        return _formato_persona(registro, tipo, rol.Rol if rol else None, uxr.ID_Rol if uxr else None)
 
 
 def _cedula_en_uso(db: Session, cedula: str, excluir_empleado_id: int = None, excluir_usuario_id: int = None) -> bool:
@@ -203,6 +206,12 @@ def cambiar_estado(db: Session, id_persona: int, tipo: str, nuevo_estado: int) -
     if not registro:
         raise HTTPException(status_code=404, detail="Persona no encontrada")
 
+    if tipo == "empleado" and getattr(registro, "ID_Rol", None) == 1:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede desactivar al administrador del sistema.",
+        )
+
     registro.Estado = nuevo_estado
     db.commit()
     db.refresh(registro)
@@ -214,6 +223,11 @@ def eliminar_persona(db: Session, id_persona: int, tipo: str) -> dict:
         registro = db.query(Empleado).filter(Empleado.ID_Empleado == id_persona).first()
         if not registro:
             raise HTTPException(status_code=404, detail="Persona no encontrada")
+        if getattr(registro, "ID_Rol", None) == 1:
+            raise HTTPException(
+                status_code=400,
+                detail="No se puede eliminar al administrador del sistema.",
+            )
         domicilios = db.query(Domicilio).filter(Domicilio.ID_Empleado == id_persona).count()
         if domicilios > 0:
             raise HTTPException(

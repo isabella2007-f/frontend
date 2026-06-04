@@ -5,13 +5,13 @@ from src.shared.services.models import Venta, Estado, DetalleVenta, Domicilio
 from src.features.ventas.gestion_ventas.services.service import _formato_venta
 
 
-# IDs de estado — ajusta según tu tabla Estados
+# IDs de estado según tabla global Estados
 ESTADO_PENDIENTE   = 1      # pedido en carrito / sin confirmar
 ESTADO_EN_PROCESO  = 13     # esperando órdenes de producción
-ESTADO_CONFIRMADO  = 2      # venta confirmada / pagada
-ESTADO_CANCELADO   = 3      # pedido cancelado
+ESTADO_CONFIRMADO  = 4      # Confirmado (tabla Estados ID=4)
+ESTADO_CANCELADO   = 5      # Cancelado  (tabla Estados ID=5)
 
-ESTADOS_ACTIVOS = (ESTADO_PENDIENTE, ESTADO_EN_PROCESO)
+ESTADOS_ACTIVOS = (ESTADO_PENDIENTE, ESTADO_EN_PROCESO, ESTADO_CONFIRMADO)
 
 
 def obtener_pedidos(
@@ -117,17 +117,20 @@ def editar_pedido(db: Session, id_venta: int, datos: dict) -> dict:
 
 def confirmar_pedido(db: Session, id_venta: int) -> dict:
     """
-    Confirma el pedido → cambia estado a Confirmado.
-    A partir de aquí se considera una venta pagada.
+    Confirma el pedido → cambia estado a Confirmado (ID=4).
+    Solo se puede confirmar desde Pendiente (1).
+    Un pedido En producción (13) debe esperar a que las órdenes de producción
+    se completen — el sistema lo devuelve automáticamente a Pendiente cuando terminan.
     """
     pedido = db.query(Venta).filter(
         Venta.ID_Venta == id_venta,
-        Venta.Estado   == ESTADO_PENDIENTE,   # solo confirmar si ya no hay órdenes pendientes
+        Venta.Estado   == ESTADO_PENDIENTE,
     ).first()
     if not pedido:
         raise HTTPException(
-            status_code=404,
-            detail="Pedido no encontrado, ya fue procesado, o tiene órdenes de producción pendientes"
+            status_code=400,
+            detail="Solo se puede confirmar un pedido en estado Pendiente. "
+                   "Si el pedido está En producción, espera a que se completen las órdenes de producción."
         )
 
     pedido.Estado = ESTADO_CONFIRMADO

@@ -7,7 +7,7 @@ from decimal import Decimal
 # ── Crear orden ──
 class OrdenCreate(BaseModel):
     ID_Producto:   int
-    ID_Insumo:     int
+    ID_Insumo:     Optional[int] = None
     ID_Ficha:      Optional[int] = None
     Cantidad:      int = Field(gt=0, description="Debe ser mayor a 0")
     Fecha_inicio:  datetime
@@ -46,6 +46,8 @@ class OrdenUpdate(BaseModel):
 # ── Cambiar estado ──
 class OrdenEstado(BaseModel):
     Estado: int     # ID del estado en la tabla Estados
+    Numero_Lote: Optional[str] = None
+    Fecha_Vencimiento: Optional[date] = None
 
 
 # ── Respuesta de una orden ──

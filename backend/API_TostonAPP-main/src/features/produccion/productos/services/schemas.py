@@ -9,11 +9,34 @@ class ImagenesUrlInput(BaseModel):
     urls: list[str]
 
 
+# ── Insumo dentro de ficha técnica ──
+class FichaTecnicaInsumoInput(BaseModel):
+    ID_Insumo: int
+    Cantidad:  Optional[Decimal] = None
+    Unidad:    Optional[str] = None
+
+
+class FichaTecnicaInsumoResponse(BaseModel):
+    ID_Ficha_Insumo: int
+    ID_Insumo:       int
+    nombre_insumo:   Optional[str] = None
+    ID_Categoria:    Optional[int] = None
+    nombre_categoria: Optional[str] = None
+    Cantidad:        Optional[Decimal] = None
+    Unidad:          Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 # ── Ficha técnica opcional al crear producto ──
 class FichaTecnicaInput(BaseModel):
-    Version:       Optional[str] = None
-    Observaciones: Optional[str] = None
-    Procedimiento: Optional[str] = None
+    Version:        Optional[str] = None
+    Observaciones:  Optional[str] = None
+    Procedimiento:  Optional[str] = None
+    Estado:         Optional[int] = None
+    Dias_Vida_Util: Optional[int] = None
+    insumos:        Optional[list[FichaTecnicaInsumoInput]] = None
 
 
 # ── Crear producto ──
@@ -52,12 +75,14 @@ class ImagenResponse(BaseModel):
 
 # ── Respuesta de ficha técnica resumida ──
 class FichaTecnicaResumida(BaseModel):
-    ID_Ficha:      int
-    Version:       Optional[str] = None
-    Observaciones: Optional[str] = None
-    Procedimiento: Optional[str] = None
-    Estado:        Optional[int] = None
+    ID_Ficha:       int
+    Version:        Optional[str] = None
+    Observaciones:  Optional[str] = None
+    Procedimiento:  Optional[str] = None
+    Estado:         Optional[int] = None
     Fecha_Creacion: Optional[datetime] = None
+    Dias_Vida_Util: Optional[int] = None
+    insumos:        list[FichaTecnicaInsumoResponse] = []
 
     class Config:
         from_attributes = True

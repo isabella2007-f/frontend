@@ -1,8 +1,13 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
-from datetime import datetime
+from datetime import datetime, timedelta
 
+from collections import defaultdict
 from src.shared.services.models import Domicilio, Venta, Empleado, Usuario, Estado, Producto, VentaXProducto
+
+# Chat en memoria — temporal (se pierde al reiniciar el servidor)
+_chat: dict = defaultdict(list)
+_chat_counter: dict = defaultdict(int)
 from .schemas import DomicilioCreate, DomicilioUpdate
 
 
@@ -65,6 +70,26 @@ def _formato_domicilio(dom: Domicilio, db: Session) -> dict:
     }
 
 
+def obtener_resumen_dia(db: Session, id_empleado: int) -> dict:
+    hoy_inicio = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    hoy_fin    = hoy_inicio + timedelta(days=1)
+
+    base = db.query(Domicilio).filter(Domicilio.ID_Empleado == id_empleado)
+
+    activos        = base.filter(Domicilio.Estado.in_([10, 13, 9])).count()
+    entregados_hoy = base.filter(
+        Domicilio.Estado == 8,
+        Domicilio.Fecha_entrega >= hoy_inicio,
+        Domicilio.Fecha_entrega < hoy_fin,
+    ).count()
+    total_hoy = base.filter(
+        Domicilio.Fecha_asignacion >= hoy_inicio,
+        Domicilio.Fecha_asignacion < hoy_fin,
+    ).count()
+
+    return {"activos": activos, "entregados_hoy": entregados_hoy, "total_hoy": total_hoy}
+
+
 def obtener_domicilios(
     db: Session,
     pagina: int = 1,
@@ -72,6 +97,8 @@ def obtener_domicilios(
     busqueda: str = None,
     estado: int = None,
     id_empleado: int = None,
+    fecha_inicio: datetime = None,
+    fecha_fin: datetime = None,
 ) -> dict:
     """Lista paginada. Busca por nombre de cliente o repartidor. Filtra por estado o empleado asignado."""
     query = db.query(Domicilio)
@@ -81,6 +108,12 @@ def obtener_domicilios(
 
     if estado:
         query = query.filter(Domicilio.Estado == estado)
+
+    if fecha_inicio:
+        query = query.filter(Domicilio.Fecha_asignacion >= fecha_inicio)
+
+    if fecha_fin:
+        query = query.filter(Domicilio.Fecha_asignacion < fecha_fin)
 
     if busqueda:
         termino = f"%{busqueda}%"
@@ -205,6 +238,43 @@ def asignar_repartidor(db: Session, id_domicilio: int, id_empleado: int) -> dict
     db.commit()
     db.refresh(dom)
     return _formato_domicilio(dom, db)
+
+
+def generar_otp(id_domicilio: int) -> str:
+    return str((id_domicilio * 7331 + 4729) % 9000 + 1000)
+
+
+def verificar_otp(id_domicilio: int, codigo: str) -> bool:
+    return codigo.strip() == generar_otp(id_domicilio)
+
+
+def obtener_mensajes(db: Session, id_domicilio: int) -> list:
+    return list(_chat[id_domicilio])
+
+
+def enviar_mensaje(
+    db: Session,
+    id_domicilio: int,
+    contenido: str,
+    tipo_remitente: str,
+    id_remitente: int,
+    nombre_remitente: str = None,
+) -> dict:
+    if not db.query(Domicilio).filter(Domicilio.ID_Domicilio == id_domicilio).first():
+        raise HTTPException(status_code=404, detail="Domicilio no encontrado")
+
+    _chat_counter[id_domicilio] += 1
+    msg = {
+        "ID_Mensaje":       _chat_counter[id_domicilio],
+        "ID_Domicilio":     id_domicilio,
+        "Tipo_Remitente":   tipo_remitente,
+        "ID_Remitente":     id_remitente,
+        "Nombre_Remitente": nombre_remitente,
+        "Contenido":        contenido.strip(),
+        "Fecha":            datetime.now(),
+    }
+    _chat[id_domicilio].append(msg)
+    return msg
 
 
 def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observaciones: str = None) -> dict:

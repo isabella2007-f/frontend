@@ -16,6 +16,7 @@ import EditarFicha from "./ficha_tecnica/EditarFicha.jsx";
 import CrearFicha from "./ficha_tecnica/CrearFicha.jsx";
 import SalidaModal from "./SalidaModal.jsx";
 import ModalEliminarValidado from "../../../ModalEliminarValidado";
+import { getLotesProducto } from "../../../services/productosService";
 import {
   getProductos,
   getCategorias,
@@ -84,6 +85,7 @@ function adaptarProducto(p) {
     id:                p.ID_Producto,
     nombre:            p.nombre,
     idCategoria:       p.ID_Categoria ?? null,
+    fechaCreacion:     p.Fecha_Creacion ? String(p.Fecha_Creacion).split("T")[0] : (p.fecha || ""),
     precio:            parseFloat(p.Precio_venta ?? 0),
     stock:             p.Stock ?? 0,
     stockMinimo:       p.Stock_Minimo ?? 10,
@@ -96,12 +98,23 @@ function adaptarProducto(p) {
     imagenesPreview:   (p.imagenes ?? []).map((img) => img.url).filter(Boolean),
     ficha: ft ? {
       id:            ft.ID_Ficha,
+      producto:      p.nombre,
+      productoId:    String(p.ID_Producto),
       version:       ft.Version       ?? "",
       procedimiento: ft.Procedimiento ?? "",
       observaciones: ft.Observaciones ?? "",
-      fecha:         ft.Fecha_Creacion ?? "",
+      fecha:         ft.Fecha_Creacion ? String(ft.Fecha_Creacion).split("T")[0] : "",
       estado:        ft.Estado,
-      insumos:       [],
+      fotoPreview:   (p.imagenes ?? [])[0]?.url || null,
+      insumos:       (ft.insumos || []).map(i => ({
+        id:              i.ID_Ficha_Insumo || (Date.now() + Math.random()),
+        idInsumo:        i.ID_Insumo,
+        idCategoria:     String(i.ID_Categoria || ""),
+        nombreCategoria: i.nombre_categoria || "",
+        nombre:          i.nombre_insumo || "",
+        cantidad:        String(i.Cantidad || ""),
+        unidad:          i.Unidad || "",
+      })),
     } : null,
   };
 }
@@ -110,16 +123,19 @@ function adaptarProducto(p) {
    SUB-COMPONENTES
 ══════════════════════════════════════════════════════════ */
 
-function Toggle({ value, onChange }) {
+function Toggle({ value, onChange, disabled = false, title }) {
   return (
     <button
-      onClick={() => onChange(!value)}
+      onClick={() => !disabled && onChange && onChange(!value)}
+      title={title}
       className="toggle-btn"
       style={{
         background: value ? "#43a047" : "#c62828",
         boxShadow: value
           ? "0 2px 8px rgba(67,160,71,0.45)"
           : "0 2px 8px rgba(198,40,40,0.3)",
+        cursor: disabled ? "default" : "pointer",
+        opacity: disabled ? 0.75 : 1,
       }}
     >
       <span className="toggle-thumb" style={{ left: value ? 27 : 3 }}>
@@ -150,13 +166,14 @@ function StockBar({ actual, minimo }) {
     >
       <div
         style={{
-          height: 6, borderRadius: 4, background: "#f0f0f0",
+          height: 6, borderRadius: 4,
+          background: est === "agotado" ? "#ffcdd2" : "#f0f0f0",
           overflow: "hidden", marginBottom: 4,
         }}
       >
         <div
           style={{
-            width: pct + "%", height: "100%",
+            width: est === "agotado" ? "100%" : pct + "%", height: "100%",
             background: color, borderRadius: 4, transition: "width 0.3s",
           }}
         />
@@ -266,96 +283,73 @@ function ProductImg({ previews, nombre }) {
 /* ══════════════════════════════════════════════════════════
    LOTES PANEL — Solo lectura
 ══════════════════════════════════════════════════════════ */
-function LotesProductoPanel() {
-  const lotes = [];
+function LotesProductoPanel({ idProducto, tipo = "lotes" }) {
+  const [lotes,   setLotes]   = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    getLotesProducto(idProducto)
+      .then(d => setLotes(d.lotes || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [idProducto]);
+
+  if (loading) return (
+    <div style={{ textAlign: "center", padding: "28px 0", color: "#9e9e9e", fontSize: 13 }}>Cargando lotes…</div>
+  );
+
+  const activos  = lotes.filter(l => !l.vencido);
+  const vencidos = lotes.filter(l => l.vencido);
+  const mostrar  = tipo === "historial" ? vencidos : activos;
+
+  if (!mostrar.length) return (
+    <div className="empty-state" style={{ padding: "28px 20px" }}>
+      <div className="empty-state__icon">📦</div>
+      <p className="empty-state__text">
+        {tipo === "historial" ? "Sin lotes vencidos registrados." : "Sin lotes activos registrados."}
+      </p>
+      {tipo === "lotes" && (
+        <p style={{ fontSize: 11, color: "#9e9e9e", marginTop: 6 }}>
+          Los lotes se generan al completar una Orden de Producción.
+        </p>
+      )}
+    </div>
+  );
 
   return (
-    <div>
-      <div
-        style={{
-          display: "flex", justifyContent: "space-between",
-          alignItems: "center", marginBottom: 12,
-        }}
-      >
-        <p className="ver-ins-section-label" style={{ margin: 0, textTransform: "none" }}>
-          Lotes en inventario
-        </p>
-      </div>
-      <div className="form-info-box" style={{ marginBottom: 14, fontSize: 11 }}>
-        <p>
-          ℹ️ Los lotes se generan automáticamente al completar una{" "}
-          <strong>Orden de Producción</strong>.
-        </p>
-      </div>
-      {lotes.length === 0 ? (
-        <div className="empty-state" style={{ padding: "28px 20px" }}>
-          <div className="empty-state__icon">📦</div>
-          <p className="empty-state__text">Sin lotes registrados para este producto</p>
-        </div>
-      ) : (
-        <div className="lotes-lista">
-          {lotes.map((lote) => {
-            const vencido = estaVencido(lote.fechaVencimiento);
-            const dias    = diasParaVencer(lote.fechaVencimiento);
-            const pronto  = dias !== null && dias >= 0 && dias <= 7;
-            return (
-              <div
-                key={lote.id}
-                className="lote-item"
-                style={{
-                  borderColor: vencido ? "#ef9a9a" : pronto ? "#ffe082" : "#c8e6c9",
-                }}
-              >
-                <div className="lote-item__head">
-                  <span className="lote-item__id">{lote.id}</span>
-                  <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    {vencido && (
-                      <span
-                        style={{
-                          fontSize: 11, fontWeight: 700, color: "#c62828",
-                          background: "#ffebee", padding: "2px 8px",
-                          borderRadius: 20, border: "1px solid #ef9a9a",
-                        }}
-                      >
-                        Vencido
-                      </span>
-                    )}
-                    {pronto && !vencido && (
-                      <span
-                        style={{
-                          fontSize: 11, fontWeight: 700, color: "#e65100",
-                          background: "#fff3e0", padding: "2px 8px",
-                          borderRadius: 20, border: "1px solid #ffcc80",
-                        }}
-                      >
-                        Vence en {dias}d
-                      </span>
-                    )}
-                    <span style={{ fontWeight: 600, fontSize: 12 }}>
-                      Vence: {formatFecha(lote.fechaVencimiento)}
-                    </span>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {mostrar.map(l => {
+        const fv    = l.fecha_vencimiento;
+        const dias  = l.dias_para_vencer;
+        const urgente = !l.vencido && dias !== null && dias <= 7;
+        const borderColor = l.vencido ? "#ef9a9a" : urgente ? "#ffe082" : "#c8e6c9";
+        const bg = l.vencido ? "#fff8f8" : urgente ? "#fffdf0" : "#f9fdf9";
+        return (
+          <div key={l.id} className="lote-item" style={{ borderColor, background: bg }}>
+            <div className="lote-item__head">
+              <span className="lote-item__id">{l.numero_lote || `Lote #${l.id}`}</span>
+              <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {l.vencido && (
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#c62828", background: "#ffebee", padding: "2px 8px", borderRadius: 20, border: "1px solid #ef9a9a" }}>
+                    Vencido
                   </span>
-                </div>
-                <div
-                  style={{
-                    display: "grid", gridTemplateColumns: "repeat(3, 1fr)",
-                    gap: 8, marginTop: 8, fontSize: 13,
-                  }}
-                >
-                  <div><strong>Actual:</strong> {lote.cantidadActual} uds.</div>
-                  <div><strong>Inicial:</strong> {lote.cantidadInicial} uds.</div>
-                  <div><strong>Ingreso:</strong> {formatFecha(lote.fechaIngreso)}</div>
-                  {lote.costo && (
-                    <div>
-                      <strong>Costo unit.:</strong> ${lote.costo?.toLocaleString("es-CO")}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+                )}
+                {urgente && (
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#e65100", background: "#fff3e0", padding: "2px 8px", borderRadius: 20, border: "1px solid #ffcc80" }}>
+                    ⚠️ Vence en {dias}d
+                  </span>
+                )}
+                {fv && <span style={{ fontWeight: 600, fontSize: 12 }}>Vence: {fv}</span>}
+              </span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 8, fontSize: 13 }}>
+              <div><strong>Cantidad:</strong> {l.cantidad} uds.</div>
+              {l.fecha_produccion && <div><strong>Producción:</strong> {l.fecha_produccion}</div>}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -363,7 +357,7 @@ function LotesProductoPanel() {
 /* ══════════════════════════════════════════════════════════
    VER PRODUCTO
 ══════════════════════════════════════════════════════════ */
-function VerProducto({ product, catObj, onClose }) {
+function VerProducto({ product, catObj, onClose, onOpenFicha }) {
   const [tab, setTab]    = useState("info");
   const [imgIdx, setImgIdx] = useState(0);
 
@@ -403,6 +397,7 @@ function VerProducto({ product, catObj, onClose }) {
             { key: "info",     label: "📋 Información" },
             { key: "lotes",    label: "📦 Lotes" },
             { key: "historial",label: "🕒 Historial" },
+            { key: "ficha",    label: "📖 Ficha técnica" },
           ].map((t) => (
             <button
               key={t.key}
@@ -475,6 +470,10 @@ function VerProducto({ product, catObj, onClose }) {
                   </span>
                 </div>
                 <div className="ver-ins-field">
+                  <span className="ver-ins-field__label">Fecha creación</span>
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>{formatFecha(product.fechaCreacion)}</span>
+                </div>
+                <div className="ver-ins-field">
                   <span className="ver-ins-field__label">Precio de venta</span>
                   <span style={{ fontWeight: 700, fontSize: 16, color: "#2e7d32" }}>
                     ${product.precio?.toLocaleString("es-CO")}
@@ -494,11 +493,22 @@ function VerProducto({ product, catObj, onClose }) {
                     {estado}
                   </span>
                 </div>
-                <div className="ver-ins-field">
-                  <span className="ver-ins-field__label">Activo</span>
-                  <span style={{ fontWeight: 600, fontSize: 14 }}>
-                    {product.activo !== false ? "Sí" : "No"}
-                  </span>
+                <div className="ver-ins-field" style={{ gridColumn: "1 / -1" }}>
+                  <span className="ver-ins-field__label">Estado</span>
+                  <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <Toggle value={product.activo !== false} disabled={true} onChange={() => {}} />
+                      <span style={{ fontSize: 13, fontWeight: 700, color: product.activo !== false ? "#2e7d32" : "#616161" }}>
+                        {product.activo !== false ? "Activo" : "Inactivo"}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <Toggle value={product.publicado} disabled={true} onChange={() => {}} />
+                      <span style={{ fontSize: 13, fontWeight: 700, color: product.publicado ? "#1565c0" : "#616161" }}>
+                        {product.publicado ? "Visible en tienda" : "No publicado"}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -527,10 +537,69 @@ function VerProducto({ product, catObj, onClose }) {
           )}
 
           {/* ── Tab Lotes ── */}
-          {tab === "lotes" && <LotesProductoPanel idProducto={product.id} />}
+          {tab === "lotes" && <LotesProductoPanel idProducto={product.id} tipo="lotes" />}
 
           {/* ── Tab Historial ── */}
-          {tab === "historial" && (
+          {tab === "historial" && <LotesProductoPanel idProducto={product.id} tipo="historial" />}
+
+          {/* ── Tab Ficha técnica ── */}
+          {tab === "ficha" && (
+            product.ficha ? (
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#2e7d32" }}>Versión {product.ficha.version || "1.0"}</span>
+                  <button onClick={() => { onClose(); onOpenFicha?.(product); }}
+                    style={{ fontSize: 12, fontWeight: 700, color: "#1565c0", background: "#e3f2fd", border: "1px solid #90caf9", borderRadius: 8, padding: "5px 12px", cursor: "pointer" }}>
+                    ✎ Editar ficha
+                  </button>
+                </div>
+                {(product.ficha.insumos || []).length > 0 && (
+                  <>
+                    <p className="ver-ins-section-label" style={{ textTransform: "none", marginBottom: 8 }}>Insumos</p>
+                    <div style={{ border: "1px solid #e8f5e9", borderRadius: 10, overflow: "hidden", marginBottom: 14 }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                        <thead>
+                          <tr style={{ background: "#f1f8f1" }}>
+                            <th style={{ padding: "7px 12px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#2e7d32", textTransform: "uppercase" }}>Insumo</th>
+                            <th style={{ padding: "7px 12px", textAlign: "left", fontSize: 11, fontWeight: 700, color: "#2e7d32", textTransform: "uppercase" }}>Cantidad</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(product.ficha.insumos || []).map((ins, i) => (
+                            <tr key={i} style={{ borderTop: "1px solid #f0f0f0" }}>
+                              <td style={{ padding: "7px 12px", fontWeight: 600 }}>{ins.nombre || ins.idInsumo}</td>
+                              <td style={{ padding: "7px 12px", color: "#424242" }}>{ins.cantidad} {ins.unidad}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+                {product.ficha.procedimiento && (
+                  <>
+                    <p className="ver-ins-section-label" style={{ textTransform: "none", marginBottom: 8 }}>Procedimiento</p>
+                    <ol style={{ margin: 0, paddingLeft: 20 }}>
+                      {product.ficha.procedimiento.split("\n").filter(l => l.trim()).map((paso, i) => (
+                        <li key={i} style={{ fontSize: 13, color: "#424242", marginBottom: 4, lineHeight: 1.4 }}>{paso}</li>
+                      ))}
+                    </ol>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div style={{ textAlign: "center", padding: "28px 0" }}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
+                <p style={{ margin: "0 0 12px", fontSize: 13, color: "#9e9e9e" }}>Este producto no tiene ficha técnica.</p>
+                <button onClick={() => { onClose(); onOpenFicha?.(product); }}
+                  style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#2e7d32", border: "none", borderRadius: 8, padding: "8px 18px", cursor: "pointer" }}>
+                  + Crear ficha técnica
+                </button>
+              </div>
+            )
+          )}
+
+          {false && tab === "historial_legacy" && (
             <>
               {salidas.length > 0 && (
                 <>
@@ -1003,10 +1072,10 @@ export default function GestionProductos() {
               <LoadingSkeleton />
             </div>
           ) : (
-            <div style={{ overflowX: "auto" }}>
+            <div>
               <table className="tbl">
                 <thead>
-                  <tr>
+                    <tr>
                     <th>Nº</th>
                     <th>Producto</th>
                     <th>Categoría</th>
@@ -1053,16 +1122,22 @@ export default function GestionProductos() {
                             <StockBar actual={p.stock} minimo={p.stockMinimo} />
                           </td>
                           <td>
-                            <Toggle
-                              value={p.activo}
-                              onChange={() => handleToggleActivo(p)}
-                            />
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <Toggle
+                                value={p.activo}
+                                onChange={() => handleToggleActivo(p)}
+                                title={p.activo ? "Activo" : "Inactivo"}
+                              />
+                            </div>
                           </td>
                           <td>
-                            <Toggle
-                              value={p.publicado}
-                              onChange={() => handleTogglePublicado(p)}
-                            />
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <Toggle
+                                value={p.publicado}
+                                onChange={() => handleTogglePublicado(p)}
+                                title={p.publicado ? "Visible en tienda" : "No publicado"}
+                              />
+                            </div>
                           </td>
                           <td>
                             <div className="actions-cell">
@@ -1143,6 +1218,7 @@ export default function GestionProductos() {
           product={modal.product}
           catObj={getCat(modal.product.idCategoria)}
           onClose={() => setModal(null)}
+          onOpenFicha={(p) => setModal({ type: "ficha", product: p })}
         />
       )}
       {modal?.type === "salida" && (
@@ -1170,6 +1246,8 @@ export default function GestionProductos() {
             <EditarFicha
               ficha={modal.product.ficha}
               mode="edit"
+              productoNombre={modal.product.nombre}
+              productoFoto={modal.product.imagenesPreview[0] || null}
               onClose={() => setModal(null)}
               onSave={handleSaveFicha}
             />

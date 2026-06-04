@@ -271,94 +271,99 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
           </div>
 
           <div className="modal-body" style={{ flex: 1, overflowY: "auto", padding: "20px 28px" }}>
-            <div className="ver-compra-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-              <div className="ver-field">
-                <span className="ver-field__label">Proveedor</span>
-                <span className="ver-field__value">🏭 {provNombre}</span>
-              </div>
-              <div className="ver-field">
-                <span className="ver-field__label">Fecha</span>
-                <span className="ver-field__value">📅 {compra.fecha}</span>
-              </div>
-              <div className="ver-field">
-                <span className="ver-field__label">Método</span>
-                <span className="ver-field__value">
-                  {METODOS_PAGO.find(m => m.value === compra.metodoPago)?.icon}{" "}
-                  {compra.metodoPago}
-                </span>
-              </div>
-              {compra.departamento && (
-                <div className="ver-field">
-                  <span className="ver-field__label">Departamento</span>
-                  <span className="ver-field__value">📍 {compra.departamento}</span>
-                </div>
-              )}
-              {compra.ciudad && (
-                <div className="ver-field">
-                  <span className="ver-field__label">Ciudad</span>
-                  <span className="ver-field__value">{compra.ciudad}</span>
-                </div>
-              )}
-              {compra.fecha_llegada && (
-                <div className="ver-field">
-                  <span className="ver-field__label">Fecha llegada</span>
-                  <span className="ver-field__value">📦 {compra.fecha_llegada}</span>
-                </div>
-              )}
-              {compra.notas && (
-                <div className="ver-field" style={{ gridColumn: "1 / -1" }}>
-                  <span className="ver-field__label">Notas</span>
-                  <span className="ver-field__value">{compra.notas}</span>
-                </div>
-              )}
-            </div>
 
-            <p className="section-label" style={{ marginTop: 16 }}>Insumos Comprados</p>
-            <div className="insumos-cards-grid">
-              {(compra.items || []).map((d, idx) => {
-                const ins  = getInsumoById(d.idInsumo);
-                const dias = diasHasta(d.fechaVencimiento);
-                return (
-                  <div key={d.idInsumo || idx} className="insumo-card">
-                    <div className="insumo-card__head">
-                      <span className="insumo-card__icon">📦</span>
-                      <span className="insumo-card__name">{d.nombre || ins?.nombre}</span>
-                    </div>
-                    <div className="insumo-card__body">
-                      <div className="insumo-card__data">
-                        <span className="insumo-card__label">Cantidad</span>
-                        <span className="insumo-card__val">{d.cantidad} {ins?.unidad || ""}</span>
-                      </div>
-                      <div className="insumo-card__data">
-                        <span className="insumo-card__label">Subtotal</span>
-                        <span className="insumo-card__val insumo-card__val--price">
-                          {COP(d.cantidad * d.precioUnd)}
-                        </span>
-                      </div>
-                    </div>
-                    {d.fechaVencimiento && (
-                      <div className="insumo-card__footer">
-                        <div className="insumo-card__venc">
-                          📅 Vence: {d.fechaVencimiento}
-                          {dias !== null && dias <= 7 && (
-                            <span className={dias < 0 ? "venc-danger" : "venc-warn"}>
-                              {dias < 0 ? " (Vencido)" : ` (${dias}d)`}
+            {/* ── Info general ── */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 18 }}>
+              {[
+                { label: "Proveedor",     value: `🏭 ${provNombre}` },
+                { label: "Fecha compra",  value: `📅 ${compra.fecha || "—"}` },
+                { label: "Método de pago",value: `${METODOS_PAGO.find(m => m.value === compra.metodoPago)?.icon || ""} ${compra.metodoPago || "—"}` },
+                compra.fecha_llegada ? { label: "Fecha llegada", value: `📦 ${compra.fecha_llegada}` } : null,
+                compra.departamento   ? { label: "Departamento",  value: `📍 ${compra.departamento}` } : null,
+                compra.ciudad         ? { label: "Ciudad",        value: compra.ciudad } : null,
+              ].filter(Boolean).map(({ label, value }) => (
+                <div key={label} style={{ background: "#f9fdf9", borderRadius: 8, padding: "8px 12px", border: "1px solid #e8f5e9" }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>{label}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#1a1a1a" }}>{value}</div>
+                </div>
+              ))}
+            </div>
+            {compra.notas && (
+              <div style={{ marginBottom: 16, padding: "8px 12px", background: "#fffdf0", borderRadius: 8, border: "1px solid #ffe082", fontSize: 12, color: "#424242" }}>
+                📝 {compra.notas}
+              </div>
+            )}
+
+            {/* ── Insumos como tabla ── */}
+            <p className="section-label" style={{ marginTop: 0, marginBottom: 8 }}>Insumos comprados</p>
+            <div style={{ border: "1px solid #e8f5e9", borderRadius: 10, overflow: "hidden", marginBottom: 18 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: "#f1f8f1" }}>
+                    {["Insumo", "Cantidad", "P. unitario", "Subtotal", "Vencimiento"].map(h => (
+                      <th key={h} style={{ padding: "8px 12px", fontWeight: 700, color: "#2e7d32", fontSize: 11, textAlign: "left", textTransform: "uppercase", letterSpacing: 0.4 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(compra.items || []).map((d, idx) => {
+                    const ins  = getInsumoById(d.idInsumo);
+                    const dias = diasHasta(d.fechaVencimiento);
+                    return (
+                      <tr key={d.idInsumo || idx} style={{ borderTop: "1px solid #f0f0f0" }}>
+                        <td style={{ padding: "9px 12px", fontWeight: 600 }}>📦 {d.nombre || ins?.nombre || "—"}</td>
+                        <td style={{ padding: "9px 12px", color: "#424242" }}>{d.cantidad} {ins?.unidad || ""}</td>
+                        <td style={{ padding: "9px 12px", color: "#424242" }}>{COP(d.precioUnd)}</td>
+                        <td style={{ padding: "9px 12px", fontWeight: 700, color: "#2e7d32" }}>{COP(d.cantidad * d.precioUnd)}</td>
+                        <td style={{ padding: "9px 12px" }}>
+                          {d.fechaVencimiento ? (
+                            <span style={{ color: dias !== null && dias < 0 ? "#c62828" : dias !== null && dias <= 7 ? "#e65100" : "#9e9e9e", fontWeight: dias !== null && dias <= 7 ? 700 : 400 }}>
+                              {d.fechaVencimiento}
+                              {dias !== null && dias < 0 && " ⚠️"}
+                              {dias !== null && dias >= 0 && dias <= 7 && ` (${dias}d)`}
                             </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                          ) : <span style={{ color: "#bdbdbd" }}>—</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
 
-            <div style={{ marginTop: 20, borderTop: "1px solid #f0f0f0", paddingTop: 16 }}>
-              <div className="total-bar" style={{ marginTop: 12 }}>
-                <span className="total-bar__label">Total Final</span>
-                <span className="total-bar__value">{COP(compra.total)}</span>
-              </div>
-            </div>
+            {/* ── Costos ── */}
+            {(() => {
+              const subtotal   = (compra.items || []).reduce((s, d) => s + d.cantidad * d.precioUnd, 0);
+              const transporte = compra.transporte || 0;
+              const ivaPct     = compra.ivaPorcentaje || 0;
+              const descPct    = compra.descuentoPorcentaje || 0;
+              const otros      = compra.otros || 0;
+              const valorIva   = subtotal * ivaPct / 100;
+              const valorDesc  = subtotal * descPct / 100;
+              const rows = [
+                { label: "Subtotal insumos",              val: subtotal,   color: "#424242" },
+                { label: `🚚 Transporte`,                 val: transporte, color: "#2e7d32", zero: true },
+                { label: `🧾 IVA${ivaPct ? ` (${ivaPct}%)` : ""}`,       val: valorIva,  color: "#2e7d32", zero: true },
+                { label: `🏷️ Descuento${descPct ? ` (${descPct}%)` : ""}`, val: -valorDesc, color: "#c62828", zero: true },
+                { label: "➕ Otros costos",               val: otros,      color: "#2e7d32", zero: true },
+              ];
+              return (
+                <div style={{ background: "#f9fdf9", border: "1px solid #e8f5e9", borderRadius: 10, padding: "12px 16px" }}>
+                  {rows.map(({ label, val, color, zero }, idx) => (
+                    <div key={idx} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "4px 0", borderBottom: idx < rows.length - 1 ? "1px solid #f0f0f0" : "none", opacity: zero && val === 0 ? 0.45 : 1 }}>
+                      <span style={{ color: "#757575" }}>{label}</span>
+                      <span style={{ fontWeight: 600, color: zero && val === 0 ? "#bdbdbd" : color }}>
+                        {val === 0 ? "—" : val < 0 ? `−${COP(-val)}` : COP(val)}
+                      </span>
+                    </div>
+                  ))}
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 15, fontWeight: 800, color: "#2e7d32", paddingTop: 10, marginTop: 4, borderTop: "2px solid #c8e6c9" }}>
+                    <span>Total final</span>
+                    <span>{COP(compra.total)}</span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           <div className="modal-footer">
@@ -440,7 +445,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                 <input
                   type="date"
                   className="field-input"
-                  value={form.fecha_llegada}
+                  value={form.fecha_llegada || ""}
                   max={new Date().toISOString().split('T')[0]}
                   onChange={e => set("fecha_llegada", e.target.value)}
                 />

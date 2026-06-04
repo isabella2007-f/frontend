@@ -1,33 +1,52 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from typing import Optional
+from datetime import datetime
 
 from src.shared.services.database import get_db
-from src.features.auth.services.dependencies import requiere_permiso
+from src.shared.services.models import Domicilio, Venta  # Venta para validar acceso de cliente al chat
+from src.features.auth.services.dependencies import requiere_permiso, obtener_usuario_actual
 from .schemas import (
     DomicilioCreate, DomicilioUpdate, DomicilioEstado,
-    AsignarRepartidor, DomicilioResponse, DomicilioListResponse
+    AsignarRepartidor, DomicilioResponse, DomicilioListResponse,
+    OTPVerify, MensajeCreate, MensajeResponse,
 )
 from .service import (
     obtener_domicilios, obtener_domicilio, crear_domicilio,
-    editar_domicilio, asignar_repartidor, cambiar_estado
+    editar_domicilio, asignar_repartidor, cambiar_estado,
+    obtener_resumen_dia, verificar_otp, obtener_mensajes, enviar_mensaje,
 )
 
 router = APIRouter(prefix="/domicilios", tags=["Domicilios"])
 
 
+@router.get("/resumen")
+def resumen_domiciliario(
+    db:     Session = Depends(get_db),
+    actual: dict    = Depends(requiere_permiso("ver_domicilios"))
+):
+    """Resumen del día para el domiciliario autenticado: activos, entregados hoy, total hoy."""
+    registro    = actual["registro"]
+    id_empleado = getattr(registro, "ID_Empleado", None)
+    if not id_empleado:
+        return {"activos": 0, "entregados_hoy": 0, "total_hoy": 0}
+    return obtener_resumen_dia(db, id_empleado)
+
+
 @router.get("/", response_model=DomicilioListResponse)
 def listar_domicilios(
-    pagina:       int            = Query(1, ge=1),
-    por_pagina:   int            = Query(10, ge=1, le=100),
-    busqueda:     Optional[str]  = Query(None),
-    estado:       Optional[int]  = Query(None),
-    id_empleado:  Optional[int]  = Query(None),
-    db:           Session        = Depends(get_db),
-    _:            dict           = Depends(requiere_permiso("ver_domicilios"))
+    pagina:       int                  = Query(1, ge=1),
+    por_pagina:   int                  = Query(10, ge=1, le=100),
+    busqueda:     Optional[str]        = Query(None),
+    estado:       Optional[int]        = Query(None),
+    id_empleado:  Optional[int]        = Query(None),
+    fecha_inicio: Optional[datetime]   = Query(None),
+    fecha_fin:    Optional[datetime]   = Query(None),
+    db:           Session              = Depends(get_db),
+    _:            dict                 = Depends(requiere_permiso("ver_domicilios"))
 ):
-    """Lista paginada de domicilios. Busca por cliente, repartidor o dirección. Filtra por empleado asignado."""
-    return obtener_domicilios(db, pagina, por_pagina, busqueda, estado, id_empleado)
+    """Lista paginada. Filtra por empleado, estado y rango de fechas (fecha_inicio / fecha_fin ISO)."""
+    return obtener_domicilios(db, pagina, por_pagina, busqueda, estado, id_empleado, fecha_inicio, fecha_fin)
 
 
 @router.get("/{id_domicilio}", response_model=DomicilioResponse)
@@ -70,6 +89,70 @@ def asignar_empleado(
 ):
     """Asigna un repartidor. Si estaba Pendiente cambia automáticamente a Asignado."""
     return asignar_repartidor(db, id_domicilio, datos.ID_Empleado)
+
+
+@router.post("/{id_domicilio}/verificar-otp")
+def verificar_otp_domicilio(
+    id_domicilio: int,
+    datos:        OTPVerify,
+    db:           Session = Depends(get_db),
+    _:            dict    = Depends(requiere_permiso("cambiar_estado_domicilios"))
+):
+    """Verifica el código OTP para confirmar entrega sin necesidad de columna adicional en BD."""
+    if not verificar_otp(id_domicilio, datos.codigo):
+        raise HTTPException(status_code=400, detail="Código incorrecto")
+    return {"valido": True}
+
+
+def _verificar_acceso_chat(db: Session, id_domicilio: int, actual: dict):
+    """Permite acceso al chat a: empleados autenticados, y al cliente dueño del domicilio."""
+    dom = db.query(Domicilio).filter(Domicilio.ID_Domicilio == id_domicilio).first()
+    if not dom:
+        raise HTTPException(status_code=404, detail="Domicilio no encontrado")
+    if actual["tipo"] == "usuario":
+        registro = actual["registro"]
+        venta = db.query(Venta).filter(Venta.ID_Venta == dom.ID_Venta).first()
+        if not venta or venta.ID_Usuario != registro.ID_Usuario:
+            raise HTTPException(status_code=403, detail="Sin acceso a este domicilio")
+
+
+@router.get("/{id_domicilio}/mensajes")
+def listar_mensajes_chat(
+    id_domicilio: int,
+    db:           Session = Depends(get_db),
+    actual:       dict    = Depends(obtener_usuario_actual)
+):
+    """Devuelve los mensajes del chat de un domicilio. Accesible por el domiciliario asignado, admins y el cliente dueño."""
+    _verificar_acceso_chat(db, id_domicilio, actual)
+    return obtener_mensajes(db, id_domicilio)
+
+
+@router.post("/{id_domicilio}/mensajes", response_model=MensajeResponse)
+def enviar_mensaje_chat(
+    id_domicilio: int,
+    datos:        MensajeCreate,
+    db:           Session = Depends(get_db),
+    actual:       dict    = Depends(obtener_usuario_actual)
+):
+    """Envía un mensaje al chat del domicilio."""
+    _verificar_acceso_chat(db, id_domicilio, actual)
+    registro = actual["registro"]
+    tipo = actual["tipo"]
+
+    if tipo == "usuario":
+        tipo_rem    = "cliente"
+        id_rem      = registro.ID_Usuario
+        nombre_rem  = f"{registro.Nombre} {registro.Apellidos}"
+    elif getattr(registro, "ID_Rol", None) == 1:
+        tipo_rem    = "admin"
+        id_rem      = registro.ID_Empleado
+        nombre_rem  = f"{registro.Nombre} {registro.Apellidos}"
+    else:
+        tipo_rem    = "domiciliario"
+        id_rem      = registro.ID_Empleado
+        nombre_rem  = f"{registro.Nombre} {registro.Apellidos}"
+
+    return enviar_mensaje(db, id_domicilio, datos.Contenido, tipo_rem, id_rem, nombre_rem)
 
 
 @router.patch("/{id_domicilio}/estado", response_model=DomicilioResponse)

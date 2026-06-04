@@ -4,13 +4,22 @@ import { getPedidos, confirmarPedido, cancelarPedido, crearPedido, editarPedido,
 import { getUsuarios } from "../../../services/usuariosService.js";
 import CrearPedido from "./CrearPedido.jsx";
 import EditarPedido from "./EditarPedido.jsx";
-import { 
-  Eye, Edit3, Trash2, Truck, Package, 
-  RotateCcw, ChevronRight, X, AlertCircle, 
-  CheckCircle2, Info, ArrowRight, User, 
-  Mail, Phone, CreditCard, MapPin, Calendar, ClipboardList, DollarSign, Search
+import {
+  Trash2, Truck, Package,
+  RotateCcw, X, AlertCircle,
+  CheckCircle2, ArrowRight, MapPin, Search
 } from 'lucide-react';
 import "./Pedidos.css";
+
+/* ─── Datos de transferencia ─────────────────────────────── */
+// Actualiza estos datos con la información real de la cuenta
+const CUENTA_TRANSFERENCIA = {
+  banco:   "Nequi / Bancolombia",
+  titular: "TostonApp S.A.S",
+  tipo:    "Ahorros",
+  numero:  "300 000 0000",
+  qrUrl:   "", // Reemplaza con la URL real del QR de pago
+};
 
 /* ─── Helpers ────────────────────────────────────────────── */
 const fmt = (n) =>
@@ -18,15 +27,19 @@ const fmt = (n) =>
 
 const PER_PAGE = 5;
 
-const ESTADOS_FLUJO = ["Pendiente", "En producción", "Listo", "En camino", "Entregado"];
+// GestionPedidos solo gestiona órdenes activas (Pendiente y En producción).
+// La única acción de avance es Confirmar → Estado=4 (Confirmado), que mueve
+// el pedido a GestionVentas. Los estados "Listo", "En camino", "Entregado"
+// se gestionan en Domicilios / GestionVentas, no aquí.
+const ESTADOS_ACTIVOS_PEDIDO = ["Pendiente", "En producción"];
 
 const ESTADO_CONFIG = {
-  "Pendiente":      { bg: "bg-amber-50",  color: "text-amber-700", border: "border-amber-200",  dot: "#f9a825" },
-  "En producción":  { bg: "bg-blue-50",   color: "text-blue-700",  border: "border-blue-200",   dot: "#1976d2" },
-  "Listo":          { bg: "bg-green-50",  color: "text-green-700", border: "border-green-200",  dot: "#43a047" },
-  "En camino":      { bg: "bg-purple-50", color: "text-purple-700",border: "border-purple-200", dot: "#8e24aa" },
-  "Entregado":      { bg: "bg-teal-50",   color: "text-teal-700",  border: "border-teal-200",   dot: "#009688" },
-  "Cancelado":      { bg: "bg-red-50",    color: "text-red-700",   border: "border-red-200",    dot: "#e53935" },
+  "Pendiente":      { bg: "bg-amber-50",   color: "text-amber-700",  border: "border-amber-200",  dot: "#f9a825" },
+  "En producción":  { bg: "bg-blue-50",    color: "text-blue-700",   border: "border-blue-200",   dot: "#1976d2" },
+  "Confirmado":     { bg: "bg-green-50",   color: "text-green-700",  border: "border-green-200",  dot: "#43a047" },
+  "Cancelado":      { bg: "bg-red-50",     color: "text-red-700",    border: "border-red-200",    dot: "#e53935" },
+  "Entregado":      { bg: "bg-teal-50",    color: "text-teal-700",   border: "border-teal-200",   dot: "#009688" },
+  "En camino":      { bg: "bg-purple-50",  color: "text-purple-700", border: "border-purple-200", dot: "#8e24aa" },
 };
 
 /* ─── EstadoBadge ────────────────────────────────────────── */
@@ -116,221 +129,247 @@ function ModalConfirmarEstado({ pedido, nuevoEstado, onClose, onConfirm }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   MODAL — VER DETALLE (Rediseñado)
+   MODAL — VER DETALLE
    ═══════════════════════════════════════════════════════════ */
 function ModalVerPedido({ pedido, empleados, onClose, onEdit }) {
   const navigate = useNavigate();
+  const [tab, setTab] = useState("resumen");
   const emp = empleados.find(e => e.id === pedido.idEmpleado);
-  
   if (!pedido) return null;
 
-  return (
-    <div className="modal-overlay">
-      <div className="modal-box modal-box--wide shadow-2xl overflow-hidden flex flex-col max-h-[95vh] border-none" style={{ borderRadius: '32px' }}>
+  const esTransferencia = pedido.metodo_pago === "Transferencia";
 
-        {/* Header Premium */}
-        <div className="modal-header shrink-0" style={{ background: 'linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 100%)', padding: '24px' }}>
-          <div className="flex items-center gap-4">
-            <div className="bg-white/10 backdrop-blur-xl p-3 rounded-2xl border border-white/20">
-              <ClipboardList size={24} className="text-white" />
-            </div>
-            <div>
-              <h2 className="text-xl font-black tracking-tight leading-none mb-1 text-white">{pedido.numero}</h2>
-              <p className="text-white/70 text-[10px] font-bold uppercase tracking-widest">Resumen de Venta</p>
-            </div>
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal-box modal-box--wide"
+        onClick={e => e.stopPropagation()}
+        style={{ maxHeight: "calc(100vh - 40px)", display: "flex", flexDirection: "column" }}
+      >
+        {/* Header */}
+        <div className="modal-header">
+          <div>
+            <p className="modal-header__eyebrow">Pedido</p>
+            <h2 className="modal-header__title">{pedido.numero}</h2>
           </div>
-          <div className="flex items-center gap-3">
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <EstadoBadge estado={pedido.estado} />
-            <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-all text-white/70">
-              <X size={20} />
-            </button>
+            <button className="modal-close-btn" onClick={onClose}>✕</button>
           </div>
         </div>
 
-        <div className="modal-body p-6 overflow-y-auto custom-scrollbar flex-1 bg-white space-y-8">
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Cliente */}
-            <div className="space-y-4">
-              <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Información del Cliente</h4>
-              <div className="bg-gray-50/50 p-5 rounded-[24px] border border-gray-100 space-y-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-green-700 shadow-sm border border-gray-100">
-                    <User size={18} />
-                  </div>
-                  <div>
-                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Nombre</p>
-                    <p className="text-sm font-bold text-gray-800">{pedido.cliente?.nombre || "—"}</p>
-                  </div>
+        {/* Tabs */}
+        <div className="ver-ped-tabs">
+          <button className={`ver-ped-tab${tab === "resumen"   ? " ver-ped-tab--active" : ""}`} onClick={() => setTab("resumen")}>📋 Resumen</button>
+          <button className={`ver-ped-tab${tab === "productos" ? " ver-ped-tab--active" : ""}`} onClick={() => setTab("productos")}>📦 Productos</button>
+          <button className={`ver-ped-tab${tab === "pago"      ? " ver-ped-tab--active" : ""}`} onClick={() => setTab("pago")}>
+            💳 Pago {esTransferencia && <span style={{ marginLeft: 4, fontSize: 10, fontWeight: 700, background: "#e3f2fd", color: "#1565c0", border: "1px solid #90caf9", borderRadius: 4, padding: "1px 5px" }}>Transferencia</span>}
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="modal-body" style={{ flex: 1, overflowY: "auto" }}>
+
+          {/* ── Tab Resumen ── */}
+          {tab === "resumen" && (
+            <div className="form-grid-2" style={{ gap: 24 }}>
+              {/* Cliente */}
+              <div>
+                <p className="section-label">Información del Cliente</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {[
+                    { label: "Nombre",   value: pedido.cliente?.nombre },
+                    { label: "Correo",   value: pedido.cliente?.correo },
+                    { label: "Teléfono", value: pedido.cliente?.telefono },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="ver-ped-field">
+                      <span className="ver-ped-field__label">{label}</span>
+                      <span className="ver-ped-field__value">{value || "—"}</span>
+                    </div>
+                  ))}
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-blue-700 shadow-sm border border-gray-100">
-                    <Mail size={18} />
+              </div>
+
+              {/* Entrega */}
+              <div>
+                <p className="section-label">Entrega</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div className="ver-ped-field">
+                    <span className="ver-ped-field__label">Tipo</span>
+                    <span className="ver-ped-field__value">{pedido.domicilio ? "🛵 Domicilio" : "🏪 Recogida en tienda"}</span>
                   </div>
-                  <div>
-                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Correo</p>
-                    <p className="text-sm font-bold text-gray-800">{pedido.cliente?.correo || "—"}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-amber-700 shadow-sm border border-gray-100">
-                    <Phone size={18} />
-                  </div>
-                  <div>
-                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Teléfono</p>
-                    <p className="text-sm font-bold text-gray-800">{pedido.cliente?.telefono || "—"}</p>
+                  {pedido.domicilio && (
+                    <>
+                      <div className="ver-ped-field">
+                        <span className="ver-ped-field__label">Dirección</span>
+                        <span className="ver-ped-field__value">{pedido.direccion_entrega || "—"}</span>
+                      </div>
+                      <div className="ver-ped-field">
+                        <span className="ver-ped-field__label">Domiciliario</span>
+                        <span className="ver-ped-field__value">{emp ? `${emp.nombre} ${emp.apellidos}` : "Sin asignar"}</span>
+                      </div>
+                    </>
+                  )}
+                  <div className="ver-ped-field">
+                    <span className="ver-ped-field__label">Fecha del pedido</span>
+                    <span className="ver-ped-field__value">📅 {pedido.fecha_pedido}</span>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Entrega y Pago */}
-            <div className="space-y-4">
-              <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Entrega y Pago</h4>
-              <div className="bg-gray-50/50 p-5 rounded-[24px] border border-gray-100 space-y-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-indigo-700 shadow-sm border border-gray-100">
-                    <CreditCard size={18} />
-                  </div>
-                  <div>
-                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Método de Pago</p>
-                    <p className="text-sm font-bold text-gray-800">{pedido.metodo_pago}</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-red-700 shadow-sm border border-gray-100 shrink-0">
-                    <MapPin size={18} />
-                  </div>
-                  <div>
-                    <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Dirección</p>
-                    <p className="text-sm font-bold text-gray-800 leading-tight">{pedido.direccion_entrega || "Recogida en tienda"}</p>
-                  </div>
-                </div>
-                {pedido.domicilio && (
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-purple-700 shadow-sm border border-gray-100">
-                      <Truck size={18} />
-                    </div>
+              {/* Notas (ancho completo) */}
+              {pedido.notas && (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <div className="info-box info-box--warn">
+                    <span className="info-box__icon">📝</span>
                     <div>
-                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Domiciliario</p>
-                      <p className="text-sm font-bold text-gray-800">{emp ? `${emp.nombre} ${emp.apellidos}` : "Sin asignar"}</p>
+                      <span className="info-box__label">Notas del pedido</span>
+                      <span className="info-box__text" style={{ display: "block" }}>{pedido.notas}</span>
                     </div>
                   </div>
-                )}
-              </div>
-            </div>
-          </div>
+                </div>
+              )}
 
-          {/* Productos Table */}
-          <div className="space-y-4">
-            <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">Productos del Pedido</h4>
-            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-gray-50/50">
+              {/* Enlace producción (ancho completo) */}
+              {pedido.orden_produccion && (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <button
+                    className="info-box info-box--info"
+                    style={{ width: "100%", cursor: "pointer", textAlign: "left", border: "1px solid #90caf9" }}
+                    onClick={() => { onClose(); navigate(`/admin/ordenes-produccion?search=${pedido.numero}`); }}
+                  >
+                    <span className="info-box__icon">📦</span>
+                    <div>
+                      <span className="info-box__label">Producción activa</span>
+                      <span className="info-box__text" style={{ display: "block" }}>Ver detalles de fabricación →</span>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Tab Productos ── */}
+          {tab === "productos" && (
+            <div>
+              <table className="ver-productos-table" style={{ marginBottom: 20 }}>
+                <thead>
                   <tr>
-                    <th className="px-6 py-4 text-left text-[9px] font-black text-gray-400 uppercase tracking-widest">Producto</th>
-                    <th className="px-6 py-4 text-center text-[9px] font-black text-gray-400 uppercase tracking-widest">Cant.</th>
-                    <th className="px-6 py-4 text-right text-[9px] font-black text-gray-400 uppercase tracking-widest">Precio</th>
-                    <th className="px-6 py-4 text-right text-[9px] font-black text-gray-400 uppercase tracking-widest">Subtotal</th>
+                    <th>Producto</th>
+                    <th style={{ textAlign: "center" }}>Cant.</th>
+                    <th style={{ textAlign: "right" }}>Precio</th>
+                    <th style={{ textAlign: "right" }}>Subtotal</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-50">
+                <tbody>
                   {(pedido.productosItems || []).map((p, i) => (
-                    <tr key={i} className="hover:bg-gray-50/30 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center text-green-700 text-xs">📦</div>
-                          <span className="text-xs font-black text-gray-800">{p.nombre}</span>
-                        </div>
+                    <tr key={i}>
+                      <td style={{ fontWeight: 600 }}>📦 {p.nombre}</td>
+                      <td style={{ textAlign: "center" }}>
+                        <span style={{ background: "#f1f8f1", border: "1px solid #c8e6c9", borderRadius: 6, padding: "2px 8px", fontSize: 12, fontWeight: 700, color: "#2e7d32" }}>×{p.cantidad}</span>
                       </td>
-                      <td className="px-6 py-4 text-center">
-                        <span className="px-2 py-1 bg-gray-100 rounded-lg text-[10px] font-black text-gray-600">x{p.cantidad}</span>
-                      </td>
-                      <td className="px-6 py-4 text-right text-xs font-bold text-gray-500">{fmt(p.precio)}</td>
-                      <td className="px-6 py-4 text-right text-xs font-black text-green-700">{fmt(p.precio * p.cantidad)}</td>
+                      <td style={{ textAlign: "right", color: "#757575" }}>{fmt(p.precio)}</td>
+                      <td style={{ textAlign: "right", fontWeight: 700, color: "#2e7d32" }}>{fmt(p.precio * p.cantidad)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-               {/* Orden producción */}
-               {pedido.orden_produccion && (
-                <div className="bg-blue-50 border border-blue-100 p-5 rounded-[24px] flex items-center justify-between group hover:bg-blue-100 transition-all cursor-pointer" 
-                     onClick={() => { onClose(); navigate(`/admin/ordenes-produccion?search=${pedido.numero}`); }}>
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg">
-                      <Package size={20} />
+              <div className="totales-box">
+                <div className="totales-row">
+                  <span>Subtotal</span>
+                  <span>{fmt(pedido.subtotal)}</span>
+                </div>
+                {pedido.descuento > 0 && (
+                  <div className="totales-row totales-row--descuento">
+                    <span>Descuento</span>
+                    <span>− {fmt(pedido.descuento)}</span>
+                  </div>
+                )}
+                <div className="totales-row totales-row--total">
+                  <span>Total a pagar</span>
+                  <span>{fmt(pedido.total)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Tab Pago ── */}
+          {tab === "pago" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div className="ver-ped-field">
+                <span className="ver-ped-field__label">Método de pago</span>
+                <span className="ver-ped-field__value" style={{ fontSize: 15 }}>
+                  {esTransferencia ? "🏦 Transferencia bancaria" : "💵 Efectivo"}
+                </span>
+              </div>
+
+              {esTransferencia ? (
+                <>
+                  <p className="section-label" style={{ marginTop: 4 }}>Datos para realizar la transferencia</p>
+                  <div className="cuenta-card">
+                    <div className="cuenta-card__rows">
+                      {[
+                        { label: "Banco / Billetera", value: CUENTA_TRANSFERENCIA.banco },
+                        { label: "Titular",           value: CUENTA_TRANSFERENCIA.titular },
+                        { label: "Tipo de cuenta",    value: CUENTA_TRANSFERENCIA.tipo },
+                        { label: "Número",            value: CUENTA_TRANSFERENCIA.numero },
+                      ].map(({ label, value }) => (
+                        <div key={label} className="cuenta-card__row">
+                          <span className="cuenta-card__label">{label}</span>
+                          <span className="cuenta-card__value">{value}</span>
+                        </div>
+                      ))}
                     </div>
-                    <div>
-                      <p className="text-[10px] font-black text-blue-800 uppercase tracking-tight">Producción Activa</p>
-                      <p className="text-xs text-blue-600 font-medium">Ver detalles de fabricación</p>
+
+                    <div className={`cuenta-card__qr${CUENTA_TRANSFERENCIA.qrUrl ? "" : " cuenta-card__qr--empty"}`}>
+                      {CUENTA_TRANSFERENCIA.qrUrl ? (
+                        <img src={CUENTA_TRANSFERENCIA.qrUrl} alt="QR de pago" />
+                      ) : (
+                        <>
+                          <span style={{ fontSize: 26 }}>📷</span>
+                          <span style={{ fontSize: 9, fontWeight: 700, color: "#9e9e9e", textAlign: "center", lineHeight: 1.3, padding: "0 6px" }}>Agrega el QR en el código</span>
+                        </>
+                      )}
                     </div>
                   </div>
-                  <ChevronRight size={16} className="text-blue-400 group-hover:translate-x-1 transition-transform" />
+
+                  <div className="info-box info-box--warn" style={{ marginTop: 0 }}>
+                    <span className="info-box__icon">ℹ️</span>
+                    <span className="info-box__text">Recuerda adjuntar el comprobante de pago al confirmar el pedido.</span>
+                  </div>
+
+                  {pedido.comprobante ? (
+                    <div className="info-box info-box--success">
+                      <span className="info-box__icon">✅</span>
+                      <span className="info-box__text">El cliente adjuntó comprobante de pago.</span>
+                      <a href={pedido.comprobante} target="_blank" rel="noopener noreferrer"
+                        style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: "#2e7d32", flexShrink: 0 }}>
+                        Ver comprobante →
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="info-box info-box--danger" style={{ background: "#ffebee", borderColor: "#ef9a9a", color: "#c62828" }}>
+                      <span className="info-box__icon">⚠️</span>
+                      <span className="info-box__text">Aún no se ha adjuntado comprobante de pago.</span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="info-box info-box--success">
+                  <span className="info-box__icon">💵</span>
+                  <span className="info-box__text">Pago en efectivo al momento de la entrega. No se requiere comprobante.</span>
                 </div>
               )}
-              
-              <div className="bg-gray-50 p-5 rounded-[24px] border border-gray-100 flex items-center gap-4">
-                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-gray-400 border border-gray-100 shadow-sm">
-                  <Calendar size={18} />
-                </div>
-                <div>
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Fecha Pedido</p>
-                  <p className="text-sm font-bold text-gray-800">{pedido.fecha_pedido}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Totales */}
-            <div className="bg-gray-900 text-white p-6 rounded-[32px] shadow-xl relative overflow-hidden">
-               <div className="absolute top-[-20px] right-[-20px] w-32 h-32 bg-white/5 rounded-full blur-2xl"></div>
-               <div className="relative z-10 space-y-3">
-                 <div className="flex justify-between items-center text-xs opacity-60">
-                   <span className="font-bold">Subtotal</span>
-                   <span className="font-black">{fmt(pedido.subtotal)}</span>
-                 </div>
-                 {pedido.descuento > 0 && (
-                   <div className="flex justify-between items-center text-xs text-red-400">
-                     <span className="font-bold">Descuento</span>
-                     <span className="font-black">− {fmt(pedido.descuento)}</span>
-                   </div>
-                 )}
-                 <div className="pt-3 border-t border-white/10 flex justify-between items-end">
-                   <div>
-                     <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-1">Total Final</p>
-                     <p className="text-3xl font-black tracking-tighter leading-none">{fmt(pedido.total)}</p>
-                   </div>
-                   <div className="w-10 h-10 bg-green-500 rounded-xl flex items-center justify-center text-white shadow-lg">
-                      <DollarSign size={20} />
-                   </div>
-                 </div>
-               </div>
-            </div>
-          </div>
-
-          {pedido.notas && (
-            <div className="bg-amber-50 border border-amber-100 p-5 rounded-[24px] flex items-start gap-4">
-              <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center text-amber-600 shrink-0 shadow-sm">
-                <Info size={18} />
-              </div>
-              <div>
-                <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest mb-1">Notas del Pedido</p>
-                <p className="text-xs text-amber-700 italic font-medium leading-relaxed">"{pedido.notas}"</p>
-              </div>
             </div>
           )}
         </div>
 
-        <div className="modal-footer p-6 bg-gray-50/50 border-t border-gray-100 shrink-0 flex gap-3">
-          <button className="btn-secondary flex-1 py-4 text-xs font-black uppercase tracking-widest" onClick={onClose}>Cerrar</button>
-          {!["Entregado","Cancelado"].includes(pedido.estado) && (
-            <button className="btn-primary flex-1 py-4 text-xs font-black uppercase tracking-widest shadow-lg" style={{ background: 'var(--green-600)' }} onClick={() => { onClose(); onEdit(pedido); }}>
-              ✎ Editar Pedido
-            </button>
+        {/* Footer */}
+        <div className="modal-footer">
+          <button className="btn-ghost" onClick={onClose}>Cerrar</button>
+          {!["Entregado", "Cancelado"].includes(pedido.estado) && (
+            <button className="btn-save" onClick={() => { onClose(); onEdit(pedido); }}>✎ Editar Pedido</button>
           )}
         </div>
       </div>
@@ -379,6 +418,35 @@ function ModalEliminarPedido({ pedido, onClose, onConfirm }) {
               {done ? "Eliminando…" : "Eliminar"}
             </button>
           </div>
+      </div>
+    </div>
+  );
+}
+
+function ModalErrorEstadoPedido({ mensaje, onClose }) {
+  if (!mensaje) return null;
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal-box modal-box--sm shadow-2xl overflow-hidden flex flex-col border-none text-center p-8"
+        style={{ borderRadius: "32px" }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-amber-600 border border-amber-100">
+          <AlertCircle size={32} />
+        </div>
+        <h3 className="text-xl font-black text-gray-800 uppercase tracking-tight mb-2">
+          No se pudo avanzar
+        </h3>
+        <p className="text-sm font-medium text-gray-600 leading-relaxed mb-8">
+          {mensaje}
+        </p>
+        <button
+          className="btn-secondary w-full py-4 text-xs font-black uppercase"
+          onClick={onClose}
+        >
+          Entendido
+        </button>
       </div>
     </div>
   );
@@ -494,7 +562,12 @@ function SkeletonRows({ cols = 8, rows = 5 }) {
 export default function GestionPedidos() {
   const navigate = useNavigate();
   const [usuarios, setUsuarios] = useState([]);
-  const empleados = (usuarios || []).filter(u => u.tipo === "empleado" && u.estado);
+  const empleados = (usuarios || []).filter(u =>
+    u.tipo === "empleado" && u.estado && (
+      u.idRol === 1 || u.idRol === 3 ||
+      ["admin", "administrador", "domiciliario"].includes((u.rol || "").toLowerCase())
+    )
+  );
 
   const [pedidos,      setPedidos]      = useState([]);
   const [loading,      setLoading]      = useState(true);
@@ -558,17 +631,9 @@ export default function GestionPedidos() {
   const hasFilter = filterEstado !== "todos" || filterTipo !== "todos";
 
   const handleCambiarEstadoDirecto = (ped) => {
-    const actualIdx = ESTADOS_FLUJO.indexOf(ped.estado);
-    if (ped.estado === "Cancelado") {
-      showToast("Un pedido cancelado no puede ser reactivado", "warn");
-      return;
-    }
-    if (actualIdx >= ESTADOS_FLUJO.length - 1) {
-      showToast(`El pedido ya está en su estado final: ${ped.estado}`, "info");
-      return;
-    }
-    const nuevoEstado = ESTADOS_FLUJO[actualIdx + 1];
-    setModal({ type: "confirmarEstado", pedido: ped, nuevoEstado });
+    // La única acción de avance en este módulo es confirmar el pedido.
+    // Después de confirmar, el pedido pasa a Gestión de Ventas (Estado=4).
+    setModal({ type: "confirmarEstado", pedido: ped, nuevoEstado: "Confirmado" });
   };
 
   const handleCancelarPedido = (ped) => {
@@ -586,10 +651,14 @@ export default function GestionPedidos() {
         await confirmarPedido(id);
       }
       await cargarDatos();
-      showToast(`Pedido ${ped.numero} actualizado`);
+      showToast(nuevoEstado === "Cancelado"
+        ? `Pedido ${ped.numero} cancelado`
+        : `Pedido ${ped.numero} confirmado exitosamente`
+      );
       setModal(null);
     } catch (err) {
-      showToast(err.message || "Error al cambiar estado", "error");
+      const errorMsg = err.message || "No se pudo cambiar el estado del pedido.";
+      setModal({ type: "errorEstado", mensaje: errorMsg });
     } finally {
       setActionSaving(false);
     }
@@ -684,7 +753,13 @@ export default function GestionPedidos() {
                   <div>
                     <p className="filter-section-title">Estado</p>
                     <div style={{ display: "grid", gap: 2 }}>
-                      {[{ val: "todos", label: "Todos", dot: "#bdbdbd" }, ...ESTADOS_FLUJO.map(e => ({ val: e, label: e, dot: ESTADO_CONFIG[e]?.dot })), { val: "Cancelado", label: "Cancelado", dot: ESTADO_CONFIG["Cancelado"]?.dot }].map(f => (
+                      {[
+                        { val: "todos",         label: "Todos",          dot: "#bdbdbd" },
+                        { val: "Pendiente",     label: "Pendiente",      dot: ESTADO_CONFIG["Pendiente"]?.dot },
+                        { val: "En producción", label: "En producción",  dot: ESTADO_CONFIG["En producción"]?.dot },
+                        { val: "Confirmado",    label: "Confirmado",     dot: ESTADO_CONFIG["Confirmado"]?.dot },
+                        { val: "Cancelado",     label: "Cancelado",      dot: ESTADO_CONFIG["Cancelado"]?.dot },
+                      ].map(f => (
                         <button key={f.val} className={`filter-option${filterEstado === f.val ? " active" : ""}`} onClick={() => setFilterEstado(f.val)}>
                           <span className="filter-dot" style={{ background: f.dot }} />{f.label}
                         </button>
@@ -743,9 +818,9 @@ export default function GestionPedidos() {
                   <tr><td colSpan={8}><div className="empty-state"><div className="empty-state__icon">📦</div><p className="empty-state__text">Sin pedidos.</p></div></td></tr>
                 ) : paged.map((ped, idx) => {
                   const emp = empleados.find(e => e.id === ped.idEmpleado);
-                  const canAdvance = ESTADOS_FLUJO.indexOf(ped.estado) !== -1 &&
-                    ESTADOS_FLUJO.indexOf(ped.estado) < ESTADOS_FLUJO.length - 1;
-                  const canCancel = !["Entregado", "Cancelado"].includes(ped.estado);
+                  // Solo Pendiente puede confirmarse; En producción espera que las órdenes terminen
+                  const canAdvance = ped.estado === "Pendiente";
+                  const canCancel  = ["Pendiente", "En producción", "Confirmado"].includes(ped.estado);
                   return (
                     <tr key={ped.id} className="tbl-row group hover:bg-green-50/30 transition-colors">
                       <td><span className="row-num">{String((safePage - 1) * PER_PAGE + idx + 1).padStart(2, "0")}</span></td>
@@ -776,14 +851,22 @@ export default function GestionPedidos() {
                           <div className="tipo-tienda text-[11px] font-black text-blue-600 flex items-center gap-1">🏪 Tienda</div>
                         )}
                       </td>
-                      <td><EstadoBadge estado={ped.estado} /></td>
+                      <td>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 3 }}>
+                          <EstadoBadge estado={ped.estado} />
+                          {ped.estado === "En producción" && (
+                            <span style={{ fontSize: 9, fontWeight: 700, color: "#1976d2", letterSpacing: 0.3 }}>
+                              ⏳ Esperando producción
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td>
                         <div className="actions-cell flex items-center gap-1">
                           <button className="act-btn act-btn--view bg-green-50 text-green-600 hover:bg-green-600 hover:text-white transition-all p-1.5 rounded-lg border border-green-100" onClick={() => setModal({ type: "ver", pedido: ped })}>👁</button>
-                          {!["Entregado","Cancelado"].includes(ped.estado) && <button className="act-btn act-btn--edit bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white transition-all p-1.5 rounded-lg border border-amber-100" onClick={() => setModal({ type: "editar", pedido: ped })}>✎</button>}
-                          {canAdvance && <button className="act-btn act-btn--success bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all p-1.5 rounded-lg border border-blue-100" disabled={actionSaving} onClick={() => handleCambiarEstadoDirecto(ped)}>🔄</button>}
-                          {canCancel && <button className="act-btn act-btn--delete bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-all p-1.5 rounded-lg border border-red-100" disabled={actionSaving} onClick={() => handleCancelarPedido(ped)}>✕</button>}
-                          {!["Entregado"].includes(ped.estado) && <button className="act-btn bg-gray-50 text-gray-500 hover:bg-gray-600 hover:text-white transition-all p-1.5 rounded-lg border border-gray-200" onClick={() => setModal({ type: "eliminar", pedido: ped })}>🗑️</button>}
+                          {!["Confirmado","Cancelado"].includes(ped.estado) && <button className="act-btn act-btn--edit bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white transition-all p-1.5 rounded-lg border border-amber-100" onClick={() => setModal({ type: "editar", pedido: ped })}>✎</button>}
+                          {canAdvance && <button className="act-btn act-btn--success bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all p-1.5 rounded-lg border border-blue-100" disabled={actionSaving} onClick={() => handleCambiarEstadoDirecto(ped)} title="Confirmar pedido">✔</button>}
+                          {canCancel && <button className="act-btn act-btn--delete bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-all p-1.5 rounded-lg border border-red-100" disabled={actionSaving} onClick={() => handleCancelarPedido(ped)} title="Cancelar pedido">✕</button>}
                         </div>
                       </td>
                     </tr>
@@ -811,6 +894,7 @@ export default function GestionPedidos() {
       {modal?.type === "crear" && <CrearPedido onClose={() => setModal(null)} onSave={handleCrearPedido} />}
       {modal?.type === "editar" && <EditarPedido pedido={modal.pedido} onClose={() => setModal(null)} onSave={handleEditarPedido} />}
       {modal?.type === "eliminar" && <ModalEliminarPedido pedido={modal.pedido} onClose={() => setModal(null)} onConfirm={handleEliminarPedido} />}
+      {modal?.type === "errorEstado" && <ModalErrorEstadoPedido mensaje={modal.mensaje} onClose={() => setModal(null)} />}
 
       <Toast toast={toast} />
     </div>

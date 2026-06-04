@@ -160,3 +160,7 @@ export async function eliminarImagen(idProducto, idImagen) {
     method: "DELETE",
   });
 }
+
+export async function getLotesProducto(id) {
+  return apiFetch(`/productos/${id}/lotes`);
+}

@@ -22,14 +22,16 @@ export const UNIDADES = [
 ];
 
 const ADAPT_INSUMO = raw => ({
-  id:           raw.ID_Insumo,
-  nombre:       raw.Nombre,
-  idCategoria:  raw.ID_Categoria,
-  idUnidad:     raw.Unidad_Medida,
-  stockActual:  raw.Stock_Actual,
-  stockMinimo:  raw.Stock_Minimo,
-  estado:       raw.Estado === 1,
-  simboloUnidad: raw.simbolo_unidad ?? "",
+  id:               raw.ID_Insumo,
+  nombre:           raw.Nombre,
+  idCategoria:      raw.ID_Categoria,
+  idUnidad:         raw.Unidad_Medida,
+  stockActual:      raw.Stock_Actual,
+  stockMinimo:      raw.Stock_Minimo,
+  estado:           raw.Estado === 1,
+  simboloUnidad:    raw.simbolo_unidad ?? "",
+  proxVencimiento:  raw.proximo_vencimiento ?? null,
+  diasParaVencer:   raw.dias_para_vencer ?? null,
 });
 
 const ADAPT_CAT = raw => ({
@@ -71,10 +73,12 @@ function StockBar({ actual, minimo }) {
   return (
     <div className="stock-cell" style={{ position: "relative" }}
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
-      <div className="stock-bar-wrap">
-        <div className="stock-bar" style={{ width: pct + "%", background: color }} />
+      <div className="stock-bar-wrap" style={est === "agotado" ? { background: "#ffcdd2" } : undefined}>
+        <div className="stock-bar" style={{ width: est === "agotado" ? "100%" : pct + "%", background: color }} />
       </div>
-      <span className="stock-nums"><strong>{actual}</strong> / mín {minimo}</span>
+      <span className="stock-nums" style={est === "agotado" ? { color: "#c62828" } : undefined}>
+        <strong>{actual}</strong> / mín {minimo}
+      </span>
       {hovered && (
         <div className="stock-tooltip" style={{ background: tip.bg, border: `1px solid ${tip.border}`, color: tip.text }}>
           <span className="stock-tooltip__dot" style={{ background: color }} />
@@ -101,6 +105,32 @@ function CatCell({ cat }) {
         </span>
       )}
     </span>
+  );
+}
+
+function VencCell({ fecha, dias }) {
+  if (!fecha) return <span style={{ fontSize: 13, color: "#bdbdbd", fontWeight: 500 }}>—</span>;
+
+  const [y, m, d] = fecha.split("-");
+  const label = `${d}/${m}/${y}`;
+
+  if (dias <= 0) return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#c62828", background: "#ffebee", border: "1px solid #ef9a9a", borderRadius: 6, padding: "3px 8px" }}>
+      ⚠️ Vencido
+    </span>
+  );
+  if (dias <= 7) return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#e65100", background: "#fff3e0", border: "1px solid #ffcc80", borderRadius: 6, padding: "3px 8px" }}>
+      🔴 {label} <span style={{ fontWeight: 400, opacity: 0.8 }}>({dias}d)</span>
+    </span>
+  );
+  if (dias <= 30) return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#f57f17", background: "#fff8e1", border: "1px solid #ffe082", borderRadius: 6, padding: "3px 8px" }}>
+      🟡 {label} <span style={{ fontWeight: 400, opacity: 0.8 }}>({dias}d)</span>
+    </span>
+  );
+  return (
+    <span style={{ fontSize: 12, fontWeight: 600, color: "#616161" }}>{label}</span>
   );
 }
 
@@ -361,9 +391,7 @@ export default function GestionInsumos() {
                       </td>
                       <td><CatCell cat={cat} /></td>
                       <td><StockBar actual={ins.stockActual} minimo={ins.stockMinimo} /></td>
-                      <td>
-                        <span style={{ fontSize: 13, color: "#bdbdbd", fontWeight: 500 }}>—</span>
-                      </td>
+                      <td><VencCell fecha={ins.proxVencimiento} dias={ins.diasParaVencer} /></td>
                       <td><Toggle value={ins.estado} onChange={() => handleToggle(ins)} /></td>
                       <td>
                         <div className="actions-cell">

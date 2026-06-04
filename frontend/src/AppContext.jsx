@@ -33,11 +33,13 @@ export const sumarDias = (dias) => {
 ══════════════════════════════════════════════════════════ */
 
 const initCategoriasProductos = [
-  { id: 1, nombre: "Congelados", descripcion: "Productos fríos a base de plátano",  estado: true,  fecha: "12/12/2025", icon: "🧊" },
-  { id: 2, nombre: "Postres",    descripcion: "Productos dulces de plátano",         estado: true,  fecha: "12/12/2025", icon: "🍮" },
-  { id: 3, nombre: "Snacks",     descripcion: "Tostones y chips de plátano",         estado: true,  fecha: "01/01/2026", icon: "🍟" },
+  { id: 1, nombre: "Congelados", descripcion: "Productos fríos a base de plátano",  estado: true,  fecha: "12/12/2025", icon: "❄️" },
+  { id: 2, nombre: "Postres",    descripcion: "Productos dulces de plátano",         estado: true,  fecha: "12/12/2025", icon: "🧁" },
+  { id: 3, nombre: "Snacks",     descripcion: "Tostones y chips de plátano",         estado: true,  fecha: "01/01/2026", icon: "🍿" },
   { id: 4, nombre: "Harinas",    descripcion: "Harinas y mezclas de plátano verde",  estado: true,  fecha: "20/02/2026", icon: "🌾" },
   { id: 5, nombre: "Orgánicos",  descripcion: "Línea orgánica certificada",          estado: true,  fecha: "28/02/2026", icon: "🌿" },
+  { id: 6, nombre: "Bebidas",    descripcion: "Refrescantes y energizantes",          estado: true,  fecha: "01/04/2026", icon: "🍹" },
+  { id: 7, nombre: "Panadería",  descripcion: "Productos horneados y masas dulces",   estado: true,  fecha: "01/04/2026", icon: "🥐" },
 ];
 
 const initCategoriasInsumos = [
@@ -49,6 +51,8 @@ const initCategoriasInsumos = [
   { id: 6, nombre: "Aceites",         icon: "🛢️", descripcion: "Para freír.",                        estado: true, fecha: "12/12/2025" },
   { id: 7, nombre: "Salsas",          icon: "🥫", descripcion: "Para preparación o acompañamiento.", estado: true, fecha: "12/12/2025" },
   { id: 8, nombre: "Empaques",        icon: "📦", descripcion: "Para vender los productos.",         estado: true, fecha: "12/12/2025" },
+  { id: 9, nombre: "Frutas",          icon: "🍌", descripcion: "Ingredientes naturales y frescos.",  estado: true, fecha: "01/04/2026" },
+  { id: 10, nombre: "Bebidas",        icon: "🥤", descripcion: "Refrescos e insumos líquidos.",      estado: true, fecha: "01/04/2026" },
 ];
 
 export const UNIDADES_MEDIDA = [
@@ -106,9 +110,11 @@ const initProveedores = [
 ];
 
 const initRolesData = [
-  { id: 1, nombre: "Admin",    icono: "👑", iconoPreview: null, estado: true,  fecha: "12/12/2025", esAdmin: true,  permisos: [] },
-  { id: 2, nombre: "Empleado", icono: "👷", iconoPreview: null, estado: true,  fecha: "12/12/2025", esAdmin: false, permisos: [] },
-  { id: 3, nombre: "Cliente",  icono: "👤", iconoPreview: null, estado: true,  fecha: "01/01/2026", esAdmin: false, permisos: [] },
+  { id: 1, nombre: "Admin",        icono: "👑", iconoPreview: null, estado: true,  fecha: "12/12/2025", esAdmin: true,  permisos: [] },
+  { id: 2, nombre: "Empleado",     icono: "👷", iconoPreview: null, estado: true,  fecha: "12/12/2025", esAdmin: false, permisos: [] },
+  { id: 3, nombre: "Cocinero",     icono: "🍳", iconoPreview: null, estado: true,  fecha: "12/12/2025", esAdmin: false, permisos: [] },
+  { id: 4, nombre: "Domiciliario", icono: "🚚", iconoPreview: null, estado: true,  fecha: "12/12/2025", esAdmin: false, permisos: [] },
+  { id: 5, nombre: "Cliente",      icono: "👤", iconoPreview: null, estado: true,  fecha: "01/01/2026", esAdmin: false, permisos: [] },
 ];
 
 const initUsuariosData = [
@@ -116,6 +122,8 @@ const initUsuariosData = [
   { id: 2, nombre: "Ana",    apellidos: "García López",  correo: "ana.garcia@email.com",   cedula: "1012345678", telefono: "300 123 4567", direccion: "Calle 50 # 40-20",   departamento: "Antioquia",       municipio: "Medellín",     rol: "Empleado", estado: true,  foto: null, fechaCreacion: "15/01/2026" },
   { id: 3, nombre: "Lucía",  apellidos: "Martínez Vega", correo: "lucia.mv@email.com",     cedula: "1234567890", telefono: "315 456 7890", direccion: "Av. 6N # 23-10",     departamento: "Valle del Cauca", municipio: "Cali",         rol: "Empleado", estado: false, foto: null, fechaCreacion: "01/02/2026" },
   { id: 4, nombre: "Jorge",  apellidos: "Torres Suárez", correo: "jorge.torres@email.com", cedula: "72654321",   telefono: "320 321 0987", direccion: "Calle 72 # 45-55",   departamento: "Atlántico",       municipio: "Barranquilla", rol: "Cliente",  estado: true,  foto: null, fechaCreacion: "20/02/2026" },
+  { id: 5, nombre: "Pepita", apellidos: "Gómez Sánchez", correo: "pepita.gomez@email.com", cedula: "1098765432", telefono: "312 555 0123", direccion: "Calle 88 # 12-34", departamento: "Cundinamarca", municipio: "Bogotá",       rol: "Cocinero", estado: true,  foto: null, fechaCreacion: "01/04/2026" },
+  { id: 6, nombre: "Luis",   apellidos: "Rodríguez",    correo: "luis.rodriguez@email.com", cedula: "1087654321", telefono: "313 678 9012", direccion: "Carrera 20 # 45-67", departamento: "Antioquia",    municipio: "Medellín",     rol: "Domiciliario", estado: true,  foto: null, fechaCreacion: "01/04/2026" },
 ];
 
 const initClientes = [
@@ -1004,6 +1012,14 @@ export function AppProvider({ children }) {
       idReferencia: numero, refNombre: numero,
       idDestinatario: 'admin',
     });
+    agregarNotifInterna({
+      tipo:  NOTIF_TIPOS.PEDIDO_NUEVO,
+      clave: `produccion-${NOTIF_TIPOS.PEDIDO_NUEVO}-${numero}`,
+      titulo: `Pedido nuevo para cocina: ${numero}`,
+      mensaje: `El pedido ${numero} está listo para revisión en la cocina. Estado: ${estadoInicial}.`,
+      idReferencia: numero, refNombre: numero,
+      idDestinatario: 'produccion',
+    });
 
     if (payload.idCliente) {
       agregarNotifInterna({
@@ -1067,6 +1083,14 @@ export function AppProvider({ children }) {
           mensaje: `El pedido ${p.numero} de "${p.cliente?.nombre || "cliente"}" cambió a estado "${nuevoEstado}".`,
           idReferencia: p.numero, refNombre: p.numero,
           idDestinatario: 'admin',
+        });
+        agregarNotifInterna({
+          tipo:  NOTIF_TIPOS.SISTEMA,
+          clave: `produccion-estado-pedido-${id}-${nuevoEstado}`,
+          titulo: `Pedido cocina ${p.numero}: ${nuevoEstado}`,
+          mensaje: `El pedido ${p.numero} cambió a estado "${nuevoEstado}".`,
+          idReferencia: p.numero, refNombre: p.numero,
+          idDestinatario: 'produccion',
         });
 
         if (p.idCliente) {

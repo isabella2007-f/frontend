@@ -14,7 +14,7 @@ const adminMenuItems = [
     section: "Sitio Web",
     icon: "🌐",
     items: [
-      { label: "Ver Landing Page", icon: "🏠", link: "/" },
+      { label: "Ver Landing Page", icon: "🏠", link: "/", privilegioKey: "LandingPage" },
     ],
   },
   {
@@ -50,16 +50,23 @@ const adminMenuItems = [
       { label: "Categoría de Productos", icon: "🏷️", link: "/admin/categorias_productos", privilegioKey: "CategoriaProductos" },
       { label: "Gestión de Productos",   icon: "📦", link: "/admin/products",             privilegioKey: "GestionProductos" },
       { label: "Órdenes de Producción",  icon: "📋", link: "/admin/ordenes-produccion",   privilegioKey: "OrdenesProduccion" },
+      { label: "Cocina",                 icon: "🍳", link: "/admin/cocina",             roleRequired: "Cocinero" },
     ],
   },
   {
     section: "Ventas",
     icon: "💰",
     items: [
-      { label: "Pedidos",       icon: "🛍️", link: "/admin/pedidos",       privilegioKey: "Pedidos" },
-      { label: "Domicilios",    icon: "🚚", link: "/admin/domicilios",    privilegioKey: "Domicilios" },
-      { label: "Mis Entregas",  icon: "🛵", link: "/admin/mis-entregas",  clave: "Domicilios_cambiar_estado", hideFromAdmin: true },
-      { label: "Devoluciones",  icon: "🔄", link: "/admin/devoluciones",  privilegioKey: "Devoluciones" },
+      { label: "Pedidos",       icon: "🛍️", link: "/admin/pedidos",              privilegioKey: "Pedidos" },
+      { label: "Domicilios",    icon: "🚚", link: "/admin/domicilios",           privilegioKey: "Domicilios" },
+      { label: "Mi Dashboard",    icon: "🏠", link: "/admin/mi-dashboard",           clave: "Domicilios_cambiar_estado", hideFromAdmin: true },
+      { label: "Mis Entregas",    icon: "🛵", link: "/admin/mis-entregas",           clave: "Domicilios_cambiar_estado", hideFromAdmin: true },
+      { label: "Pedido Actual",   icon: "📦", link: "/admin/pedido-actual",          clave: "Domicilios_cambiar_estado", hideFromAdmin: true },
+      { label: "Historial",       icon: "📋", link: "/admin/historial-entregas",     clave: "Domicilios_cambiar_estado", hideFromAdmin: true },
+      { label: "Mis Ganancias",   icon: "💰", link: "/admin/mis-ganancias",          clave: "Domicilios_cambiar_estado", hideFromAdmin: true },
+      { label: "Notificaciones",  icon: "🔔", link: "/admin/mis-notificaciones",     clave: "Domicilios_cambiar_estado", hideFromAdmin: true },
+      { label: "Mi Perfil",       icon: "👤", link: "/admin/mi-perfil-repartidor",   clave: "Domicilios_cambiar_estado", hideFromAdmin: true },
+      { label: "Devoluciones",  icon: "🔄", link: "/admin/devoluciones",         privilegioKey: "Devoluciones" },
     ],
   },
 ];
@@ -100,8 +107,14 @@ export default function Sidebar({ isOpen, onToggle }) {
   }, []);
 
   const canSeeItem = (item) => {
+    if (item.roleRequired) {
+      const expected = Array.isArray(item.roleRequired) ? item.roleRequired : [item.roleRequired];
+      const rol = user?.rol?.toLowerCase();
+      const matches = expected.some(r => r.toLowerCase() === rol);
+      if (!matches) return false;
+    }
     if (!item.privilegioKey && !item.clave) return true;  // sin restricción → siempre visible
-    if (loading) return true;                              // aún cargando → mostrar todo
+    if (loading) return false;                             // aún cargando → no mostrar hasta tener privilegios
     if (item.hideFromAdmin && isAdmin) return false;       // ocultar al admin explícitamente
     if (isAdmin) return true;                              // admin → todo lo demás visible
     if (item.clave) return hasPrivilegio(item.clave);      // clave exacta (sin sufijo _ver)

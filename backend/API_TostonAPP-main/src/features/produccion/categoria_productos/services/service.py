@@ -18,7 +18,7 @@ def _formato_categoria(categoria: CategoriaProducto, db: Session) -> dict:
         "Descripcion":      categoria.Descripcion,
         "Icono":            categoria.Icono,
         "Estado":           categoria.Estado,
-        "Fecha_creacion":   categoria.Fecha_Creacion,
+        "Fecha_Creacion":   categoria.Fecha_Creacion,
         "productos": [
             {"ID_Producto": p.ID_Producto, "nombre": p.nombre}
             for p in productos

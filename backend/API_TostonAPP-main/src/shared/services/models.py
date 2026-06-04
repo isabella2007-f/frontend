@@ -241,13 +241,18 @@ class Proveedor(Base):
 class Compra(Base):
     __tablename__ = "Compras"
 
-    ID_Compra     = Column(Integer, primary_key=True, index=True)
-    ID_Proveedor  = Column(Integer, ForeignKey("Proveedores.ID_Proveedor"))
-    Total_Pago    = Column(Numeric(30, 2))
-    Fecha_Compra  = Column(DateTime)
-    Fecha_Llegada = Column(DateTime, nullable=True)
-    Estado        = Column(Integer, ForeignKey("Estados.ID_Estados"))
-    Metodo_Pago   = Column(String(20))
+    ID_Compra            = Column(Integer, primary_key=True, index=True)
+    ID_Proveedor         = Column(Integer, ForeignKey("Proveedores.ID_Proveedor"))
+    Total_Pago           = Column(Numeric(30, 2))
+    Fecha_Compra         = Column(DateTime)
+    Fecha_Llegada        = Column(DateTime, nullable=True)
+    Estado               = Column(Integer, ForeignKey("Estados.ID_Estados"))
+    Metodo_Pago          = Column(String(20))
+    Notas                = Column(Text, nullable=True)
+    Costo_Transporte     = Column(Numeric(30, 2), nullable=True)
+    IVA_Porcentaje       = Column(Numeric(5, 2), nullable=True)
+    Descuento_Porcentaje = Column(Numeric(5, 2), nullable=True)
+    Otros_Costos         = Column(Numeric(30, 2), nullable=True)
 
     proveedor = relationship("Proveedor", back_populates="compras")
     detalles  = relationship("DetalleCompra", back_populates="compra")
@@ -296,6 +301,7 @@ class Producto(Base):
     Publicado           = Column(Integer, default=0, nullable=True)
     Descripcion_Corta   = Column(String(255), nullable=True)
     Descripcion_Larga   = Column(String(2000), nullable=True)
+    Fecha_Creacion      = Column(DateTime, nullable=True)
 
     categoria       = relationship("CategoriaProducto", back_populates="productos")
     fichas_tecnicas = relationship("FichaTecnica", back_populates="producto")
@@ -320,9 +326,23 @@ class FichaTecnica(Base):
     Fecha_Creacion  = Column(DateTime)
     Dias_Vida_Util  = Column(Integer, nullable=True)
 
-    producto  = relationship("Producto", back_populates="fichas_tecnicas")
-    categoria = relationship("CategoriaProducto", back_populates="fichas_tecnicas")
-    ordenes   = relationship("OrdenProduccion", back_populates="ficha")
+    producto      = relationship("Producto", back_populates="fichas_tecnicas")
+    categoria     = relationship("CategoriaProducto", back_populates="fichas_tecnicas")
+    ordenes       = relationship("OrdenProduccion", back_populates="ficha")
+    insumos_ficha = relationship("FichaTecnicaInsumo", back_populates="ficha", cascade="all, delete-orphan")
+
+
+class FichaTecnicaInsumo(Base):
+    __tablename__ = "Ficha_Tecnica_Insumo"
+
+    ID_Ficha_Insumo = Column(Integer, primary_key=True, autoincrement=True)
+    ID_Ficha        = Column(Integer, ForeignKey("Ficha_Tecnica.ID_Ficha"), nullable=False)
+    ID_Insumo       = Column(Integer, ForeignKey("Insumos.ID_Insumo"), nullable=False)
+    Cantidad        = Column(Numeric(10, 2), nullable=True)
+    Unidad          = Column(String(50), nullable=True)
+
+    ficha  = relationship("FichaTecnica", back_populates="insumos_ficha")
+    insumo = relationship("Insumo")
 
 
 class OrdenProduccion(Base):

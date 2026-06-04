@@ -13,6 +13,7 @@ const ForgotPassword = () => {
   const [code, setCode]         = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm]   = useState("");
+  const [resetToken, setResetToken] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [showConf, setShowConf] = useState(false);
   const [error, setError]       = useState("");
@@ -77,7 +78,8 @@ const ForgotPassword = () => {
     }
     setLoading(true);
     try {
-      await verificarCodigo(email, code);
+      const data = await verificarCodigo(email, code);
+      setResetToken(data.reset_token);
       setStep(3);
     } catch (err) {
       setError(err.message || "Código incorrecto o expirado.");
@@ -93,13 +95,13 @@ const ForgotPassword = () => {
       setError("Las contraseñas no coinciden.");
       return;
     }
-    if (password.length < 4) {
-      setError("La contraseña debe tener al menos 4 caracteres.");
+    if (password.length < 8) {
+      setError("La contraseña debe tener al menos 8 caracteres.");
       return;
     }
     setLoading(true);
     try {
-      await resetearContrasena(email, code, password);
+      await resetearContrasena(resetToken, password);
       setStep(4);
     } catch (err) {
       setError(err.message || "No se pudo actualizar la contraseña.");

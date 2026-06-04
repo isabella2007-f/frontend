@@ -2,29 +2,69 @@ import { useState, useEffect } from 'react';
 import ProfileView from './components/ProfileView.jsx';
 import ProfileForm from './components/ProfileForm.jsx';
 import { getCurrentUser, updateUser } from './services/profileService.js';
-import { getPedidos } from '../../../services/pedidosService.js';
-import { UserCircle, Leaf, ShieldCheck, Package } from 'lucide-react';
+import { getPedidos, getMiCredito, getMisVentas } from '../../../services/pedidosService.js';
+import { UserCircle, Leaf, ShieldCheck, Package, Gift } from 'lucide-react';
+import { apiFetch } from '../../../utils/api.js';
 import '../../../styles/Client.css';
 
+const COP = (n) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(n);
+
+/* Normaliza la respuesta de GET /auth/perfil (PascalCase) a los campos que usa ProfileView (camelCase) */
+function normalizarPerfil(data) {
+  return {
+    id:             data.id,
+    nombre:         data.Nombre         || '',
+    apellidos:      data.Apellidos      || '',
+    correo:         data.Correo         || '',
+    cedula:         data.Cedula         || '',
+    tipoDocumento:  data.Tipo_Documento || '',
+    telefono:       data.Telefono       || '',
+    direccion:      data.Direccion      || '',
+    municipio:      data.Municipio      || '',
+    departamento:   data.Departamento   || '',
+    fotoPerfil:     data.Foto_perfil    || '',
+    rol:            data.rol            || 'Cliente',
+    estado:         data.Estado !== 2,  // 2 = Inactivo
+  };
+}
+
 const ProfilePage = () => {
-  const [pedidos,   setPedidos]   = useState([]);
-  const [user,      setUser]      = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [toast,     setToast]     = useState(null);
+  const [pedidos,   setPedidos]      = useState([]);
+  const [user,      setUser]         = useState(null);   // datos del localStorage (básico)
+  const [perfil,    setPerfil]       = useState(null);   // datos completos del API
+  const [isEditing, setIsEditing]    = useState(false);
+  const [toast,     setToast]        = useState(null);
+  const [credito,   setCredito]      = useState(0);
+  const [loadingPerfil, setLoadingPerfil] = useState(true);
+
+  const cargarPerfil = () => {
+    setLoadingPerfil(true);
+    return apiFetch('/auth/perfil')
+      .then(data => {
+        const normalizado = normalizarPerfil(data);
+        setPerfil(normalizado);
+        return normalizado;
+      })
+      .catch(() => {})
+      .finally(() => setLoadingPerfil(false));
+  };
 
   useEffect(() => {
     const currentUser = getCurrentUser();
     setUser(currentUser);
-    getPedidos({ porPagina: 100 }).then(data => setPedidos(data.pedidos || [])).catch(() => {});
+    cargarPerfil();
+    getMisVentas({ porPagina: 100 })
+      .then(data => setPedidos(data.pedidos || []))
+      .catch(() => getPedidos({ porPagina: 100 }).then(data => setPedidos(data.pedidos || [])).catch(() => {}));
+    getMiCredito().then(d => setCredito(d?.saldo || 0)).catch(() => {});
   }, []);
 
-  const userPedidos  = user ? pedidos.filter(p => p.cliente?.correo === user.correo || p.idCliente === user.id) : [];
-  const totalPedidos = userPedidos.length;
+  const totalPedidos = pedidos.length;
 
   const handleSave = async (updatedData) => {
     try {
-      const updatedUser = await updateUser(updatedData);
-      setUser(updatedUser);
+      await updateUser(updatedData);
+      await cargarPerfil();        // recargar desde la API para mostrar datos frescos
       setIsEditing(false);
       showToast('¡Datos actualizados correctamente!', 'success');
     } catch {
@@ -37,7 +77,7 @@ const ProfilePage = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
-  if (!user) return (
+  if (loadingPerfil && !perfil) return (
     <div className="toston-page" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
       <div style={{ textAlign: 'center', color: 'var(--gray-500)', fontFamily: 'var(--font-body)' }}>
         <div style={{ fontSize: 36, marginBottom: 12 }}>⌛</div>
@@ -45,6 +85,8 @@ const ProfilePage = () => {
       </div>
     </div>
   );
+
+  const perfilMostrar = perfil || { nombre: user?.nombre || '', apellidos: user?.apellidos || '', rol: user?.rol || 'Cliente' };
 
   return (
     <div className="toston-page">
@@ -78,7 +120,7 @@ const ProfilePage = () => {
               <span className="page-hero__badge-icon">
                 <UserCircle size={18} color="white" />
               </span>
-              {user.nombre || 'Mi cuenta'}
+              {perfilMostrar.nombre || 'Mi cuenta'}
             </div>
             {!isEditing && (
               <button
@@ -110,13 +152,13 @@ const ProfilePage = () => {
 
             {isEditing ? (
               <ProfileForm
-                user={user}
+                user={perfilMostrar}
                 onSave={handleSave}
                 onCancel={() => setIsEditing(false)}
               />
             ) : (
               <ProfileView
-                user={user}
+                user={perfilMostrar}
                 totalPedidos={totalPedidos}
                 onEdit={() => setIsEditing(true)}
               />
@@ -153,16 +195,17 @@ const ProfilePage = () => {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {[
-                  { label: 'Miembro desde',    value: user.fechaRegistro || '2024' },
-                  { label: 'Pedidos realizados', value: totalPedidos || '—' },
-                  { label: 'Última sesión',     value: user.ultimaSesion || 'Hoy' },
+                  { label: 'Miembro desde',      value: '2024' },
+                  { label: 'Pedidos realizados',  value: totalPedidos || '—' },
+                  { label: 'Última sesión',       value: 'Hoy' },
+                  { label: '🎁 Crédito disponible', value: credito > 0 ? COP(credito) : 'Sin crédito', highlight: credito > 0 },
                 ].map(item => (
                   <div key={item.label} style={{
                     display: 'flex', justifyContent: 'space-between',
                     fontSize: 13, fontFamily: 'var(--font-body)',
                   }}>
                     <span style={{ color: 'var(--gray-500)' }}>{item.label}</span>
-                    <span style={{ fontWeight: 600, color: 'var(--gray-900)' }}>{item.value}</span>
+                    <span style={{ fontWeight: 700, color: item.highlight ? '#7b1fa2' : 'var(--gray-900)' }}>{item.value}</span>
                   </div>
                 ))}
               </div>
@@ -194,13 +237,13 @@ const ProfilePage = () => {
                 </div>
               </div>
 
-              {userPedidos.length === 0 ? (
+              {pedidos.length === 0 ? (
                 <p style={{ textAlign: 'center', color: 'var(--gray-500)', fontFamily: 'var(--font-body)' }}>
                   No tienes pedidos registrados aún.
                 </p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {userPedidos.map(pedido => (
+                  {pedidos.map(pedido => (
                     <div key={pedido.id} style={{
                       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                       padding: '12px 16px', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius-md)',

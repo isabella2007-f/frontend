@@ -8,7 +8,8 @@ from .schemas import ProductoCreate, ProductoUpdate, ProductoResponse, ProductoL
 from .service import (
     obtener_productos, obtener_producto, crear_producto,
     editar_producto, agregar_imagenes, eliminar_imagen, eliminar_producto,
-    gestionar_ficha, verificar_puede_eliminar_producto,
+    gestionar_ficha, eliminar_ficha, verificar_puede_eliminar_producto,
+    obtener_lotes_producto,
 )
 
 router = APIRouter(prefix="/productos", tags=["Gesti\u00f3n de Productos"])
@@ -96,6 +97,26 @@ def editar_ficha(
 ):
     """Actualiza la ficha técnica de un producto existente."""
     return gestionar_ficha(db, id_producto, datos)
+
+
+@router.delete("/{id_producto}/ficha")
+def borrar_ficha(
+    id_producto: int,
+    db:          Session = Depends(get_db),
+    _:           dict    = Depends(requiere_permiso("eliminar_productos"))
+):
+    """Elimina la ficha técnica y sus insumos de un producto."""
+    return eliminar_ficha(db, id_producto)
+
+
+@router.get("/{id_producto}/lotes")
+def lotes_producto(
+    id_producto: int,
+    db:          Session = Depends(get_db),
+    _:           dict    = Depends(requiere_permiso("ver_productos")),
+):
+    """Retorna todos los lotes de producción asociados a un producto."""
+    return obtener_lotes_producto(db, id_producto)
 
 
 @router.get("/{id_producto}/validar-eliminar")

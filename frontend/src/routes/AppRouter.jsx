@@ -14,6 +14,7 @@ import GestionSalidas from "../features/salidas/GestionSalidas.jsx";
 import CategoriaProductos from "../features/produccion/categoria_productos/Categoriaproductos";
 import Productos from "../features/produccion/Productos/Productos";
 import GestionOrdenesProduccion from "../features/produccion/orden_produccion/GestionOrdenesProduccion";
+import DashboardCocina from "../features/produccion/cocina/DashboardCocina";
 
 /* ─── VENTAS ADMIN ─── */
 import GestionClientes from "../features/ventas/clientes/GestionClientes";
@@ -21,6 +22,13 @@ import GestionPedidos from "../features/ventas/pedidos/GestionPedidos";
 import GestionDevoluciones from "../features/ventas/devoluciones/GestionDevoluciones";
 import GestionDomicilios from "../features/ventas/domicilios/Gestiondomicilios";
 import GestionDomiciliosRepartidor from "../features/ventas/domicilios/GestionDomiciliosRepartidor";
+import DashboardDomiciliario from "../features/ventas/domicilios/DashboardDomiciliario";
+import PedidoActual from "../features/ventas/domicilios/PedidoActual";
+import HistorialEntregas from "../features/ventas/domicilios/HistorialEntregas";
+import PerfilDomiciliario from "../features/ventas/domicilios/PerfilDomiciliario";
+import GananciasDomiciliario from "../features/ventas/domicilios/GananciasDomiciliario";
+import NotificacionesDomiciliario from "../features/ventas/domicilios/NotificacionesDomiciliario";
+import ChatConversacion from "../features/ventas/domicilios/ChatConversacion";
 
 /* ─── CLIENTE REAL ─── */
 import OrdersPage from "../features/sales/orders/OrdersPage";
@@ -45,12 +53,33 @@ import SinAcceso from "../pages/SinAcceso";
 import ProtectedRoute from "../components/ProtectedRoute";
 import PrivilegioRoute from "../components/PrivilegioRoute";
 import { initUsers } from "../services/userService";
+import { getUser } from "../services/authService";
 
 /* ─── INIT ─── */
 initUsers();
 
 /* ─── HELPER ─── */
 const PR = ({ clave, el }) => <PrivilegioRoute clave={clave}>{el}</PrivilegioRoute>;
+
+function CocinaRoute() {
+  const user = getUser();
+  if (user?.rol?.toLowerCase() !== "cocinero") {
+    return <Navigate to="/sin-acceso" replace />;
+  }
+  return <DashboardCocina />;
+}
+
+/* Redirige domiciliarios a su dashboard; el resto ve el Dashboard general */
+function DashboardIndex() {
+  const user = getUser();
+  if (user?.rol === "Domiciliario") {
+    return <Navigate to="/admin/mi-dashboard" replace />;
+  }
+  if (user?.rol?.toLowerCase() === "cocinero") {
+    return <Navigate to="/admin/cocina" replace />;
+  }
+  return <PR clave="Dashboard_ver" el={<Dashboard />} />;
+}
 
 const AppRouter = () => {
   return (
@@ -68,7 +97,7 @@ const AppRouter = () => {
         <Route element={<ProtectedRoute allowedRoles={["empleado"]} />}>
           <Route path="/admin" element={<MainLayout />}>
 
-            <Route index element={<PR clave="Dashboard_ver" el={<Dashboard />} />} />
+            <Route index element={<DashboardIndex />} />
 
             {/* Configuración */}
             <Route path="usuarios"   element={<PR clave="Usuarios_ver"      el={<GestionUsuarios />} />} />
@@ -80,13 +109,21 @@ const AppRouter = () => {
             <Route path="categorias_productos"  element={<PR clave="CategoriaProductos_ver" el={<CategoriaProductos />} />} />
             <Route path="products"              element={<PR clave="GestionProductos_ver"   el={<Productos />} />} />
             <Route path="ordenes-produccion"    element={<PR clave="OrdenesProduccion_ver"  el={<GestionOrdenesProduccion />} />} />
+            <Route path="cocina"               element={<CocinaRoute />} />
 
             {/* Ventas */}
             <Route path="clientes"    element={<PR clave="Pedidos_ver"      el={<GestionClientes />} />} />
             <Route path="pedidos"     element={<PR clave="Pedidos_ver"      el={<GestionPedidos />} />} />
             <Route path="devoluciones" element={<PR clave="Devoluciones_ver" el={<GestionDevoluciones />} />} />
-            <Route path="domicilios"     element={<PR clave="Domicilios_ver"          el={<GestionDomicilios />} />} />
-            <Route path="mis-entregas"   element={<PR clave="Domicilios_cambiar_estado" el={<GestionDomiciliosRepartidor />} />} />
+            <Route path="domicilios"           element={<PR clave="Domicilios_ver"            el={<GestionDomicilios />} />} />
+            <Route path="mis-entregas"         element={<PR clave="Domicilios_cambiar_estado" el={<GestionDomiciliosRepartidor />} />} />
+            <Route path="mi-dashboard"         element={<PR clave="Domicilios_cambiar_estado" el={<DashboardDomiciliario />} />} />
+            <Route path="pedido-actual"        element={<PR clave="Domicilios_cambiar_estado" el={<PedidoActual />} />} />
+            <Route path="historial-entregas"   element={<PR clave="Domicilios_cambiar_estado" el={<HistorialEntregas />} />} />
+            <Route path="mis-ganancias"        element={<PR clave="Domicilios_cambiar_estado" el={<GananciasDomiciliario />} />} />
+            <Route path="mis-notificaciones"   element={<PR clave="Domicilios_cambiar_estado" el={<NotificacionesDomiciliario />} />} />
+            <Route path="mi-perfil-repartidor" element={<PR clave="Domicilios_cambiar_estado" el={<PerfilDomiciliario />} />} />
+            <Route path="chat/:idDomicilio"    element={<PR clave="Domicilios_cambiar_estado" el={<ChatConversacion />} />} />
 
             {/* Compras */}
             <Route path="categorias_insumos" element={<PR clave="CategoriaInsumos_ver" el={<CategoriaInsumos />} />} />
@@ -104,13 +141,14 @@ const AppRouter = () => {
         <Route element={<ProtectedRoute allowedRoles={["usuario"]} />}>
           <Route path="/cliente" element={<MainLayout />}>
 
-            <Route index element={<LandingPage hideNavbar={true} />} />
+            <Route index                  element={<LandingPage hideNavbar={true} />} />
             <Route path="inicio"         element={<LandingPage hideNavbar={true} />} />
             <Route path="hacer-pedidos"  element={<OrdersPage />} />
             <Route path="pedidos"        element={<PedidosClientePage />} />
-            <Route path="domicilios"     element={<DeliveryPage />} />
-            <Route path="devoluciones"   element={<ReturnsPage />} />
-            <Route path="perfil"         element={<ProfilePage />} />
+            <Route path="domicilios"         element={<DeliveryPage />} />
+            <Route path="chat/:idDomicilio" element={<ChatConversacion />} />
+            <Route path="devoluciones"       element={<ReturnsPage />} />
+            <Route path="perfil"             element={<ProfilePage />} />
 
           </Route>
         </Route>

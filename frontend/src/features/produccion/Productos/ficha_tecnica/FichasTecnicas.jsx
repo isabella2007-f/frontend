@@ -122,7 +122,7 @@ export default function FichaTecnica() {
 
   const handleEdit = async (form) => {
     try {
-      await editarFicha(form.id, form);
+      await editarFicha(form.productoId, form);
       showToast("Cambios guardados");
       setModal(null);
       cargarDatos();
@@ -133,7 +133,7 @@ export default function FichaTecnica() {
 
   const handleDelete = async () => {
     try {
-      await eliminarFicha(modal.ficha.id);
+      await eliminarFicha(modal.ficha.productoId);
       showToast("Ficha eliminada", "error");
       setModal(null);
       cargarDatos();
@@ -145,7 +145,7 @@ export default function FichaTecnica() {
   const handleToggleEstado = async (f) => {
     setFichas(prev => prev.map(x => x.id === f.id ? { ...x, estado: !x.estado } : x));
     try {
-      await toggleEstadoFicha(f.id, f.estado);
+      await toggleEstadoFicha(f.productoId, f.estado);
     } catch (e) {
       setFichas(prev => prev.map(x => x.id === f.id ? { ...x, estado: f.estado } : x));
       showToast(e.message || "Error al cambiar estado", "error");

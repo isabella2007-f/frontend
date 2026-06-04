@@ -169,6 +169,18 @@
   background: linear-gradient(135deg, #f1f8f1 0%, #ffffff 100%);
   flex-shrink: 0;
 }
+
+/* Override del botón cerrar para el header claro de ficha técnica */
+.ficha-modal__header .modal-close-btn {
+  background: #f5f5f5;
+  border-color: #e0e0e0;
+  color: #616161;
+}
+.ficha-modal__header .modal-close-btn:hover {
+  background: #ffebee;
+  border-color: #ef9a9a;
+  color: #c62828;
+}
 .ficha-modal__header-left { display: flex; flex-direction: column; gap: 2px; }
 .ficha-modal__badge {
   font-size: 10px; font-weight: 700; letter-spacing: 2px;
@@ -181,11 +193,54 @@
 
 /* Sección superior: foto + campos */
 .ficha-modal__top {
-  display: grid;
-  grid-template-columns: 110px 1fr;
-  gap: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   padding: 14px 20px 0;
   flex-shrink: 0;
+}
+
+/* Banner informativo */
+.ficha-info-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #f1f8f1;
+  border: 1px solid #c8e6c9;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 12.5px;
+  color: #424242;
+  line-height: 1.5;
+}
+.ficha-info-banner__icon { flex-shrink: 0; font-size: 14px; margin-top: 1px; }
+
+/* Fila foto + campos */
+.ficha-top-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+.ficha-top-fields {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-content: start;
+}
+
+/* Fecha en modo vista */
+.ficha-date-display {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: #424242;
+  padding: 10px 13px;
+  background: #fafafa;
+  border: 1.5px solid #e0e0e0;
+  border-radius: 9px;
+  line-height: 1.5;
 }
 
 /* Upload de foto */
@@ -205,13 +260,6 @@
 .ficha-foto-upload__icon { font-size: 28px; opacity: 0.4; }
 .ficha-foto-upload__hint { font-size: 10px; color: #9e9e9e; font-weight: 600; text-align: center; }
 
-/* Grid de campos info */
-.ficha-modal__info-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  align-content: start;
-}
 
 /* ─── Tabs ───────────────────────────────────────────────── */
 .ficha-tabs {

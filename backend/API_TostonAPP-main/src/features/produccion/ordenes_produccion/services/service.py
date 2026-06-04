@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from decimal import Decimal
 
-from src.shared.services.models import OrdenProduccion, Producto, Insumo, FichaTecnica, Estado, Venta, LoteProducto
+from src.shared.services.models import OrdenProduccion, Producto, Insumo, FichaTecnica, FichaTecnicaInsumo, Estado, Venta, LoteProducto
 from src.shared.services.notificaciones_utils import notificar_stock_insumo, notificar_stock_producto
 from .schemas import OrdenCreate, OrdenUpdate
 
@@ -156,11 +156,11 @@ def crear_orden(db: Session, datos: OrdenCreate) -> dict:
     if not db.query(Producto).filter(Producto.ID_Producto == datos.ID_Producto).first():
         raise HTTPException(status_code=404, detail="Producto no encontrado")
 
-    # Verifica que el insumo existe
-    if not db.query(Insumo).filter(Insumo.ID_Insumo == datos.ID_Insumo).first():
+    # Verifica insumo solo si viene explícito
+    if datos.ID_Insumo and not db.query(Insumo).filter(Insumo.ID_Insumo == datos.ID_Insumo).first():
         raise HTTPException(status_code=404, detail="Insumo no encontrado")
 
-    costo = _calcular_costo(db, datos.ID_Insumo, datos.Cantidad)
+    costo = _calcular_costo(db, datos.ID_Insumo, datos.Cantidad) if datos.ID_Insumo else Decimal("0")
 
     nueva = OrdenProduccion(
         ID_Producto   = datos.ID_Producto,
@@ -198,31 +198,54 @@ def editar_orden(db: Session, id_orden: int, datos: OrdenUpdate) -> dict:
     return _formato_orden(orden, db)
 
 
-def cambiar_estado(db: Session, id_orden: int, nuevo_estado: int) -> dict:
+def cambiar_estado(db: Session, id_orden: int, datos) -> dict:
+    """datos puede ser int o un objeto con atributos: Estado, Numero_Lote, Fecha_Vencimiento"""
+    # compat: si pasaron solo un int
+    if isinstance(datos, int):
+        nuevo_estado = datos
+        lote_info = {}
+    else:
+        nuevo_estado = datos.Estado
+        lote_info = { 'Numero_Lote': getattr(datos, 'Numero_Lote', None), 'Fecha_Vencimiento': getattr(datos, 'Fecha_Vencimiento', None) }
     orden = db.query(OrdenProduccion).filter(
         OrdenProduccion.ID_Orden_Produccion == id_orden
     ).first()
     if not orden:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
 
-    # Al iniciar (13=En proceso): validar ficha, validar stock e insumo, descontar
+    # Al iniciar (13=En proceso): validar ficha, descontar todos los insumos de la receta
     if nuevo_estado == ESTADO_EN_PROCESO and orden.Estado == ESTADO_PENDIENTE:
         if not orden.ID_Ficha:
             raise HTTPException(
                 status_code=400,
                 detail="El producto debe tener una ficha técnica asignada antes de iniciar la producción"
             )
-        insumo = db.query(Insumo).filter(Insumo.ID_Insumo == orden.ID_Insumo).first()
-        if not insumo:
-            raise HTTPException(status_code=404, detail="Insumo no encontrado")
-        if (insumo.Stock_Actual or 0) < orden.Cantidad:
+        insumos_ficha = db.query(FichaTecnicaInsumo).filter(
+            FichaTecnicaInsumo.ID_Ficha == orden.ID_Ficha
+        ).all()
+        if not insumos_ficha:
             raise HTTPException(
                 status_code=400,
-                detail=f"Stock insuficiente del insumo '{insumo.Nombre}': disponible {insumo.Stock_Actual or 0}"
+                detail="La ficha técnica no tiene insumos registrados. Agrégalos antes de iniciar producción."
             )
-        insumo.Stock_Actual -= orden.Cantidad
-        _actualizar_estado_insumo(insumo)
-        notificar_stock_insumo(db, insumo)
+        # Validar que todos los insumos tienen stock suficiente
+        for fi in insumos_ficha:
+            insumo = db.query(Insumo).filter(Insumo.ID_Insumo == fi.ID_Insumo).first()
+            if not insumo:
+                raise HTTPException(status_code=404, detail=f"Insumo ID {fi.ID_Insumo} no encontrado")
+            necesario = float(fi.Cantidad or 0) * orden.Cantidad
+            if (insumo.Stock_Actual or 0) < necesario:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Stock insuficiente de '{insumo.Nombre}': necesario {necesario:.0f}, disponible {insumo.Stock_Actual or 0}"
+                )
+        # Descontar todos los insumos
+        for fi in insumos_ficha:
+            insumo = db.query(Insumo).filter(Insumo.ID_Insumo == fi.ID_Insumo).first()
+            necesario = float(fi.Cantidad or 0) * orden.Cantidad
+            insumo.Stock_Actual = max(0, (insumo.Stock_Actual or 0) - int(necesario))
+            _actualizar_estado_insumo(insumo)
+            notificar_stock_insumo(db, insumo)
 
     # Al completar (11=Completada): incrementar stock del producto y crear lote
     elif nuevo_estado == ESTADO_COMPLETADA and orden.Estado == ESTADO_EN_PROCESO:
@@ -244,14 +267,16 @@ def cambiar_estado(db: Session, id_orden: int, nuevo_estado: int) -> dict:
         dias_vida = (ficha.Dias_Vida_Util if ficha and ficha.Dias_Vida_Util else None)
         fecha_vencimiento = hoy + timedelta(days=dias_vida) if dias_vida else None
 
-        numero_lote = f"LP-{orden.ID_Orden_Produccion}-{hoy.strftime('%Y%m%d')}"
+        # Use provided lote info if available, otherwise auto-generate
+        numero_lote = lote_info.get('Numero_Lote') or f"LP-{orden.ID_Orden_Produccion}-{hoy.strftime('%Y%m%d')}"
+        fecha_venc = lote_info.get('Fecha_Vencimiento') or fecha_vencimiento
 
         db.add(LoteProducto(
             ID_Orden_Produccion = orden.ID_Orden_Produccion,
             ID_Producto         = orden.ID_Producto,
             Numero_Lote         = numero_lote,
             Fecha_Produccion    = hoy,
-            Fecha_Vencimiento   = fecha_vencimiento,
+            Fecha_Vencimiento   = fecha_venc,
             Cantidad            = orden.Cantidad,
             Estado              = 1,
         ))
@@ -268,13 +293,25 @@ def cambiar_estado(db: Session, id_orden: int, nuevo_estado: int) -> dict:
                 if all(o.Estado in {ESTADO_COMPLETADA, ESTADO_CANCELADA} for o in otras):
                     venta.Estado = 1  # Vuelve a Pendiente — listo para que el admin confirme
 
-    # Al cancelar (5): restaurar insumo si la orden estaba en proceso
+    # Al cancelar (5): restaurar insumos si la orden estaba en proceso
     elif nuevo_estado == ESTADO_CANCELADA and orden.Estado == ESTADO_EN_PROCESO:
-        insumo = db.query(Insumo).filter(Insumo.ID_Insumo == orden.ID_Insumo).first()
-        if insumo:
-            insumo.Stock_Actual = (insumo.Stock_Actual or 0) + orden.Cantidad
-            _actualizar_estado_insumo(insumo)
-            notificar_stock_insumo(db, insumo)
+        if orden.ID_Ficha:
+            insumos_ficha = db.query(FichaTecnicaInsumo).filter(
+                FichaTecnicaInsumo.ID_Ficha == orden.ID_Ficha
+            ).all()
+            for fi in insumos_ficha:
+                insumo = db.query(Insumo).filter(Insumo.ID_Insumo == fi.ID_Insumo).first()
+                if insumo:
+                    devolver = int(float(fi.Cantidad or 0) * orden.Cantidad)
+                    insumo.Stock_Actual = (insumo.Stock_Actual or 0) + devolver
+                    _actualizar_estado_insumo(insumo)
+                    notificar_stock_insumo(db, insumo)
+        elif orden.ID_Insumo:
+            insumo = db.query(Insumo).filter(Insumo.ID_Insumo == orden.ID_Insumo).first()
+            if insumo:
+                insumo.Stock_Actual = (insumo.Stock_Actual or 0) + orden.Cantidad
+                _actualizar_estado_insumo(insumo)
+                notificar_stock_insumo(db, insumo)
 
     orden.Estado = nuevo_estado
     db.commit()

@@ -1,4 +1,5 @@
 {
+  "model": "claude-sonnet-4-6",
   "permissions": {
     "allow": [
       "Bash(curl -s -X POST \"https://api-tostonapp.onrender.com/api/auth/recuperar-contrasena\" -H \"Content-Type: application/json\" -d \"{\\\\\"correo\\\\\":\\\\\"TostonApp@gmail.com\\\\\"}\")",

@@ -302,7 +302,11 @@ export default function GestionRoles() {
         <ModalEliminarValidado
           titulo="Eliminar rol"
           descripcion={`¿Está seguro de que desea eliminar el rol "${modal.rol.nombre}"?`}
-          validacion={{ ok: true }}
+          validacion={
+            (modal.rol.totalUsuarios ?? 0) > 0
+              ? { ok: false, razon: `No se puede eliminar: el rol tiene ${modal.rol.totalUsuarios} usuario(s) asignado(s). Reasigna o elimina esos usuarios primero.` }
+              : { ok: true }
+          }
           onClose={() => setModal(null)}
           onConfirm={handleDeleteConfirm}
         />

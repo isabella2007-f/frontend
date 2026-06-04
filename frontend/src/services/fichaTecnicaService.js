@@ -1,83 +1,83 @@
 import { apiFetch } from "../utils/api";
 
-const adaptFicha = (f) => ({
-  id:            f.ID_Ficha          || f.id,
-  producto:      f.Nombre_Producto   || f.nombre_producto   || f.producto    || "",
-  productoId:    String(f.ID_Producto|| f.id_producto       || ""),
-  categoria:     f.Categoria         || f.categoria         || "",
-  version:       f.Version           || f.version           || "v1.0",
-  estado:        f.Estado === 1      || f.estado === true,
-  fecha:         f.Fecha             || f.fecha             || "",
-  fotoPreview:   f.Foto              || f.foto              || null,
-  procedimiento: f.Procedimiento     || f.procedimiento     || "",
-  observaciones: f.Observaciones     || f.observaciones     || "",
-  insumos: (f.insumos || f.Insumos || []).map(i => ({
-    id:          i.ID_Insumo         || i.id                || Date.now() + Math.random(),
-    idInsumo:    i.ID_Insumo         || i.id,
-    idCategoria: String(i.ID_Categoria || i.id_categoria    || ""),
-    nombre:      i.Nombre            || i.nombre            || "",
-    cantidad:    String(i.Cantidad   || i.cantidad          || ""),
-    unidad:      i.Unidad            || i.unidad            || "",
-  })),
-});
-
-export const getFichas = async () => {
-  const data = await apiFetch("/fichas_tecnicas/?por_pagina=100");
-  return (data.fichas || data.items || []).map(adaptFicha);
+// Adapta un producto (con ficha_tecnica anidada) al shape que usa la UI
+const adaptFicha = (producto) => {
+  const f = producto.ficha_tecnica;
+  return {
+    id:            f.ID_Ficha,
+    producto:      producto.nombre,
+    productoId:    String(producto.ID_Producto),
+    categoria:     producto.nombre_categoria || "",
+    version:       f.Version || "v1.0",
+    estado:        f.Estado === 1,
+    fecha:         f.Fecha_Creacion ? String(f.Fecha_Creacion).split("T")[0] : "",
+    fotoPreview:   (producto.imagenes || [])[0]?.url || null,
+    procedimiento: f.Procedimiento || "",
+    observaciones: f.Observaciones || "",
+    insumos: (f.insumos || []).map(i => ({
+      id:              i.ID_Ficha_Insumo || (Date.now() + Math.random()),
+      idInsumo:        i.ID_Insumo,
+      idCategoria:     String(i.ID_Categoria || ""),
+      nombreCategoria: i.nombre_categoria || "",
+      nombre:          i.nombre_insumo || "",
+      cantidad:        String(i.Cantidad || ""),
+      unidad:          i.Unidad || "",
+    })),
+  };
 };
 
-export const getFicha = async (id) => {
-  const data = await apiFetch(`/fichas_tecnicas/${id}`);
-  return adaptFicha(data);
-};
-
-const buildBody = (payload) => ({
-  Nombre_Producto: payload.producto,
-  Fecha:           payload.fecha,
-  Procedimiento:   payload.procedimiento,
-  Observaciones:   payload.observaciones || "",
-  ...(payload.ID_Producto ? { ID_Producto: Number(payload.ID_Producto) } : {}),
-  insumos: (payload.insumos || [])
+const buildInsumos = (insumos) =>
+  (insumos || [])
     .filter(i => i.idInsumo && i.cantidad)
     .map(i => ({
       ID_Insumo: Number(i.idInsumo),
       Cantidad:  Number(i.cantidad),
-      Unidad:    i.unidad,
-    })),
-});
+      Unidad:    i.unidad || null,
+    }));
+
+export const getFichas = async () => {
+  const data = await apiFetch("/productos/?por_pagina=100");
+  return (data.productos || [])
+    .filter(p => p.ficha_tecnica != null)
+    .map(adaptFicha);
+};
 
 export const crearFicha = async (payload) => {
-  const idProducto = payload.ID_Producto;
-  if (!idProducto) throw new Error("ID_Producto requerido para crear ficha");
+  const idProducto = payload.productoId || payload.ID_Producto;
+  if (!idProducto) throw new Error("Selecciona un producto para la ficha");
   const data = await apiFetch(`/productos/${idProducto}/ficha`, {
     method: "POST",
     body: JSON.stringify({
       Version:       payload.version       || null,
       Observaciones: payload.observaciones || null,
       Procedimiento: payload.procedimiento || null,
+      insumos:       buildInsumos(payload.insumos),
     }),
   });
   return adaptFicha(data);
 };
 
-export const editarFicha = async (idProducto, payload) => {
-  return apiFetch(`/productos/${idProducto}/ficha`, {
+export const editarFicha = async (productoId, payload) => {
+  const data = await apiFetch(`/productos/${productoId}/ficha`, {
     method: "PUT",
     body: JSON.stringify({
       Version:       payload.version       || null,
       Observaciones: payload.observaciones || null,
       Procedimiento: payload.procedimiento || null,
+      insumos:       buildInsumos(payload.insumos),
     }),
   });
+  return adaptFicha(data);
 };
 
-export const eliminarFicha = async (id) => {
-  return apiFetch(`/fichas_tecnicas/${id}`, { method: "DELETE" });
+export const eliminarFicha = async (productoId) => {
+  return apiFetch(`/productos/${productoId}/ficha`, { method: "DELETE" });
 };
 
-export const toggleEstadoFicha = async (id, estadoActual) => {
-  return apiFetch(`/fichas_tecnicas/${id}/estado`, {
-    method: "PATCH",
-    body: JSON.stringify({ Estado: estadoActual ? 0 : 1 }),
+export const toggleEstadoFicha = async (productoId, estadoActual) => {
+  const data = await apiFetch(`/productos/${productoId}/ficha`, {
+    method: "PUT",
+    body: JSON.stringify({ Estado: estadoActual ? 2 : 1 }),
   });
+  return adaptFicha(data);
 };

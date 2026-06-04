@@ -73,9 +73,9 @@ export const verificarCodigo = async (correo, codigo) => {
   });
 };
 
-export const resetearContrasena = async (correo, codigo, nuevaContrasena) => {
+export const resetearContrasena = async (token, nuevaContrasena) => {
   return apiFetch("/auth/resetear-contrasena", {
     method: "POST",
-    body: JSON.stringify({ correo, codigo, nueva_contrasena: nuevaContrasena }),
+    body: JSON.stringify({ token, nueva_contrasena: nuevaContrasena }),
   });
 };

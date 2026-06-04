@@ -4,6 +4,15 @@ import { getUsuarios } from "../../../services/usuariosService.js";
 import { getProductos } from "../../../services/productosService.js";
 import "./Pedidos.css";
 
+/* ─── Datos de transferencia ─────────────────────────────── */
+const CUENTA_TRANSFERENCIA = {
+  banco:   "Nequi / Bancolombia",
+  titular: "TostonApp S.A.S",
+  tipo:    "Ahorros",
+  numero:  "300 000 0000",
+  qrUrl:   "", // Reemplaza con la URL real del QR
+};
+
 /* ─── Helpers ────────────────────────────────────────────── */
 const fmt = (n) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
@@ -586,7 +595,33 @@ export default function CrearPedido({ onClose, onSave }) {
               </div>
 
               {form.metodo_pago === "Transferencia 🏦" && (
-                <div className="comprobante-section fade-in" style={{ marginTop: 24, padding: "20px", background: "#f0f7ff", borderRadius: "14px", border: "1.5px dashed #1565c0" }}>
+                <div className="fade-in" style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 16 }}>
+
+                  {/* Datos de la cuenta */}
+                  <div className="cuenta-card">
+                    <div className="cuenta-card__rows">
+                      {[
+                        { label: "Banco / Billetera", value: CUENTA_TRANSFERENCIA.banco },
+                        { label: "Titular",           value: CUENTA_TRANSFERENCIA.titular },
+                        { label: "Tipo de cuenta",    value: CUENTA_TRANSFERENCIA.tipo },
+                        { label: "Número",            value: CUENTA_TRANSFERENCIA.numero },
+                      ].map(({ label, value }) => (
+                        <div key={label} className="cuenta-card__row">
+                          <span className="cuenta-card__label">{label}</span>
+                          <span className="cuenta-card__value">{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className={`cuenta-card__qr${CUENTA_TRANSFERENCIA.qrUrl ? "" : " cuenta-card__qr--empty"}`}>
+                      {CUENTA_TRANSFERENCIA.qrUrl
+                        ? <img src={CUENTA_TRANSFERENCIA.qrUrl} alt="QR de pago" />
+                        : <><span style={{ fontSize: 26 }}>📷</span><span style={{ fontSize: 9, fontWeight: 700, color: "#9e9e9e", textAlign: "center", lineHeight: 1.3, padding: "0 6px" }}>Agrega el QR en el código</span></>
+                      }
+                    </div>
+                  </div>
+
+                  {/* Comprobante */}
+                <div className="comprobante-section" style={{ padding: "20px", background: "#f0f7ff", borderRadius: "14px", border: "1.5px dashed #1565c0" }}>
                   <label className="field-label" style={{ color: "#1565c0" }}>Comprobante de transferencia <span className="required">*</span></label>
                   <div className="comprobante-upload" style={{ marginTop: 10 }}>
                     {form.comprobantePreview ? (
@@ -606,6 +641,7 @@ export default function CrearPedido({ onClose, onSave }) {
                     )}
                   </div>
                   {errors.comprobante && <span className="field-error">{errors.comprobante}</span>}
+                </div>
                 </div>
               )}
 

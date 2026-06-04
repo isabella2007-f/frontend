@@ -3,6 +3,7 @@ import {
   getUsuarios, eliminarUsuario, toggleEstadoUsuario,
 } from "../../../services/usuariosService.js";
 import { getRoles } from "../../../services/rolesService.js";
+import { getUser } from "../../../services/authService.js";
 import { Avatar, Toggle, RolBadge } from "./CrearUsuario.jsx";
 import CrearUsuario from "./CrearUsuario.jsx";
 import { ModalVerUsuario, ModalEliminarUsuario } from "./EditarUsuario.jsx";
@@ -110,6 +111,13 @@ export default function GestionUsuarios() {
 
   const handleSave = async () => {
     await cargarDatos();
+    // Si el admin editó al usuario de la sesión actual, refrescar el contexto de privilegios
+    if (modal?.user) {
+      const sesion = getUser();
+      if (sesion && String(sesion.id) === String(modal.user.cedula) && sesion.tipo === modal.user.tipo) {
+        window.dispatchEvent(new CustomEvent("session-changed"));
+      }
+    }
     showToast(modal?.user ? "Usuario actualizado" : "Usuario creado");
     setModal(null);
   };
@@ -120,10 +128,11 @@ export default function GestionUsuarios() {
       await eliminarUsuario(user.tipo, id);
       showToast("Usuario eliminado", "error");
       await cargarDatos();
+      setModal(null);
     } catch (e) {
-      showToast(e.message || "Error al eliminar", "error");
+      // Mostrar el error como modal bloqueante (no como toast) para que el usuario lo vea ANTES de intentar de nuevo
+      setModal({ type: "delete", user, razon: e.message || "No se puede eliminar este usuario." });
     }
-    setModal(null);
   };
 
   const handleToggleClick = async (user) => {
@@ -266,12 +275,17 @@ export default function GestionUsuarios() {
                     </td>
                     <td><RolBadge rol={user.rol} roles={roles} /></td>
                     <td>
-                      <ToggleConTooltip
-                        on={user.estado}
-                        onToggle={() => handleToggleClick(user)}
-                        disabled={false}
-                        razon={null}
-                      />
+                      {(() => {
+                        const esAdmin = user.tipo === "empleado" && user.idRol === 1;
+                        return (
+                          <ToggleConTooltip
+                            on={esAdmin ? true : user.estado}
+                            onToggle={() => handleToggleClick(user)}
+                            disabled={esAdmin}
+                            razon={esAdmin ? "El administrador siempre está activo" : null}
+                          />
+                        );
+                      })()}
                     </td>
                     <td>
                       <div className="actions-cell">
@@ -279,8 +293,15 @@ export default function GestionUsuarios() {
                           onClick={() => setModal({ type: "ver", user })}>👁</button>
                         <button className="act-btn act-btn--edit"
                           onClick={() => setModal({ type: "form", user })}>✎</button>
-                        <button className="act-btn act-btn--delete"
-                          onClick={() => setModal({ type: "delete", user, advertencias: [] })}>🗑️</button>
+                        {!(user.tipo === "empleado" && user.idRol === 1) && (
+                          <button className="act-btn act-btn--delete"
+                            onClick={() => {
+                              const advertencias = user.tipo === "empleado"
+                                ? ["Si tiene domicilios asignados, la eliminación será rechazada."]
+                                : ["Si tiene ventas o pedidos registrados, la eliminación será rechazada."];
+                              setModal({ type: "delete", user, advertencias, razon: null });
+                            }}>🗑️</button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -318,8 +339,8 @@ export default function GestionUsuarios() {
       {modal?.type === "delete" && (
         <ModalEliminarUsuario
           user={modal.user}
-          razon={null}
-          advertencias={[]}
+          razon={modal.razon ?? null}
+          advertencias={modal.advertencias ?? []}
           onClose={() => setModal(null)}
           onConfirm={handleDeleteConfirm}
         />

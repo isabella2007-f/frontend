@@ -1,8 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { X, CreditCard, Banknote, User, MapPin, ShoppingBag, CheckCircle2, Sparkles, ShieldCheck, UploadCloud, ChevronRight } from 'lucide-react';
+import { X, CreditCard, Banknote, User, MapPin, ShoppingBag, CheckCircle2, Sparkles, ShieldCheck, UploadCloud, ChevronRight, Gift } from 'lucide-react';
 import { CartItem } from '../services/cartService';
 import { getUser } from '../../../../services/authService';
+import { getMiCredito } from '../../../../services/pedidosService';
 import './CheckoutModal.css';
+
+// Datos de la cuenta bancaria — actualiza en GestionPedidos.jsx también
+const CUENTA = {
+  banco:   'Nequi / Bancolombia',
+  numero:  '316 453 7890',
+  tipo:    'Cuenta de ahorros',
+  titular: 'TostonApp S.A.S',
+};
+
+const COP = (n: number) =>
+  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(n);
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -11,62 +23,60 @@ interface CheckoutModalProps {
     address: string;
     municipio?: string;
     departamento?: string;
-    date: string;
+    date?: string;
     clientName: string;
     items: CartItem[];
     total: number;
-  } | null; // ✅ Se acepta null explícitamente
-  onConfirm: (paymentMethod: string, onBehalfOf: string, comprobante?: File | null) => void;
+    observaciones?: string;
+    tieneDomicilio?: boolean;
+  } | null;
+  onConfirm: (paymentMethod: string, onBehalfOf: string, comprobante?: File | null, usarCredito?: boolean) => void;
 }
 
 const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDetails, onConfirm }) => {
   const [paymentMethod, setPaymentMethod] = useState('digital');
-  const [onBehalfOf, setOnBehalfOf] = useState('');
-  const [comprobante, setComprobante] = useState<File | null>(null);
-  const [isConfirming, setIsConfirming] = useState(false);
+  const [onBehalfOf,    setOnBehalfOf]    = useState('');
+  const [comprobante,   setComprobante]   = useState<File | null>(null);
+  const [isConfirming,  setIsConfirming]  = useState(false);
+  const [credito,       setCredito]       = useState(0);
+  const [usarCredito,   setUsarCredito]   = useState(false);
 
   useEffect(() => {
-    if (isOpen && orderDetails) {
-      const user = getUser();
-      setOnBehalfOf(user?.nombre || orderDetails.clientName || '');
-    }
-  }, [isOpen, orderDetails]);
+    if (!isOpen || !orderDetails) return;
+    const user = getUser();
+    setOnBehalfOf(user?.nombre || orderDetails.clientName || '');
+    getMiCredito()
+      .then((data: any) => setCredito(data?.saldo || 0))
+      .catch(() => setCredito(0));
+  }, [isOpen]);
 
   if (!isOpen || !orderDetails) return null;
 
   const user = getUser();
-  
   const displayAddress = orderDetails.address
     ? `${orderDetails.address}${orderDetails.municipio ? ', ' + orderDetails.municipio : ''}${orderDetails.departamento ? ', ' + orderDetails.departamento : ''}`
-    : user?.direccion || 'No registrada';
+    : user?.direccion || 'Recogida en tienda';
 
-  const displayName =
-    user
-      ? `${user.nombre}${user.apellidos ? ' ' + user.apellidos : ''}`
-      : orderDetails.clientName || 'Cliente';
+  const creditoAplicar  = usarCredito ? Math.min(credito, orderDetails.total) : 0;
+  const totalFinal      = Math.max(0, orderDetails.total - creditoAplicar);
 
   const handleFinalConfirm = () => {
     setIsConfirming(true);
     setTimeout(() => {
-      onConfirm(paymentMethod, onBehalfOf, comprobante);
+      onConfirm(paymentMethod, onBehalfOf, comprobante, usarCredito);
       setIsConfirming(false);
     }, 800);
   };
 
   return (
     <div className="modal-overlay">
-      {/* Modal - Usando clases compartidas */}
       <div className="modal-box relative shadow-2xl overflow-hidden flex flex-col max-h-[95vh] border-none" style={{ maxWidth: '480px', borderRadius: '28px' }}>
 
-        {/* Header Compacto con Variables de Marca */}
+        {/* Header */}
         <div className="modal-header shrink-0" style={{ background: 'linear-gradient(135deg, var(--green-800) 0%, var(--green-700) 100%)', padding: '20px' }}>
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 p-1.5 hover:bg-white/20 rounded-full transition-all text-white/80 hover:text-white z-10"
-          >
+          <button onClick={onClose} className="absolute top-4 right-4 p-1.5 hover:bg-white/20 rounded-full transition-all text-white/80 hover:text-white z-10">
             <X size={16} />
           </button>
-
           <div className="relative flex items-center gap-3.5">
             <div className="bg-white/10 backdrop-blur-xl p-2.5 rounded-xl border border-white/20">
               <ShoppingBag size={20} className="text-white" />
@@ -82,23 +92,23 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
 
         <div className="modal-body p-4 space-y-4 overflow-y-auto custom-scrollbar flex-1 bg-gray-50/20">
 
-          {/* Grid de Información - Más compacto */}
+          {/* Info grid */}
           <div className="grid grid-cols-2 gap-2.5">
             <div className="bg-white p-2.5 rounded-xl border border-gray-100 shadow-sm">
               <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">Quién recibe</label>
               <div className="flex items-center gap-2">
-                <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-600" style={{ background: 'var(--green-50)', color: 'var(--green-700)' }}>
-                  <User size={12} strokeWidth={2.5} />
+                <div className="p-1.5 rounded-lg" style={{ background: 'var(--green-50)', color: 'var(--green-700)' }}>
+                  <User size={12} />
                 </div>
-                <p className="text-[11px] font-black text-gray-800 truncate">{displayName}</p>
+                <p className="text-[11px] font-black text-gray-800 truncate">{user?.nombre} {user?.apellidos}</p>
               </div>
             </div>
 
             <div className="bg-white p-2.5 rounded-xl border border-gray-100 shadow-sm">
               <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">A nombre de</label>
               <div className="flex items-center gap-2">
-                <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-600" style={{ background: 'var(--green-50)', color: 'var(--green-700)' }}>
-                  <Sparkles size={12} strokeWidth={2.5} />
+                <div className="p-1.5 rounded-lg" style={{ background: 'var(--green-50)', color: 'var(--green-700)' }}>
+                  <Sparkles size={12} />
                 </div>
                 <input
                   type="text"
@@ -110,24 +120,66 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
               </div>
             </div>
 
-            {/* Lugar de entrega - Ocupa todo el ancho */}
             <div className="col-span-2 bg-white p-2.5 rounded-xl border border-gray-100 shadow-sm">
-              <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">Lugar de entrega</label>
+              <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">
+                {orderDetails.tieneDomicilio ? 'Dirección de entrega' : 'Modalidad'}
+              </label>
               <div className="flex items-center gap-2">
-                <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-600 flex-shrink-0" style={{ background: 'var(--green-50)', color: 'var(--green-700)' }}>
-                  <MapPin size={12} strokeWidth={2.5} />
+                <div className="p-1.5 rounded-lg flex-shrink-0" style={{ background: 'var(--green-50)', color: 'var(--green-700)' }}>
+                  <MapPin size={12} />
                 </div>
-                <p className="text-[10px] font-bold text-gray-700 leading-snug">{displayAddress}</p>
+                <p className="text-[10px] font-bold text-gray-700 leading-snug">
+                  {orderDetails.tieneDomicilio ? displayAddress : '🏪 Recogida en tienda'}
+                </p>
               </div>
             </div>
+
+            {orderDetails.observaciones && (
+              <div className="col-span-2 bg-amber-50 p-2.5 rounded-xl border border-amber-100 shadow-sm">
+                <label className="text-[8px] font-black text-amber-600 uppercase tracking-widest mb-1 block px-1">Observaciones</label>
+                <p className="text-[10px] font-medium text-amber-800 italic">"{orderDetails.observaciones}"</p>
+              </div>
+            )}
           </div>
 
-          {/* Detalle del Pedido - Simplificado */}
+          {/* Crédito — siempre visible */}
+          {credito > 0 ? (
+            <div
+              onClick={() => setUsarCredito(!usarCredito)}
+              className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${usarCredito ? 'border-green-500 bg-green-50' : 'border-gray-100 bg-white hover:border-green-200'}`}
+            >
+              <div className="p-2 rounded-lg" style={{ background: usarCredito ? 'var(--green-600)' : 'var(--green-50)', color: usarCredito ? 'white' : 'var(--green-700)' }}>
+                <Gift size={14} />
+              </div>
+              <div className="flex-1">
+                <p className="text-[10px] font-black text-gray-700">Usar crédito disponible</p>
+                <p className="text-[9px] font-bold" style={{ color: 'var(--green-700)' }}>Tienes <strong>{COP(credito)}</strong> en créditos</p>
+              </div>
+              {usarCredito && (
+                <span className="text-[10px] font-black" style={{ color: 'var(--green-700)' }}>−{COP(creditoAplicar)}</span>
+              )}
+              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${usarCredito ? 'bg-green-600 border-green-600' : 'border-gray-300'}`}>
+                {usarCredito && <CheckCircle2 size={10} className="text-white" />}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 bg-gray-50/50">
+              <div className="p-2 rounded-lg bg-gray-100">
+                <Gift size={14} className="text-gray-400" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-gray-400">Sin crédito disponible</p>
+                <p className="text-[9px] font-bold text-gray-300">Los créditos se generan con devoluciones aprobadas</p>
+              </div>
+            </div>
+          )}
+
+          {/* Resumen productos */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="bg-gray-50/50 px-3 py-2 border-b border-gray-100 flex justify-between items-center">
               <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Resumen del pedido</span>
               <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md" style={{ background: 'var(--green-50)', color: 'var(--green-700)' }}>
-                {orderDetails.items.length} Items
+                {orderDetails.items.length} items
               </span>
             </div>
             <div className="max-h-36 overflow-y-auto custom-scrollbar px-3 py-1.5">
@@ -137,7 +189,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                     <tr key={item.id}>
                       <td className="py-1.5 text-[11px] font-bold text-gray-700">{item.nombre}</td>
                       <td className="py-1.5 text-[10px] font-black text-gray-400 text-center">x{item.cantidad}</td>
-                      <td className="py-1.5 text-[11px] font-black text-gray-900 text-right">${(item.precio * item.cantidad).toLocaleString('es-CO')}</td>
+                      <td className="py-1.5 text-[11px] font-black text-gray-900 text-right">{COP(item.precio * item.cantidad)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -145,42 +197,28 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
             </div>
           </div>
 
-          {/* Métodos de Pago - Botones más pequeños y modernos */}
+          {/* Método de pago */}
           <div className="space-y-2.5">
             <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest px-1">Método de pago</label>
             <div className="grid grid-cols-2 gap-2.5">
-              <button
-                onClick={() => setPaymentMethod('digital')}
-                className={`flex items-center gap-2.5 p-2.5 rounded-xl border-2 transition-all duration-300 ${
-                  paymentMethod === 'digital'
-                    ? 'border-green-600 bg-green-50 text-green-800 shadow-md'
-                    : 'border-white bg-white text-gray-400 hover:border-green-100 shadow-sm'
-                }`}
-                style={paymentMethod === 'digital' ? { borderColor: 'var(--green-600)', background: 'var(--green-50)', color: 'var(--green-800)' } : {}}
-              >
-                <div className={`p-1.5 rounded-lg ${paymentMethod === 'digital' ? 'text-white' : 'bg-gray-50'}`} style={paymentMethod === 'digital' ? { background: 'var(--green-600)' } : {}}>
-                  <CreditCard size={14} strokeWidth={2.5} />
-                </div>
-                <span className="text-[10px] font-black tracking-tight">Transferencia</span>
-              </button>
-
-              <button
-                onClick={() => setPaymentMethod('efectivo')}
-                className={`flex items-center gap-2.5 p-2.5 rounded-xl border-2 transition-all duration-300 ${
-                  paymentMethod === 'efectivo'
-                    ? 'border-green-600 bg-green-50 text-green-800 shadow-md'
-                    : 'border-white bg-white text-gray-400 hover:border-green-100 shadow-sm'
-                }`}
-                style={paymentMethod === 'efectivo' ? { borderColor: 'var(--green-600)', background: 'var(--green-50)', color: 'var(--green-800)' } : {}}
-              >
-                <div className={`p-1.5 rounded-lg ${paymentMethod === 'efectivo' ? 'text-white' : 'bg-gray-50'}`} style={paymentMethod === 'efectivo' ? { background: 'var(--green-600)' } : {}}>
-                  <Banknote size={14} strokeWidth={2.5} />
-                </div>
-                <span className="text-[10px] font-black tracking-tight">Efectivo</span>
-              </button>
+              {[
+                { id: 'digital',   icon: <CreditCard size={14} />, label: 'Transferencia' },
+                { id: 'efectivo',  icon: <Banknote size={14} />,   label: 'Efectivo' },
+              ].map(m => (
+                <button
+                  key={m.id}
+                  onClick={() => setPaymentMethod(m.id)}
+                  className={`flex items-center gap-2.5 p-2.5 rounded-xl border-2 transition-all duration-300 ${paymentMethod === m.id ? 'shadow-md' : 'border-white bg-white text-gray-400 hover:border-green-100 shadow-sm'}`}
+                  style={paymentMethod === m.id ? { borderColor: 'var(--green-600)', background: 'var(--green-50)', color: 'var(--green-800)' } : {}}
+                >
+                  <div className="p-1.5 rounded-lg" style={paymentMethod === m.id ? { background: 'var(--green-600)', color: 'white' } : { background: '#f9fafb' }}>
+                    {m.icon}
+                  </div>
+                  <span className="text-[10px] font-black tracking-tight">{m.label}</span>
+                </button>
+              ))}
             </div>
 
-            {/* Info bancaria + comprobante */}
             {paymentMethod === 'digital' && (
               <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
                 {/* Datos bancarios */}
@@ -190,18 +228,16 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                     <span className="text-[8px] font-black text-blue-600 uppercase tracking-widest">Datos para transferencia</span>
                   </div>
                   <div className="flex gap-3 p-3">
-                    {/* QR placeholder */}
                     <div className="flex-shrink-0 w-16 h-16 rounded-lg border-2 border-dashed border-blue-200 flex flex-col items-center justify-center bg-blue-50 text-blue-400">
                       <span style={{ fontSize: 28, lineHeight: 1 }}>📱</span>
                       <span className="text-[7px] font-black uppercase tracking-wide mt-0.5">QR Nequi</span>
                     </div>
-                    {/* Account rows */}
                     <div className="flex-1 space-y-1.5">
                       {[
-                        { label: 'Banco',    value: 'Nequi / Bancolombia' },
-                        { label: 'Número',   value: '316 453 7890' },
-                        { label: 'Tipo',     value: 'Cuenta de ahorros' },
-                        { label: 'Titular',  value: 'TostonApp S.A.S' },
+                        { label: 'Banco',   value: CUENTA.banco },
+                        { label: 'Número',  value: CUENTA.numero },
+                        { label: 'Tipo',    value: CUENTA.tipo },
+                        { label: 'Titular', value: CUENTA.titular },
                       ].map(({ label, value }) => (
                         <div key={label} className="flex items-baseline gap-1.5">
                           <span className="text-[8px] font-black text-gray-400 uppercase tracking-wider w-12 shrink-0">{label}</span>
@@ -212,14 +248,9 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                   </div>
                 </div>
 
-                {/* Zona de Comprobante */}
+                {/* Comprobante */}
                 <div className="relative group">
-                  <input
-                    type="file"
-                    accept="image/*,application/pdf"
-                    onChange={(e) => setComprobante(e.target.files?.[0] || null)}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                  />
+                  <input type="file" accept="image/*,application/pdf" onChange={(e) => setComprobante(e.target.files?.[0] || null)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
                   <div className="border-2 border-dashed border-emerald-200 bg-white group-hover:bg-emerald-50 transition-all rounded-xl p-3 text-center">
                     {comprobante ? (
                       <div className="flex items-center justify-center gap-2">
@@ -239,66 +270,48 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
           </div>
         </div>
 
-        {/* Footer Compacto */}
+        {/* Footer */}
         <div className="modal-footer p-5 bg-white border-t border-gray-100 flex-shrink-0">
-          <div className="flex items-end justify-between mb-4 w-full">
-            <div>
-              <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Total a pagar</p>
-              <div className="flex items-baseline gap-0.5">
-                <span className="font-black text-xs" style={{ color: 'var(--green-700)' }}>$</span>
-                <span className="text-2xl font-black text-gray-900 tracking-tighter leading-none">
-                  {orderDetails.total.toLocaleString('es-CO')}
-                </span>
-              </div>
+          <div className="w-full mb-4 space-y-1">
+            <div className="flex justify-between text-[10px] text-gray-500 font-bold">
+              <span>Subtotal</span><span>{COP(orderDetails.total)}</span>
             </div>
-            <div className="bg-amber-50 p-2 rounded-xl border border-amber-100 text-amber-500 pb-1">
-              <Sparkles size={16} />
+            {usarCredito && creditoAplicar > 0 && (
+              <div className="flex justify-between text-[10px] font-bold" style={{ color: 'var(--green-700)' }}>
+                <span>Crédito aplicado</span><span>−{COP(creditoAplicar)}</span>
+              </div>
+            )}
+            <div className="flex items-end justify-between pt-1 border-t border-gray-100">
+              <div>
+                <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Total a pagar</p>
+                <div className="flex items-baseline gap-0.5">
+                  <span className="font-black text-xs" style={{ color: 'var(--green-700)' }}>$</span>
+                  <span className="text-2xl font-black text-gray-900 tracking-tighter leading-none">{totalFinal.toLocaleString('es-CO')}</span>
+                </div>
+              </div>
+              <div className="bg-amber-50 p-2 rounded-xl border border-amber-100 text-amber-500"><Sparkles size={16} /></div>
             </div>
           </div>
 
           <button
             onClick={handleFinalConfirm}
             disabled={isConfirming}
-            className={`w-full group relative overflow-hidden flex items-center justify-center gap-3 py-3.5 rounded-xl font-black text-sm transition-all duration-300 shadow-lg active:scale-[0.98] ${
-              isConfirming 
-                ? 'bg-emerald-800 text-white' 
-                : 'btn-primary shadow-emerald-200/50 hover:shadow-xl hover:-translate-y-0.5'
-            }`}
+            className={`w-full group relative overflow-hidden flex items-center justify-center gap-3 py-3.5 rounded-xl font-black text-sm transition-all duration-300 shadow-lg active:scale-[0.98] ${isConfirming ? 'bg-emerald-800 text-white' : 'btn-primary shadow-emerald-200/50 hover:shadow-xl hover:-translate-y-0.5'}`}
             style={!isConfirming ? { background: 'linear-gradient(135deg, var(--green-800) 0%, var(--green-700) 100%)' } : {}}
           >
             {isConfirming ? (
-              <>
-                <div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-                Procesando...
-              </>
+              <><div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" /> Procesando...</>
             ) : (
-              <>
-                Confirmar Compra
-                <ChevronRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
-              </>
+              <>Confirmar Compra <ChevronRight size={14} /></>
             )}
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer"></div>
           </button>
         </div>
       </div>
 
       <style>{`
-        @keyframes shimmer {
-          100% { transform: translateX(100%); }
-        }
-        .animate-shimmer {
-          animation: shimmer 1.5s infinite;
-        }
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #e5e7eb;
-          border-radius: 10px;
-        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
       `}</style>
     </div>
   );

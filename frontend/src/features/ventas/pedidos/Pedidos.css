@@ -409,6 +409,64 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; color: #1a1a1a; }
 .totales-row--descuento { color: #c62828; }
 
 /* ═══════════════════════════════════════════════════════════
+   TABS — MODAL VER PEDIDO
+   ═══════════════════════════════════════════════════════════ */
+
+.ver-ped-tabs {
+  display: flex;
+  border-bottom: 1.5px solid #f0f0f0;
+  padding: 0 20px;
+  flex-shrink: 0;
+  gap: 0;
+}
+.ver-ped-tab {
+  padding: 12px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #9e9e9e;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-bottom: 2.5px solid transparent;
+  margin-bottom: -1.5px;
+  font-family: inherit;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+.ver-ped-tab:hover    { color: #424242; }
+.ver-ped-tab--active  { color: #2e7d32; border-bottom-color: #2e7d32; font-weight: 700; }
+
+/* Campos read-only dentro del modal ver */
+.ver-ped-field        { display: flex; flex-direction: column; gap: 4px; }
+.ver-ped-field__label { font-size: 10.5px; font-weight: 700; color: #9e9e9e; letter-spacing: 0.6px; text-transform: uppercase; }
+.ver-ped-field__value { font-size: 13.5px; font-weight: 600; color: #1a1a1a; line-height: 1.4; }
+
+/* Tarjeta de cuenta bancaria */
+.cuenta-card {
+  background: #f1f8f1;
+  border: 1.5px solid #a5d6a7;
+  border-radius: 12px;
+  padding: 18px 20px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 20px;
+  align-items: center;
+}
+.cuenta-card__rows    { display: flex; flex-direction: column; gap: 10px; }
+.cuenta-card__row     { display: flex; align-items: center; gap: 12px; }
+.cuenta-card__label   { font-size: 11px; font-weight: 700; color: #81c784; min-width: 120px; }
+.cuenta-card__value   { font-size: 14px; font-weight: 700; color: #1a1a1a; }
+.cuenta-card__qr      {
+  width: 110px; height: 110px; flex-shrink: 0;
+  border: 1.5px solid #c8e6c9; border-radius: 10px;
+  overflow: hidden; background: #fff;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 4px;
+}
+.cuenta-card__qr--empty { border: 2px dashed #a5d6a7; }
+.cuenta-card__qr img  { width: 100%; height: 100%; object-fit: contain; }
+
+/* ═══════════════════════════════════════════════════════════
    MODAL VER — DETALLE PEDIDO
    ═══════════════════════════════════════════════════════════ */
 

@@ -318,25 +318,21 @@ export default function EditarProducto({ product, categorias = [], onClose, onSa
               )}
             </div>
 
-            {/* Toggle activo */}
             <div className="form-group">
-              <label className="form-label">Activo</label>
-              <div className="estado-row">
-                <Toggle value={form.activo} onChange={(v) => set("activo", v)} />
-                <span className="estado-label" style={{ color: form.activo ? "#2e7d32" : "#9e9e9e" }}>
-                  {form.activo ? "Activo" : "Inactivo"}
-                </span>
-              </div>
-            </div>
-
-            {/* Toggle publicado */}
-            <div className="form-group">
-              <label className="form-label">Publicado en tienda</label>
-              <div className="estado-row">
-                <Toggle value={form.publicado} onChange={(v) => set("publicado", v)} />
-                <span className="estado-label" style={{ color: form.publicado ? "#1565c0" : "#9e9e9e" }}>
-                  {form.publicado ? "Visible en la tienda" : "Oculto en la tienda"}
-                </span>
+              <label className="form-label">Estado</label>
+              <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Toggle value={form.activo} onChange={(v) => set("activo", v)} />
+                  <span className="estado-label" style={{ color: form.activo ? "#2e7d32" : "#9e9e9e" }}>
+                    {form.activo ? "Activo" : "Inactivo"}
+                  </span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Toggle value={form.publicado} onChange={(v) => set("publicado", v)} />
+                  <span className="estado-label" style={{ color: form.publicado ? "#1565c0" : "#9e9e9e" }}>
+                    {form.publicado ? "Visible en la tienda" : "Oculto en la tienda"}
+                  </span>
+                </div>
               </div>
             </div>
 

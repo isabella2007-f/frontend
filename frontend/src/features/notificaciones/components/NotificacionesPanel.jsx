@@ -35,10 +35,9 @@ export default function NotificacionesPanel({ isOpen, onClose }) {
   const panelRef = useRef(null);
 
   // Obtener usuario para filtrar las opciones del select
-  const session = sessionStorage.getItem("session") || localStorage.getItem("session");
-  const user = session ? JSON.parse(session) : null;
+  const user = JSON.parse(localStorage.getItem("usuario") || "null");
   const rol = user?.rol?.toLowerCase();
-  const isAdmin = rol === 'admin' || rol === 'administrador';
+  const isAdmin = user?.tipo === "empleado" && (rol === "admin" || rol === "administrador");
 
   // Tipos relevantes segun rol
   const tiposRelevantes = Object.entries(TIPO_LABELS).filter(([tipo]) => {

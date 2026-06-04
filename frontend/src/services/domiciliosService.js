@@ -6,6 +6,7 @@ const ESTADO_DOM_MAP = {
   8:  "Entregado",
   9:  "En camino",
   10: "Asignado",
+  13: "En proceso",
 };
 
 const adaptDomicilio = (d) => {
@@ -14,29 +15,38 @@ const adaptDomicilio = (d) => {
     ? (ESTADO_DOM_MAP[estadoRaw] || "Pendiente")
     : (estadoRaw || "Pendiente");
   return {
-    id:                d.ID_Domicilio,
-    numero:            `DOM-${d.ID_Domicilio}`,
+    id:                 d.ID_Domicilio,
+    numero:             `DOM-${d.ID_Domicilio}`,
+    estadoId:           d.Estado || null,
     estado,
-    idEmpleado:        d.ID_Empleado        || null,
-    nombre_repartidor: d.nombre_repartidor  || "",
-    direccion_entrega: d.Direccion_entrega  || "",
-    obs_domicilio:     d.Observaciones      || "",
-    fecha_pedido:      d.Fecha_asignacion   || "",
-    fecha_entrega_real:d.Fecha_entrega      || null,
-    total:             d.total              || 0,
-    domicilio:         true,
+    idEmpleado:         d.ID_Empleado         || null,
+    nombre_repartidor:  d.nombre_repartidor   || "",
+    direccion_entrega:  d.Direccion_entrega   || "",
+    municipio_entrega:  d.Municipio_entrega   || "",
+    obs_domicilio:      d.Observaciones       || "",
+    fecha_pedido:       d.Fecha_asignacion    || "",
+    fecha_entrega_real: d.Fecha_entrega       || null,
+    total:              d.total               || 0,
+    metodo_pago:        d.metodo_pago         || "",
+    productos:          d.productos           || [],
+    domicilio:          true,
     cliente: {
-      nombre:   d.nombre_cliente  || "",
+      nombre:   d.nombre_cliente || "",
       correo:   "",
       telefono: "",
     },
   };
 };
 
-export const getDomicilios = async ({ pagina = 1, porPagina = 100, estado = "", idEmpleado = null } = {}) => {
+export const getDomicilios = async ({
+  pagina = 1, porPagina = 100, estado = "", idEmpleado = null,
+  fechaInicio = null, fechaFin = null,
+} = {}) => {
   const params = new URLSearchParams({ pagina, por_pagina: porPagina });
-  if (estado)     params.append("estado",      encodeURIComponent(estado));
-  if (idEmpleado) params.append("id_empleado", idEmpleado);
+  if (estado)      params.append("estado",       encodeURIComponent(estado));
+  if (idEmpleado)  params.append("id_empleado",  idEmpleado);
+  if (fechaInicio) params.append("fecha_inicio",  fechaInicio);
+  if (fechaFin)    params.append("fecha_fin",     fechaFin);
   const data = await apiFetch(`/domicilios/?${params}`);
   return {
     total:      data.total,
@@ -44,6 +54,15 @@ export const getDomicilios = async ({ pagina = 1, porPagina = 100, estado = "", 
     por_pagina: data.por_pagina,
     domicilios: (data.domicilios || []).map(adaptDomicilio),
   };
+};
+
+export const getDomicilio = async (id) => {
+  const data = await apiFetch(`/domicilios/${id}`);
+  return adaptDomicilio(data);
+};
+
+export const getResumenDia = async () => {
+  return apiFetch("/domicilios/resumen");
 };
 
 export const asignarRepartidor = async (id, idEmpleado) => {
@@ -66,5 +85,28 @@ export const actualizarDomicilio = async (id, data) => {
   return apiFetch(`/domicilios/${id}`, {
     method: "PUT",
     body: JSON.stringify(data),
+  });
+};
+
+// OTP — código determinístico (igual fórmula que el backend)
+export const computarOTP = (idDomicilio) =>
+  String((idDomicilio * 7331 + 4729) % 9000 + 1000);
+
+export const verificarOTP = async (id, codigo) => {
+  return apiFetch(`/domicilios/${id}/verificar-otp`, {
+    method: "POST",
+    body: JSON.stringify({ codigo }),
+  });
+};
+
+// Chat
+export const getMensajes = async (id) => {
+  return apiFetch(`/domicilios/${id}/mensajes`);
+};
+
+export const enviarMensaje = async (id, contenido) => {
+  return apiFetch(`/domicilios/${id}/mensajes`, {
+    method: "POST",
+    body: JSON.stringify({ Contenido: contenido }),
   });
 };

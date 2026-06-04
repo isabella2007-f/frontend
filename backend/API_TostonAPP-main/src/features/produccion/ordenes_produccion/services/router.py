@@ -63,8 +63,8 @@ def actualizar_estado(
     db:       Session = Depends(get_db),
     _:        dict    = Depends(requiere_permiso("editar_productos"))
 ):
-    """Cambia el estado de la orden."""
-    return cambiar_estado(db, id_orden, datos.Estado)
+    """Cambia el estado de la orden. Acepta opcionalmente datos de lote."""
+    return cambiar_estado(db, id_orden, datos)
 
 
 @router.delete("/{id_orden}")

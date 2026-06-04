@@ -52,6 +52,23 @@ def migrate_db():
             "ALTER TABLE Orden_Produccion MODIFY COLUMN ID_Ficha  INT NULL",
             "ALTER TABLE Ficha_Tecnica ADD COLUMN Dias_Vida_Util INT NULL",
             "ALTER TABLE Compras ADD COLUMN Fecha_Llegada DATETIME NULL",
+            """CREATE TABLE IF NOT EXISTS Ficha_Tecnica_Insumo (
+                ID_Ficha_Insumo INT AUTO_INCREMENT PRIMARY KEY,
+                ID_Ficha        INT NOT NULL,
+                ID_Insumo       INT NOT NULL,
+                Cantidad        DECIMAL(10,2),
+                Unidad          VARCHAR(50),
+                FOREIGN KEY (ID_Ficha)  REFERENCES Ficha_Tecnica(ID_Ficha),
+                FOREIGN KEY (ID_Insumo) REFERENCES Insumos(ID_Insumo)
+            )""",
+            "ALTER TABLE Productos ADD COLUMN Fecha_Creacion DATETIME NULL",
+            "ALTER TABLE Compras ADD COLUMN Notas TEXT NULL",
+            "ALTER TABLE Compras ADD COLUMN Costo_Transporte DECIMAL(30,2) NULL",
+            "ALTER TABLE Compras ADD COLUMN IVA_Porcentaje DECIMAL(5,2) NULL",
+            "ALTER TABLE Compras ADD COLUMN Descuento_Porcentaje DECIMAL(5,2) NULL",
+            "ALTER TABLE Compras ADD COLUMN Otros_Costos DECIMAL(30,2) NULL",
+            """INSERT IGNORE INTO Permisos (ID_Permiso, Permiso, Descripcion)
+               VALUES (60, 'ver_landing_page', 'Ver la landing page desde el panel')""",
             """CREATE TABLE IF NOT EXISTS Lote_Producto (
                 ID_Lote_Producto    INT AUTO_INCREMENT PRIMARY KEY,
                 ID_Orden_Produccion INT,

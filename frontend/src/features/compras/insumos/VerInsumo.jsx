@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { getLotesInsumo } from "../../../services/insumosService.js";
 import "./GestionInsumos.css";
 
 function calcEstado(actual, minimo) {
@@ -27,16 +28,97 @@ function StockBar({ actual, minimo }) {
   const color = est === "agotado" ? "#ef5350" : est === "bajo" ? "#ffa726" : "#43a047";
   return (
     <div className="stock-cell">
-      <div className="stock-bar-wrap">
-        <div className="stock-bar" style={{ width: pct + "%", background: color }} />
+      <div className="stock-bar-wrap" style={est === "agotado" ? { background: "#ffcdd2" } : undefined}>
+        <div className="stock-bar" style={{ width: est === "agotado" ? "100%" : pct + "%", background: color }} />
       </div>
-      <span className="stock-nums"><strong>{actual}</strong> / mín {minimo}</span>
+      <span className="stock-nums" style={est === "agotado" ? { color: "#c62828" } : undefined}>
+        <strong>{actual}</strong> / mín {minimo}
+      </span>
+    </div>
+  );
+}
+
+function LotesTab({ lotes, loading, tipo }) {
+  const hoy = new Date().toISOString().split("T")[0];
+  if (loading) return (
+    <div style={{ textAlign: "center", padding: "28px 0", color: "#9e9e9e", fontSize: 13 }}>Cargando lotes…</div>
+  );
+  if (!lotes.length) return (
+    <div style={{ textAlign: "center", padding: "28px 0", color: "#9e9e9e" }}>
+      <div style={{ fontSize: 28, marginBottom: 8 }}>📦</div>
+      <p style={{ margin: 0, fontSize: 13 }}>No hay lotes registrados.</p>
+    </div>
+  );
+
+  const activos  = lotes.filter(l => !l.vencido);
+  const vencidos = lotes.filter(l => l.vencido);
+  const mostrar  = tipo === "vencidos" ? vencidos : activos;
+
+  if (!mostrar.length) return (
+    <div style={{ textAlign: "center", padding: "28px 0", color: "#9e9e9e" }}>
+      <div style={{ fontSize: 28, marginBottom: 8 }}>{tipo === "vencidos" ? "✅" : "📦"}</div>
+      <p style={{ margin: 0, fontSize: 13 }}>
+        {tipo === "vencidos" ? "Sin lotes vencidos." : "Sin lotes activos."}
+      </p>
+    </div>
+  );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {mostrar.map(l => {
+        const fv = l.fecha_vencimiento;
+        const dias = l.dias_para_vencer;
+        const urgente = !l.vencido && dias !== null && dias <= 7;
+        const borderColor = l.vencido ? "#ef9a9a" : urgente ? "#ffcc80" : "#c8e6c9";
+        const bg = l.vencido ? "#fff8f8" : urgente ? "#fffdf0" : "#f9fdf9";
+        return (
+          <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 14px", borderRadius: 10, border: `1.5px solid ${borderColor}`, background: bg }}>
+            <span style={{ fontSize: 18 }}>📦</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: "#1a1a1a" }}>
+                Lote #{l.id}
+                {l.numero_lote && <span style={{ fontWeight: 400, fontSize: 11, color: "#9e9e9e", marginLeft: 8 }}>{l.numero_lote}</span>}
+              </div>
+              <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 2 }}>
+                {l.fecha_produccion && `Producción: ${l.fecha_produccion} · `}
+                {fv ? `Vence: ${fv}` : "Sin fecha de vencimiento"}
+              </div>
+            </div>
+            <div style={{ textAlign: "right", flexShrink: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 14, color: "#2e7d32" }}>
+                {l.cantidad ?? l.cantidad_inicial ?? "—"}
+              </div>
+              <div style={{ fontSize: 10, color: "#9e9e9e" }}>uds.</div>
+            </div>
+            {l.vencido && (
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#c62828", background: "#ffebee", border: "1px solid #ef9a9a", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" }}>Vencido</span>
+            )}
+            {urgente && (
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#e65100", background: "#fff3e0", border: "1px solid #ffcc80", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" }}>⚠️ {dias}d</span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 export default function VerInsumo({ ins, categorias, unidades, onClose }) {
-  const [tab, setTab] = useState("info");
+  const [tab,     setTab]     = useState("info");
+  const [lotes,   setLotes]   = useState([]);
+  const [lotesLoading, setLotesLoading] = useState(false);
+
+  useEffect(() => {
+    if (tab === "lotes" || tab === "vencidos") {
+      if (lotes.length === 0) {
+        setLotesLoading(true);
+        getLotesInsumo(ins.id)
+          .then(d => setLotes(d.lotes || []))
+          .catch(() => {})
+          .finally(() => setLotesLoading(false));
+      }
+    }
+  }, [tab]);
 
   const cat    = (categorias ?? []).find(c => c.id === ins.idCategoria) ?? { icon: "🧺", nombre: "—" };
   const unidad = (unidades   ?? []).find(u => u.id === ins.idUnidad)    ?? { simbolo: ins.simboloUnidad || "uds.", nombre: "Unidad" };
@@ -52,9 +134,9 @@ export default function VerInsumo({ ins, categorias, unidades, onClose }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
-        className="modal-box modal-box--lg"
+        className="modal-box"
         onClick={e => e.stopPropagation()}
-        style={{ display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 40px)" }}
+        style={{ maxWidth: 660, display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 40px)" }}
       >
         <div className="modal-header">
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -130,16 +212,7 @@ export default function VerInsumo({ ins, categorias, unidades, onClose }) {
           )}
 
           {(tab === "lotes" || tab === "vencidos") && (
-            <div style={{ textAlign: "center", padding: "32px 20px", color: "#9e9e9e" }}>
-              <span style={{ fontSize: 28, display: "block", marginBottom: 8 }}>
-                {tab === "lotes" ? "📦" : "⏰"}
-              </span>
-              <p style={{ margin: 0, fontSize: 13 }}>
-                {tab === "lotes"
-                  ? "La gestión de lotes estará disponible próximamente."
-                  : "El historial de vencidos estará disponible próximamente."}
-              </p>
-            </div>
+            <LotesTab lotes={lotes} loading={lotesLoading} tipo={tab} />
           )}
         </div>
 

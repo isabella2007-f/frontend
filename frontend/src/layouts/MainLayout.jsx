@@ -7,7 +7,6 @@ import "../App.css";
 const MainLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
-
   useEffect(() => {
     if (window.innerWidth <= 768) {
       setSidebarOpen(false);

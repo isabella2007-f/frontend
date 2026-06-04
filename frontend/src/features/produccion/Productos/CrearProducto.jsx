@@ -66,6 +66,7 @@ export default function CrearProducto({ categorias = [], onClose, onSave }) {
     stockMinimo:      "10",
     descripcion_corta: "",
     descripcion_larga: "",
+    activo:            true,
     publicado:         true,
     archivos:         [], // File objects reales para subir a la API
     imagenesPreview:  [], // base64 para mostrar en la UI
@@ -307,27 +308,50 @@ export default function CrearProducto({ categorias = [], onClose, onSave }) {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Publicado en tienda</label>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <button
-                      type="button"
-                      onClick={() => set("publicado", !form.publicado)}
-                      style={{
-                        width: 52, height: 28, borderRadius: 14, border: "none",
-                        background: form.publicado ? "#43a047" : "#bdbdbd",
-                        position: "relative", cursor: "pointer", transition: "background 0.2s",
-                      }}
-                    >
-                      <span style={{
-                        position: "absolute", top: 3,
-                        left: form.publicado ? 26 : 3,
-                        width: 22, height: 22, borderRadius: "50%",
-                        background: "#fff", transition: "left 0.2s",
-                      }} />
-                    </button>
-                    <span style={{ fontSize: 13, color: form.publicado ? "#2e7d32" : "#9e9e9e" }}>
-                      {form.publicado ? "Visible en la tienda" : "Oculto en la tienda"}
-                    </span>
+                  <label className="form-label">Estado</label>
+                  <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => set("activo", !form.activo)}
+                        style={{
+                          width: 52, height: 28, borderRadius: 14, border: "none",
+                          background: form.activo ? "#43a047" : "#bdbdbd",
+                          position: "relative", cursor: "pointer", transition: "background 0.2s",
+                        }}
+                      >
+                        <span style={{
+                          position: "absolute", top: 3,
+                          left: form.activo ? 26 : 3,
+                          width: 22, height: 22, borderRadius: "50%",
+                          background: "#fff", transition: "left 0.2s",
+                        }} />
+                      </button>
+                      <span style={{ fontSize: 13, color: form.activo ? "#2e7d32" : "#9e9e9e" }}>
+                        {form.activo ? "Activo" : "Inactivo"}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => set("publicado", !form.publicado)}
+                        style={{
+                          width: 52, height: 28, borderRadius: 14, border: "none",
+                          background: form.publicado ? "#43a047" : "#bdbdbd",
+                          position: "relative", cursor: "pointer", transition: "background 0.2s",
+                        }}
+                      >
+                        <span style={{
+                          position: "absolute", top: 3,
+                          left: form.publicado ? 26 : 3,
+                          width: 22, height: 22, borderRadius: "50%",
+                          background: "#fff", transition: "left 0.2s",
+                        }} />
+                      </button>
+                      <span style={{ fontSize: 13, color: form.publicado ? "#2e7d32" : "#9e9e9e" }}>
+                        {form.publicado ? "Visible en la tienda" : "Oculto en la tienda"}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </>

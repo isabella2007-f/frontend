@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { GB, getRolStyle, EMPTY_FORM, TIPO_DOC, validatePassword } from "./usuariosUtils.js";
 import { Ic } from "./usuariosIcons.jsx";
 import { crearEmpleado, crearCliente, editarUsuario } from "../../../services/usuariosService.js";
+import { getUser } from "../../../services/authService.js";
 import "./Usuarios.css";
 
 const ROL_ICONS_BASE = {
@@ -337,6 +338,11 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
     try {
       if (isEdit) {
         await editarUsuario(user.tipo, user.id, payload);
+        // Si el admin editó al usuario de la sesión actual, refrescar el contexto
+        const sesion = getUser();
+        if (sesion && String(sesion.id) === String(user.cedula) && sesion.tipo === user.tipo) {
+          window.dispatchEvent(new CustomEvent("session-changed"));
+        }
       } else if (esCliente) {
         await crearCliente(payload);
       } else {
@@ -453,38 +459,36 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
                   </p>
                 </div>
               )}
-              <div className="field-grid-2">
-                <Field required={!isEdit} label={isEdit ? "Nueva contraseña (opcional)" : "Contraseña"} error={errors.contrasena}>
-                  <div className="pass-input-wrap">
-                    <input
-                      type={showPass ? "text" : "password"}
-                      value={form.contrasena}
-                      onChange={e => set("contrasena", e.target.value)}
-                      placeholder={isEdit ? "Dejar vacío para no cambiar" : "Mínimo 8 caracteres"}
-                      autoComplete="new-password"
-                      className={`field-input${errors.contrasena ? " error" : ""}`}
-                    />
-                    <button type="button" className="pass-eye-btn" onClick={() => setShowPass(v => !v)}>
-                      {showPass ? "🙈" : "👁"}
-                    </button>
-                  </div>
-                </Field>
-                <Field required={!isEdit} label="Confirmar contraseña" error={errors.confirmar}>
-                  <div className="pass-input-wrap">
-                    <input
-                      type={showConfirm ? "text" : "password"}
-                      value={form.confirmar}
-                      onChange={e => set("confirmar", e.target.value)}
-                      placeholder={isEdit ? "Dejar vacío para no cambiar" : "Repite la contraseña"}
-                      autoComplete="new-password"
-                      className={`field-input${errors.confirmar ? " error" : ""}`}
-                    />
-                    <button type="button" className="pass-eye-btn" onClick={() => setShowConfirm(v => !v)}>
-                      {showConfirm ? "🙈" : "👁"}
-                    </button>
-                  </div>
-                </Field>
-              </div>
+              <Field required={!isEdit} label={isEdit ? "Nueva contraseña" : "Contraseña"} error={errors.contrasena}>
+                <div className="pass-input-wrap">
+                  <input
+                    type={showPass ? "text" : "password"}
+                    value={form.contrasena}
+                    onChange={e => set("contrasena", e.target.value)}
+                    placeholder={isEdit ? "Dejar vacío para no cambiar" : "Mínimo 8 caracteres"}
+                    autoComplete="new-password"
+                    className={`field-input${errors.contrasena ? " error" : ""}`}
+                  />
+                  <button type="button" className="pass-eye-btn" onClick={() => setShowPass(v => !v)}>
+                    {showPass ? "🙈" : "👁"}
+                  </button>
+                </div>
+              </Field>
+              <Field required={!isEdit} label="Confirmar contraseña" error={errors.confirmar}>
+                <div className="pass-input-wrap">
+                  <input
+                    type={showConfirm ? "text" : "password"}
+                    value={form.confirmar}
+                    onChange={e => set("confirmar", e.target.value)}
+                    placeholder={isEdit ? "Dejar vacío para no cambiar" : "Repite la contraseña"}
+                    autoComplete="new-password"
+                    className={`field-input${errors.confirmar ? " error" : ""}`}
+                  />
+                  <button type="button" className="pass-eye-btn" onClick={() => setShowConfirm(v => !v)}>
+                    {showConfirm ? "🙈" : "👁"}
+                  </button>
+                </div>
+              </Field>
 
               <div className="field-wrap">
                 <label className="field-label">Rol <span className="required">*</span></label>

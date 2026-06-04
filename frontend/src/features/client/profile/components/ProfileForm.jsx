@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { Mail, Phone, MapPin, Camera, Save, X } from 'lucide-react';
+import { Mail, Phone, MapPin, Camera, Save, X, CreditCard, Lock } from 'lucide-react';
+import { apiFetch } from '../../../../utils/api';
+
+const TIPO_DOC_OPTS = ['CC', 'CE', 'TI', 'NIT', 'PP'];
 
 const inputBase = {
   width: '100%', boxSizing: 'border-box',
@@ -12,12 +15,18 @@ const inputBase = {
   color: 'var(--gray-900)', outline: 'none',
   transition: 'all .2s',
 };
+const disabledStyle = {
+  ...inputBase,
+  background: '#f5f5f5',
+  color: '#9e9e9e',
+  cursor: 'default',
+  border: '1.5px solid #e0e0e0',
+};
 
 const focusOn  = e => { e.target.style.background = '#fff'; e.target.style.borderColor = 'var(--green-600)'; e.target.style.boxShadow = '0 0 0 4px rgba(42,157,71,.08)'; };
 const focusOff = e => { e.target.style.background = 'var(--gray-100)'; e.target.style.borderColor = 'transparent'; e.target.style.boxShadow = 'none'; };
 
-// ── Campo wrapper ────────────────────────────────────
-const Field = ({ label, icon: Icon, error, children }) => (
+const Field = ({ label, icon: Icon, error, children, locked }) => (
   <div style={{ marginBottom: 16 }}>
     <label style={{
       display: 'flex', alignItems: 'center', gap: 6,
@@ -26,6 +35,7 @@ const Field = ({ label, icon: Icon, error, children }) => (
       fontFamily: 'var(--font-body)', marginBottom: 6,
     }}>
       {Icon && <Icon size={11} />} {label}
+      {locked && <Lock size={9} style={{ marginLeft: 2, opacity: 0.5 }} />}
     </label>
     {children}
     {error && (
@@ -36,8 +46,7 @@ const Field = ({ label, icon: Icon, error, children }) => (
   </div>
 );
 
-// ── API Colombia — Departamento / Municipio ──────────
-const LocationSelects = ({ departamento, municipio, onDepto, onMunicipio, errDepto, errMunicipio }) => {
+const LocationSelects = ({ departamento, municipio, onDepto, onMunicipio }) => {
   const [deptos,     setDeptos]     = useState([]);
   const [municipios, setMunicipios] = useState([]);
   const [loadingD,   setLoadingD]   = useState(false);
@@ -68,7 +77,7 @@ const LocationSelects = ({ departamento, municipio, onDepto, onMunicipio, errDep
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-      <Field label="Departamento" icon={MapPin} error={errDepto}>
+      <Field label="Departamento" icon={MapPin}>
         <select
           value={departamento || ''} onChange={e => onDepto(e.target.value)}
           disabled={loadingD} style={{ ...selStyle, opacity: loadingD ? .6 : 1 }}
@@ -79,7 +88,7 @@ const LocationSelects = ({ departamento, municipio, onDepto, onMunicipio, errDep
         </select>
       </Field>
 
-      <Field label="Municipio" icon={MapPin} error={errMunicipio}>
+      <Field label="Municipio" icon={MapPin}>
         <select
           value={municipio || ''} onChange={e => onMunicipio(e.target.value)}
           disabled={!departamento || loadingM}
@@ -96,19 +105,52 @@ const LocationSelects = ({ departamento, municipio, onDepto, onMunicipio, errDep
   );
 };
 
-// ── ProfileForm principal ────────────────────────────
 const ProfileForm = ({ user, onSave, onCancel }) => {
   const fileRef = useRef(null);
-  const [errors, setErrors] = useState({});
+  const [errors,       setErrors]       = useState({});
+  const [loadingPerfil, setLoadingPerfil] = useState(true);
+  const [perfil,       setPerfil]       = useState(null); // datos reales del API
 
   const [form, setForm] = useState({
-    correo:       user.correo       || '',
-    telefono:     user.telefono     || '',
-    direccion:    user.direccion    || '',
-    municipio:    user.municipio    || '',
-    departamento: user.departamento || '',
-    fotoPerfil:   user.fotoPerfil   || '',
+    telefono:      '',
+    direccion:     '',
+    municipio:     '',
+    departamento:  '',
+    fotoPerfil:    '',
+    cedula:        '',
+    tipo_documento: '',
   });
+
+  // Cargar perfil completo desde la API al abrir el formulario
+  useEffect(() => {
+    setLoadingPerfil(true);
+    apiFetch('/auth/perfil')
+      .then(data => {
+        setPerfil(data);
+        setForm({
+          telefono:       data.Telefono      || '',
+          direccion:      data.Direccion     || '',
+          municipio:      data.Municipio     || '',
+          departamento:   data.Departamento  || '',
+          fotoPerfil:     data.Foto_perfil   || '',
+          cedula:         data.Cedula        || '',
+          tipo_documento: data.Tipo_Documento || '',
+        });
+      })
+      .catch(() => {
+        // Fallback a datos del prop si la API falla
+        setForm({
+          telefono:      user.telefono      || user.Telefono      || '',
+          direccion:     user.direccion     || user.Direccion     || '',
+          municipio:     user.municipio     || user.Municipio     || '',
+          departamento:  user.departamento  || user.Departamento  || '',
+          fotoPerfil:    user.fotoPerfil    || user.Foto_perfil   || '',
+          cedula:        user.cedula        || user.Cedula        || '',
+          tipo_documento: user.tipo_documento || user.Tipo_Documento || '',
+        });
+      })
+      .finally(() => setLoadingPerfil(false));
+  }, []);
 
   const set = (k) => (e) => {
     setForm(p => ({ ...p, [k]: e.target.value }));
@@ -128,29 +170,52 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
     reader.readAsDataURL(file);
   };
 
+  const cedulaYaEstablecida = !!(perfil?.Cedula);
+
   const validate = () => {
     const e = {};
-    const users = JSON.parse(localStorage.getItem('users')) || [];
-
-    if (!form.correo.trim())   e.correo   = 'El correo es obligatorio';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo)) e.correo = 'Formato de correo inválido';
-    else if (users.some(u => u.correo.toLowerCase() === form.correo.toLowerCase() && u.id !== user.id)) {
-      e.correo = 'Este correo ya está en uso por otra cuenta';
-    }
-
     if (!form.telefono.trim()) e.telefono = 'El teléfono es obligatorio';
     else if (form.telefono.replace(/\D/g, '').length < 7) e.telefono = 'Número de teléfono inválido';
 
-    if (!form.direccion.trim()) e.direccion = 'La dirección de entrega es obligatoria';
-    
+    // Cedula: si intenta establecerla por primera vez, debe poner tipo también
+    if (!cedulaYaEstablecida && form.cedula.trim() && !form.tipo_documento)
+      e.tipo_documento = 'Selecciona el tipo de documento';
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (validate()) onSave(form);
+    if (!validate()) return;
+
+    const payload = {
+      Telefono:    form.telefono    || null,
+      Direccion:   form.direccion   || null,
+      Municipio:   form.municipio   || null,
+      Departamento: form.departamento || null,
+    };
+
+    // Solo enviar cédula si no estaba establecida y el usuario la llenó
+    if (!cedulaYaEstablecida && form.cedula.trim()) {
+      payload.Cedula         = form.cedula.trim();
+      payload.Tipo_Documento = form.tipo_documento || null;
+    }
+
+    onSave(payload);
   };
+
+  const correoMostrar = perfil?.Correo || user?.Correo || user?.correo || '';
+  const nombreMostrar = perfil
+    ? `${perfil.Nombre || ''} ${perfil.Apellidos || ''}`.trim()
+    : `${user?.nombre || user?.Nombre || ''} ${user?.apellidos || user?.Apellidos || ''}`.trim();
+
+  if (loadingPerfil) return (
+    <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--gray-400)', fontFamily: 'var(--font-body)' }}>
+      <div style={{ fontSize: 28, marginBottom: 8 }}>⌛</div>
+      <p style={{ fontWeight: 600 }}>Cargando datos del perfil…</p>
+    </div>
+  );
 
   return (
     <form onSubmit={handleSubmit}>
@@ -177,8 +242,7 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
             position: 'absolute', bottom: 0, right: 0,
             width: 28, height: 28, borderRadius: '50%',
             background: 'var(--green-800)', border: '2px solid white',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
           }}>
             <Camera size={13} color="white" />
           </button>
@@ -186,25 +250,69 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
         </div>
       </div>
 
-      {/* Aviso readonly */}
-      <div style={{
-        background: 'var(--gray-100)', borderRadius: 'var(--radius-md)',
-        padding: '10px 14px', marginBottom: 16,
-        fontSize: 12, color: 'var(--gray-500)', fontFamily: 'var(--font-body)',
-      }}>
-        ℹ️ El nombre y número de documento no pueden modificarse.
-      </div>
-
-      <Field label="Correo electrónico" icon={Mail} error={errors.correo}>
-        <input type="email" value={form.correo} onChange={set('correo')}
-          style={inputBase} onFocus={focusOn} onBlur={focusOff} />
+      {/* Nombre — solo lectura */}
+      <Field label="Nombre completo" locked>
+        <input value={nombreMostrar} readOnly style={disabledStyle} />
       </Field>
 
+      {/* Correo — solo lectura, muestra el correo real */}
+      <Field label="Correo electrónico" icon={Mail} locked>
+        <input
+          type="email"
+          value={correoMostrar}
+          readOnly
+          style={disabledStyle}
+          title="El correo no puede modificarse desde aquí"
+        />
+      </Field>
+
+      {/* Número de documento — editable solo primera vez */}
+      <Field
+        label={cedulaYaEstablecida ? "Número de documento" : "Número de documento (primera vez)"}
+        icon={CreditCard}
+        locked={cedulaYaEstablecida}
+        error={errors.cedula}
+      >
+        {cedulaYaEstablecida ? (
+          <input value={form.cedula} readOnly style={disabledStyle} title="El número de documento no puede modificarse una vez establecido" />
+        ) : (
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, marginBottom: errors.tipo_documento ? 0 : 0 }}>
+              <select
+                value={form.tipo_documento}
+                onChange={set('tipo_documento')}
+                style={{ ...inputBase, cursor: 'pointer' }}
+                onFocus={focusOn} onBlur={focusOff}
+              >
+                <option value="">Tipo</option>
+                {TIPO_DOC_OPTS.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <input
+                type="text"
+                value={form.cedula}
+                onChange={set('cedula')}
+                placeholder="Ej: 1234567890"
+                style={inputBase}
+                onFocus={focusOn} onBlur={focusOff}
+              />
+            </div>
+            {errors.tipo_documento && (
+              <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--accent-red)' }}>{errors.tipo_documento}</p>
+            )}
+            <p style={{ margin: '6px 0 0', fontSize: 11, color: '#f57f17', fontWeight: 600 }}>
+              ⚠️ Solo puedes establecerlo una vez. Verifica bien antes de guardar.
+            </p>
+          </>
+        )}
+      </Field>
+
+      {/* Teléfono */}
       <Field label="Teléfono" icon={Phone} error={errors.telefono}>
         <input type="tel" value={form.telefono} onChange={set('telefono')}
           placeholder="300 123 4567" style={inputBase} onFocus={focusOn} onBlur={focusOff} />
       </Field>
 
+      {/* Dirección */}
       <Field label="Dirección" icon={MapPin} error={errors.direccion}>
         <input type="text" value={form.direccion} onChange={set('direccion')}
           placeholder="Calle 45 # 32-10" style={inputBase} onFocus={focusOn} onBlur={focusOff} />

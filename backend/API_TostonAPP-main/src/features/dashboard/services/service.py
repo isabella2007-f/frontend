@@ -39,18 +39,24 @@ def _rango_fechas(periodo: str) -> tuple[datetime, datetime, datetime, datetime]
     return inicio, fin, inicio_ant, fin_ant
 
 
+# Solo ventas confirmadas/entregadas/en camino/completadas cuentan como venta real
+ESTADOS_VENTA = (4, 8, 9, 11)
+
+
 def _total_ventas(db: Session, inicio: datetime, fin: datetime) -> Decimal:
     resultado = db.query(func.sum(Venta.Total)).filter(
         Venta.Fecha_Venta >= inicio,
         Venta.Fecha_Venta <= fin,
+        Venta.Estado.in_(ESTADOS_VENTA),
     ).scalar()
     return Decimal(str(resultado or 0))
 
 
 def _total_pedidos(db: Session, inicio: datetime, fin: datetime) -> int:
     return db.query(Venta).filter(
-        Venta.Fecha_pedido >= inicio,
-        Venta.Fecha_pedido <= fin,
+        Venta.Fecha_Venta >= inicio,
+        Venta.Fecha_Venta <= fin,
+        Venta.Estado.in_(ESTADOS_VENTA),
     ).count()
 
 
@@ -65,6 +71,7 @@ def _ticket_promedio(db: Session, inicio: datetime, fin: datetime) -> Decimal:
     resultado = db.query(func.avg(Venta.Total)).filter(
         Venta.Fecha_Venta >= inicio,
         Venta.Fecha_Venta <= fin,
+        Venta.Estado.in_(ESTADOS_VENTA),
     ).scalar()
     return Decimal(str(round(resultado or 0, 2)))
 
@@ -150,6 +157,7 @@ def _productos_top(db: Session, inicio: datetime, fin: datetime) -> list:
         .filter(
             Venta.Fecha_Venta >= inicio,
             Venta.Fecha_Venta <= fin,
+            Venta.Estado.in_(ESTADOS_VENTA),
         )
         .group_by(VentaXProducto.ID_Producto)
         .order_by(func.sum(VentaXProducto.Cantidad).desc())

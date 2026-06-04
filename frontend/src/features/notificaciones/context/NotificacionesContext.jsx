@@ -273,8 +273,11 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
       const currentUser = JSON.parse(localStorage.getItem("usuario") || "null") || user;
       const rol = currentUser?.rol?.toLowerCase();
       const isAdmin = rol === 'admin' || rol === 'administrador';
+      const isCook = ['cocina', 'cocinero', 'produccion', 'producción'].includes(rol);
       const isForCurrent = (isAdmin && n.idDestinatario === 'admin') || (n.idDestinatario === currentUser?.id);
-      return isForCurrent ? { ...n, leida: true } : n;
+      const isForCook = isCook && n.idDestinatario === 'produccion';
+      const isTargeted = isForCurrent || isForCook;
+      return isTargeted ? { ...n, leida: true } : n;
     }));
   }, [user]);
 
@@ -283,12 +286,14 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
       const currentUser = JSON.parse(localStorage.getItem("usuario") || "null") || user;
       const rol = currentUser?.rol?.toLowerCase();
       const isAdmin = rol === 'admin' || rol === 'administrador';
+      const isCook = ['cocina', 'cocinero', 'produccion', 'producción'].includes(rol);
       const isClient = rol === 'cliente';
 
       const isForAdmin = isAdmin && n.idDestinatario === 'admin';
+      const isForCook = isCook && n.idDestinatario === 'produccion';
       const isForClient = isClient && n.idDestinatario === currentUser?.id;
       
-      if (!isForAdmin && !isForClient) return false;
+      if (!isForAdmin && !isForCook && !isForClient) return false;
 
       if (tipo   && n.tipo  !== tipo)                                          return false;
       if (estado === "leida"   && !n.leida)                                   return false;
@@ -310,10 +315,12 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
   const notifUsuario = notificaciones.filter(n => {
     const rol = user?.rol?.toLowerCase();
     const isAdmin = rol === 'admin' || rol === 'administrador';
+    const isCook = ['cocina', 'cocinero', 'produccion', 'producción'].includes(rol);
     const isClient = rol === 'cliente';
     const isForAdmin = isAdmin && n.idDestinatario === 'admin';
+    const isForCook = isCook && n.idDestinatario === 'produccion';
     const isForClient = isClient && n.idDestinatario === user?.id;
-    return isForAdmin || isForClient;
+    return isForAdmin || isForCook || isForClient;
   });
 
   const noLeidas       = notifUsuario.filter(n => !n.leida).length;

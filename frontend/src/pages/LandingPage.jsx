@@ -160,19 +160,21 @@ const LandingPage = ({ hideNavbar = false }) => {
     const total = currentCart.reduce((s, i) => s + i.precio * i.cantidad, 0);
 
     const payload = {
-      ID_Cliente:        currentUser?.id || null,
+      ID_Usuario:        currentUser?.id || null,
+      Metodo_Pago:       paymentMethod === 'digital' ? 'Transferencia 🏦' : 'Efectivo 💵',
       productos:         currentCart.map(item => ({
         ID_Producto: Number(item.id),
         Cantidad:    Number(item.cantidad),
       })),
-      Metodo_Pago:       paymentMethod === 'digital' ? 'Transferencia 🏦' : 'Efectivo 💵',
-      Domicilio:         true,
-      Direccion_Entrega: orderDetails?.address || '',
-      Subtotal:          total,
-      Descuento:         0,
-      Total:             total,
-      Notas:             null,
-      Comprobante:       !!comprobante,
+      usar_credito:      false,
+      codigo_descuento:  null,
+      // domicilio opcional según si se proporcionó dirección
+      domicilio:         orderDetails?.address ? {
+        Direccion_entrega:  orderDetails.address || '',
+        Municipio_entrega:  orderDetails.departamento || '',
+        Departamento_entrega: orderDetails.departamento || '',
+        Observaciones:      null,
+      } : undefined,
     };
 
     let res;
@@ -204,7 +206,7 @@ const LandingPage = ({ hideNavbar = false }) => {
 
   const scrollToSection = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
-  const isAdmin = user?.rol === 'administrador';
+  const isAdmin = user?.tipo === 'empleado' && user?.rol === 'Admin';
 
   return (
     <div className="min-h-screen bg-[#f7faf8] text-[#1b5e20] font-sans overflow-x-hidden">

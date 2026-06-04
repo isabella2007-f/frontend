@@ -1,35 +1,62 @@
 import { useState, useRef, useEffect } from "react";
 import { getCategorias } from "../../../../services/categoriasInsumosService.js";
 import { getInsumos } from "../../../../services/insumosService.js";
+import { getProductos } from "../../../../services/productosService.js";
 import "./FichasTecnicas.css";
 
 const UNIDADES = ["kg","g","l","ml","unidad","taza","cucharada","cucharadita"];
+const UNITS_FAMILIES = [
+  ["mg","g","kg","t"],
+  ["ml","l"],
+  ["unidad","docena"],
+  ["taza","cucharada","cucharadita"],
+];
 
 export default function CrearFicha({ onClose, onSave, productoNombre = "" }) {
   const [categoriasInsumosActivas, setCategoriasInsumosActivas] = useState([]);
   const [insumosPorCategoriaId,    setInsumosPorCategoriaId]    = useState({});
+  const [productosDisponibles,     setProductosDisponibles]     = useState([]);
+  const [insumosError,             setInsumosError]             = useState(null);
 
   useEffect(() => {
-    Promise.all([getCategorias(), getInsumos()]).then(([catData, insData]) => {
-      const cats = (catData.categorias || catData.items || [])
-        .filter(c => c.Estado === 1 || c.estado === true)
-        .map(c => ({ id: c.ID_Categoria || c.id, nombre: c.Nombre_Categoria || c.Nombre || c.nombre, icon: c.Icono || c.icono || "📦" }));
-      setCategoriasInsumosActivas(cats);
-
-      const map = {};
-      (insData.insumos || insData.items || []).forEach(i => {
-        if (i.Estado !== 0 && i.estado !== false) {
-          const catId = String(i.ID_Categoria || i.id_categoria || "");
-          if (!map[catId]) map[catId] = [];
-          map[catId].push({ id: i.ID_Insumo || i.id, nombre: i.Nombre || i.nombre });
-        }
-      });
-      setInsumosPorCategoriaId(map);
-    }).catch(() => {});
+    getCategorias()
+      .then(catData => {
+        const cats = (catData.categorias || catData.items || [])
+          .filter(c => c.Estado === 1 || c.estado === true)
+          .map(c => ({ id: c.ID_Categoria || c.id, nombre: c.Nombre_Categoria || c.Nombre || c.nombre, icon: c.Icono || c.icono || "📦" }));
+        setCategoriasInsumosActivas(cats);
+      })
+      .catch(() => {});
+    getInsumos()
+      .then(insData => {
+        const map = {};
+        (insData.insumos || insData.items || []).forEach(i => {
+          if (i.Estado !== 0 && i.estado !== false) {
+            const catId = String(i.ID_Categoria || i.id_categoria || "");
+            if (!map[catId]) map[catId] = [];
+            map[catId].push({
+              id: i.ID_Insumo || i.id,
+              nombre: i.Nombre || i.nombre,
+              unidad: i.simbolo_unidad || i.Unidad || i.unidad || "",
+            });
+          }
+        });
+        setInsumosPorCategoriaId(map);
+      })
+      .catch(() => setInsumosError("No se pudieron cargar los insumos. Verifica que el rol tiene el permiso 'ver_insumos'."));
+    getProductos({ porPagina: 100 })
+      .then(prodData => {
+        setProductosDisponibles((prodData.productos || []).map(p => ({
+          id:     p.ID_Producto,
+          nombre: p.nombre,
+        })));
+      })
+      .catch(() => {});
   }, []);
 
   const [form, setForm] = useState({
-    producto: productoNombre,
+    producto:   productoNombre,
+    productoId: "",
     fecha: new Date().toISOString().slice(0, 10),
     fotoPreview: null,
     insumos: [{ id: 1, idCategoria: "", idInsumo: "", nombre: "", cantidad: "", unidad: "" }],
@@ -57,14 +84,31 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "" }) {
 
   const delInsumo = id => setForm(p => ({ ...p, insumos: p.insumos.filter(i => i.id !== id) }));
 
+  const getUnidadOptions = (insumoId, categoriaId) => {
+    const insumo = (insumosPorCategoriaId[String(categoriaId)] || []).find(i => String(i.id) === String(insumoId));
+    const base = insumo?.unidad ? String(insumo.unidad).toLowerCase() : null;
+    if (base) {
+      for (const fam of UNITS_FAMILIES) {
+        if (fam.includes(base)) return fam;
+      }
+      return [insumo.unidad];
+    }
+    return UNIDADES;
+  };
+
   const setInsumo = (id, k, v) => setForm(p => ({
     ...p,
     insumos: p.insumos.map(i => {
       if (i.id !== id) return i;
-      if (k === "idCategoria") return { ...i, idCategoria: v, idInsumo: "", nombre: "" };
+      if (k === "idCategoria") return { ...i, idCategoria: v, idInsumo: "", nombre: "", unidad: "" };
       if (k === "idInsumo") {
         const found = (insumosPorCategoriaId[i.idCategoria] || []).find(x => String(x.id) === String(v));
-        return { ...i, idInsumo: v ? Number(v) : "", nombre: found?.nombre || "" };
+        return {
+          ...i,
+          idInsumo: v ? Number(v) : "",
+          nombre: found?.nombre || "",
+          unidad: found?.unidad || "",
+        };
       }
       return { ...i, [k]: v };
     }),
@@ -72,7 +116,7 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "" }) {
 
   const validate = () => {
     const e = {};
-    if (!form.producto.trim()) e.producto = "El nombre del producto es obligatorio";
+    if (!form.productoId) e.producto = "Selecciona un producto";
     const insumosValidos = form.insumos.filter(i => i.idInsumo && i.cantidad && i.unidad);
     if (form.insumos.length === 0 || insumosValidos.length === 0) {
       e.insumos = "Debes agregar al menos un insumo completo";
@@ -128,12 +172,26 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "" }) {
           </div>
           <input ref={fotoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFoto} />
 
+          <div style={{ marginTop: 8, fontSize: 12, color: "#616161" }}>
+            ℹ️ Esta ficha técnica describe los insumos necesarios para producir <strong>1 unidad</strong> del producto.
+          </div>
           <div className="ficha-modal__info-grid">
             <div className="form-group">
-              <label className="form-label">Nombre del producto</label>
-              <input className={`field-input${errors.producto ? " field-input--error" : ""}`}
-                value={form.producto} onChange={e => set("producto", e.target.value)} placeholder="Ej. Tostones de plátano"
-                onFocus={e => e.target.style.borderColor = "#4caf50"} onBlur={e => e.target.style.borderColor = errors.producto ? "#e53935" : "#e0e0e0"} />
+              <label className="form-label">Producto</label>
+              <select
+                className={`field-input${errors.producto ? " field-input--error" : ""}`}
+                value={form.productoId}
+                onChange={e => {
+                  const id = e.target.value;
+                  const found = productosDisponibles.find(p => String(p.id) === String(id));
+                  set("productoId", id);
+                  set("producto", found?.nombre || "");
+                }}>
+                <option value="">— Selecciona un producto —</option>
+                {productosDisponibles.map(p => (
+                  <option key={p.id} value={p.id}>{p.nombre}</option>
+                ))}
+              </select>
               {errors.producto && <p className="field-error">{errors.producto}</p>}
             </div>
             <div className="form-group">
@@ -187,7 +245,7 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "" }) {
                         <td>
                           <select className="ficha-select" value={ins.unidad} onChange={e => setInsumo(ins.id, "unidad", e.target.value)}>
                             <option value="">—</option>
-                            {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
+                            {getUnidadOptions(ins.idInsumo, ins.idCategoria).map(u => <option key={u} value={u}>{u}</option>)}
                           </select>
                         </td>
                         <td><button className="ficha-del-btn" onClick={() => delInsumo(ins.id)}>✕</button></td>
@@ -196,6 +254,7 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "" }) {
                   </tbody>
                 </table>
               </div>
+              {insumosError && <p className="field-error" style={{ marginTop: 6 }}>{insumosError}</p>}
               {errors.insumos && <p className="field-error" style={{ marginTop: 6 }}>{errors.insumos}</p>}
               <button className="ficha-add-btn" onClick={addInsumo}>+ Agregar insumo</button>
             </div>

@@ -68,7 +68,7 @@ function LocationSelects({ departamento, ciudad, onDepto, onCiudad, errDepto, er
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
       <div className="form-group">
-        <label className="form-label">Departamento</label>
+        <label className="form-label">Departamento <span className="required">*</span></label>
         <div style={{ position: "relative" }}>
           <select
             className={`field-input${errDepto ? " error" : ""}`}
@@ -88,7 +88,7 @@ function LocationSelects({ departamento, ciudad, onDepto, onCiudad, errDepto, er
       </div>
 
       <div className="form-group">
-        <label className="form-label">Ciudad</label>
+        <label className="form-label">Ciudad <span className="required">*</span></label>
         <div style={{ position: "relative" }}>
           <select
             className={`field-input${errCiudad ? " error" : ""}`}
@@ -153,8 +153,11 @@ export default function CrearProveedor({ onClose, onSave }) {
       if (!form.responsable.trim()) e.responsable = "El nombre/razón social es obligatorio";
     }
     if (s === 2) {
-      if (form.correo.trim() && !/\S+@\S+\.\S+/.test(form.correo))
-        e.correo = "Formato de correo inválido";
+      if (!form.celular.trim())  e.celular  = "El celular es obligatorio";
+      if (!form.correo.trim())   e.correo   = "El correo es obligatorio";
+      else if (!/\S+@\S+\.\S+/.test(form.correo)) e.correo = "Formato de correo inválido";
+      if (!form.departamento)    e.departamento = "Selecciona un departamento";
+      if (!form.ciudad)          e.ciudad       = "Selecciona una ciudad";
     }
     return e;
   };
@@ -166,7 +169,7 @@ export default function CrearProveedor({ onClose, onSave }) {
   };
 
   const handleSave = async () => {
-    const e = validateStep(2);
+    const e = { ...validateStep(1), ...validateStep(2) };
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaving(true);
     try {
@@ -207,7 +210,7 @@ export default function CrearProveedor({ onClose, onSave }) {
               <p className="section-label" style={{ marginTop: 0 }}>Datos de identificación</p>
 
               <div className="form-group">
-                <label className="form-label">Tipo de persona</label>
+                <label className="form-label">Tipo de persona <span className="required">*</span></label>
                 <div style={{ position: "relative" }}>
                   <select
                     className="field-input"
@@ -245,6 +248,7 @@ export default function CrearProveedor({ onClose, onSave }) {
                   onChange={v => set("celular", fmtTel(v))}
                   error={errors.celular}
                   placeholder="300 000 0000"
+                  required
                 />
                 <FieldText
                   label="Correo electrónico"
@@ -253,6 +257,7 @@ export default function CrearProveedor({ onClose, onSave }) {
                   error={errors.correo}
                   type="email"
                   placeholder="correo@empresa.com"
+                  required
                 />
               </div>
 

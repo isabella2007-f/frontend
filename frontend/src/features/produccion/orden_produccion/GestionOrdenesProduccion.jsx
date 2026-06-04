@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   getOrdenes, crearOrden, editarOrden, eliminarOrden, cambiarEstadoOrden,
 } from "../../../services/ordenesProduccionService.js";
-import { getProductos } from "../../../services/productosService.js";
+import { getProducto, getProductos } from "../../../services/productosService.js";
 import { getInsumos }   from "../../../services/insumosService.js";
 import "./OrdenesProduccion.css";
 
@@ -72,7 +72,7 @@ function Toast({ toast }) {
   if (!toast) return null;
   return (
     <div style={{
-      position: "fixed", bottom: 28, right: 28, zIndex: 3000,
+      position: "fixed", bottom: 28, right: 28, zIndex: 99999,
       padding: "12px 20px", borderRadius: 12, color: "#fff",
       background: toast.type === "error" ? "#c62828" : toast.type === "warn" ? "#e65100" : "#2e7d32",
       fontWeight: 600, fontSize: 13,
@@ -100,6 +100,69 @@ function SkeletonRows() {
    ═══════════════════════════════════════════════════════════ */
 function ModalDetallesOrden({ orden, onClose }) {
   const navigate = useNavigate();
+  const [fichaInsumos, setFichaInsumos] = useState(null);
+  const [fichaLoading, setFichaLoading] = useState(false);
+  const [fichaError, setFichaError] = useState("");
+  const [insumosStockMap, setInsumosStockMap] = useState({});
+  const [multiplier, setMultiplier] = useState(Number(orden?.cantidad || 1));
+  const [showInsumos, setShowInsumos] = useState(false);
+
+  useEffect(() => {
+    setMultiplier(Number(orden?.cantidad || 1));
+    setShowInsumos(false);
+  }, [orden?.cantidad, orden?.idFicha]);
+
+  useEffect(() => {
+    let active = true;
+    if (!orden?.idFicha || !orden?.idProducto) {
+      setFichaInsumos(null);
+      setFichaError("");
+      setFichaLoading(false);
+      return () => { active = false; };
+    }
+
+    setFichaLoading(true);
+    setFichaError("");
+    setFichaInsumos(null);
+
+    getProducto(orden.idProducto)
+      .then(prod => {
+        if (!active) return;
+        const ficha = prod?.ficha_tecnica;
+        if (!ficha || !Array.isArray(ficha.insumos)) {
+          setFichaInsumos([]);
+          return;
+        }
+        const mapped = ficha.insumos.map(i => ({
+          id: i.ID_Ficha_Insumo || `${Date.now()}-${Math.random()}`,
+          idInsumo: i.ID_Insumo || null,
+          nombre: i.nombre_insumo || "",
+          cantidad: Number(i.Cantidad ?? 0),
+          unidad: i.Unidad || "",
+        }));
+        setFichaInsumos(mapped);
+
+        // Cargar stock de insumos y crear mapa por ID
+        getInsumos({ porPagina: 1000 })
+          .then(res => {
+            if (!active) return;
+            const map = {};
+            (res.insumos || []).forEach(ins => {
+              map[ins.ID_Insumo] = ins.Stock_Actual ?? ins.Stock ?? 0;
+            });
+            setInsumosStockMap(map);
+          })
+          .catch(() => { if (active) setInsumosStockMap({}); });
+      })
+      .catch(() => {
+        if (!active) return;
+        setFichaError("No se pudo cargar la ficha técnica.");
+      })
+      .finally(() => { if (active) setFichaLoading(false); });
+
+    return () => { active = false; };
+  }, [orden?.idFicha, orden?.idProducto]);
+
   if (!orden) return null;
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -144,48 +207,104 @@ function ModalDetallesOrden({ orden, onClose }) {
             </div>
           </div>
 
-          {/* Insumo */}
-          {orden.nombreInsumo && (() => {
-            const stockOk = orden.stockInsumo === null || orden.stockInsumo >= orden.cantidad;
-            const esPendiente = orden.estado === "Pendiente";
-            return (
-              <div>
-                <div className="field-input field-input--disabled" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 18 }}>🗂️</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: 1 }}>Insumo requerido</div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: "#424242" }}>{orden.nombreInsumo}</div>
+          {(orden.idFicha || orden.nombreInsumo) && (
+            <div style={{ display: "grid", gap: 10 }}>
+              <div className="field-input field-input--disabled" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 18 }}>{orden.idFicha ? "🗂️" : "📦"}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: 1 }}>
+                    {orden.idFicha ? "Insumos de ficha técnica" : "Insumo"}
                   </div>
-                  {orden.stockInsumo !== null && (
-                    <div style={{ textAlign: "right", flexShrink: 0 }}>
-                      <div style={{ fontSize: 10, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: 0.5 }}>Disponible</div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: stockOk ? "#2e7d32" : "#c62828" }}>
-                        {orden.stockInsumo}
-                      </div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#424242" }}>
+                    {orden.idFicha ? "Los insumos de esta orden se extraen de la ficha técnica asociada." : orden.nombreInsumo || "—"}
+                  </div>
+                </div>
+              </div>
+
+              {orden.idFicha ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowInsumos(v => !v)}
+                    style={{
+                      width: "100%", textAlign: "left", display: "flex", justifyContent: "space-between",
+                      alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12,
+                      border: "1px solid #e0e0e0", background: showInsumos ? "#e3f2fd" : "#fff",
+                      cursor: "pointer", fontSize: 13, fontWeight: 700,
+                    }}
+                  >
+                    <span>Ver insumos de la ficha técnica</span>
+                    <span style={{ fontSize: 12, color: "#1976d2" }}>{showInsumos ? "Ocultar" : "Mostrar"}</span>
+                  </button>
+                  {showInsumos && (
+                    <div style={{ overflowX: "auto", padding: "6px 0" }}>
+                      {fichaLoading ? (
+                        <p style={{ margin: 0, color: "#616161" }}>Cargando insumos de la ficha técnica…</p>
+                      ) : fichaError ? (
+                        <p style={{ margin: 0, color: "#c62828" }}>{fichaError}</p>
+                      ) : fichaInsumos?.length > 0 ? (
+                        <div>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, gap: 8, alignItems: "center" }}>
+                            <div style={{ fontSize: 12, color: "#616161" }}>Escala</div>
+                            <select value={multiplier} onChange={e => setMultiplier(Number(e.target.value))} style={{ padding: "6px 8px", borderRadius: 6 }}>
+                              {(() => {
+                                const opts = [];
+                                for (let i = 1; i <= 10; i++) opts.push(i);
+                                if (!opts.includes(Number(orden?.cantidad || 0))) opts.push(Number(orden?.cantidad || 1));
+                                return opts.sort((a,b)=>a-b).map(n => (
+                                  <option key={n} value={n}>×{n}</option>
+                                ));
+                              })()}
+                            </select>
+                          </div>
+                          <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 8 }}>
+                            <thead>
+                              <tr>
+                                <th style={{ textAlign: "left", padding: "10px", fontSize: 12, color: "#616161" }}>Insumo</th>
+                                <th style={{ textAlign: "right", padding: "10px", fontSize: 12, color: "#616161" }}>Necesario</th>
+                                <th style={{ textAlign: "right", padding: "10px", fontSize: 12, color: "#616161" }}>Stock</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {fichaInsumos.map((item, index) => {
+                                const requerido = Number(item.cantidad || 0) * Number(multiplier || 1);
+                                const stock = item.idInsumo ? (insumosStockMap[item.idInsumo] ?? null) : null;
+                                const agotado = stock !== null ? (stock < requerido) : null;
+                                return (
+                                  <tr key={item.id} style={{ background: index % 2 === 0 ? "#fafafa" : "#fff" }}>
+                                    <td style={{ padding: "10px", fontSize: 13, color: "#1a1a1a" }}>{item.nombre || "—"}</td>
+                                    <td style={{ padding: "10px", textAlign: "right", fontSize: 13, color: "#424242" }}>{requerido} {item.unidad || ""}</td>
+                                    <td style={{ padding: "10px", textAlign: "right", fontSize: 13 }}>
+                                      {stock === null || stock === undefined ? (
+                                        <span style={{ color: "#9e9e9e" }}>—</span>
+                                      ) : (
+                                        <span style={{ fontWeight: 700, color: agotado ? "#c62828" : "#2e7d32" }}>{stock}{" "}{item.unidad || ""}</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <p style={{ margin: 0, color: "#616161" }}>No hay insumos registrados en la ficha técnica.</p>
+                      )}
                     </div>
                   )}
                 </div>
-                {esPendiente && !stockOk && (
-                  <div style={{
-                    marginTop: 8, padding: "10px 14px", borderRadius: 10,
-                    background: "#ffebee", border: "1px solid #ef9a9a",
-                    display: "flex", alignItems: "flex-start", gap: 10,
-                  }}>
-                    <span style={{ fontSize: 18, flexShrink: 0 }}>⚠️</span>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: "#c62828", marginBottom: 2 }}>
-                        Stock insuficiente
-                      </div>
-                      <div style={{ fontSize: 12, color: "#7f0000", lineHeight: 1.4 }}>
-                        Se necesitan <strong>{orden.cantidad}</strong> unidades de <strong>{orden.nombreInsumo}</strong>, pero solo hay <strong>{orden.stockInsumo}</strong> disponibles.
-                        No se podrá iniciar la producción hasta que haya suficiente stock.
-                      </div>
+              ) : orden.nombreInsumo && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "10px 14px", background: "#fafafa", borderRadius: 12 }}>
+                  <div style={{ fontSize: 13, color: "#424242" }}>{orden.nombreInsumo}</div>
+                  {orden.stockInsumo !== null && (
+                    <div style={{ fontSize: 12, fontWeight: 700, color: orden.stockInsumo >= orden.cantidad ? "#2e7d32" : "#c62828" }}>
+                      Disponible: {orden.stockInsumo}
                     </div>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Fechas */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -235,7 +354,7 @@ function ModalDetallesOrden({ orden, onClose }) {
               <div style={{ fontSize: 12, color: "#1976d2" }}>Consulta los insumos, cantidades y procedimiento detallado del producto.</div>
             </div>
             <button
-              onClick={() => { onClose(); navigate("/products", { state: { searchTerm: orden.nombreProducto } }); }}
+              onClick={() => { onClose(); navigate("/admin/products", { state: { openFicha: orden.idProducto } }); }}
               style={{ background: "#1976d2", color: "#fff", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
               Ver ficha
             </button>
@@ -255,6 +374,8 @@ function ModalDetallesOrden({ orden, onClose }) {
 function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
   const [estadoSel,   setEstadoSel]   = useState(null);
   const [confirmStep, setConfirmStep] = useState(false);
+  const [numeroLote, setNumeroLote] = useState("");
+  const [fechaVencimiento, setFechaVencimiento] = useState("");
   if (!orden) return null;
 
   return (
@@ -333,9 +454,17 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
           {confirmStep
             ? <>
                 <button className="btn-ghost" onClick={() => setConfirmStep(false)}>← Volver</button>
-                <button className="btn-save" onClick={() => onConfirm(orden.id, estadoSel)} disabled={saving}>
-                  {saving ? "Guardando…" : "Confirmar cambio"}
-                </button>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  {estadoSel === "Completada" && (
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <input placeholder="Nº lote (opcional)" value={numeroLote} onChange={e=>setNumeroLote(e.target.value)} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #e0e0e0" }} />
+                      <input type="date" value={fechaVencimiento} onChange={e=>setFechaVencimiento(e.target.value)} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #e0e0e0" }} />
+                    </div>
+                  )}
+                  <button className="btn-save" onClick={() => onConfirm(orden.id, estadoSel, { Numero_Lote: numeroLote || undefined, Fecha_Vencimiento: fechaVencimiento || undefined })} disabled={saving}>
+                    {saving ? "Guardando…" : "Confirmar cambio"}
+                  </button>
+                </div>
               </>
             : <button className="btn-ghost" onClick={onClose}>Cancelar</button>
           }
@@ -346,15 +475,89 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   MODAL ERROR — CAMBIO DE ESTADO
+   ═══════════════════════════════════════════════════════════ */
+function ModalErrorEstado({ mensaje, orden, onClose }) {
+  const navigate = useNavigate();
+  if (!mensaje) return null;
+
+  const esFichaTecnica = /ficha t[eé]cnica/i.test(mensaje);
+
+  const irAFicha = () => {
+    onClose();
+    navigate("/admin/products", { state: { openFicha: orden?.idProducto } });
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
+        <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
+          <div style={{
+            width: 52, height: 52, borderRadius: 14,
+            background: "#ffebee", border: "1px solid #ef9a9a",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 24, margin: "0 auto 14px",
+          }}>⚠️</div>
+          <h3 style={{ margin: "0 0 10px", fontSize: 16, fontWeight: 700, color: "#1a1a1a" }}>
+            No se pudo cambiar el estado
+          </h3>
+          <p style={{ margin: "0 0 16px", fontSize: 13, color: "#616161", lineHeight: 1.5 }}>
+            {mensaje}
+          </p>
+          {esFichaTecnica && orden && (
+            <div style={{
+              background: "#e3f2fd", border: "1px solid #90caf9",
+              borderRadius: 10, padding: "12px 16px",
+              display: "flex", alignItems: "center", gap: 10,
+              textAlign: "left", marginBottom: 8,
+            }}>
+              <span style={{ fontSize: 20, flexShrink: 0 }}>📋</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#1565c0", marginBottom: 2 }}>
+                  Producto: {orden.nombreProducto}
+                </div>
+                <div style={{ fontSize: 11, color: "#1976d2" }}>
+                  Puedes crear o editar la ficha técnica desde Gestión de Productos.
+                </div>
+              </div>
+              <button
+                onClick={irAFicha}
+                style={{
+                  background: "#1976d2", color: "#fff", border: "none",
+                  borderRadius: 8, padding: "7px 14px",
+                  fontSize: 12, fontWeight: 700, cursor: "pointer",
+                  whiteSpace: "nowrap", flexShrink: 0,
+                }}
+              >
+                Ir a ficha técnica
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="modal-footer modal-footer--center">
+          <button className="btn-ghost" onClick={onClose}>Cerrar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
    MODAL ELIMINAR ORDEN
    ═══════════════════════════════════════════════════════════ */
 function ModalEliminarOrden({ orden, onClose, onConfirm }) {
-  const [done, setDone] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   if (!orden) return null;
 
-  const handleConfirm = () => {
-    setDone(true);
-    onConfirm(orden.id);
+  const handleConfirm = async () => {
+    if (String(confirmText).toUpperCase().trim() !== "ELIMINAR") return;
+    try {
+      setSubmitting(true);
+      await onConfirm(orden.id);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -371,24 +574,33 @@ function ModalEliminarOrden({ orden, onClose, onConfirm }) {
           <p style={{ margin: "0 0 4px", fontSize: 14, color: "#616161" }}>
             ¿Estás seguro de que deseas eliminar la orden <strong>#{orden.id}</strong>?
           </p>
-          <p style={{ margin: "0 0 16px", fontSize: 12, color: "#9e9e9e" }}>
+          <p style={{ margin: "0 0 8px", fontSize: 12, color: "#9e9e9e" }}>
             <strong>{orden.nombreProducto}</strong> × {orden.cantidad}
           </p>
-          <p style={{ margin: 0, fontSize: 12, color: "#9e9e9e" }}>Esta operación es definitiva y no podrá ser revertida.</p>
+          <p style={{ margin: "0 0 12px", fontSize: 12, color: "#9e9e9e" }}>Esta operación es definitiva y no podrá ser revertida.</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
+            <div style={{ fontSize: 12, color: "#616161" }}>Para confirmar escribe <strong>ELIMINAR</strong> en la casilla:</div>
+            <input
+              value={confirmText}
+              onChange={e => setConfirmText(e.target.value)}
+              placeholder="Escribe ELIMINAR para confirmar"
+              style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #e0e0e0", fontSize: 13 }}
+            />
+          </div>
         </div>
         <div className="modal-footer modal-footer--center">
           <button className="btn-ghost" onClick={onClose}>Cancelar</button>
           <button
             onClick={handleConfirm}
-            disabled={done}
+            disabled={submitting || String(confirmText).toUpperCase().trim() !== "ELIMINAR"}
             style={{
               padding: "9px 20px", borderRadius: 9, border: "none",
               background: "#c62828", color: "#fff",
-              fontWeight: 700, fontSize: 13, cursor: done ? "default" : "pointer",
-              fontFamily: "inherit", opacity: done ? 0.7 : 1,
+              fontWeight: 700, fontSize: 13, cursor: submitting ? "default" : "pointer",
+              fontFamily: "inherit", opacity: submitting ? 0.7 : 1,
             }}
           >
-            {done ? "Eliminando…" : "Sí, eliminar orden"}
+            {submitting ? "Eliminando…" : "Sí, eliminar orden"}
           </button>
         </div>
       </div>
@@ -402,13 +614,38 @@ function ModalEliminarOrden({ orden, onClose, onConfirm }) {
 function ModalFormOrden({ orden, productos, insumos, onClose, onSave }) {
   const [form, setForm] = useState({
     idProducto:   orden?.idProducto   ?? "",
-    idInsumo:     orden?.idInsumo     ?? "",
     cantidad:     orden?.cantidad     ?? 1,
     fechaInicio:  orden?.fechaInicio  ?? "",
     fechaEntrega: orden?.fechaEntrega ?? "",
   });
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [productLoading, setProductLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+
+  const loadProduct = async (productId) => {
+    if (!productId) {
+      setSelectedProduct(null);
+      return;
+    }
+    setProductLoading(true);
+    try {
+      const product = await getProducto(Number(productId));
+      setSelectedProduct(product);
+    } catch (err) {
+      setSelectedProduct(null);
+    } finally {
+      setProductLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (form.idProducto) {
+      loadProduct(form.idProducto);
+    } else {
+      setSelectedProduct(null);
+    }
+  }, [form.idProducto]);
 
   const set = (k, v) => {
     setForm(f => ({ ...f, [k]: v }));
@@ -431,7 +668,9 @@ function ModalFormOrden({ orden, productos, insumos, onClose, onSave }) {
       Cantidad:      Number(form.cantidad),
       Fecha_Entrega: form.fechaEntrega,
     };
-    if (form.idInsumo)    payload.ID_Insumo    = Number(form.idInsumo);
+    if (selectedProduct?.ficha_tecnica?.ID_Ficha) {
+      payload.ID_Ficha = selectedProduct.ficha_tecnica.ID_Ficha;
+    }
     if (form.fechaInicio) payload.Fecha_inicio = form.fechaInicio;
 
     try {
@@ -484,24 +723,19 @@ function ModalFormOrden({ orden, productos, insumos, onClose, onSave }) {
             {errors.idProducto && <span className="field-error">{errors.idProducto}</span>}
           </div>
 
-          {/* Insumo */}
+          {/* Ficha técnica */}
           <div className="form-group">
-            <label className="form-label">Insumo</label>
-            <div className="select-wrap">
-              <select
-                className="field-input"
-                style={{ appearance: "none", paddingRight: 32 }}
-                value={form.idInsumo}
-                onChange={e => set("idInsumo", e.target.value)}
-              >
-                <option value="">— Sin insumo —</option>
-                {insumos.map(i => <option key={i.id} value={i.id}>{i.nombre}</option>)}
-              </select>
-              <div className="select-arrow">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5">
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </div>
+            <label className="form-label">Ficha técnica</label>
+            <div className="field-input field-input--disabled" style={{ padding: "11px 14px", minHeight: 42, display: "flex", alignItems: "center", gap: 8 }}>
+              {productLoading ? (
+                <span style={{ color: "#616161" }}>Cargando ficha…</span>
+              ) : selectedProduct?.ficha_tecnica ? (
+                <span style={{ color: "#2e7d32", fontWeight: 700 }}>Sí — versión {selectedProduct.ficha_tecnica.Version || "1.0"}</span>
+              ) : form.idProducto ? (
+                <span style={{ color: "#c62828", fontWeight: 600 }}>No disponible</span>
+              ) : (
+                <span style={{ color: "#616161" }}>Selecciona un producto para ver la ficha</span>
+              )}
             </div>
           </div>
 
@@ -644,16 +878,18 @@ export default function GestionOrdenesProduccion() {
     setModal(null);
   };
 
-  const handleCambiarEstado = async (idOrden, nuevoEstado) => {
+  const handleCambiarEstado = async (idOrden, nuevoEstado, loteData = {}) => {
     const estadoNum = ESTADO_TO_NUM[nuevoEstado];
+    const ordenActual = ordenes.find(o => o.id === idOrden);
     setActionSaving(true);
     try {
-      await cambiarEstadoOrden(idOrden, estadoNum);
+      await cambiarEstadoOrden(idOrden, estadoNum, loteData);
       showToast(`Estado cambiado a "${nuevoEstado}"`);
       setModal(null);
       await cargarDatos();
     } catch (e) {
-      showToast(e.message || "Error al cambiar estado", "error");
+      const errorMsg = e.message || "Error al cambiar estado";
+      setModal({ type: "errorEstado", mensaje: errorMsg, orden: ordenActual });
     } finally {
       setActionSaving(false);
     }
@@ -819,6 +1055,13 @@ export default function GestionOrdenesProduccion() {
       )}
       {modal?.type === "eliminar" && (
         <ModalEliminarOrden orden={modal.orden} onClose={() => setModal(null)} onConfirm={handleEliminar} />
+      )}
+      {modal?.type === "errorEstado" && (
+        <ModalErrorEstado
+          mensaje={modal.mensaje}
+          orden={modal.orden}
+          onClose={() => setModal(null)}
+        />
       )}
 
       <Toast toast={toast} />

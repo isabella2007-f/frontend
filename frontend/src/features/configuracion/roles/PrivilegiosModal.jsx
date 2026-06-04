@@ -32,6 +32,13 @@ const TODAS_ACCIONES = {
 const STD = ["ver", "crear", "editar", "eliminar", "cambiar_estado"];
 
 const GRUPOS_MODULOS = [
+    {
+    grupo: "Sitio web",
+    icon: "🌐",
+    modulos: [
+      { key: "LandingPage",       label: "landingPage",       icon: "📊", acciones: ["ver"] },
+    ],
+  },
   {
     grupo: "Configuración",
     icon: "⚙️",
@@ -67,7 +74,6 @@ const GRUPOS_MODULOS = [
     icon: "💰",
     modulos: [
       { key: "Pedidos",       label: "Pedidos",        icon: "🛒", acciones: STD },
-      { key: "GestionVentas", label: "Gestión Ventas", icon: "💰", acciones: STD },
       { key: "Devoluciones",  label: "Devoluciones",   icon: "↩️", acciones: ["ver", "crear", "editar", "aprobar", "desaprobar"] },
       { key: "Domicilios",    label: "Domicilios",     icon: "🏍️", acciones: ["ver", "ver_detalles", "cambiar_estado"] },
     ],
@@ -76,6 +82,11 @@ const GRUPOS_MODULOS = [
 
 const MODULOS = GRUPOS_MODULOS.flatMap(g => g.modulos);
 const TOTAL_PRIVILEGIOS = MODULOS.reduce((acc, m) => acc + m.acciones.length, 0);
+
+export function buildAdminPrivilegios() {
+  const allClaves = MODULOS.flatMap(m => m.acciones.map(a => `${m.key}_${a}`));
+  return buildPrivilegios(allClaves);
+}
 
 export function buildPrivilegios(overrides = []) {
   const map = {};
@@ -222,8 +233,14 @@ export default function PrivilegiosModal({
   onChange,
   onClose,
 }) {
-  const normalizar = (raw) =>
-    raw.length > 0 && raw[0].modulo ? raw : buildPrivilegios(raw);
+  const normalizar = (raw) => {
+    if (esAdmin) {
+      // Admin tiene todos los permisos por bypass — mostrarlos todos activos
+      const allClaves = MODULOS.flatMap(m => m.acciones.map(a => `${m.key}_${a}`));
+      return buildPrivilegios(allClaves);
+    }
+    return raw.length > 0 && raw[0].modulo ? raw : buildPrivilegios(raw);
+  };
 
   const [local, setLocal]   = useState(() => normalizar(privilegios));
   const [grupo, setGrupo]   = useState(GRUPOS_MODULOS[0].grupo);

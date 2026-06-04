@@ -13,19 +13,20 @@ const fmtFecha = (iso) => {
 };
 
 const ESTADO_INFO = {
-  "Pendiente":  { color: "#f9a825", bg: "#fff8e1", border: "#ffe082", icon: "⏳" },
-  "Asignado":   { color: "#1565c0", bg: "#e3f2fd", border: "#90caf9", icon: "📦" },
-  "En camino":  { color: "#8e24aa", bg: "#f3e5f5", border: "#ce93d8", icon: "🛵" },
-  "Entregado":  { color: "#009688", bg: "#e0f2f1", border: "#80cbc4", icon: "✅" },
-  "Cancelado":  { color: "#c62828", bg: "#ffebee", border: "#ef9a9a", icon: "❌" },
+  "Pendiente":   { color: "#f9a825", bg: "#fff8e1", border: "#ffe082", icon: "⏳" },
+  "Asignado":    { color: "#1565c0", bg: "#e3f2fd", border: "#90caf9", icon: "📦" },
+  "En proceso":  { color: "#e65100", bg: "#fff3e0", border: "#ffcc80", icon: "🏠" },
+  "En camino":   { color: "#8e24aa", bg: "#f3e5f5", border: "#ce93d8", icon: "🛵" },
+  "Entregado":   { color: "#009688", bg: "#e0f2f1", border: "#80cbc4", icon: "✅" },
+  "Cancelado":   { color: "#c62828", bg: "#ffebee", border: "#ef9a9a", icon: "❌" },
 };
 
-// Estados que un repartidor puede asignar, según el estado actual
-// Valores usan IDs de la tabla Estados: 9=En camino, 8=Entregado, 5=Cancelado
+// Flujo: Asignado → En proceso (llegué al local) → En camino → Entregado
 const PROXIMOS_ESTADOS = {
-  "Pendiente":  [{ valor: 9, label: "En camino", icon: "🛵" }],
-  "Asignado":   [{ valor: 9, label: "En camino", icon: "🛵" }],
-  "En camino":  [{ valor: 8, label: "Entregado", icon: "✅" }, { valor: 5, label: "Cancelado", icon: "❌" }],
+  "Pendiente":  [{ valor: 13, label: "Llegué al local", icon: "🏠" }],
+  "Asignado":   [{ valor: 13, label: "Llegué al local", icon: "🏠" }],
+  "En proceso": [{ valor: 9,  label: "Iniciar entrega",  icon: "🛵" }],
+  "En camino":  [{ valor: 8,  label: "Entregado",        icon: "✅" }, { valor: 5, label: "Cancelado", icon: "❌" }],
 };
 
 function Toast({ toast }) {

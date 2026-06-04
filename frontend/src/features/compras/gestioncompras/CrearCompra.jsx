@@ -175,10 +175,10 @@ export default function CrearCompra({ onClose, onSave }) {
         idInsumo:         Number(d.idInsumo),
         cantidad:         Number(d.cantidad),
         precioUnd:        Number(d.precioUnd),
-        notas:            d.notas.trim(),
+        notas:            (d.notas || "").trim(),
         fechaVencimiento: d.vencimientoTipo === "dias"
           ? (() => { const f = new Date(); f.setDate(f.getDate() + Number(d.vencimientoValor)); return f.toISOString().split("T")[0]; })()
-          : d.fechaVencimiento,
+          : d.fechaVencimiento || null,
       }));
       onSave({
         ...form,
@@ -284,22 +284,6 @@ export default function CrearCompra({ onClose, onSave }) {
                 </div>
               </div>
 
-              <div className="field-wrap">
-                <label className="field-label">Estado inicial</label>
-                <div className="estado-toggle-wrap">
-                  {["pendiente", "completada"].map(est => (
-                    <button
-                      key={est}
-                      type="button"
-                      className={`estado-toggle-btn ${form.estado === est ? `estado-toggle-btn--${est}` : ""}`}
-                      onClick={() => set("estado", est)}
-                    >
-                      {est === "pendiente" ? "⏳" : "✅"} {est.charAt(0).toUpperCase() + est.slice(1)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               {form.metodoPago === "transferencia" && (
                 <div className="field-wrap comprobante-wrap">
                   <label className="field-label">Comprobante de transferencia</label>
@@ -382,176 +366,105 @@ export default function CrearCompra({ onClose, onSave }) {
           {/* ── PASO 2 ── */}
           {step === 2 && (
             <>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                 <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#616161" }}>Insumos comprados</p>
                 {errors.detalles && <span className="field-error">{errors.detalles}</span>}
               </div>
 
-              {detalles.map((d, i) => {
-                const insumoSel = insumosActivos.find(ins => ins.id === Number(d.idInsumo));
-                const cat       = null;
-                const unidad    = insumoSel ? { simbolo: insumoSel.unidad || "uds." } : null;
+              {detalles.map((d, i) => (
+                <div key={d._key} style={{ border: "1px solid #e8e8e8", borderRadius: 10, padding: "10px 12px", marginBottom: 8, background: "#fafafa" }}>
 
-                if (!d.isExpanded) {
-                  return (
-                    <div
-                      key={d._key}
-                      className="detalle-row detalle-row--collapsed"
-                      onClick={() => toggleExpand(d._key)}
-                    >
-                      <div className="detalle-summary">
-                        <div className="detalle-summary__info">
-                          <span className="detalle-num">{String(i + 1).padStart(2, "0")}</span>
-                          <span className="insumo-icon">{cat?.icon || "📦"}</span>
-                          <div>
-                            <span className="detalle-summary__name">{insumoSel?.nombre || "Nuevo insumo"}</span>
-                            <div className="detalle-summary__meta">
-                              {d.cantidad ? `${d.cantidad} ${unidad?.simbolo || ""}` : "Sin cantidad"} ·{" "}
-                              {d.precioUnd ? COP(d.precioUnd) : "—"}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="detalle-summary__price">
-                          {d.cantidad && d.precioUnd ? COP(Number(d.cantidad) * Number(d.precioUnd)) : "$0"}
-                        </div>
-                        <button
-                          className="detalle-remove-btn"
-                          type="button"
-                          onClick={e => { e.stopPropagation(); removeDetalle(d._key); }}
-                        >✕</button>
-                      </div>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div key={d._key} className="detalle-row">
-                    <span
-                      className="detalle-num"
-                      onClick={() => toggleExpand(d._key)}
-                      style={{ cursor: "pointer", marginTop: 4, flexShrink: 0 }}
-                    >
+                  {/* Línea 1: selector + botón eliminar */}
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#9e9e9e", flexShrink: 0, minWidth: 20 }}>
                       {String(i + 1).padStart(2, "0")}
                     </span>
+                    <div className="select-wrap" style={{ flex: 1 }}>
+                      <select
+                        className={`field-select ${errors[`ins_${i}`] ? "error" : ""}`}
+                        value={d.idInsumo}
+                        onChange={e => {
+                          const selectedId = e.target.value;
+                          setDetalles(ds => ds.map(det =>
+                            det._key === d._key ? { ...det, idInsumo: selectedId } : det
+                          ));
+                        }}
+                      >
+                        <option value="">— Seleccionar insumo —</option>
+                        {insumosActivos.map(ins => (
+                          <option key={ins.id} value={ins.id}
+                            disabled={idsSeleccionados.includes(String(ins.id)) && String(ins.id) !== String(d.idInsumo)}>
+                            {ins.nombre}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="select-arrow">▾</span>
+                    </div>
+                    <button className="detalle-remove-btn" type="button" onClick={() => removeDetalle(d._key)}>✕</button>
+                  </div>
+                  {errors[`ins_${i}`] && <span className="field-error" style={{ marginBottom: 6, display: "block" }}>{errors[`ins_${i}`]}</span>}
 
-                    <div className="detalle-fields" style={{ flex: 1, paddingRight: 32 }}>
+                  {/* Línea 2: cantidad | precio | vencimiento (toggle + valor) */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, paddingLeft: 28 }}>
 
-                      <div className="field-wrap" style={{ gridColumn: "1 / -1" }}>
-                        <div className="select-wrap">
-                          <select
-                            className={`field-select ${errors[`ins_${i}`] ? "error" : ""}`}
-                            value={d.idInsumo}
-                            onChange={e => {
-                              const selectedId = e.target.value;
-                              const ins = insumosActivos.find(x => x.id === Number(selectedId));
-                              // ── FIX 2: NO colapsar al seleccionar — mantener isExpanded: true ──
-                              setDetalles(ds => ds.map(det =>
-                                det._key === d._key
-                                  ? {
-                                      ...det,
-                                      idInsumo:         selectedId,
-                                      vencimientoTipo:  ins?.vencimientoTipo  || "dias",
-                                      vencimientoValor: ins?.vencimientoValor || (ins?.vencimientoTipo === "fecha" ? "" : "30"),
-                                      // isExpanded se deja como está (true) — no colapsar
-                                    }
-                                  : det
-                              ));
-                            }}
-                          >
-                            <option value="">— Seleccionar insumo —</option>
-                            {insumosActivos.map(ins => (
-                              <option
-                                key={ins.id}
-                                value={ins.id}
-                                disabled={
-                                  idsSeleccionados.includes(String(ins.id)) &&
-                                  String(ins.id) !== String(d.idInsumo)
-                                }
-                              >
-                                {ins.nombre}
-                              </option>
-                            ))}
-                          </select>
-                          <span className="select-arrow">▾</span>
-                        </div>
-                        {errors[`ins_${i}`] && <span className="field-error">{errors[`ins_${i}`]}</span>}
-                        {insumoSel && (
-                          <div className="insumo-sel-chips">
-                            <span className="chip chip--cat">{cat?.icon} {cat?.nombre}</span>
-                            <span className="chip chip--uni">📏 {unidad?.simbolo}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="field-wrap" style={{ gridColumn: "span 1" }}>
-                        <label className="field-label">Cantidad</label>
-                        <input
-                          type="number"
-                          className={`field-input ${errors[`cant_${i}`] ? "error" : ""}`}
-                          placeholder="0"
-                          value={d.cantidad}
-                          onChange={e => setDetalle(d._key, "cantidad", e.target.value)}
-                        />
-                        {errors[`cant_${i}`] && <span className="field-error">{errors[`cant_${i}`]}</span>}
-                      </div>
-
-                      <div className="field-wrap" style={{ gridColumn: "span 2" }}>
-                        <label className="field-label">Precio unitario</label>
-                        <input
-                          type="number"
-                          className={`field-input ${errors[`precio_${i}`] ? "error" : ""}`}
-                          placeholder="$ 0"
-                          value={d.precioUnd}
-                          onChange={e => setDetalle(d._key, "precioUnd", e.target.value)}
-                        />
-                        {errors[`precio_${i}`] && <span className="field-error">{errors[`precio_${i}`]}</span>}
-                      </div>
-
-                      <div className="field-wrap" style={{ gridColumn: "1 / -1" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                          <label className="field-label">Vencimiento</label>
-                          <div className="venc-toggle">
-                            {["dias", "fecha"].map(t => (
-                              <button
-                                key={t}
-                                type="button"
-                                className={`venc-toggle-btn ${d.vencimientoTipo === t ? "active" : ""}`}
-                                onClick={() => setDetalle(d._key, "vencimientoTipo", t)}
-                              >
-                                {t.charAt(0).toUpperCase() + t.slice(1)}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                        {d.vencimientoTipo === "dias" ? (
-                          <input
-                            type="number"
-                            className="field-input"
-                            value={d.vencimientoValor}
-                            onChange={e => setDetalle(d._key, "vencimientoValor", e.target.value)}
-                          />
-                        ) : (
-                          <input
-                            type="date"
-                            className="field-input"
-                            value={d.fechaVencimiento}
-                            onChange={e => setDetalle(d._key, "fechaVencimiento", e.target.value)}
-                          />
-                        )}
-                        {errors[`venc_${i}`] && <span className="field-error">{errors[`venc_${i}`]}</span>}
-                      </div>
+                    {/* Cantidad */}
+                    <div>
+                      <label className="field-label" style={{ fontSize: 10 }}>Cantidad</label>
+                      <input
+                        type="number"
+                        className={`field-input ${errors[`cant_${i}`] ? "error" : ""}`}
+                        placeholder="0"
+                        value={d.cantidad}
+                        onChange={e => setDetalle(d._key, "cantidad", e.target.value)}
+                      />
+                      {errors[`cant_${i}`] && <span className="field-error" style={{ fontSize: 10 }}>{errors[`cant_${i}`]}</span>}
                     </div>
 
-                    <button
-                      className="detalle-remove-btn"
-                      type="button"
-                      onClick={() => removeDetalle(d._key)}
-                    >✕</button>
-                  </div>
-                );
-              })}
+                    {/* Precio unitario */}
+                    <div>
+                      <label className="field-label" style={{ fontSize: 10 }}>Precio unitario</label>
+                      <input
+                        type="number"
+                        className={`field-input ${errors[`precio_${i}`] ? "error" : ""}`}
+                        placeholder="$ 0"
+                        value={d.precioUnd}
+                        onChange={e => setDetalle(d._key, "precioUnd", e.target.value)}
+                      />
+                      {errors[`precio_${i}`] && <span className="field-error" style={{ fontSize: 10 }}>{errors[`precio_${i}`]}</span>}
+                    </div>
 
-              <button className="btn-add-detalle" type="button" onClick={addDetalle}>
+                    {/* Vencimiento — toggle + input en una sola línea */}
+                    <div>
+                      <label className="field-label" style={{ fontSize: 10 }}>Vencimiento</label>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <button type="button"
+                          onClick={() => setDetalle(d._key, "vencimientoTipo", "dias")}
+                          style={{ flexShrink: 0, padding: "0 8px", height: 36, borderRadius: 7, border: `1.5px solid ${d.vencimientoTipo === "dias" ? "#4caf50" : "#e0e0e0"}`, background: d.vencimientoTipo === "dias" ? "#e8f5e9" : "#fff", color: d.vencimientoTipo === "dias" ? "#2e7d32" : "#9e9e9e", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                          Días
+                        </button>
+                        <button type="button"
+                          onClick={() => setDetalle(d._key, "vencimientoTipo", "fecha")}
+                          style={{ flexShrink: 0, padding: "0 8px", height: 36, borderRadius: 7, border: `1.5px solid ${d.vencimientoTipo === "fecha" ? "#4caf50" : "#e0e0e0"}`, background: d.vencimientoTipo === "fecha" ? "#e8f5e9" : "#fff", color: d.vencimientoTipo === "fecha" ? "#2e7d32" : "#9e9e9e", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                          Fecha
+                        </button>
+                        {d.vencimientoTipo === "dias" ? (
+                          <input type="number" className="field-input" style={{ flex: 1 }}
+                            placeholder="30" value={d.vencimientoValor}
+                            onChange={e => setDetalle(d._key, "vencimientoValor", e.target.value)} />
+                        ) : (
+                          <input type="date" className={`field-input ${errors[`venc_${i}`] ? "error" : ""}`} style={{ flex: 1 }}
+                            value={d.fechaVencimiento}
+                            onChange={e => setDetalle(d._key, "fechaVencimiento", e.target.value)} />
+                        )}
+                      </div>
+                      {errors[`venc_${i}`] && <span className="field-error" style={{ fontSize: 10 }}>{errors[`venc_${i}`]}</span>}
+                    </div>
+
+                  </div>
+                </div>
+              ))}
+
+              <button className="btn-add-detalle" type="button" onClick={addDetalle} style={{ marginTop: 4 }}>
                 + Agregar insumo
               </button>
             </>

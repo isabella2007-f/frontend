@@ -29,3 +29,7 @@ export async function toggleEstadoInsumo(id, estadoActual) {
     body: JSON.stringify({ Estado: estadoActual ? 2 : 1 }),
   });
 }
+
+export async function getLotesInsumo(id) {
+  return apiFetch(`/insumos/${id}/lotes`);
+}

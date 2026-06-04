@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, MapPin, Calendar, Trash2, Plus, Minus, ShoppingBag, LogIn, Sparkles, ChevronRight, ShoppingCart } from 'lucide-react';
+import { X, MapPin, Calendar, Trash2, Plus, Minus, ShoppingBag, LogIn, Sparkles, ChevronRight, ShoppingCart, FileText } from 'lucide-react';
 import { CartItem, removeFromCart, updateQuantity, clearCart, getCart } from '../services/cartService';
 import { isAuthenticated } from '../../../../services/authService';
+import { apiFetch } from '../../../../utils/api';
 import { DEPARTAMENTOS, getCiudades } from '../../../../utils/departamentosYCiudades';
+
+const COSTO_DOMICILIO = 5000;
 
 interface CartAsideProps {
   isOpen: boolean;
   onClose: () => void;
-  onCheckout: (details: { address: string; date: string; departamento: string; municipio: string }) => void;
+  onCheckout: (details: { address: string; date: string; departamento: string; municipio: string; observaciones: string; tieneDomicilio: boolean }) => void;
   onLoginRequired: () => void;
   cartUpdateToggle?: boolean;
 }
@@ -15,19 +18,23 @@ interface CartAsideProps {
 const COP = (n: number) =>
   new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(n);
 
+const hoyISO = () => new Date().toISOString().split('T')[0];
+
 const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLoginRequired }) => {
-  // ✅ Inicialización inmediata desde localStorage para evitar el bug de "vacío al abrir"
-  const [cart, setCart] = useState<CartItem[]>(() => getCart());
-  const [address, setAddress] = useState('');
+  const [cart, setCart]               = useState<CartItem[]>(() => getCart());
+  const [address, setAddress]         = useState('');
   const [departamento, setDepartamento] = useState('');
-  const [municipio, setMunicipio] = useState('');
-  const [date, setDate] = useState('');
+  const [municipio, setMunicipio]     = useState('');
+  const [date, setDate]               = useState('');
+  const [tieneDomicilio,    setTieneDomicilio]    = useState(false);
+  const [observaciones,     setObservaciones]     = useState('');
+  const [sinDireccionMsg,   setSinDireccionMsg]   = useState(false);
+  const [confirmVaciar,     setConfirmVaciar]     = useState(false);
   const [showDeliveryInfo, setShowDeliveryInfo] = useState(false);
-  const [total, setTotal] = useState(() => 
+  const [total, setTotal]             = useState(() =>
     getCart().reduce((acc, i) => acc + i.precio * i.cantidad, 0)
   );
 
-  // Sincroniza con el evento cart-updated del cartService
   const syncCart = useCallback(() => {
     const c = getCart();
     setCart(c);
@@ -48,36 +55,40 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
     else removeFromCart(id);
   };
 
-  const handleCheckout = () => {
-    if (cart.length === 0)   return alert('El carrito está vacío');
-    if (!address) {
-      setShowDeliveryInfo(true);
-      return alert('Ingresa una dirección de entrega');
+  const usarDireccionRegistrada = async () => {
+    try {
+      const perfil = await apiFetch('/auth/perfil');
+      const dir  = perfil?.Direccion   || '';
+      const depto = perfil?.Departamento || '';
+      const mun  = perfil?.Municipio   || '';
+      if (!dir && !depto && !mun) {
+        setSinDireccionMsg(true);
+        setTimeout(() => setSinDireccionMsg(false), 3500);
+        return;
+      }
+      if (dir)  setAddress(dir);
+      if (depto) setDepartamento(depto);
+      if (mun)  setMunicipio(mun);
+      setSinDireccionMsg(false);
+    } catch {
+      setSinDireccionMsg(true);
+      setTimeout(() => setSinDireccionMsg(false), 3500);
     }
-    if (!departamento) {
-      setShowDeliveryInfo(true);
-      return alert('Selecciona un departamento');
-    }
-    if (!municipio) {
-      setShowDeliveryInfo(true);
-      return alert('Selecciona un municipio');
-    }
-    if (!date) {
-      setShowDeliveryInfo(true);
-      return alert('Selecciona una fecha de entrega');
-    }
-    
-    // Validar fecha mínima (hoy o futuro)
-    const hoy = new Date();
-    hoy.setHours(0,0,0,0);
-    const seleccionada = new Date(date);
-    if (seleccionada < hoy) {
-      setShowDeliveryInfo(true);
-      return alert('La fecha de entrega no puede ser en el pasado');
-    }
+  };
 
+  const costoTotal = tieneDomicilio ? total + COSTO_DOMICILIO : total;
+
+  const handleCheckout = () => {
+    if (cart.length === 0) return alert('El carrito está vacío');
+    if (tieneDomicilio) {
+      if (!address)      { setShowDeliveryInfo(true); return alert('Ingresa una dirección de entrega'); }
+      if (!departamento) { setShowDeliveryInfo(true); return alert('Selecciona un departamento'); }
+      if (!municipio)    { setShowDeliveryInfo(true); return alert('Selecciona un municipio'); }
+      if (!date)         { setShowDeliveryInfo(true); return alert('Selecciona una fecha de entrega'); }
+      if (date < hoyISO()) { setShowDeliveryInfo(true); return alert('La fecha de entrega no puede ser en el pasado'); }
+    }
     if (!isAuthenticated()) { onClose(); onLoginRequired(); return; }
-    onCheckout({ address, departamento, municipio, date });
+    onCheckout({ address, departamento, municipio, date, observaciones, tieneDomicilio });
   };
 
   if (!isOpen) return null;
@@ -86,19 +97,14 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
 
   return (
     <div className="fixed inset-0 z-[9000] overflow-hidden">
-      {/* Backdrop con blur progresivo */}
-      <div 
-        className="absolute inset-0 bg-black/40 backdrop-blur-[2px] transition-all duration-500 animate-in fade-in"
-        onClick={onClose} 
-      />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] transition-all duration-500 animate-in fade-in" onClick={onClose} />
 
-      {/* ✅ Ajuste de tamaño: max-w-sm para hacerlo más compacto y elegante */}
       <div className="absolute right-0 top-0 bottom-0 w-full max-w-sm bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-500 ease-out border-l border-emerald-100">
-        
-        {/* Header Premium - Usando variables de marca */}
+
+        {/* Header */}
         <div className="text-white p-4 shadow-xl relative overflow-hidden shrink-0" style={{ background: 'linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 50%, var(--green-700) 100%)' }}>
-          <div className="absolute top-[-20px] right-[-20px] w-48 h-48 bg-white/5 rounded-full blur-3xl animate-pulse"></div>
-          
+          <div className="absolute top-[-20px] right-[-20px] w-48 h-48 bg-white/5 rounded-full blur-3xl animate-pulse" />
+
           <div className="flex items-center justify-between mb-3 relative z-10">
             <div className="flex items-center gap-2.5">
               <div className="bg-white/10 backdrop-blur-xl p-2 rounded-xl border border-white/20 shadow-inner">
@@ -107,183 +113,194 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
               <div>
                 <h2 className="text-lg font-black tracking-tight leading-none mb-0.5">Tu Carrito</h2>
                 <p className="text-[8px] text-emerald-100 font-black uppercase tracking-widest opacity-80 flex items-center gap-1.5">
-                  <span className="w-1 h-1 bg-emerald-400 rounded-full animate-pulse"></span>
+                  <span className="w-1 h-1 bg-emerald-400 rounded-full animate-pulse" />
                   {cart.length} {cart.length === 1 ? 'producto' : 'productos'}
                 </p>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="p-1.5 hover:bg-white/20 rounded-full transition-all text-white/70 hover:text-white border border-white/10"
-            >
+            <button onClick={onClose} className="p-1.5 hover:bg-white/20 rounded-full transition-all text-white/70 hover:text-white border border-white/10">
               <X size={16} />
             </button>
           </div>
 
-          {/* Formulario de Entrega Refinado - Desplegable */}
-          <div className="relative z-10 bg-black/10 rounded-xl border border-white/10 backdrop-blur-sm overflow-hidden transition-all duration-300">
-            <button 
-              onClick={() => setShowDeliveryInfo(!showDeliveryInfo)}
-              className="w-full p-2.5 flex items-center justify-between hover:bg-white/5 transition-colors group"
+          {/* Toggle domicilio */}
+          <div className="relative z-10 flex items-center gap-3 bg-black/10 rounded-xl px-3 py-2 border border-white/10 mb-2">
+            <button
+              onClick={() => { setTieneDomicilio(false); setShowDeliveryInfo(false); }}
+              className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${!tieneDomicilio ? 'bg-white text-green-800' : 'text-white/60 hover:text-white'}`}
             >
-              <div className="flex items-center gap-2.5">
-                <div className="p-1.5 bg-white/10 rounded-lg group-hover:bg-white/20 transition-colors">
-                  <MapPin size={10} className="text-emerald-300" />
-                </div>
-                <div className="text-left">
-                  <p className="text-[8px] font-black uppercase tracking-widest text-white/60 leading-none mb-1">Entrega en:</p>
-                  <p className="text-[10px] font-bold text-white/90 truncate max-w-[180px]">
-                    {address || 'Configura tu ubicación'}
-                  </p>
-                </div>
-              </div>
-              <div className={`transition-transform duration-300 ${showDeliveryInfo ? 'rotate-180' : ''}`}>
-                <ChevronRight size={12} className="opacity-60" />
-              </div>
+              🏪 Recogida
             </button>
-
-            <div className={`px-3 pb-3 space-y-2 transition-all duration-300 ${showDeliveryInfo ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'}`}>
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <div className="col-span-2 relative group">
-                  <MapPin size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/70 group-focus-within:text-white transition-colors" />
-                  <input
-                    type="text"
-                    placeholder="Dirección (Ej: Calle 10 #20-30)"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-2 pl-9 pr-3 text-xs placeholder:text-white/40 focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all font-medium"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                  />
-                </div>
-                
-                <div className="relative group">
-                  <MapPin size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/70" />
-                  <select
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-2 pl-9 pr-2 text-xs appearance-none focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all font-medium text-white"
-                    value={departamento}
-                    onChange={(e) => {
-                      setDepartamento(e.target.value);
-                      setMunicipio('');
-                    }}
-                  >
-                    <option value="" className="text-gray-900">Depto.</option>
-                    {DEPARTAMENTOS.map(d => (
-                      <option key={d} value={d} className="text-gray-900">{d}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="relative group">
-                  <MapPin size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/70" />
-                  <select
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-2 pl-9 pr-2 text-xs appearance-none focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all font-medium text-white disabled:opacity-50"
-                    value={municipio}
-                    onChange={(e) => setMunicipio(e.target.value)}
-                    disabled={!departamento}
-                  >
-                    <option value="" className="text-gray-900">Municipio</option>
-                    {ciudadesDisponibles.map(c => (
-                      <option key={c} value={c} className="text-gray-900">{c}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="col-span-2 relative group">
-                  <Calendar size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/70" />
-                  <input
-                    type="date"
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-2 pl-9 pr-3 text-xs focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all font-medium [color-scheme:dark]"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                  />
-                </div>
-              </div>
-              {!loggedIn && (
-                <div className="flex items-center gap-2 mt-1 py-1 px-2.5 bg-amber-400/10 border border-amber-400/20 rounded-lg">
-                  <LogIn size={10} className="text-amber-400" />
-                  <p className="text-[8px] font-bold text-amber-100 uppercase tracking-tighter">Inicia sesión para comprar</p>
-                </div>
-              )}
-            </div>
+            <button
+              onClick={() => { setTieneDomicilio(true); setShowDeliveryInfo(true); }}
+              className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${tieneDomicilio ? 'bg-white text-green-800' : 'text-white/60 hover:text-white'}`}
+            >
+              🛵 Domicilio
+            </button>
           </div>
+
+          {/* Formulario de entrega (solo si domicilio) */}
+          {tieneDomicilio && (
+            <div className="relative z-10 bg-black/10 rounded-xl border border-white/10 backdrop-blur-sm overflow-hidden transition-all duration-300">
+              <button
+                onClick={() => setShowDeliveryInfo(!showDeliveryInfo)}
+                className="w-full p-2.5 flex items-center justify-between hover:bg-white/5 transition-colors group"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 bg-white/10 rounded-lg group-hover:bg-white/20 transition-colors">
+                    <MapPin size={10} className="text-emerald-300" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-[8px] font-black uppercase tracking-widest text-white/60 leading-none mb-1">Entrega en:</p>
+                    <p className="text-[10px] font-bold text-white/90 truncate max-w-[180px]">{address || 'Configura tu ubicación'}</p>
+                  </div>
+                </div>
+                <div className={`transition-transform duration-300 ${showDeliveryInfo ? 'rotate-90' : ''}`}>
+                  <ChevronRight size={12} className="opacity-60" />
+                </div>
+              </button>
+
+              <div className={`px-3 pb-3 space-y-2 transition-all duration-300 ${showDeliveryInfo ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'}`}>
+                {/* Botón usar dirección registrada */}
+                {loggedIn && (
+                  <div>
+                    <button
+                      onClick={usarDireccionRegistrada}
+                      className="w-full py-1.5 px-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-[9px] font-black text-white uppercase tracking-widest transition-all text-left"
+                    >
+                      📍 Usar mi dirección registrada
+                    </button>
+                    {sinDireccionMsg && (
+                      <div className="mt-1.5 px-2.5 py-1.5 bg-amber-400/20 border border-amber-400/30 rounded-lg flex items-center gap-1.5">
+                        <span style={{ fontSize: 12 }}>⚠️</span>
+                        <p className="text-[8px] font-bold text-amber-100 leading-tight">
+                          No tienes dirección registrada. Ve a tu <strong>Perfil</strong> para agregarla.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <div className="col-span-2 relative group">
+                    <MapPin size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/70 group-focus-within:text-white transition-colors" />
+                    <input
+                      type="text"
+                      placeholder="Dirección (Ej: Calle 10 #20-30)"
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-2 pl-9 pr-3 text-xs placeholder:text-white/40 focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all font-medium"
+                      value={address}
+                      onChange={(e) => setAddress(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="relative group">
+                    <select
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-2 px-3 text-xs appearance-none focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all font-medium text-white"
+                      value={departamento}
+                      onChange={(e) => { setDepartamento(e.target.value); setMunicipio(''); }}
+                    >
+                      <option value="" className="text-gray-900">Depto.</option>
+                      {DEPARTAMENTOS.map(d => <option key={d} value={d} className="text-gray-900">{d}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="relative group">
+                    <select
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-2 px-3 text-xs appearance-none focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all font-medium text-white disabled:opacity-50"
+                      value={municipio}
+                      onChange={(e) => setMunicipio(e.target.value)}
+                      disabled={!departamento}
+                    >
+                      <option value="" className="text-gray-900">Municipio</option>
+                      {ciudadesDisponibles.map(c => <option key={c} value={c} className="text-gray-900">{c}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="col-span-2 relative group">
+                    <Calendar size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/70" />
+                    <input
+                      type="date"
+                      min={hoyISO()}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-2 pl-9 pr-3 text-xs focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all font-medium [color-scheme:dark]"
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {!loggedIn && (
+                  <div className="flex items-center gap-2 py-1 px-2.5 bg-amber-400/10 border border-amber-400/20 rounded-lg">
+                    <LogIn size={10} className="text-amber-400" />
+                    <p className="text-[8px] font-bold text-amber-100 uppercase tracking-tighter">Inicia sesión para comprar</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Cuerpo del Carrito - Padding reducido */}
+        {/* Cuerpo */}
         <div className="flex-1 overflow-y-auto p-4 bg-gray-50/20 custom-scrollbar relative">
           {cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-4">
-              <div className="relative">
-                <div className="absolute inset-0 bg-emerald-100 rounded-full blur-2xl opacity-50 animate-pulse"></div>
-                <div className="w-16 h-16 bg-white rounded-2xl shadow-xl flex items-center justify-center relative border border-emerald-50">
-                  <ShoppingCart size={24} className="text-emerald-200" />
-                </div>
+              <div className="w-16 h-16 bg-white rounded-2xl shadow-xl flex items-center justify-center border border-emerald-50">
+                <ShoppingCart size={24} className="text-emerald-200" />
               </div>
               <div>
                 <h3 className="text-base font-black text-gray-800 mb-1">Carrito vacío</h3>
-                <p className="text-gray-400 text-[10px] max-w-[180px] leading-relaxed font-medium">
-                  Explora nuestro menú y elige algo delicioso.
-                </p>
+                <p className="text-gray-400 text-[10px] max-w-[180px] leading-relaxed font-medium">Explora nuestro menú y elige algo delicioso.</p>
               </div>
-              <button 
-                onClick={onClose}
-                className="btn-primary"
-                style={{ padding: '8px 20px', fontSize: '11px' }}
-              >
-                Ver Productos
-              </button>
+              <button onClick={onClose} className="btn-primary" style={{ padding: '8px 20px', fontSize: '11px' }}>Ver Productos</button>
             </div>
           ) : (
             <div className="space-y-4">
               <div className="flex items-center justify-between px-1">
                 <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Resumen del pedido</span>
-                <button 
-                  onClick={() => { if(confirm('¿Vaciar todo el carrito?')) clearCart() }}
-                  className="group flex items-center gap-1 text-[9px] font-black text-red-400 hover:text-red-600 transition-colors uppercase tracking-widest"
-                >
-                  <Trash2 size={10} />
-                  Vaciar
-                </button>
+                {confirmVaciar ? (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9px] font-bold text-gray-500">¿Vaciar todo?</span>
+                    <button
+                      onClick={() => { clearCart(); setConfirmVaciar(false); }}
+                      className="text-[9px] font-black text-white bg-red-500 hover:bg-red-600 px-2 py-0.5 rounded-md transition-colors"
+                    >Sí</button>
+                    <button
+                      onClick={() => setConfirmVaciar(false)}
+                      className="text-[9px] font-black text-gray-500 hover:text-gray-700 px-2 py-0.5 rounded-md border border-gray-200 transition-colors"
+                    >No</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmVaciar(true)}
+                    className="flex items-center gap-1 text-[9px] font-black text-red-400 hover:text-red-600 transition-colors uppercase tracking-widest"
+                  >
+                    <Trash2 size={10} /> Vaciar
+                  </button>
+                )}
               </div>
-              
+
               <div className="grid gap-2.5">
                 {cart.map((item) => (
-                  <div 
-                    key={item.id} 
-                    className="group bg-white rounded-2xl p-2.5 border border-gray-100 shadow-sm hover:shadow-md hover:border-emerald-100 transition-all duration-300 relative overflow-hidden animate-in fade-in slide-in-from-bottom-1"
-                  >
+                  <div key={item.id} className="group bg-white rounded-2xl p-2.5 border border-gray-100 shadow-sm hover:shadow-md hover:border-emerald-100 transition-all duration-300 relative overflow-hidden">
                     <div className="flex gap-2.5 relative z-10">
-                      <div className="w-14 h-14 bg-gray-50 rounded-xl overflow-hidden flex-shrink-0 relative border border-gray-100">
-                        {item.imagenPreview || item.imagen ? (
-                          <img 
-                            src={item.imagenPreview || item.imagen} 
-                            alt={item.nombre}
-                            className="w-full h-full object-cover"
-                          />
+                      <div className="w-14 h-14 bg-gray-50 rounded-xl overflow-hidden flex-shrink-0 border border-gray-100">
+                        {(item as any).imagenPreview || (item as any).imagen ? (
+                          <img src={(item as any).imagenPreview || (item as any).imagen} alt={item.nombre} className="w-full h-full object-cover" />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-gray-50 text-xl">
-                            📦
-                          </div>
+                          <div className="w-full h-full flex items-center justify-center bg-gray-50 text-xl">📦</div>
                         )}
                       </div>
-                      
                       <div className="flex-1 flex flex-col justify-between py-0.5 min-w-0">
                         <div>
                           <h4 className="font-black text-gray-800 text-[11px] mb-0.5 truncate">{item.nombre}</h4>
                           <p className="font-black text-[10px]" style={{ color: 'var(--green-700)' }}>{COP(item.precio)}</p>
                         </div>
-                        
                         <div className="flex items-center justify-between">
                           <div className="flex items-center bg-gray-50 rounded-lg p-0.5 border border-gray-100">
-                            <button 
-                              onClick={() => handleQty(item.id, -1)}
-                              className="w-5 h-5 flex items-center justify-center rounded-md hover:bg-white hover:text-red-500 transition-all text-gray-400"
-                            >
+                            <button onClick={() => handleQty(item.id, -1)} className="w-5 h-5 flex items-center justify-center rounded-md hover:bg-white hover:text-red-500 transition-all text-gray-400">
                               <Minus size={9} strokeWidth={3} />
                             </button>
                             <span className="w-6 text-center text-[10px] font-black text-gray-800">{item.cantidad}</span>
-                            <button 
-                              onClick={() => handleQty(item.id, 1)}
-                              className="w-5 h-5 flex items-center justify-center rounded-md hover:bg-white hover:text-emerald-600 transition-all text-gray-400"
-                            >
+                            <button onClick={() => handleQty(item.id, 1)} className="w-5 h-5 flex items-center justify-center rounded-md hover:bg-white hover:text-emerald-600 transition-all text-gray-400">
                               <Plus size={9} strokeWidth={3} />
                             </button>
                           </div>
@@ -291,48 +308,67 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
                         </div>
                       </div>
                     </div>
-                    
-                    <button 
-                      onClick={() => removeFromCart(item.id)}
-                      className="absolute top-1.5 right-1.5 p-1 text-gray-200 hover:text-red-500 rounded-full transition-all"
-                    >
+                    <button onClick={() => removeFromCart(item.id)} className="absolute top-1.5 right-1.5 p-1 text-gray-200 hover:text-red-500 rounded-full transition-all">
                       <X size={10} strokeWidth={3} />
                     </button>
                   </div>
                 ))}
               </div>
+
+              {/* Observaciones */}
+              <div className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <FileText size={12} className="text-gray-400" />
+                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Observaciones del pedido</span>
+                </div>
+                <textarea
+                  rows={2}
+                  placeholder="Ej: Sin picante, sin cebolla, tocar timbre..."
+                  className="w-full text-xs font-medium text-gray-700 placeholder:text-gray-300 resize-none outline-none bg-transparent border-none p-0"
+                  value={observaciones}
+                  onChange={(e) => setObservaciones(e.target.value)}
+                />
+              </div>
             </div>
           )}
         </div>
 
-        {/* Footer Persistente - Proporciones mejoradas */}
+        {/* Footer */}
         <div className="p-4 bg-white border-t border-gray-100 shadow-[0_-10px_40px_rgba(0,0,0,0.04)] relative z-20">
-          <div className="space-y-2 mb-4">
+
+          {/* Banner domicilio */}
+          {tieneDomicilio && (
+            <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: '#f3e5f5', border: '1px solid #ce93d8' }}>
+              <span style={{ fontSize: 14 }}>🛵</span>
+              <div className="flex-1">
+                <p style={{ fontSize: 9, fontWeight: 800, color: '#6a1b9a', margin: 0, textTransform: 'uppercase', letterSpacing: 1 }}>Costo de domicilio</p>
+                <p style={{ fontSize: 13, fontWeight: 800, color: '#4a148c', margin: 0 }}>{COP(COSTO_DOMICILIO)}</p>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-1.5 mb-4">
             <div className="flex justify-between items-center text-[11px]">
-              <span className="text-gray-500 font-bold">Subtotal</span>
+              <span className="text-gray-500 font-bold">Subtotal productos</span>
               <span className="text-gray-800 font-black">{COP(total)}</span>
             </div>
             <div className="flex justify-between items-center text-[11px]">
               <span className="text-gray-500 font-bold">Envío</span>
-              <span className="font-black text-[8px] uppercase tracking-widest bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100" style={{ color: 'var(--green-700)' }}>
-                Bonificado
-              </span>
+              {tieneDomicilio ? (
+                <span className="font-black text-[11px]" style={{ color: '#7b1fa2' }}>{COP(COSTO_DOMICILIO)}</span>
+              ) : (
+                <span className="font-black text-[8px] uppercase tracking-widest bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100" style={{ color: 'var(--green-700)' }}>Gratis</span>
+              )}
             </div>
-            
             <div className="relative py-0.5">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-dashed border-gray-100"></div>
-              </div>
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-dashed border-gray-100" /></div>
             </div>
-
             <div className="flex justify-between items-end">
               <div>
                 <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Total a pagar</span>
-                <span className="text-2xl font-black text-gray-900 tracking-tighter leading-none">{COP(total)}</span>
+                <span className="text-2xl font-black text-gray-900 tracking-tighter leading-none">{COP(costoTotal)}</span>
               </div>
-              <div className="text-amber-500 pb-1">
-                <Sparkles size={18} className="animate-spin-slow" />
-              </div>
+              <div className="text-amber-500 pb-1"><Sparkles size={18} /></div>
             </div>
           </div>
 
@@ -340,50 +376,23 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
             onClick={handleCheckout}
             disabled={cart.length === 0}
             className={`w-full group relative overflow-hidden flex items-center justify-center gap-3 py-3.5 rounded-xl font-black text-sm transition-all duration-300 shadow-lg active:scale-[0.98] ${
-              cart.length === 0 
-                ? 'bg-gray-100 text-gray-300 cursor-not-allowed border border-gray-200 shadow-none' 
-                : 'btn-primary shadow-emerald-200/50 hover:shadow-xl hover:-translate-y-0.5'
+              cart.length === 0 ? 'bg-gray-100 text-gray-300 cursor-not-allowed border border-gray-200 shadow-none' : 'btn-primary shadow-emerald-200/50 hover:shadow-xl hover:-translate-y-0.5'
             }`}
             style={cart.length > 0 ? { background: 'linear-gradient(135deg, var(--green-700) 0%, var(--green-600) 100%)' } : {}}
           >
-            {/* Efecto Brillo */}
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer"></div>
-            
             {loggedIn ? (
-              <>
-                Finalizar Pedido 
-                <ChevronRight size={14} strokeWidth={3} className="group-hover:translate-x-0.5 transition-transform" />
-              </>
+              <>Finalizar Pedido <ChevronRight size={14} strokeWidth={3} /></>
             ) : (
-              <>
-                <LogIn size={14} />
-                Identificarse
-              </>
+              <><LogIn size={14} /> Identificarse</>
             )}
           </button>
         </div>
       </div>
-      
+
       <style>{`
-        @keyframes shimmer {
-          100% { transform: translateX(100%); }
-        }
-        .animate-shimmer {
-          animation: shimmer 1.5s infinite;
-        }
-        .animate-spin-slow {
-          animation: spin 6s linear infinite;
-        }
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #e5e7eb;
-          border-radius: 10px;
-        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
       `}</style>
     </div>
   );

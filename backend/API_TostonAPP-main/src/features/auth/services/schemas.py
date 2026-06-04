@@ -103,10 +103,12 @@ class CambiarContrasenaResponse(BaseModel):
 
 # ── Actualizar perfil ──
 class PerfilUpdate(BaseModel):
-    Telefono:     Optional[str] = None
-    Direccion:    Optional[str] = None
-    Municipio:    Optional[str] = None
-    Departamento: Optional[str] = None
+    Telefono:       Optional[str] = None
+    Direccion:      Optional[str] = None
+    Municipio:      Optional[str] = None
+    Departamento:   Optional[str] = None
+    Cedula:         Optional[str] = None   # Solo se acepta si aún no está establecida
+    Tipo_Documento: Optional[str] = None   # Solo se acepta si aún no está establecida
 
 
 # ── Foto de perfil (Cloudinary) ──

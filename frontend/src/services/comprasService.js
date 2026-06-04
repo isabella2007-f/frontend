@@ -21,12 +21,17 @@ const adaptCompra = (c) => ({
   fecha_llegada: c.Fecha_Llegada  ? new Date(c.Fecha_Llegada).toISOString().split('T')[0] : null,
   notas:        c.Notas            || c.notas           || "",
   stockAplicado: [4, 11].includes(c.Estado ?? c.estado) || ["confirmado", "completada"].includes((c.estado_label || "").toLowerCase()),
+  transporte:         Number(c.Costo_Transporte     ?? c.transporte)          || 0,
+  ivaPorcentaje:      Number(c.IVA_Porcentaje       ?? c.iva_porcentaje)      || 0,
+  descuentoPorcentaje: Number(c.Descuento_Porcentaje ?? c.descuento_porcentaje) || 0,
+  otros:              Number(c.Otros_Costos         ?? c.otros_costos)        || 0,
   items: (c.items || c.detalles || []).map(i => ({
-    idInsumo:   i.ID_Insumo    || i.id_insumo   || null,
-    nombre:     i.nombre_insumo|| i.nombre      || "",
-    cantidad:   i.Cantidad     || i.cantidad    || 0,
-    precioUnd:  i.Precio_Und   || i.precio_und  || 0,
-    subtotal:   i.Subtotal     || i.subtotal    || 0,
+    idInsumo:        i.ID_Insumo        || i.id_insumo        || null,
+    nombre:          i.nombre_insumo    || i.nombre           || "",
+    cantidad:        i.Cantidad         || i.cantidad         || 0,
+    precioUnd:       i.Precio_Und       || i.precio_und       || 0,
+    subtotal:        i.Subtotal         || i.subtotal         || 0,
+    fechaVencimiento: i.Fecha_Vencimiento || i.fecha_vencimiento || null,
   })),
 });
 
@@ -51,10 +56,16 @@ export async function crearCompra(payload) {
   const raw = payload.metodoPago || "";
   const metodoPago = raw.charAt(0).toUpperCase() + raw.slice(1);
 
+  const g = payload.gastos || {};
   const body = {
-    ID_Proveedor: Number(payload.idProveedor),
-    Metodo_Pago:  metodoPago,
-    Fecha_Compra: payload.fecha || null,
+    ID_Proveedor:         Number(payload.idProveedor),
+    Metodo_Pago:          metodoPago,
+    Fecha_Compra:         payload.fecha || null,
+    Notas:                payload.notas || null,
+    Costo_Transporte:     Number(g.transporte)     || null,
+    IVA_Porcentaje:       Number(g.ivaPorcentaje)  || null,
+    Descuento_Porcentaje: Number(g.descPorcentaje) || null,
+    Otros_Costos:         Number(g.otros)          || null,
     detalles: (payload.detalles || []).map(i => ({
       ID_Insumo:         Number(i.idInsumo),
       Cantidad:          Number(i.cantidad),
@@ -64,6 +75,27 @@ export async function crearCompra(payload) {
     })),
   };
   const data = await apiFetch("/compras/", { method: "POST", body: JSON.stringify(body) });
+  return adaptCompra(data);
+}
+
+export async function editarCompra(id, payload) {
+  const raw = payload.metodoPago || "";
+  const metodoPago = raw.charAt(0).toUpperCase() + raw.slice(1);
+
+  const body = {
+    Metodo_Pago:   metodoPago || undefined,
+    Notas:         payload.notas ?? null,
+    Fecha_Llegada: payload.fecha_llegada || null,
+  };
+
+  // Solo si la compra está pendiente el proveedor y fecha son editables
+  if (payload.idProveedor) body.ID_Proveedor = Number(payload.idProveedor);
+  if (payload.fecha)        body.Fecha_Compra = payload.fecha;
+
+  const data = await apiFetch(`/compras/${id}`, {
+    method: "PUT",
+    body:   JSON.stringify(body),
+  });
   return adaptCompra(data);
 }
 

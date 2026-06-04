@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { getDomicilios, asignarRepartidor, actualizarDomicilio } from "../../../services/domiciliosService.js";
-import { getUsuarios, toggleEstadoUsuario } from "../../../services/usuariosService.js";
+import { getUsuarios, toggleEstadoUsuario, crearEmpleado, editarUsuario } from "../../../services/usuariosService.js";
 import "./Domicilios.css";
 
 function SkeletonRows({ cols = 9, rows = 5 }) {
@@ -26,30 +27,48 @@ const fmtFecha = (iso) => {
 const PER_PAGE = 5;
 
 const ESTADO_CONFIG = {
-  "Listo":     { dot: "#43a047", label: "Listo",     desc: "Pedido listo para entregar" },
-  "En camino": { dot: "#8e24aa", label: "En camino", desc: "Domiciliario en trayecto" },
-  "Entregado": { dot: "#009688", label: "Entregado", desc: "Pedido entregado al cliente" },
-  "Pendiente": { dot: "#f9a825", label: "Pendiente", desc: "Pedido pendiente de salida" },
+  3:  { dot: "#f9a825", label: "Pendiente",      desc: "Pedido pendiente de salida",                bg: "#fff8e1" },
+  4:  { dot: "#1976d2", label: "Confirmado",     desc: "Pedido confirmado y listo para preparar",    bg: "#e3f2fd" },
+  13: { dot: "#fb8c00", label: "En preparación", desc: "Cocinando y preparando el pedido",            bg: "#fff3e0" },
+  11: { dot: "#43a047", label: "Listo",          desc: "Pedido preparado y listo para salir",       bg: "#e8f5e9" },
+  10: { dot: "#8e24aa", label: "Asignado",       desc: "Domiciliario asignado al pedido",            bg: "#f3e5f5" },
+  9:  { dot: "#6a1b9a", label: "En camino",      desc: "Domiciliario en ruta de entrega",            bg: "#f3e5f5" },
+  8:  { dot: "#009688", label: "Entregado",      desc: "Pedido completado y entregado al cliente",    bg: "#e0f2f1" },
+  5:  { dot: "#c62828", label: "Cancelado",      desc: "Pedido cancelado",                           bg: "#ffebee" },
 };
 
-/* ─── Opciones de filtro con colores correctos ───────────── */
+const ESTADO_TRANSITIONS = {
+  3:  [{ id: 4, label: "Confirmado" }, { id: 5, label: "Cancelado" }],
+  4:  [{ id: 13, label: "En preparación" }, { id: 5, label: "Cancelado" }],
+  13: [{ id: 11, label: "Listo" }, { id: 5, label: "Cancelado" }],
+  11: [{ id: 10, label: "Asignado" }, { id: 5, label: "Cancelado" }],
+  10: [{ id: 9, label: "En camino" }, { id: 5, label: "Cancelado" }],
+  9:  [{ id: 8, label: "Entregado" }, { id: 5, label: "Cancelado" }],
+};
+
 const FILTER_OPTIONS = [
-  { val: "todos",       label: "Todos",          dot: "#bdbdbd" },
-  { val: "activos",     label: "Activos",        dot: "#43a047" }, // verde — agrupa Listo + En camino
-  { val: "Listo",       label: "Listo",          dot: "#baffbd" }, // verde
-  { val: "En camino",   label: "En camino",      dot: "#8e24aa" }, // morado
-  { val: "Entregado",   label: "Entregados",     dot: "#009688" }, // teal
-  { val: "sin-asignar", label: "Sin asignar",    dot: "#e53935" }, // rojo
+  { val: "todos",       label: "Todos",       dot: "#bdbdbd" },
+  { val: "activos",     label: "Activos",     dot: "#43a047" },
+  { val: 3,               label: "Pendiente",   dot: "#f9a825" },
+  { val: 4,               label: "Confirmado",  dot: "#1976d2" },
+  { val: 13,              label: "En preparación", dot: "#fb8c00" },
+  { val: 11,              label: "Listo",       dot: "#43a047" },
+  { val: 10,              label: "Asignado",    dot: "#8e24aa" },
+  { val: 9,               label: "En camino",   dot: "#6a1b9a" },
+  { val: 8,               label: "Entregado",   dot: "#009688" },
+  { val: 5,               label: "Cancelado",   dot: "#c62828" },
+  { val: "sin-asignar", label: "Sin asignar", dot: "#e53935" },
 ];
 
 /* ─── Componentes pequeños ───────────────────────────────── */
-function EstadoBadge({ estado }) {
-  const cfg = ESTADO_CONFIG[estado] || { dot: "#bdbdbd", label: estado, desc: "" };
-  const cls = `estado-badge estado--${String(estado).replace(/ /g, "-")}`;
+function EstadoBadge({ estado, estadoId }) {
+  const cfg = ESTADO_CONFIG[estadoId] || { dot: "#bdbdbd", label: estado || estadoId, desc: "" };
+  const label = cfg.label || estado || estadoId;
+  const cls = `estado-badge estado--${String(label).replace(/ /g, "-")}`;
   return (
     <span className={cls} title={cfg.desc}>
       <span className="estado-badge__dot" />
-      {estado}
+      {label}
     </span>
   );
 }
@@ -125,6 +144,53 @@ function SelectArrow() {
   );
 }
 
+const safeParseDate = (iso) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+const formatDuration = (minutes) => {
+  if (!Number.isFinite(minutes)) return "—";
+  const h = Math.floor(minutes / 60);
+  const m = Math.round(minutes % 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+};
+
+const mapToGoogleMaps = (address) => {
+  if (!address) return "https://www.google.com/maps";
+  const query = encodeURIComponent(address);
+  return `https://www.google.com/maps/search/?api=1&query=${query}`;
+};
+
+const exportToCsv = (rows) => {
+  if (!rows || rows.length === 0) return;
+  const headers = ["Pedido", "Cliente", "Domiciliario", "Dirección", "Estado", "Total", "Fecha pedido", "Fecha entrega", "Observaciones"];
+  const csvRows = [headers.join(",")];
+  rows.forEach(row => {
+    const values = [
+      row.numero,
+      row.cliente?.nombre || "",
+      row.domiciliario || "Sin asignar",
+      row.direccion_entrega || "",
+      row.estado || "",
+      row.total != null ? row.total : "",
+      row.fecha_pedido || "",
+      row.fecha_entrega_real || "",
+      row.obs_domicilio ? row.obs_domicilio.replace(/\r?\n/g, " ") : "",
+    ];
+    csvRows.push(values.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","));
+  });
+  const csv = csvRows.join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `domicilios_export_${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
 /* ═══════════════════════════════════════════════════════════
    MODAL CONFIRMAR DESACTIVAR DOMICILIARIO
    ═══════════════════════════════════════════════════════════ */
@@ -159,7 +225,7 @@ function ModalConfirmarDesactivar({ usuario, pedidosActivos, onConfirm, onClose 
               <div key={p.id} className="hist-pedido-row">
                 <span className="hist-pedido-num">{p.numero}</span>
                 <span className="hist-pedido-dir">{p.direccion_entrega}</span>
-                <EstadoBadge estado={p.estado} />
+                <EstadoBadge estado={p.estado} estadoId={p.estadoId} />
                 <span className="hist-pedido-fecha">{fmtFecha(p.fecha_pedido)}</span>
               </div>
             ))}
@@ -193,8 +259,9 @@ const NAV_VER = [
 
 function ModalVerDomicilio({ pedido, emp, domicilios, onClose, onReasignar, onObservaciones }) {
   const [activeSection, setActiveSection] = useState("cliente");
+  const navigate = useNavigate();
   const activo = !["Entregado", "Cancelado"].includes(pedido.estado);
-  const cfg = ESTADO_CONFIG[pedido.estado] || { dot: "#bdbdbd", label: pedido.estado, desc: "" };
+  const cfg = ESTADO_CONFIG[pedido.estadoId] || { dot: "#bdbdbd", label: pedido.estado, desc: "" };
   const pedidosAsignados = domicilios.filter(d => d.idEmpleado === emp?.id);
   const pendientes  = pedidosAsignados.filter(d => !["Entregado", "Cancelado"].includes(d.estado)).length;
   const enCamino    = pedidosAsignados.filter(d => d.estado === "En camino").length;
@@ -324,6 +391,15 @@ function ModalVerDomicilio({ pedido, emp, domicilios, onClose, onReasignar, onOb
                   <span className="info-box__icon">📍</span>
                   <span className="info-box__text">{pedido.direccion_entrega || "—"}</span>
                 </div>
+                {pedido.direccion_entrega && (
+                  <a
+                    className="link-button"
+                    href={mapToGoogleMaps(pedido.direccion_entrega)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ marginTop: 12, display: "inline-block", fontSize: 13 }}
+                  >Abrir en Google Maps</a>
+                )}
                 {pedido.obs_domicilio ? (
                   <>
                     <p className="section-label">Observaciones</p>
@@ -412,6 +488,13 @@ function ModalVerDomicilio({ pedido, emp, domicilios, onClose, onReasignar, onOb
         {/* Footer */}
         <div className="modal-footer">
           <button className="btn-ghost" onClick={onClose}>Cerrar</button>
+          <button
+            className="btn-cancel"
+            style={{ background: "#e3f2fd", color: "#1565c0", border: "1px solid #90caf9" }}
+            onClick={() => { onClose(); navigate(`/admin/chat/${pedido.id}`); }}
+          >
+            💬 Chat
+          </button>
           {activo && (
             <>
               <button className="btn-cancel" onClick={() => { onClose(); onObservaciones(pedido); }}>
@@ -637,7 +720,7 @@ function HistorialDomiciliario({ domicilios, empleados, onDesactivar }) {
                 <div key={p.id} className="hist-pedido-row">
                   <span className="hist-pedido-num">{p.numero}</span>
                   <span className="hist-pedido-dir">{p.direccion_entrega}</span>
-                  <EstadoBadge estado={p.estado} />
+                  <EstadoBadge estado={p.estado} estadoId={p.estadoId} />
                   <span className="hist-pedido-fecha">{fmtFecha(p.fecha_pedido)}</span>
                 </div>
               ))}
@@ -679,7 +762,12 @@ export default function GestionDomicilios() {
         getUsuarios({ porPagina: 100 }),
       ]);
       setDomicilios(dData.domicilios);
-      setEmpleados((uData || []).filter(u => u.tipo === "empleado" && u.estado));
+      setEmpleados((uData || []).filter(u =>
+        u.tipo === "empleado" && u.estado && (
+          u.idRol === 1 || u.idRol === 3 ||
+          ["admin", "administrador", "domiciliario"].includes((u.rol || "").toLowerCase())
+        )
+      ));
     } catch (err) {
       showToast(err.message || "Error al cargar domicilios", "error");
     } finally {
@@ -710,12 +798,13 @@ export default function GestionDomicilios() {
       emp ? `${emp.nombre} ${emp.apellidos}` : "",
     ].filter(Boolean).some(v => v.toLowerCase().includes(q));
 
-    const matchE =
-      filterEstado === "todos"       ? true :
-      filterEstado === "activos"     ? ["Listo", "En camino"].includes(p.estado) :
-      filterEstado === "Entregado"   ? p.estado === "Entregado" :
-      filterEstado === "sin-asignar" ? !p.idEmpleado && !["Entregado", "Cancelado"].includes(p.estado) :
-      p.estado === filterEstado;
+    const activeEstados = [3, 4, 13, 11, 10, 9];
+  const matchE =
+    filterEstado === "todos"       ? true :
+    filterEstado === "activos"     ? activeEstados.includes(p.estadoId) :
+    filterEstado === "Entregado"   ? p.estado === "Entregado" :
+    filterEstado === "sin-asignar" ? !p.idEmpleado && ![8, 5].includes(p.estadoId) :
+    p.estadoId === filterEstado;
 
     return matchQ && matchE;
   });
@@ -870,6 +959,14 @@ export default function GestionDomicilios() {
                 />
               </div>
 
+              <button
+                className="btn-action"
+                onClick={() => exportToCsv(filtered)}
+                style={{ marginRight: 12, minWidth: 160, alignSelf: "center" }}
+              >
+                📄 Exportar CSV
+              </button>
+
               <div ref={filterRef} style={{ position: "relative" }}>
                 <button
                   className={`filter-icon-btn${hasFilter ? " has-filter" : ""}`}
@@ -983,7 +1080,7 @@ export default function GestionDomicilios() {
                           </td>
                           <td>
                             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                              <EstadoBadge estado={ped.estado} />
+                              <EstadoBadge estado={ped.estado} estadoId={ped.estadoId} />
                               <AlertaEstado pedido={ped} empleados={empleados} />
                             </div>
                           </td>
@@ -994,6 +1091,11 @@ export default function GestionDomicilios() {
                                 title="Ver detalle"
                                 onClick={() => setModal({ type: "ver", pedido: ped })}
                               >👁</button>
+                              <button
+                                className="act-btn act-btn--map"
+                                title="Abrir dirección en Google Maps"
+                                onClick={() => window.open(mapToGoogleMaps(ped.direccion_entrega), "_blank", "noopener")}
+                              >🌍</button>
                               <button
                                 className="act-btn act-btn--reasignar"
                                 title="Reasignar domiciliario"

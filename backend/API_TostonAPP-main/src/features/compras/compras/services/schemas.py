@@ -11,6 +11,23 @@ class CompletarCompraInput(BaseModel):
     Fecha_Llegada: Optional[datetime] = None
 
 
+# ── Editar compra ──
+class CompraUpdate(BaseModel):
+    ID_Proveedor:  Optional[int]      = None
+    Metodo_Pago:   Optional[str]      = None
+    Fecha_Compra:  Optional[datetime] = None
+    Notas:         Optional[str]      = None
+    Departamento:  Optional[str]      = None
+    Municipio:     Optional[str]      = None
+    Fecha_Llegada: Optional[datetime] = None
+
+    @model_validator(mode="after")
+    def validar_metodo(self):
+        if self.Metodo_Pago and self.Metodo_Pago not in METODOS_PAGO_COMPRA:
+            raise ValueError(f"Método de pago inválido. Opciones: {', '.join(sorted(METODOS_PAGO_COMPRA))}")
+        return self
+
+
 # ── Detalle de un ítem dentro de la compra ──
 class DetalleCompraInput(BaseModel):
     ID_Insumo:         int
@@ -22,10 +39,15 @@ class DetalleCompraInput(BaseModel):
 
 # ── Crear compra ──
 class CompraCreate(BaseModel):
-    ID_Proveedor: int
-    Metodo_Pago:  str                              # ver METODOS_PAGO_COMPRA
-    Fecha_Compra: Optional[datetime] = None        # si no se envía, se usa datetime.now()
-    detalles:     list[DetalleCompraInput]
+    ID_Proveedor:         int
+    Metodo_Pago:          str                       # ver METODOS_PAGO_COMPRA
+    Fecha_Compra:         Optional[datetime] = None # si no se envía, se usa datetime.now()
+    Notas:                Optional[str]     = None
+    Costo_Transporte:     Optional[Decimal] = None
+    IVA_Porcentaje:       Optional[Decimal] = None
+    Descuento_Porcentaje: Optional[Decimal] = None
+    Otros_Costos:         Optional[Decimal] = None
+    detalles:             list[DetalleCompraInput]
 
     @model_validator(mode="after")
     def validar_campos(self):
@@ -58,16 +80,21 @@ class DetalleCompraResponse(BaseModel):
 
 # ── Respuesta de una compra ──
 class CompraResponse(BaseModel):
-    ID_Compra:        int
-    ID_Proveedor:     Optional[int]      = None
-    nombre_proveedor: Optional[str]      = None
-    Total_Pago:       Optional[Decimal]  = None
-    Fecha_Compra:     Optional[datetime] = None
-    Fecha_Llegada:    Optional[datetime] = None
-    Estado:           Optional[int]      = None
-    estado_label:     Optional[str]      = None
-    Metodo_Pago:      Optional[str]      = None
-    detalles:         list[DetalleCompraResponse] = []
+    ID_Compra:            int
+    ID_Proveedor:         Optional[int]      = None
+    nombre_proveedor:     Optional[str]      = None
+    Total_Pago:           Optional[Decimal]  = None
+    Fecha_Compra:         Optional[datetime] = None
+    Fecha_Llegada:        Optional[datetime] = None
+    Estado:               Optional[int]      = None
+    estado_label:         Optional[str]      = None
+    Metodo_Pago:          Optional[str]      = None
+    Notas:                Optional[str]      = None
+    Costo_Transporte:     Optional[Decimal]  = None
+    IVA_Porcentaje:       Optional[Decimal]  = None
+    Descuento_Porcentaje: Optional[Decimal]  = None
+    Otros_Costos:         Optional[Decimal]  = None
+    detalles:             list[DetalleCompraResponse] = []
 
     class Config:
         from_attributes = True

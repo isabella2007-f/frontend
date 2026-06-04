@@ -192,6 +192,30 @@ html, body, #root {
   color: white !important;
 }
 
+.modal-header__eyebrow {
+  margin: 0 0 6px;
+  font-size: 0.75rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-weight: 800;
+  opacity: 0.88;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.modal-header__title {
+  margin: 0;
+  font-size: 1.55rem;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: white;
+  font-family: var(--font-display);
+  font-weight: 900;
+}
+
+.modal-header__title--red { color: #ffebee; }
+.modal-header__title--blue { color: #e3f2fd; }
+.modal-header__title--green { color: #e8f5e9; }
+
 .modal-header p {
   font-size: 0.85rem;
   opacity: 0.8;
@@ -227,7 +251,10 @@ html, body, #root {
   flex: 1;
   overflow-y: auto;
   padding: 28px;
-  background: white;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .modal-footer {
@@ -238,6 +265,14 @@ html, body, #root {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+.modal-footer--center {
+  justify-content: center;
+}
+
+.modal-footer--space-between {
+  justify-content: space-between;
 }
 
 /* ── Form Elements in Modals ── */

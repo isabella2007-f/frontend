@@ -54,9 +54,10 @@ export async function eliminarOrden(id) {
   return apiFetch(`/ordenes-produccion/${id}`, { method: "DELETE" });
 }
 
-export async function cambiarEstadoOrden(id, estadoNum) {
+export async function cambiarEstadoOrden(id, estadoNum, loteData = {}) {
+  const body = { Estado: estadoNum, ...loteData };
   return apiFetch(`/ordenes-produccion/${id}/estado`, {
     method: "PATCH",
-    body: JSON.stringify({ Estado: estadoNum }),
+    body: JSON.stringify(body),
   });
 }

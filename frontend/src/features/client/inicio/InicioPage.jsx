@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { getPedidos } from '../../../services/pedidosService.js';
+import { getPedidos, getMiCredito } from '../../../services/pedidosService.js';
 import { getProductos } from '../../../services/productosService.js';
 import { getCurrentUser } from '../profile/services/profileService.js';
-import { Package, Clock, CheckCircle, UserCircle, Leaf } from 'lucide-react';
+import { Package, Clock, CheckCircle, UserCircle, Leaf, Gift, ShoppingCart } from 'lucide-react';
 import '../../../styles/Client.css';
 
 const COP = (n) =>
@@ -18,6 +18,7 @@ const InicioPage = () => {
   const [productos,   setProductos]   = useState([]);
   const [user,        setUser]        = useState(null);
   const [userPedidos, setUserPedidos] = useState([]);
+  const [credito,     setCredito]     = useState(0);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -26,7 +27,7 @@ const InicioPage = () => {
       const lista = (data.productos || data || []).map(p => ({
         id:          p.ID_Producto || p.id,
         nombre:      p.Nombre      || p.nombre      || "",
-        precio:      p.Precio_Venta|| p.precio      || 0,
+        precio:      p.Precio_venta || p.Precio_Venta || p.precio || 0,
         stock:       p.Stock       || p.stock       || 0,
         publicado:   !!p.Publicado,
         imagen:      p.Imagen      || p.imagen      || null,
@@ -39,6 +40,7 @@ const InicioPage = () => {
         const todos = data.pedidos || [];
         setUserPedidos(todos.filter(p => p.cliente?.correo === currentUser.correo || p.idCliente === currentUser.id));
       }).catch(() => {});
+      getMiCredito().then(d => setCredito(d?.saldo || 0)).catch(() => {});
     }
   }, []);
 
@@ -100,6 +102,15 @@ const InicioPage = () => {
               <p style={{ margin: 0, fontSize: 24, fontWeight: 800, color: 'var(--gray-900)' }}>{userPedidos.length}</p>
               <p style={{ margin: 0, fontSize: 14, color: 'var(--gray-500)' }}>Pedidos realizados</p>
             </div>
+
+            {credito > 0 && (
+              <div className="card" style={{ padding: 20, textAlign: 'center', background: 'linear-gradient(135deg, #f3e5f5 0%, #fff 100%)', border: '1.5px solid #ce93d8' }}>
+                <Gift size={32} color="#7b1fa2" style={{ marginBottom: 8 }} />
+                <p style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#4a148c' }}>{COP(credito)}</p>
+                <p style={{ margin: 0, fontSize: 13, color: '#7b1fa2', fontWeight: 600 }}>Crédito disponible</p>
+                <p style={{ margin: '4px 0 0', fontSize: 11, color: '#9e9e9e' }}>Aplica en tu próxima compra</p>
+              </div>
+            )}
 
             <div className="card" style={{ padding: 20, textAlign: 'center' }}>
               <Clock size={32} color="var(--blue-600)" style={{ marginBottom: 8 }} />

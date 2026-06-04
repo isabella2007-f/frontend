@@ -1,13 +1,66 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getPedidos } from '../../../services/pedidosService';
+import { getPedidos, getMisVentas } from '../../../services/pedidosService';
 import { getCurrentUser } from '../../client/profile/services/profileService.js';
-import { 
-  Package, Calendar, MapPin, DollarSign, Leaf, Search, 
-  ChevronRight, Clock, CheckCircle2, Truck, AlertCircle, 
-  XCircle, Filter, ShoppingBag
+import {
+  Package, Calendar, MapPin, DollarSign, Leaf, Search,
+  ChevronRight, Clock, CheckCircle2, Truck, AlertCircle,
+  XCircle, ShoppingBag
 } from 'lucide-react';
 import '../../../styles/Client.css';
+
+/* ── Stepper de seguimiento ───────────────────────────── */
+const PASOS_DOMICILIO = [
+  { key: 'Pendiente',     label: 'Recibido',      emoji: '📥' },
+  { key: 'En producción', label: 'Preparación',   emoji: '👨‍🍳' },
+  { key: 'Confirmado',    label: 'Listo',         emoji: '✅' },
+  { key: 'En camino',     label: 'En camino',     emoji: '🛵' },
+  { key: 'Entregado',     label: 'Entregado',     emoji: '🎉' },
+];
+const PASOS_TIENDA = [
+  { key: 'Pendiente',     label: 'Recibido',      emoji: '📥' },
+  { key: 'En producción', label: 'Preparando',    emoji: '👨‍🍳' },
+  { key: 'Confirmado',    label: 'Listo en\ntienda', emoji: '🏪' },
+  { key: 'Entregado',     label: 'Recogido',      emoji: '✅' },
+];
+
+function PedidoStepper({ estado, domicilio }) {
+  const pasos = domicilio ? PASOS_DOMICILIO : PASOS_TIENDA;
+  const idx = pasos.findIndex(p => p.key === estado);
+  const activoIdx = idx === -1 ? 0 : idx;
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, marginBottom: 16 }}>
+      {pasos.map((paso, i) => {
+        const done   = i < activoIdx;
+        const active = i === activoIdx;
+        return (
+          <div key={paso.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+            {i > 0 && (
+              <div style={{
+                position: 'absolute', top: 14, right: '50%', width: '100%', height: 2,
+                background: done || active ? '#2e7d32' : '#e0e0e0', zIndex: 0,
+              }} />
+            )}
+            <div style={{
+              width: 28, height: 28, borderRadius: '50%', zIndex: 1, flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: done ? '#2e7d32' : active ? '#e8f5e9' : '#f5f5f5',
+              border: `2px solid ${done ? '#2e7d32' : active ? '#2e7d32' : '#e0e0e0'}`,
+              transition: 'all 0.3s',
+            }}>
+              {done ? <span style={{ color: '#fff', fontSize: 12 }}>✓</span> : <span style={{ fontSize: 13 }}>{paso.emoji}</span>}
+            </div>
+            <p style={{
+              fontSize: 8, fontWeight: active ? 800 : 600, marginTop: 4, textAlign: 'center',
+              color: done ? '#2e7d32' : active ? '#1a1a1a' : '#9e9e9e',
+              lineHeight: 1.3, whiteSpace: 'pre-line',
+            }}>{paso.label}</p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 const COP = (n) =>
   new Intl.NumberFormat('es-CO', {
@@ -84,7 +137,9 @@ const PedidosClientePage = () => {
   useEffect(() => {
     const currentUser = getCurrentUser();
     setUser(currentUser);
-    getPedidos({ porPagina: 100 }).then(data => setPedidos(data.pedidos || [])).catch(() => {});
+    getMisVentas({ porPagina: 100 }).then(data => setPedidos(data.pedidos || [])).catch(() =>
+      getPedidos({ porPagina: 100 }).then(data => setPedidos(data.pedidos || [])).catch(() => {})
+    );
   }, []);
 
   const userPedidos = user
@@ -231,7 +286,13 @@ const PedidosClientePage = () => {
                     <div className="flex justify-between items-end">
                       <div>
                         <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 leading-none">Total Pagado</p>
-                        <p className="text-2xl font-black text-gray-900 tracking-tight leading-none">{COP(pedido.total)}</p>
+                        <p className="text-2xl font-black text-gray-900 tracking-tight leading-none">
+                          {COP(
+                            (pedido.productosItems || []).reduce((s, p) => s + p.precio * p.cantidad, 0)
+                            + (pedido.domicilio ? 5000 : 0)
+                            - (pedido.descuento || 0)
+                          )}
+                        </p>
                       </div>
                       <div className="flex flex-col items-end">
                         <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 leading-none">Productos</p>
@@ -254,7 +315,9 @@ const PedidosClientePage = () => {
                       <div className="flex items-center gap-2 text-gray-400 mb-4">
                         <MapPin size={14} style={{ color: 'var(--green-600)' }} />
                         <span className="text-[10px] font-bold truncate max-w-[200px]">
-                          {pedido.direccion_entrega || 'Recogida en local'}
+                          {pedido.domicilio
+                            ? (pedido.direccion_entrega || '🛵 Domicilio')
+                            : '🏪 Recogida en local'}
                         </span>
                       </div>
                       
@@ -293,137 +356,129 @@ const PedidosClientePage = () => {
         )}
       </main>
 
-      {/* ── Modal Detalle Refinado ── */}
+      {/* ── Modal Detalle ── */}
       {selectedPedido && (
-        <div className="modal-overlay">
-          <div className="modal-box relative bg-white w-full max-w-lg rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 max-h-[90vh] flex flex-col border-none">
-            {/* Modal Header */}
-            <div className="modal-header p-6 flex justify-between items-center shrink-0 border-none" style={{ background: 'linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 100%)' }}>
+        <div className="modal-overlay" onClick={() => setSelectedPedido(null)}>
+          <div
+            className="modal-box relative bg-white w-full max-w-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col border-none"
+            style={{ borderRadius: 28 }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="modal-header shrink-0" style={{ background: 'linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 100%)', padding: '20px 24px' }}>
               <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="px-1.5 py-0.5 bg-white/10 rounded-lg text-[9px] font-black uppercase tracking-widest text-white border border-white/10">
-                    Pedido #{selectedPedido.numero}
-                  </span>
-                </div>
-                <h2 className="text-xl font-black tracking-tight leading-none text-white">Detalle de Compra</h2>
+                <p className="modal-header__eyebrow">Pedido #{selectedPedido.numero}</p>
+                <h2 className="modal-header__title">Detalle de Compra</h2>
               </div>
-              <button 
-                onClick={() => setSelectedPedido(null)}
-                className="p-2 hover:bg-white/10 rounded-full transition-all text-white/70 hover:text-white"
-              >
-                <XCircle size={20} />
-              </button>
+              <button onClick={() => setSelectedPedido(null)} className="modal-close-btn">✕</button>
             </div>
 
-            {/* Modal Body */}
-            <div className="modal-body p-5 overflow-y-auto custom-scrollbar flex-1 bg-gray-50/30 space-y-6">
-              {/* Status Banner */}
-              <div className={`p-3.5 rounded-2xl ${ESTADO_CONFIG[selectedPedido.estado]?.bg} border border-white flex items-center gap-3.5 shadow-sm`}>
-                <div className={`w-10 h-10 rounded-xl ${ESTADO_CONFIG[selectedPedido.estado]?.badge} flex items-center justify-center shadow-inner`}>
-                   {(() => {
-                     const Icon = ESTADO_CONFIG[selectedPedido.estado]?.icon || AlertCircle;
-                     return <Icon size={20} strokeWidth={2.5} />;
-                   })()}
+            {/* Stepper de seguimiento */}
+            <div style={{ padding: '16px 20px 0', background: '#fff', flexShrink: 0 }}>
+              <p style={{ fontSize: 10, fontWeight: 700, color: '#9e9e9e', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Seguimiento del pedido</p>
+              <PedidoStepper estado={selectedPedido.estado} domicilio={selectedPedido.domicilio} />
+            </div>
+
+            {/* Body */}
+            <div className="modal-body" style={{ flex: 1, overflowY: 'auto' }}>
+
+              {/* Entrega */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                <div style={{ background: '#f9fdf9', border: '1px solid #c8e6c9', borderRadius: 12, padding: '12px 14px' }}>
+                  <p style={{ fontSize: 9, fontWeight: 700, color: '#9e9e9e', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>
+                    {selectedPedido.domicilio ? '🛵 Domicilio' : '🏪 Recogida en local'}
+                  </p>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a', lineHeight: 1.4 }}>
+                    {selectedPedido.domicilio
+                      ? (selectedPedido.direccion_entrega || 'Dirección registrada')
+                      : 'Retiro en el local'}
+                  </p>
                 </div>
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-0.5">Estado actual</p>
-                  <p className={`text-base font-black ${ESTADO_CONFIG[selectedPedido.estado]?.text}`}>{selectedPedido.estado}</p>
+                <div style={{ background: '#f9fdf9', border: '1px solid #c8e6c9', borderRadius: 12, padding: '12px 14px' }}>
+                  <p style={{ fontSize: 9, fontWeight: 700, color: '#9e9e9e', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>💳 Pago</p>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a' }}>{selectedPedido.metodo_pago || '—'}</p>
+                  <p style={{ fontSize: 11, color: '#9e9e9e', marginTop: 2 }}>{selectedPedido.fecha_pedido}</p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-3">
-                   <h4 className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-1">Información General</h4>
-                   <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center text-green-600" style={{ background: 'var(--green-50)', color: 'var(--green-600)' }}>
-                          <Calendar size={14} />
-                        </div>
-                        <div>
-                          <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Fecha</p>
-                          <p className="text-xs font-bold text-gray-800">{new Date(selectedPedido.fecha_pedido).toLocaleString('es-CO')}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center text-green-600" style={{ background: 'var(--green-50)', color: 'var(--green-600)' }}>
-                          <DollarSign size={14} />
-                        </div>
-                        <div>
-                          <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Método de pago</p>
-                          <p className="text-xs font-bold text-gray-800">{selectedPedido.metodo_pago}</p>
-                        </div>
-                      </div>
-                   </div>
+              {/* Domiciliario (si aplica y está asignado) */}
+              {selectedPedido.domicilio && selectedPedido.nombre_domiciliario && (
+                <div style={{ background: '#f3e5f5', border: '1px solid #ce93d8', borderRadius: 12, padding: '10px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 18 }}>🛵</span>
+                  <div>
+                    <p style={{ fontSize: 9, fontWeight: 700, color: '#6a1b9a', letterSpacing: 1, textTransform: 'uppercase', margin: 0 }}>Tu domiciliario</p>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>{selectedPedido.nombre_domiciliario}</p>
+                    <p style={{ fontSize: 11, color: '#9e9e9e', margin: 0 }}>Tiempo estimado: 30–45 min</p>
+                  </div>
                 </div>
+              )}
+              {selectedPedido.domicilio && !selectedPedido.nombre_domiciliario && selectedPedido.estado === 'Confirmado' && (
+                <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 12, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#f57f17', fontWeight: 600 }}>
+                  🕐 Asignando domiciliario...
+                </div>
+              )}
 
-                <div className="space-y-3">
-                   <h4 className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-1">Entrega</h4>
-                   <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm flex items-start gap-3 h-full">
-                      <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center text-green-600 shrink-0" style={{ background: 'var(--green-50)', color: 'var(--green-600)' }}>
-                        <MapPin size={14} />
-                      </div>
-                      <div>
-                        <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Dirección de entrega</p>
-                        <p className="text-xs font-bold text-gray-800 leading-relaxed">
-                          {selectedPedido.direccion_entrega || 'Recogida en local comercial'}
-                        </p>
-                      </div>
-                   </div>
-                </div>
-              </div>
-
-              {/* Items List */}
-              <div className="space-y-3">
-                <h4 className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-1">Resumen de productos</h4>
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                   <table className="w-full">
-                      <thead className="bg-gray-50/50">
-                        <tr className="border-b border-gray-100">
-                          <th className="px-4 py-3 text-left text-[8px] font-black text-gray-400 uppercase tracking-widest">Producto</th>
-                          <th className="px-4 py-3 text-center text-[8px] font-black text-gray-400 uppercase tracking-widest">Cant.</th>
-                          <th className="px-4 py-3 text-right text-[8px] font-black text-gray-400 uppercase tracking-widest">Subtotal</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                         {selectedPedido.productosItems.map((item, idx) => (
-                           <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
-                              <td className="px-4 py-2.5">
-                                <p className="text-[11px] font-black text-gray-800 leading-tight">{item.nombre}</p>
-                                <p className="text-[9px] font-bold text-gray-400">{COP(item.precio)} c/u</p>
-                              </td>
-                              <td className="px-4 py-2.5 text-center">
-                                <span className="px-1.5 py-0.5 bg-gray-100 rounded-md text-[9px] font-black text-gray-600">x{item.cantidad}</span>
-                              </td>
-                              <td className="px-4 py-2.5 text-right text-[11px] font-black" style={{ color: 'var(--green-700)' }}>{COP(item.precio * item.cantidad)}</td>
-                           </tr>
-                         ))}
-                      </tbody>
-                      <tfoot className="bg-green-50/30" style={{ background: 'var(--green-50)' }}>
-                         <tr>
-                            <td colSpan={2} className="px-4 py-3 text-right text-[9px] font-black text-gray-400 uppercase tracking-widest">Total pagado</td>
-                            <td className="px-4 py-3 text-right text-base font-black text-green-800" style={{ color: 'var(--green-800)' }}>{COP(selectedPedido.total)}</td>
-                         </tr>
-                      </tfoot>
-                   </table>
-                </div>
+              {/* Productos */}
+              <p style={{ fontSize: 10, fontWeight: 700, color: '#9e9e9e', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Productos</p>
+              <div style={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 12, overflow: 'hidden', marginBottom: 14 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: '#f9fdf9' }}>
+                      <th style={{ padding: '8px 14px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: '#2e7d32', textTransform: 'uppercase' }}>Producto</th>
+                      <th style={{ padding: '8px 14px', textAlign: 'center', fontSize: 10, fontWeight: 700, color: '#2e7d32', textTransform: 'uppercase' }}>Cant.</th>
+                      <th style={{ padding: '8px 14px', textAlign: 'right', fontSize: 10, fontWeight: 700, color: '#2e7d32', textTransform: 'uppercase' }}>Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedPedido.productosItems.map((item, idx) => (
+                      <tr key={idx} style={{ borderTop: '1px solid #f5f5f5' }}>
+                        <td style={{ padding: '8px 14px', fontWeight: 600 }}>
+                          {item.nombre}
+                          <span style={{ display: 'block', fontSize: 10, color: '#9e9e9e' }}>{COP(item.precio)} c/u</span>
+                        </td>
+                        <td style={{ padding: '8px 14px', textAlign: 'center' }}>
+                          <span style={{ background: '#f1f8f1', border: '1px solid #c8e6c9', borderRadius: 6, padding: '1px 7px', fontSize: 11, fontWeight: 700, color: '#2e7d32' }}>×{item.cantidad}</span>
+                        </td>
+                        <td style={{ padding: '8px 14px', textAlign: 'right', fontWeight: 700, color: '#2e7d32' }}>{COP(item.precio * item.cantidad)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    {selectedPedido.domicilio && (
+                      <tr style={{ borderTop: '1px solid #f0f0f0', background: '#fafafa' }}>
+                        <td colSpan={2} style={{ padding: '8px 14px', textAlign: 'right', fontSize: 11, fontWeight: 600, color: '#9e9e9e' }}>🛵 Costo de domicilio</td>
+                        <td style={{ padding: '8px 14px', textAlign: 'right', fontSize: 12, fontWeight: 700, color: '#7b1fa2' }}>{COP(5000)}</td>
+                      </tr>
+                    )}
+                    <tr style={{ borderTop: '2px solid #e8f5e9', background: '#f9fdf9' }}>
+                      <td colSpan={2} style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: '#9e9e9e', textTransform: 'uppercase' }}>Total pagado</td>
+                      <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 15, fontWeight: 800, color: '#2e7d32' }}>
+                        {COP(
+                          (selectedPedido.productosItems || []).reduce((s, p) => s + p.precio * p.cantidad, 0)
+                          + (selectedPedido.domicilio ? 5000 : 0)
+                          - (selectedPedido.descuento || 0)
+                        )}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
               </div>
             </div>
 
-            {/* Modal Footer */}
-            <div className="modal-footer p-6 bg-white border-t border-gray-100 shrink-0 flex justify-end gap-3">
-              <button
-                className="btn-secondary py-3 px-8 text-[11px] font-black uppercase tracking-widest"
-                onClick={() => setSelectedPedido(null)}
-              >
-                Cerrar
-              </button>
-              {selectedPedido.estado === 'Entregado' && (
+            {/* Footer */}
+            <div className="modal-footer">
+              <button className="btn-ghost" onClick={() => setSelectedPedido(null)}>Cerrar</button>
+              {selectedPedido.domicilio && selectedPedido.id_domicilio &&
+               !['Entregado', 'Cancelado'].includes(selectedPedido.estado) && (
                 <button
-                  className="btn-primary py-3 px-8 text-[11px] font-black uppercase tracking-widest"
-                  onClick={() => handleRequestReturn(selectedPedido)}
+                  className="btn-cancel"
+                  onClick={() => { setSelectedPedido(null); navigate(`/cliente/chat/${selectedPedido.id_domicilio}`); }}
                 >
-                  Solicitar devolución
+                  💬 Chat con domiciliario
                 </button>
+              )}
+              {selectedPedido.estado === 'Entregado' && (
+                <button className="btn-save" onClick={() => handleRequestReturn(selectedPedido)}>Solicitar devolución</button>
               )}
             </div>
           </div>

@@ -36,6 +36,9 @@ def _actualizar_estado_insumo(insumo: Insumo) -> None:
 
 def _formato_detalle(detalle: DetalleCompra, db: Session) -> dict:
     insumo = db.query(Insumo).filter(Insumo.ID_Insumo == detalle.ID_Insumo).first()
+    lote   = db.query(LoteCompra).filter(LoteCompra.ID_Lote_Compra == detalle.ID_Lote_Compra).first() \
+             if detalle.ID_Lote_Compra else None
+    fecha_venc = lote.Fecha_Vencimiento.strftime("%Y-%m-%d") if lote and lote.Fecha_Vencimiento else None
     return {
         "ID_Detalle_Compra": detalle.ID_Detalle_Compra,
         "ID_Insumo":         detalle.ID_Insumo,
@@ -44,6 +47,7 @@ def _formato_detalle(detalle: DetalleCompra, db: Session) -> dict:
         "Cantidad":          detalle.Cantidad,
         "Precio_Und":        detalle.Precio_Und,
         "Notas":             detalle.Notas,
+        "Fecha_Vencimiento": fecha_venc,
     }
 
 
@@ -57,16 +61,21 @@ def _formato_compra(compra: Compra, db: Session) -> dict:
     ).all()
 
     return {
-        "ID_Compra":         compra.ID_Compra,
-        "ID_Proveedor":      compra.ID_Proveedor,
-        "nombre_proveedor":  proveedor.Responsable if proveedor else None,
-        "Total_Pago":        compra.Total_Pago,
-        "Fecha_Compra":      compra.Fecha_Compra,
-        "Fecha_Llegada":     getattr(compra, "Fecha_Llegada", None),
-        "Estado":            compra.Estado,
-        "estado_label":      estado.Estado if estado else None,
-        "Metodo_Pago":       compra.Metodo_Pago,
-        "detalles":          [_formato_detalle(d, db) for d in detalles],
+        "ID_Compra":            compra.ID_Compra,
+        "ID_Proveedor":         compra.ID_Proveedor,
+        "nombre_proveedor":     proveedor.Responsable if proveedor else None,
+        "Total_Pago":           compra.Total_Pago,
+        "Fecha_Compra":         compra.Fecha_Compra,
+        "Fecha_Llegada":        getattr(compra, "Fecha_Llegada", None),
+        "Estado":               compra.Estado,
+        "estado_label":         estado.Estado if estado else None,
+        "Metodo_Pago":          compra.Metodo_Pago,
+        "Notas":                getattr(compra, "Notas", None),
+        "Costo_Transporte":     getattr(compra, "Costo_Transporte", None),
+        "IVA_Porcentaje":       getattr(compra, "IVA_Porcentaje", None),
+        "Descuento_Porcentaje": getattr(compra, "Descuento_Porcentaje", None),
+        "Otros_Costos":         getattr(compra, "Otros_Costos", None),
+        "detalles":             [_formato_detalle(d, db) for d in detalles],
     }
 
 
@@ -120,17 +129,27 @@ def crear_compra(db: Session, datos: CompraCreate) -> dict:
     if not proveedor:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
 
-    total_pago = sum(
+    subtotal = sum(
         Decimal(str(d.Precio_Und)) * d.Cantidad
         for d in datos.detalles
     )
+    transporte = Decimal(str(datos.Costo_Transporte or 0))
+    iva_val    = subtotal * Decimal(str(datos.IVA_Porcentaje or 0)) / 100
+    desc_val   = subtotal * Decimal(str(datos.Descuento_Porcentaje or 0)) / 100
+    otros      = Decimal(str(datos.Otros_Costos or 0))
+    total_pago = subtotal + transporte + iva_val - desc_val + otros
 
     nueva_compra = Compra(
-        ID_Proveedor = datos.ID_Proveedor,
-        Total_Pago   = total_pago,
-        Fecha_Compra = datos.Fecha_Compra or datetime.now(),
-        Estado       = ESTADO_PENDIENTE,
-        Metodo_Pago  = datos.Metodo_Pago,
+        ID_Proveedor         = datos.ID_Proveedor,
+        Total_Pago           = total_pago,
+        Fecha_Compra         = datos.Fecha_Compra or datetime.now(),
+        Estado               = ESTADO_PENDIENTE,
+        Metodo_Pago          = datos.Metodo_Pago,
+        Notas                = datos.Notas,
+        Costo_Transporte     = datos.Costo_Transporte,
+        IVA_Porcentaje       = datos.IVA_Porcentaje,
+        Descuento_Porcentaje = datos.Descuento_Porcentaje,
+        Otros_Costos         = datos.Otros_Costos,
     )
     db.add(nueva_compra)
     db.flush()
@@ -166,6 +185,40 @@ def crear_compra(db: Session, datos: CompraCreate) -> dict:
     db.commit()
     db.refresh(nueva_compra)
     return _formato_compra(nueva_compra, db)
+
+
+def editar_compra(db: Session, id_compra: int, datos) -> dict:
+    """
+    Edita los campos básicos de una compra.
+    - Pendiente: proveedor, método, fecha, notas, departamento, municipio.
+    - Completada: solo método, notas y fecha_llegada.
+    """
+    compra = db.query(Compra).filter(Compra.ID_Compra == id_compra).first()
+    if not compra:
+        raise HTTPException(status_code=404, detail="Compra no encontrada")
+    if compra.Estado == ESTADO_ANULADA:
+        raise HTTPException(status_code=400, detail="No se puede editar una compra anulada")
+
+    if datos.Metodo_Pago is not None:
+        compra.Metodo_Pago = datos.Metodo_Pago
+    if datos.Notas is not None:
+        compra.Notas = datos.Notas
+    if datos.Fecha_Llegada is not None:
+        compra.Fecha_Llegada = datos.Fecha_Llegada
+
+    # Campos solo editables cuando está pendiente
+    if compra.Estado == ESTADO_PENDIENTE:
+        if datos.ID_Proveedor is not None:
+            proveedor = db.query(Proveedor).filter(Proveedor.ID_Proveedor == datos.ID_Proveedor).first()
+            if not proveedor:
+                raise HTTPException(status_code=404, detail="Proveedor no encontrado")
+            compra.ID_Proveedor = datos.ID_Proveedor
+        if datos.Fecha_Compra is not None:
+            compra.Fecha_Compra = datos.Fecha_Compra
+
+    db.commit()
+    db.refresh(compra)
+    return _formato_compra(compra, db)
 
 
 def completar_compra(db: Session, id_compra: int, fecha_llegada=None) -> dict:

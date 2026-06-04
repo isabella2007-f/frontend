@@ -5,9 +5,18 @@ from typing import Optional
 from src.shared.services.database import get_db
 from src.features.auth.services.dependencies import requiere_permiso, obtener_usuario_actual
 from .schemas import VentaCreate, VentaEstado, VentaResponse, VentaListResponse
-from .service import obtener_ventas, obtener_venta, crear_venta, cambiar_estado, obtener_mis_ventas
+from .service import obtener_ventas, obtener_venta, crear_venta, cambiar_estado, obtener_mis_ventas, obtener_mi_credito
 
 router = APIRouter(prefix="/ventas", tags=["Gestión de Ventas"])
+
+
+@router.get("/mi-credito")
+def ver_mi_credito(
+    db:     Session = Depends(get_db),
+    actual: dict    = Depends(obtener_usuario_actual),
+):
+    """Retorna el saldo de crédito disponible del cliente autenticado."""
+    return obtener_mi_credito(db, actual)
 
 
 @router.get("/mis-ventas", response_model=VentaListResponse)

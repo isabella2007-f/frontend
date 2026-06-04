@@ -2,9 +2,10 @@ import { apiFetch } from "../utils/api";
 
 const ESTADO_PEDIDO_MAP = {
   1:  "Pendiente",
-  3:  "Cancelado",
-  4:  "Confirmado",
-  5:  "Cancelado",
+  2:  "Confirmado",   // registros legacy (antes Estado=2 se usaba para confirmar)
+  4:  "Confirmado",   // Estado correcto: ID=4 = Confirmado en tabla Estados
+  5:  "Cancelado",    // Estado correcto: ID=5 = Cancelado en tabla Estados
+  3:  "Cancelado",    // registros legacy
   8:  "Entregado",
   9:  "En camino",
   13: "En producción",
@@ -18,6 +19,7 @@ const adaptPedido = (p) => {
     estado,
     metodo_pago:      p.Metodo_Pago       || p.metodo_pago     || "",
     domicilio:        !!(p.tiene_domicilio ?? p.Domicilio ?? p.domicilio),
+    id_domicilio:     p.ID_Domicilio || null,
     direccion_entrega: p.direccion_entrega    || "",
     municipio:         p.municipio_entrega    || "",
     departamento:      p.departamento_entrega || "",
@@ -27,7 +29,8 @@ const adaptPedido = (p) => {
     notas:            p.Notas             || p.notas            || "",
     fecha_pedido:     p.Fecha_pedido      || p.Fecha_Pedido     || p.fecha_pedido || "",
     idCliente:        p.ID_Usuario        || p.ID_Cliente       || p.id_cliente   || null,
-    idEmpleado:       p.ID_Empleado       || p.id_empleado      || null,
+    idEmpleado:          p.ID_Empleado          || p.id_empleado         || null,
+    nombre_domiciliario: p.nombre_domiciliario  || null,
     orden_produccion: (p.ordenes_produccion_pendientes > 0) || !!(p.Orden_Produccion ?? p.orden_produccion),
     comprobante:      !!(p.Comprobante    ?? p.comprobante),
     cliente: {
@@ -77,4 +80,16 @@ export const editarPedido = async (id, data) => {
 
 export const eliminarPedido = async (id) => {
   return apiFetch(`/pedidos/${id}`, { method: "DELETE" });
+};
+
+export const getMiCredito = async () => {
+  return apiFetch("/ventas/mi-credito");
+};
+
+export const getMisVentas = async ({ pagina = 1, porPagina = 100 } = {}) => {
+  const data = await apiFetch(`/ventas/mis-ventas?pagina=${pagina}&por_pagina=${porPagina}`);
+  return {
+    total:   data.total,
+    pedidos: (data.pedidos || data.ventas || []).map(adaptPedido),
+  };
 };

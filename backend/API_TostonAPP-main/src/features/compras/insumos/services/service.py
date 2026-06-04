@@ -16,26 +16,35 @@ def _formato_insumo(insumo: Insumo, db: Session) -> dict:
         UnidadMedida.ID_Unidad_Medida == insumo.Unidad_Medida
     ).first()
 
-    lote = db.query(LoteCompra).filter(
-        LoteCompra.ID_Lote_Compra == insumo.ID_Lote_Compra
-    ).first() if insumo.ID_Lote_Compra else None
+    hoy = datetime.utcnow()
+    proximo_lote = (
+        db.query(LoteCompra)
+        .filter(
+            LoteCompra.ID_Insumo == insumo.ID_Insumo,
+            LoteCompra.Fecha_Vencimiento != None,
+        )
+        .order_by(LoteCompra.Fecha_Vencimiento.asc())
+        .first()
+    )
+
+    proximo_venc = None
+    dias_para_vencer = None
+    if proximo_lote and proximo_lote.Fecha_Vencimiento:
+        proximo_venc = proximo_lote.Fecha_Vencimiento.strftime("%Y-%m-%d")
+        dias_para_vencer = (proximo_lote.Fecha_Vencimiento - hoy).days
 
     return {
-        "ID_Insumo":        insumo.ID_Insumo,
-        "Nombre":           insumo.Nombre,
-        "ID_Categoria":     insumo.ID_Categoria,
-        "nombre_categoria": categoria.Nombre_Categoria if categoria else None,
-        "Unidad_Medida":    insumo.Unidad_Medida,
-        "simbolo_unidad":   unidad.Simbolo if unidad else None,
-        "Stock_Actual":     insumo.Stock_Actual,
-        "Stock_Minimo":     insumo.Stock_Minimo,
-        "Estado":           insumo.Estado,
-        "lote": {
-            "ID_Lote_Compra":    lote.ID_Lote_Compra,
-            "Fecha_Vencimiento": lote.Fecha_Vencimiento,
-            "Cantidad_Inicial":  lote.Cantidad_Inicial,
-            "Estado":            lote.Estado,
-        } if lote else None,
+        "ID_Insumo":          insumo.ID_Insumo,
+        "Nombre":             insumo.Nombre,
+        "ID_Categoria":       insumo.ID_Categoria,
+        "nombre_categoria":   categoria.Nombre_Categoria if categoria else None,
+        "Unidad_Medida":      insumo.Unidad_Medida,
+        "simbolo_unidad":     unidad.Simbolo if unidad else None,
+        "Stock_Actual":       insumo.Stock_Actual,
+        "Stock_Minimo":       insumo.Stock_Minimo,
+        "Estado":             insumo.Estado,
+        "proximo_vencimiento": proximo_venc,
+        "dias_para_vencer":   dias_para_vencer,
     }
 
 
@@ -183,6 +192,33 @@ def cambiar_estado(db: Session, id_insumo: int, nuevo_estado: int) -> dict:
     db.commit()
     db.refresh(insumo)
     return _formato_insumo(insumo, db)
+
+
+def obtener_lotes_insumo(db: Session, id_insumo: int) -> dict:
+    """Retorna todos los lotes de compra de un insumo, separando activos y vencidos."""
+    hoy = datetime.utcnow()
+    lotes = (
+        db.query(LoteCompra)
+        .filter(LoteCompra.ID_Insumo == id_insumo)
+        .order_by(LoteCompra.Fecha_Vencimiento.asc())
+        .all()
+    )
+    resultado = []
+    for l in lotes:
+        fv = l.Fecha_Vencimiento
+        vencido = bool(fv and fv < hoy)
+        dias = None
+        if fv:
+            dias = (fv - hoy).days
+        resultado.append({
+            "id":               l.ID_Lote_Compra,
+            "cantidad_inicial": l.Cantidad_Inicial,
+            "fecha_vencimiento": fv.strftime("%Y-%m-%d") if fv else None,
+            "vencido":          vencido,
+            "dias_para_vencer": dias,
+            "estado":           l.Estado,
+        })
+    return {"lotes": resultado, "total": len(resultado)}
 
 
 def eliminar_insumo(db: Session, id_insumo: int) -> dict:

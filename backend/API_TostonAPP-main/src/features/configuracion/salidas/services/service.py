@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from datetime import datetime
 
-from src.shared.services.models import Salida, Insumo, Producto, Empleado, Estado
+from src.shared.services.models import Salida, Insumo, Producto, Empleado, Estado, CategoriaInsumo, CategoriaProducto
 from src.shared.services.notificaciones_utils import notificar_stock_insumo, notificar_stock_producto
 from .schemas import SalidaCreate
 
@@ -49,20 +49,29 @@ def _formato_salida(salida: Salida, db: Session) -> dict:
                if salida.ID_Empleado else None
     estado   = db.query(Estado).filter(Estado.ID_Estados == salida.Estado).first()
 
+    cat_nombre = None
+    if insumo and insumo.ID_Categoria:
+        cat = db.query(CategoriaInsumo).filter(CategoriaInsumo.ID_Categoria == insumo.ID_Categoria).first()
+        cat_nombre = cat.Nombre_Categoria if cat else None
+    elif producto and producto.ID_Categoria:
+        cat = db.query(CategoriaProducto).filter(CategoriaProducto.ID_Categoria == producto.ID_Categoria).first()
+        cat_nombre = cat.Nombre_Categoria if cat else None
+
     return {
-        "ID_Salida":       salida.ID_Salida,
-        "Tipo":            salida.Tipo,
-        "ID_Insumo":       salida.ID_Insumo,
-        "nombre_insumo":   insumo.Nombre if insumo else None,
-        "ID_Producto":     salida.ID_Producto,
-        "nombre_producto": producto.nombre if producto else None,
-        "Cantidad":        salida.Cantidad,
-        "Motivo":          salida.Motivo,
-        "ID_Empleado":     salida.ID_Empleado,
-        "nombre_empleado": f"{empleado.Nombre} {empleado.Apellidos}" if empleado else None,
-        "Fecha":           salida.Fecha,
-        "Estado":          salida.Estado,
-        "estado_label":    estado.Estado if estado else None,
+        "ID_Salida":        salida.ID_Salida,
+        "Tipo":             salida.Tipo,
+        "ID_Insumo":        salida.ID_Insumo,
+        "nombre_insumo":    insumo.Nombre if insumo else None,
+        "ID_Producto":      salida.ID_Producto,
+        "nombre_producto":  producto.nombre if producto else None,
+        "nombre_categoria": cat_nombre,
+        "Cantidad":         salida.Cantidad,
+        "Motivo":           salida.Motivo,
+        "ID_Empleado":      salida.ID_Empleado,
+        "nombre_empleado":  f"{empleado.Nombre} {empleado.Apellidos}" if empleado else None,
+        "Fecha":            salida.Fecha,
+        "Estado":           salida.Estado,
+        "estado_label":     estado.Estado if estado else None,
     }
 
 

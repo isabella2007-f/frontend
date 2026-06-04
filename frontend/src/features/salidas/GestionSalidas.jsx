@@ -8,7 +8,7 @@ import "./Salidas.css";
    HELPERS
 ══════════════════════════════════════════════════════════ */
 
-const ITEMS_PER_PAGE = 5;
+const ITEMS_PER_PAGE = 3;
 
 function hoyISO() { return new Date().toISOString().split("T")[0]; }
 function formatFecha(f) {
@@ -39,7 +39,7 @@ function adaptarSalida(s) {
     entidadId:     s.ID_Insumo || s.ID_Producto,
     entidadTipo:   s.ID_Insumo ? "insumo" : "producto",
     entidadNombre: s.nombre_insumo || s.nombre_producto || "—",
-    entidadCat:    "—",
+    entidadCat:    s.nombre_categoria || "—",
     unidad:        "uds.",
     cantidad:      s.Cantidad,
     motivo:        s.Motivo,
@@ -48,47 +48,6 @@ function adaptarSalida(s) {
   };
 }
 
-/* ══════════════════════════════════════════════════════════
-   PAGINACIÓN
-══════════════════════════════════════════════════════════ */
-function Paginacion({ totalItems, itemsPerPage, currentPage, onPageChange }) {
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  if (totalPages <= 1) return null;
-
-  const inicio = (currentPage - 1) * itemsPerPage + 1;
-  const fin    = Math.min(currentPage * itemsPerPage, totalItems);
-
-  return (
-    <div className="sl-pagination">
-      <span className="sl-pagination__info">
-        Mostrando <strong>{inicio}–{fin}</strong> de <strong>{totalItems}</strong> salidas
-      </span>
-      <div className="sl-pagination__btns">
-        <button className="sl-pg-btn" onClick={() => onPageChange(1)} disabled={currentPage === 1} title="Primera página">«</button>
-        <button className="sl-pg-btn" onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1} title="Página anterior">‹</button>
-        {Array.from({ length: totalPages }, (_, i) => i + 1)
-          .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
-          .reduce((acc, p, idx, arr) => {
-            if (idx > 0 && p - arr[idx - 1] > 1) acc.push("…");
-            acc.push(p);
-            return acc;
-          }, [])
-          .map((item, idx) =>
-            item === "…"
-              ? <span key={`ellipsis-${idx}`} className="sl-pg-ellipsis">…</span>
-              : <button
-                  key={item}
-                  className={`sl-pg-btn sl-pg-btn--num${currentPage === item ? " active" : ""}`}
-                  onClick={() => onPageChange(item)}
-                >{item}</button>
-          )
-        }
-        <button className="sl-pg-btn" onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages} title="Siguiente">›</button>
-        <button className="sl-pg-btn" onClick={() => onPageChange(totalPages)} disabled={currentPage === totalPages} title="Última">»</button>
-      </div>
-    </div>
-  );
-}
 
 /* ══════════════════════════════════════════════════════════
    MODAL CONFIRMAR ANULAR
@@ -236,8 +195,11 @@ function RegistrarSalida({ productos, insumos, onClose, onRegistrada }) {
                       return (
                         <button key={`${item._tipo}-${item.id}`}
                           className={`sl-lista__item${seleccionado?.id === item.id && seleccionado?._tipo === item._tipo ? " selected" : ""}`}
-                          onClick={() => { setSeleccionado(item); setErrors(p => ({ ...p, seleccionado: "" })); }}>
-                          <div className="sl-lista__item-name">{item.nombre}</div>
+                          onClick={() => { setSeleccionado(item); setErrors(p => ({ ...p, seleccionado: "" })); }}
+                          style={agot ? { borderColor: "#ef9a9a", background: "#fff8f8" } : undefined}>
+                          <div className="sl-lista__item-name" style={agot ? { color: "#c62828" } : undefined}>
+                            {item.nombre}
+                          </div>
                           <div className="sl-lista__item-meta">
                             <span className="sl-lista__item-cat">{item._label}</span>
                             <span style={{ fontWeight: 700, fontSize: 12, color: agot ? "#c62828" : bajo ? "#f57f17" : "#2e7d32" }}>
@@ -435,13 +397,13 @@ function HistorialSalidas({ salidas, loading, onAgregarClick, cargarSalidas }) {
       </div>
 
       {/* Toolbar */}
-      <div className="sl-toolbar">
-        <div className="sl-search" style={{ flex: 1 }}>
+      <div className="sl-toolbar" style={{ alignItems: "stretch" }}>
+        <div className="sl-search" style={{ flex: 1, marginBottom: 0, display: "flex", alignItems: "center" }}>
           <span className="sl-search__icon">🔍</span>
           <input className="sl-search__input" placeholder="Buscar por nombre o motivo…"
-            value={busqueda} onChange={e => setBusqueda(e.target.value)} />
+            value={busqueda} onChange={e => setBusqueda(e.target.value)} style={{ height: "100%" }} />
         </div>
-        <div ref={filterRef} style={{ position: "relative" }}>
+        <div ref={filterRef} style={{ position: "relative", display: "flex" }}>
           <button className={`sl-filter-btn ${filtroTipo !== "todos" || filtroEntidad !== "todos" ? "has-filter" : ""}`}
             onClick={() => setShowFilter(v => !v)}>▼ Filtrar</button>
           {showFilter && (
@@ -479,38 +441,35 @@ function HistorialSalidas({ salidas, loading, onAgregarClick, cargarSalidas }) {
         </button>
       </div>
 
-      {/* Tabla */}
-      <div className="sl-table-wrap">
-        {loading ? (
-          <table className="sl-table">
+      {/* Tabla + paginación — flex:1 para ocupar el espacio restante del sl-tab-content */}
+      <div className="card" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <div style={{ flex: 1, overflowY: "auto", overflowX: "auto", minHeight: 0 }}>
+          <table className="tbl">
             <thead>
               <tr>
-                <th>Tipo</th><th>Elemento</th><th>Categoría</th>
-                <th>Cantidad</th><th>Motivo</th><th>Fecha</th>
-                <th style={{ width: 80, textAlign: "center" }}>Acciones</th>
-              </tr>
-            </thead>
-            <tbody><SkeletonRows /></tbody>
-          </table>
-        ) : filtradas.length === 0 ? (
-          <div className="sl-empty">
-            <div style={{ fontSize: 32, opacity: 0.3, marginBottom: 8 }}>📋</div>
-            <p>No hay salidas registradas</p>
-          </div>
-        ) : (
-          <table className="sl-table">
-            <thead>
-              <tr>
-                <th>Tipo</th><th>Elemento</th><th>Categoría</th>
-                <th>Cantidad</th><th>Motivo</th><th>Fecha</th>
+                <th>Tipo</th>
+                <th>Elemento</th>
+                <th>Categoría</th>
+                <th>Cantidad</th>
+                <th>Motivo</th>
+                <th>Fecha</th>
                 <th style={{ width: 80, textAlign: "center" }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {paginadas.map((s, idx) => {
+              {loading ? (
+                <SkeletonRows />
+              ) : paginadas.length === 0 ? (
+                <tr><td colSpan={7}>
+                  <div className="empty-state">
+                    <div className="empty-state__icon">📋</div>
+                    <p className="empty-state__text">No hay salidas registradas</p>
+                  </div>
+                </td></tr>
+              ) : paginadas.map((s, idx) => {
                 const tc = TIPO_MAP[s.tipo] || { color: "#757575", bg: "#f5f5f5", border: "#e0e0e0", icon: "📋", label: s.tipo };
                 return (
-                  <tr key={s.id || idx} className="sl-table__row" style={{ opacity: s.anulada ? 0.5 : 1 }}>
+                  <tr key={s.id || idx} className="tbl-row" style={{ opacity: s.anulada ? 0.5 : 1 }}>
                     <td>
                       <span className="sl-tipo-badge" style={{ color: tc.color, background: tc.bg, border: `1px solid ${tc.border}` }}>
                         {tc.icon} {tc.label}
@@ -542,15 +501,21 @@ function HistorialSalidas({ salidas, loading, onAgregarClick, cargarSalidas }) {
               })}
             </tbody>
           </table>
-        )}
-      </div>
+        </div>
 
-      <Paginacion
-        totalItems={filtradas.length}
-        itemsPerPage={ITEMS_PER_PAGE}
-        currentPage={safePage}
-        onPageChange={setPage}
-      />
+        <div className="pagination-bar">
+          <span className="pagination-count">
+            {filtradas.length} {filtradas.length === 1 ? "salida" : "salidas"} en total
+          </span>
+          <div className="pagination-btns">
+            <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
+            <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
+            <span className="pg-pill">Página {safePage} de {Math.max(1, totalPages)}</span>
+            <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}>›</button>
+            <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage >= totalPages}>»</button>
+          </div>
+        </div>
+      </div>
 
       {salidaAAnular && (
         <ModalConfirmarAnular
@@ -699,11 +664,26 @@ export default function GestionSalidas() {
   const [insumos,   setInsumos]   = useState([]);
   const [loading,   setLoading]   = useState(true);
 
+  // Mapas id → nombre de categoría, construidos una vez al cargar
+  const prodCatMap = useRef({});
+  const insCatMap  = useRef({});
+
+  const enriquecerSalidas = (rawSalidas) =>
+    rawSalidas.map(s => {
+      const adapted = adaptarSalida(s);
+      if (adapted.entidadTipo === "producto" && adapted.entidadId) {
+        adapted.entidadCat = prodCatMap.current[adapted.entidadId] || adapted.entidadCat;
+      } else if (adapted.entidadTipo === "insumo" && adapted.entidadId) {
+        adapted.entidadCat = insCatMap.current[adapted.entidadId] || adapted.entidadCat;
+      }
+      return adapted;
+    });
+
   const cargarSalidas = async () => {
     setLoading(true);
     try {
       const data = await getSalidas();
-      setSalidas((data.salidas || []).map(adaptarSalida));
+      setSalidas(enriquecerSalidas(data.salidas || []));
     } catch {
       // error shown in child toast
     } finally {
@@ -712,37 +692,43 @@ export default function GestionSalidas() {
   };
 
   useEffect(() => {
-    cargarSalidas();
     (async () => {
       try {
-        const [pData, iData] = await Promise.all([getProductos(), getInsumos()]);
-        setProductos(
-          (pData.productos || [])
-            .filter(p => p.Estado !== 0)
-            .map(p => ({
-              id:         p.ID_Producto,
-              nombre:     p.nombre || p.Nombre || "",
-              _tipo:      "producto",
-              _stock:     p.Stock_Actual ?? p.Stock ?? 0,
-              _label:     p.nombre_categoria || "",
-              _unidad:    "uds.",
-            }))
-        );
-        setInsumos(
-          (iData.insumos || [])
-            .filter(i => i.Estado !== 0)
-            .map(i => ({
-              id:         i.ID_Insumo,
-              nombre:     i.Nombre,
-              _tipo:      "insumo",
-              _stock:     i.Stock_Actual ?? 0,
-              _label:     i.nombre_categoria || "",
-              _unidad:    i.simbolo_unidad || "uds.",
-              stockMinimo: i.Stock_Minimo,
-            }))
-        );
+        const [sData, pData, iData] = await Promise.all([
+          getSalidas(),
+          getProductos(),
+          getInsumos(),
+        ]);
+
+        const prodList = (pData.productos || []).filter(p => p.Estado !== 0).map(p => ({
+          id:          p.ID_Producto,
+          nombre:      p.nombre || p.Nombre || "",
+          _tipo:       "producto",
+          _stock:      p.Stock_Actual ?? p.Stock ?? 0,
+          _label:      p.nombre_categoria || "",
+          _unidad:     "uds.",
+        }));
+        const insList = (iData.insumos || []).filter(i => i.Estado !== 0).map(i => ({
+          id:          i.ID_Insumo,
+          nombre:      i.Nombre,
+          _tipo:       "insumo",
+          _stock:      i.Stock_Actual ?? 0,
+          _label:      i.nombre_categoria || "",
+          _unidad:     i.simbolo_unidad || "uds.",
+          stockMinimo: i.Stock_Minimo,
+        }));
+
+        // Construir mapas id → categoría para enriquecer el historial
+        prodCatMap.current = Object.fromEntries(prodList.map(p => [p.id, p._label]));
+        insCatMap.current  = Object.fromEntries(insList.map(i => [i.id, i._label]));
+
+        setProductos(prodList);
+        setInsumos(insList);
+        setSalidas(enriquecerSalidas(sData.salidas || []));
       } catch {
-        // selector fallback to empty
+        // fallback silencioso
+      } finally {
+        setLoading(false);
       }
     })();
   }, []);

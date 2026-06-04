@@ -63,3 +63,23 @@ class DomicilioListResponse(BaseModel):
     pagina:     int
     por_pagina: int
     domicilios: list[DomicilioResponse]
+
+
+# -- OTP --
+class OTPVerify(BaseModel):
+    codigo: str
+
+
+# -- Chat --
+class MensajeCreate(BaseModel):
+    Contenido: str
+
+
+class MensajeResponse(BaseModel):
+    ID_Mensaje:       int
+    ID_Domicilio:     int
+    Tipo_Remitente:   str
+    ID_Remitente:     int
+    Nombre_Remitente: Optional[str] = None
+    Contenido:        str
+    Fecha:            Optional[datetime] = None

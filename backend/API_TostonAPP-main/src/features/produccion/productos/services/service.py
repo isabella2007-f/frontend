@@ -3,7 +3,7 @@ from fastapi import HTTPException
 from datetime import datetime
 from decimal import Decimal
 
-from src.shared.services.models import Producto, CategoriaProducto, ProductoImagen, FichaTecnica, OrdenProduccion, VentaXProducto, DevolucionDetalle
+from src.shared.services.models import Producto, CategoriaProducto, ProductoImagen, FichaTecnica, FichaTecnicaInsumo, Insumo, OrdenProduccion, VentaXProducto, DevolucionDetalle, LoteProducto
 from .schemas import ProductoCreate, ProductoUpdate, FichaTecnicaInput
 
 
@@ -51,17 +51,33 @@ def _formato_producto(producto: Producto, db: Session) -> dict:
         "Publicado":        getattr(producto, "Publicado", 0) or 0,
         "Descripcion_Corta": getattr(producto, "Descripcion_Corta", None),
         "Descripcion_Larga": getattr(producto, "Descripcion_Larga", None),
+        "Fecha_Creacion":    getattr(producto, "Fecha_Creacion", None),
         "imagenes": [
             {"ID_Producto_Img": img.ID_Producto_Img, "url": img.imagen}
             for img in imagenes
         ],
         "ficha_tecnica": {
-            "ID_Ficha":      ficha.ID_Ficha,
-            "Version":       ficha.Version,
-            "Observaciones": ficha.Observaciones,
-            "Procedimiento": ficha.Procedimiento,
-            "Estado":        ficha.Estado,
+            "ID_Ficha":       ficha.ID_Ficha,
+            "Version":        ficha.Version,
+            "Observaciones":  ficha.Observaciones,
+            "Procedimiento":  ficha.Procedimiento,
+            "Estado":         ficha.Estado,
             "Fecha_Creacion": ficha.Fecha_Creacion,
+            "Dias_Vida_Util": getattr(ficha, "Dias_Vida_Util", None),
+            "insumos": [
+                {
+                    "ID_Ficha_Insumo":  fi.ID_Ficha_Insumo,
+                    "ID_Insumo":        fi.ID_Insumo,
+                    "nombre_insumo":    fi.insumo.Nombre if fi.insumo else None,
+                    "ID_Categoria":     fi.insumo.ID_Categoria if fi.insumo else None,
+                    "nombre_categoria": (fi.insumo.categoria.Nombre_Categoria if fi.insumo and fi.insumo.categoria else None),
+                    "Cantidad":         fi.Cantidad,
+                    "Unidad":           fi.Unidad,
+                }
+                for fi in db.query(FichaTecnicaInsumo).filter(
+                    FichaTecnicaInsumo.ID_Ficha == ficha.ID_Ficha
+                ).all()
+            ],
         } if ficha else None,
     }
 
@@ -112,6 +128,34 @@ def obtener_producto(db: Session, id_producto: int) -> dict:
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
     return _formato_producto(producto, db)
+
+
+def obtener_lotes_producto(db: Session, id_producto: int) -> dict:
+    """Retorna todos los lotes de producción de un producto, separando activos y vencidos."""
+    hoy = datetime.utcnow()
+    lotes = (
+        db.query(LoteProducto)
+        .filter(LoteProducto.ID_Producto == id_producto)
+        .order_by(LoteProducto.Fecha_Vencimiento.asc().nullslast())
+        .all()
+    )
+    resultado = []
+    for l in lotes:
+        fv = l.Fecha_Vencimiento
+        fp = l.Fecha_Produccion
+        vencido = bool(fv and fv < hoy)
+        dias = (fv - hoy).days if fv else None
+        resultado.append({
+            "id":               l.ID_Lote_Producto,
+            "numero_lote":      l.Numero_Lote,
+            "cantidad":         l.Cantidad,
+            "fecha_produccion": fp.strftime("%Y-%m-%d") if fp else None,
+            "fecha_vencimiento": fv.strftime("%Y-%m-%d") if fv else None,
+            "vencido":          vencido,
+            "dias_para_vencer": dias,
+            "estado":           l.Estado,
+        })
+    return {"lotes": resultado, "total": len(resultado)}
 
 
 def verificar_puede_eliminar_producto(db: Session, id_producto: int) -> dict:
@@ -170,6 +214,7 @@ def crear_producto(db: Session, datos: ProductoCreate) -> dict:
         Publicado         = datos.Publicado or 0,
         Descripcion_Corta = datos.Descripcion_Corta,
         Descripcion_Larga = datos.Descripcion_Larga,
+        Fecha_Creacion    = datetime.now(),
     )
     db.add(nuevo)
     db.flush()  # obtiene el ID sin hacer commit aún
@@ -251,7 +296,7 @@ def eliminar_imagen(db: Session, id_imagen: int) -> dict:
 
 
 def gestionar_ficha(db: Session, id_producto: int, datos: FichaTecnicaInput) -> dict:
-    """Upsert de ficha técnica: crea si no existe, edita si ya existe."""
+    """Upsert de ficha técnica: crea si no existe, edita si ya existe. Reemplaza insumos."""
     producto = db.query(Producto).filter(Producto.ID_Producto == id_producto).first()
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
@@ -260,8 +305,10 @@ def gestionar_ficha(db: Session, id_producto: int, datos: FichaTecnicaInput) -> 
         FichaTecnica.ID_Producto == id_producto
     ).order_by(FichaTecnica.Fecha_Creacion.desc()).first()
 
+    campos = datos.model_dump(exclude_none=True, exclude={"insumos"})
+
     if ficha:
-        for campo, valor in datos.model_dump(exclude_none=True).items():
+        for campo, valor in campos.items():
             setattr(ficha, campo, valor)
     else:
         ficha = FichaTecnica(
@@ -274,10 +321,38 @@ def gestionar_ficha(db: Session, id_producto: int, datos: FichaTecnicaInput) -> 
             Fecha_Creacion = datetime.now(),
         )
         db.add(ficha)
+        db.flush()
+
+    if datos.insumos is not None:
+        db.query(FichaTecnicaInsumo).filter(
+            FichaTecnicaInsumo.ID_Ficha == ficha.ID_Ficha
+        ).delete(synchronize_session=False)
+        for ins in datos.insumos:
+            db.add(FichaTecnicaInsumo(
+                ID_Ficha  = ficha.ID_Ficha,
+                ID_Insumo = ins.ID_Insumo,
+                Cantidad  = ins.Cantidad,
+                Unidad    = ins.Unidad,
+            ))
 
     db.commit()
     db.refresh(producto)
     return _formato_producto(producto, db)
+
+
+def eliminar_ficha(db: Session, id_producto: int) -> dict:
+    """Elimina la ficha técnica y sus insumos de un producto."""
+    ficha = db.query(FichaTecnica).filter(
+        FichaTecnica.ID_Producto == id_producto
+    ).first()
+    if not ficha:
+        raise HTTPException(status_code=404, detail="Ficha técnica no encontrada")
+    db.query(FichaTecnicaInsumo).filter(
+        FichaTecnicaInsumo.ID_Ficha == ficha.ID_Ficha
+    ).delete(synchronize_session=False)
+    db.delete(ficha)
+    db.commit()
+    return {"mensaje": "Ficha técnica eliminada"}
 
 
 def eliminar_producto(db: Session, id_producto: int) -> dict:
@@ -291,7 +366,10 @@ def eliminar_producto(db: Session, id_producto: int) -> dict:
         raise HTTPException(status_code=400, detail=check["razon"])
 
     db.query(ProductoImagen).filter(ProductoImagen.ID_Producto == id_producto).delete()
-    db.query(FichaTecnica).filter(FichaTecnica.ID_Producto == id_producto).delete()
+    fichas = db.query(FichaTecnica).filter(FichaTecnica.ID_Producto == id_producto).all()
+    for f in fichas:
+        db.query(FichaTecnicaInsumo).filter(FichaTecnicaInsumo.ID_Ficha == f.ID_Ficha).delete(synchronize_session=False)
+        db.delete(f)
 
     db.delete(producto)
     db.commit()

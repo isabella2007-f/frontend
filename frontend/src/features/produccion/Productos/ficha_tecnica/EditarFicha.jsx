@@ -3,30 +3,46 @@ import { getCategorias } from "../../../../services/categoriasInsumosService.js"
 import { getInsumos } from "../../../../services/insumosService.js";
 import "./FichasTecnicas.css";
 
-const UNIDADES = ["kg","g","l","ml","unidad","taza","cucharada","cucharadita"];
+  const UNIDADES = ["kg","g","l","ml","unidad","taza","cucharada","cucharadita"];
+  const UNITS_FAMILIES = [
+    ["mg","g","kg","t"],
+    ["ml","l"],
+    ["unidad","docena"],
+    ["taza","cucharada","cucharadita"],
+  ];
 
 export default function EditarFicha({ ficha, mode = "edit", onClose, onSave, productoNombre = "", productoFoto = null }) {
   const [categoriasInsumosActivas, setCategoriasInsumosActivas] = useState([]);
   const [insumosPorCategoriaId,    setInsumosPorCategoriaId]    = useState({});
+  const [insumosError,             setInsumosError]             = useState(null);
 
   useEffect(() => {
     if (mode === "view") return;
-    Promise.all([getCategorias(), getInsumos()]).then(([catData, insData]) => {
-      const cats = (catData.categorias || catData.items || [])
-        .filter(c => c.Estado === 1 || c.estado === true)
-        .map(c => ({ id: c.ID_Categoria || c.id, nombre: c.Nombre_Categoria || c.Nombre || c.nombre, icon: c.Icono || c.icono || "📦" }));
-      setCategoriasInsumosActivas(cats);
-
-      const map = {};
-      (insData.insumos || insData.items || []).forEach(i => {
-        if (i.Estado !== 0 && i.estado !== false) {
-          const catId = String(i.ID_Categoria || i.id_categoria || "");
-          if (!map[catId]) map[catId] = [];
-          map[catId].push({ id: i.ID_Insumo || i.id, nombre: i.Nombre || i.nombre });
-        }
-      });
-      setInsumosPorCategoriaId(map);
-    }).catch(() => {});
+    getCategorias()
+      .then(catData => {
+        const cats = (catData.categorias || catData.items || [])
+          .filter(c => c.Estado === 1 || c.estado === true)
+          .map(c => ({ id: c.ID_Categoria || c.id, nombre: c.Nombre_Categoria || c.Nombre || c.nombre, icon: c.Icono || c.icono || "📦" }));
+        setCategoriasInsumosActivas(cats);
+      })
+      .catch(() => {});
+    getInsumos()
+      .then(insData => {
+        const map = {};
+        (insData.insumos || insData.items || []).forEach(i => {
+          if (i.Estado !== 0 && i.estado !== false) {
+            const catId = String(i.ID_Categoria || i.id_categoria || "");
+            if (!map[catId]) map[catId] = [];
+            map[catId].push({
+              id: i.ID_Insumo || i.id,
+              nombre: i.Nombre || i.nombre,
+              unidad: i.simbolo_unidad || i.Unidad || i.unidad || "",
+            });
+          }
+        });
+        setInsumosPorCategoriaId(map);
+      })
+      .catch(() => setInsumosError("No se pudieron cargar los insumos. Verifica que el rol tiene el permiso 'ver_insumos'."));
   }, [mode]);
 
   const normalizeInsumos = (f) => Array.isArray(f?.insumos) ? f.insumos : [];
@@ -59,14 +75,31 @@ export default function EditarFicha({ ficha, mode = "edit", onClose, onSave, pro
 
   const delInsumo = id => setForm(p => ({ ...p, insumos: getInsumosList(p).filter(i => i.id !== id) }));
 
+  const getUnidadOptions = (insumoId, categoriaId) => {
+    const insumo = (insumosPorCategoriaId[String(categoriaId)] || []).find(i => String(i.id) === String(insumoId));
+    const base = insumo?.unidad ? String(insumo.unidad).toLowerCase() : null;
+    if (base) {
+      for (const fam of UNITS_FAMILIES) {
+        if (fam.includes(base)) return fam;
+      }
+      return [insumo.unidad];
+    }
+    return UNIDADES;
+  };
+
   const setInsumo = (id, k, v) => setForm(p => ({
     ...p,
     insumos: getInsumosList(p).map(i => {
       if (i.id !== id) return i;
-      if (k === "idCategoria") return { ...i, idCategoria: v, idInsumo: "", nombre: "" };
+      if (k === "idCategoria") return { ...i, idCategoria: v, idInsumo: "", nombre: "", unidad: "" };
       if (k === "idInsumo") {
         const found = (insumosPorCategoriaId[i.idCategoria] || []).find(x => String(x.id) === String(v));
-        return { ...i, idInsumo: v ? Number(v) : "", nombre: found?.nombre || "" };
+        return {
+          ...i,
+          idInsumo: v ? Number(v) : "",
+          nombre: found?.nombre || "",
+          unidad: found?.unidad || "",
+        };
       }
       return { ...i, [k]: v };
     }),
@@ -112,28 +145,36 @@ export default function EditarFicha({ ficha, mode = "edit", onClose, onSave, pro
         </div>
 
         <div className="ficha-modal__top">
-          <div className="ficha-foto-upload" style={{ cursor: isView ? "default" : "pointer" }}
-            onClick={() => !isView && fotoRef.current.click()}>
-            {form.fotoPreview
-              ? <img src={form.fotoPreview} alt="foto" className="ficha-foto-upload__img" />
-              : <><span className="ficha-foto-upload__icon">🖼️</span>{!isView && <span className="ficha-foto-upload__hint">Cambiar foto</span>}</>
-            }
+          <div className="ficha-info-banner">
+            <span className="ficha-info-banner__icon">ℹ️</span>
+            <span>Esta ficha técnica describe los insumos necesarios para producir <strong>1 unidad</strong> del producto.</span>
           </div>
-          <input ref={fotoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFoto} />
 
-          <div className="ficha-modal__info-grid">
-            <div className="form-group">
-              <label className="form-label">Nombre del producto</label>
-              <div className="field-input field-input--disabled">{form.producto || "—"}</div>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Fecha</label>
-              {isView
-                ? <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, color: "#424242", paddingTop: 4 }}><span>📅</span> {form.fecha}</div>
-                : <input type="date" className="field-input" value={form.fecha || ""} onChange={e => set("fecha", e.target.value)} />
+          <div className="ficha-top-row">
+            <div className="ficha-foto-upload" style={{ cursor: isView ? "default" : "pointer" }}
+              onClick={() => !isView && fotoRef.current.click()}>
+              {form.fotoPreview
+                ? <img src={form.fotoPreview} alt="foto" className="ficha-foto-upload__img" />
+                : <><span className="ficha-foto-upload__icon">🖼️</span>{!isView && <span className="ficha-foto-upload__hint">Cambiar foto</span>}</>
               }
             </div>
+
+            <div className="ficha-top-fields">
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Nombre del producto</label>
+                <div className="field-input field-input--disabled">{form.producto || "—"}</div>
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Fecha</label>
+                {isView
+                  ? <div className="ficha-date-display"><span>📅</span>{form.fecha}</div>
+                  : <input type="date" className="field-input" value={form.fecha || ""} onChange={e => set("fecha", e.target.value)} />
+                }
+              </div>
+            </div>
           </div>
+
+          <input ref={fotoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFoto} />
         </div>
 
         <div className="ficha-tabs">
@@ -158,7 +199,7 @@ export default function EditarFicha({ ficha, mode = "edit", onClose, onSave, pro
                       <tr key={ins.id} className={idx % 2 === 0 ? "ficha-insumos-tbl__row" : "ficha-insumos-tbl__row ficha-insumos-tbl__row--alt"}>
                         <td>
                           {isView
-                            ? <span className="ficha-cell-text">{categoriasInsumosActivas.find(c => String(c.id) === String(ins.idCategoria))?.nombre || ins.idCategoria || "—"}</span>
+                            ? <span className="ficha-cell-text">{ins.nombreCategoria || ins.idCategoria || "—"}</span>
                             : <select className="ficha-select" value={ins.idCategoria}
                                 onChange={e => setInsumo(ins.id, "idCategoria", e.target.value)}>
                                 <option value="">— Categoría —</option>
@@ -191,7 +232,7 @@ export default function EditarFicha({ ficha, mode = "edit", onClose, onSave, pro
                             ? <span className="ficha-cell-text">{ins.unidad}</span>
                             : <select className="ficha-select" value={ins.unidad} onChange={e => setInsumo(ins.id, "unidad", e.target.value)}>
                                 <option value="">—</option>
-                                {UNIDADES.map(u => <option key={u} value={u}>{u}</option>)}
+                                {getUnidadOptions(ins.idInsumo, ins.idCategoria).map(u => <option key={u} value={u}>{u}</option>)}
                               </select>
                           }
                         </td>
@@ -201,6 +242,9 @@ export default function EditarFicha({ ficha, mode = "edit", onClose, onSave, pro
                   </tbody>
                 </table>
               </div>
+              {!isView && insumosError && (
+                <p className="field-error" style={{ marginTop: 6 }}>{insumosError}</p>
+              )}
               {!isView && <button className="ficha-add-btn" onClick={addInsumo}>+ Agregar insumo</button>}
               {isView && (form.insumos || []).length === 0 && (
                 <p style={{ textAlign: "center", color: "#9e9e9e", padding: "20px 0" }}>Sin insumos registrados.</p>

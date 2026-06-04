@@ -6,7 +6,8 @@ from decimal import Decimal
 from src.shared.services.models import (
     Venta, VentaXProducto, DetalleVenta, Producto, Usuario,
     Estado, Domicilio, CreditoCliente, MovimientoCredito,
-    Descuento, DescuentoXUsuario, DescuentoXVenta, OrdenProduccion, FichaTecnica
+    Descuento, DescuentoXUsuario, DescuentoXVenta, OrdenProduccion, FichaTecnica,
+    Empleado
 )
 from src.shared.services.notificaciones_utils import notificar, descartar_notificacion, notificar_stock_producto
 from .schemas import VentaCreate, DomicilioVentaInput
@@ -55,6 +56,12 @@ def _formato_venta(venta: Venta, db: Session) -> dict:
     domicilio      = db.query(Domicilio).filter(Domicilio.ID_Venta == venta.ID_Venta).first()
     subtotal_bruto = sum(p["subtotal"] for p in productos)
 
+    domiciliario = None
+    if domicilio and domicilio.ID_Empleado:
+        emp = db.query(Empleado).filter(Empleado.ID_Empleado == domicilio.ID_Empleado).first()
+        if emp:
+            domiciliario = f"{emp.Nombre} {emp.Apellidos}"
+
     ordenes_pendientes = db.query(OrdenProduccion).filter(
         OrdenProduccion.ID_Venta == venta.ID_Venta,
         OrdenProduccion.Estado.notin_([11, 5]),
@@ -81,6 +88,7 @@ def _formato_venta(venta: Venta, db: Session) -> dict:
         "direccion_entrega":            domicilio.Direccion_entrega      if domicilio else None,
         "municipio_entrega":            domicilio.Municipio_entrega      if domicilio else None,
         "departamento_entrega":         domicilio.Departamento_entrega   if domicilio else None,
+        "nombre_domiciliario":          domiciliario,
         "ordenes_produccion_pendientes": ordenes_pendientes,
     }
 
@@ -475,3 +483,13 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
     db.commit()
     db.refresh(venta)
     return _formato_venta(venta, db)
+
+
+def obtener_mi_credito(db: Session, usuario_actual: dict) -> dict:
+    """Retorna el saldo de crédito disponible del cliente autenticado."""
+    id_usuario = usuario_actual.get("id") or usuario_actual.get("ID_Usuario")
+    credito = db.query(CreditoCliente).filter(
+        CreditoCliente.ID_Usuario == id_usuario
+    ).first()
+    saldo = float(credito.Saldo) if credito and credito.Saldo else 0.0
+    return {"saldo": saldo, "id_usuario": id_usuario}

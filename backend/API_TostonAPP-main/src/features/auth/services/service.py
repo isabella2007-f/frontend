@@ -5,14 +5,13 @@ from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from typing import Dict, Any
-import smtplib
+import json
+import urllib.request
 import random
 import uuid
 import os
 import time
 from collections import defaultdict
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 
 from src.shared.services.models import (
     Usuario, Empleado, Rol, UsuarioXRol, Permiso, RolXPermiso, VerificacionEmail
@@ -209,48 +208,56 @@ def registrar_cliente(db: Session, datos) -> None:
 # VERIFICACIÓN DE EMAIL
 # ─────────────────────────────────────────
 
+def _resend_http(to_email: str, subject: str, html: str) -> None:
+    """Envía email vía Resend HTTP API (HTTPS puerto 443 — compatible con Render free tier)."""
+    if not RESEND_API_KEY:
+        raise ValueError("RESEND_API_KEY no está configurado en las variables de entorno")
+
+    payload = json.dumps({
+        "from":    EMAIL_FROM,
+        "to":      [to_email],
+        "subject": subject,
+        "html":    html,
+    }).encode("utf-8")
+
+    req = urllib.request.Request(
+        "https://api.resend.com/emails",
+        data    = payload,
+        headers = {
+            "Authorization": f"Bearer {RESEND_API_KEY}",
+            "Content-Type":  "application/json",
+        },
+        method  = "POST",
+    )
+
+    with urllib.request.urlopen(req, timeout=15) as resp:
+        if resp.status >= 400:
+            body = resp.read().decode()
+            raise ValueError(f"Resend API error {resp.status}: {body}")
+
+
 def _enviar_email_verificacion(correo_destino: str, token: str, nombre: str = "") -> None:
-    """Envía el enlace de verificación de email vía Resend SMTP relay."""
-    link = f"{API_URL}/api/auth/verificar-email?token={token}"
-
-    msg            = MIMEMultipart("alternative")
-    msg["Subject"] = "✅ Verifica tu correo — Brom's"
-    msg["From"]    = EMAIL_FROM
-    msg["To"]      = correo_destino
-
+    link   = f"{API_URL}/api/auth/verificar-email?token={token}"
     saludo = f"Hola <strong>{nombre}</strong>," if nombre else "Hola,"
-    html = f"""
+    html   = f"""
     <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:20px;">
       <div style="background:linear-gradient(135deg,#2E7D32,#66BB6A);padding:24px;border-radius:14px;text-align:center;margin-bottom:24px;">
         <h1 style="color:white;margin:0;font-size:22px;">🌿 Brom's</h1>
         <p style="color:rgba(255,255,255,0.85);margin:4px 0 0;font-size:13px;">Verificación de correo</p>
       </div>
       <p style="color:#333;">{saludo}</p>
-      <p style="color:#555;font-size:14px;">
-        Gracias por registrarte. Haz clic en el botón para activar tu cuenta:
-      </p>
+      <p style="color:#555;font-size:14px;">Gracias por registrarte. Haz clic en el botón para activar tu cuenta:</p>
       <div style="text-align:center;margin:28px 0;">
-        <a href="{link}"
-           style="background:#2E7D32;color:white;padding:14px 32px;border-radius:10px;
-                  text-decoration:none;font-size:15px;font-weight:bold;display:inline-block;">
+        <a href="{link}" style="background:#2E7D32;color:white;padding:14px 32px;border-radius:10px;text-decoration:none;font-size:15px;font-weight:bold;display:inline-block;">
           Verificar mi correo
         </a>
       </div>
-      <p style="color:#999;font-size:12px;">
-        El enlace es válido por 24 horas. Si no creaste esta cuenta, ignora este correo.
-      </p>
+      <p style="color:#999;font-size:12px;">El enlace es válido por 24 horas. Si no creaste esta cuenta, ignora este correo.</p>
       <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
-      <p style="color:#bbb;font-size:11px;text-align:center;">
-        Brom's · Correo automático, no respondas a este mensaje.
-      </p>
+      <p style="color:#bbb;font-size:11px;text-align:center;">Brom's · Correo automático, no respondas a este mensaje.</p>
     </div>
     """
-    msg.attach(MIMEText(html, "html"))
-
-    with smtplib.SMTP("smtp.resend.com", 587) as server:
-        server.starttls()
-        server.login("resend", RESEND_API_KEY)
-        server.sendmail(EMAIL_FROM, correo_destino, msg.as_string())
+    _resend_http(correo_destino, "✅ Verifica tu correo — Brom's", html)
 
 
 def verificar_email_token(db: Session, token: str) -> str:
@@ -306,7 +313,10 @@ def reenviar_verificacion(db: Session, correo: str) -> None:
     db.commit()
 
     nombre = usuario.Nombre or ""
-    _enviar_email_verificacion(correo, token, nombre)
+    try:
+        _enviar_email_verificacion(correo, token, nombre)
+    except Exception:
+        pass  # no revelar el error, el token ya fue generado
 
 
 # ─────────────────────────────────────────
@@ -314,46 +324,25 @@ def reenviar_verificacion(db: Session, correo: str) -> None:
 # ─────────────────────────────────────────
 
 def _enviar_email_codigo(correo_destino: str, codigo: str, nombre: str = "") -> None:
-    """Envía el código de verificación vía Resend SMTP relay."""
-    msg            = MIMEMultipart("alternative")
-    msg["Subject"] = "🔑 Código de recuperación — Brom's"
-    msg["From"]    = EMAIL_FROM
-    msg["To"]      = correo_destino
-
     saludo = f"Hola <strong>{nombre}</strong>," if nombre else "Hola,"
-    html = f"""
+    html   = f"""
     <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:20px;">
       <div style="background:linear-gradient(135deg,#2E7D32,#66BB6A);padding:24px;border-radius:14px;text-align:center;margin-bottom:24px;">
         <h1 style="color:white;margin:0;font-size:22px;">🌿 Brom's</h1>
         <p style="color:rgba(255,255,255,0.85);margin:4px 0 0;font-size:13px;">Recuperación de contraseña</p>
       </div>
       <p style="color:#333;">{saludo}</p>
-      <p style="color:#555;font-size:14px;">
-        Recibimos una solicitud para restablecer tu contraseña.
-        Ingresa el siguiente código en la aplicación:
-      </p>
+      <p style="color:#555;font-size:14px;">Recibimos una solicitud para restablecer tu contraseña. Ingresa el siguiente código:</p>
       <div style="background:#f5f9f5;border:2px solid #C8E6C9;border-radius:14px;padding:28px;text-align:center;margin:24px 0;">
-        <div style="font-size:42px;font-weight:bold;letter-spacing:14px;color:#2E7D32;font-family:monospace;">
-          {codigo}
-        </div>
+        <div style="font-size:42px;font-weight:bold;letter-spacing:14px;color:#2E7D32;font-family:monospace;">{codigo}</div>
         <p style="color:#888;margin:10px 0 0;font-size:12px;">Válido por {CODE_EXPIRE_MIN} minutos</p>
       </div>
-      <p style="color:#999;font-size:12px;">
-        Si no solicitaste esto, ignora este correo. Tu contraseña no será modificada.
-      </p>
+      <p style="color:#999;font-size:12px;">Si no solicitaste esto, ignora este correo. Tu contraseña no será modificada.</p>
       <hr style="border:none;border-top:1px solid #eee;margin:20px 0;">
-      <p style="color:#bbb;font-size:11px;text-align:center;">
-        Brom's · Correo automático, no respondas a este mensaje.
-      </p>
+      <p style="color:#bbb;font-size:11px;text-align:center;">Brom's · Correo automático, no respondas a este mensaje.</p>
     </div>
     """
-    msg.attach(MIMEText(html, "html"))
-
-    # Resend SMTP relay: host=smtp.resend.com, user="resend", pass=API_KEY
-    with smtplib.SMTP("smtp.resend.com", 587) as server:
-        server.starttls()
-        server.login("resend", RESEND_API_KEY)
-        server.sendmail(EMAIL_FROM, correo_destino, msg.as_string())
+    _resend_http(correo_destino, "🔑 Código de recuperación — Brom's", html)
 
 
 def solicitar_recuperacion(db: Session, correo: str) -> None:
@@ -373,7 +362,13 @@ def solicitar_recuperacion(db: Session, correo: str) -> None:
     }
 
     nombre = getattr(registro, "Nombre", "") or ""
-    _enviar_email_codigo(correo, codigo, nombre)
+    try:
+        _enviar_email_codigo(correo, codigo, nombre)
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"No se pudo enviar el correo de recuperación. Verifica que el RESEND_API_KEY esté configurado en Render. ({e})"
+        )
 
 
 def verificar_codigo_recuperacion(db: Session, correo: str, codigo: str) -> str:

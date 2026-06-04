@@ -20,22 +20,24 @@ function NotificacionesWrapper({ children }) {
       setNotifData({ insumos: [], lotes: [], compras: [] });
       return;
     }
-    try {
-      const [insumosRes, comprasRes] = await Promise.all([
-        getInsumos({ porPagina: 100 }),
-        getCompras({ porPagina: 100 }),
-      ]);
 
-      const insumos = (insumosRes.insumos || []).map(i => ({
+    const [insumosResult, comprasResult] = await Promise.allSettled([
+      getInsumos({ porPagina: 100 }),
+      getCompras({ porPagina: 100 }),
+    ]);
+
+    let insumos = [], lotes = [], compras = [];
+
+    if (insumosResult.status === "fulfilled") {
+      const raw = insumosResult.value.insumos || [];
+      insumos = raw.map(i => ({
         id:          i.ID_Insumo,
         nombre:      i.Nombre,
         stockActual: i.Stock_Actual,
         stockMinimo: i.Stock_Minimo,
         unidad:      i.simbolo_unidad || "und",
       }));
-
-      // Cada insumo trae su lote principal; lo usamos para alertas de vencimiento.
-      const lotes = (insumosRes.insumos || [])
+      lotes = raw
         .filter(i => i.lote && i.Stock_Actual > 0)
         .map(i => ({
           id:               i.lote.ID_Lote_Compra,
@@ -45,19 +47,26 @@ function NotificacionesWrapper({ children }) {
             ? i.lote.Fecha_Vencimiento.split("T")[0]
             : null,
         }));
-
-      const compras = (comprasRes.compras || []);
-
-      setNotifData({ insumos, lotes, compras });
-    } catch {
-      // Si falla la carga, las notificaciones quedan vacías — mejor que datos falsos
     }
+
+    if (comprasResult.status === "fulfilled") {
+      compras = comprasResult.value.compras || [];
+    }
+
+    setNotifData({ insumos, lotes, compras });
   };
 
   useEffect(() => {
     cargar();
+    // Reintento a los 10s por si el backend (Render free tier) estaba durmiendo
+    const retry = setTimeout(cargar, 10000);
     window.addEventListener("session-changed", cargar);
-    return () => window.removeEventListener("session-changed", cargar);
+    window.addEventListener("notif-reload", cargar);
+    return () => {
+      clearTimeout(retry);
+      window.removeEventListener("session-changed", cargar);
+      window.removeEventListener("notif-reload", cargar);
+    };
   }, []);
 
   return (

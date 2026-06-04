@@ -2,6 +2,7 @@ import { apiFetch } from "../utils/api";
 
 // frontend clave → backend integer ID
 const PERMISOS_MAP = {
+  "LandingPage_ver":                60,
   "Dashboard_ver":                   1,
   "Roles_ver":                       2,
   "Roles_crear":                     3,
@@ -65,6 +66,7 @@ const PERMISOS_MAP = {
 
 // backend Permiso string → frontend clave(s)
 const PERMISOS_REVERSE = {
+  "ver_landing_page":          "LandingPage_ver",
   "ver_dashboard":             "Dashboard_ver",
   "ver_roles":                 "Roles_ver",
   "crear_roles":               "Roles_crear",

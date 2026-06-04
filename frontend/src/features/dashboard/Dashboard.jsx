@@ -1,79 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, AreaChart, Area,
   CartesianGrid, Legend,
 } from "recharts";
 import "./dashboard.css";
-import { getPedidos } from "../../services/pedidosService";
+import { getDashboard } from "../../services/dashboardService";
 
 const PERIODOS      = ["hoy", "semana", "mes"];
 const PERIODO_LABEL = { hoy: "Hoy", semana: "Esta semana", mes: "Este mes" };
-
-const HORAS_LABELS = ["8am","9am","10am","11am","12pm","1pm","2pm","3pm","4pm","5pm"];
-const HORAS_NUM    = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
-const DIAS_LABELS  = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
-
-/* ── Helpers de tiempo ────────────────────────────────── */
-const startOfToday = () => { const d = new Date(); d.setHours(0,0,0,0); return d; };
-const startOfMonday = (ref = startOfToday()) => {
-  const d = new Date(ref);
-  const day = d.getDay(); // 0=Dom
-  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
-  return d;
-};
-
-const filtrarHoy = (lista) => {
-  const hoy = startOfToday();
-  return lista.filter(p => p.fecha_pedido && new Date(p.fecha_pedido) >= hoy);
-};
-const filtrarAyer = (lista) => {
-  const hoy = startOfToday();
-  const ayer = new Date(hoy); ayer.setDate(hoy.getDate() - 1);
-  return lista.filter(p => p.fecha_pedido && new Date(p.fecha_pedido) >= ayer && new Date(p.fecha_pedido) < hoy);
-};
-const filtrarSemana = (lista) => {
-  const ini = startOfMonday();
-  return lista.filter(p => p.fecha_pedido && new Date(p.fecha_pedido) >= ini);
-};
-const filtrarSemanaAnterior = (lista) => {
-  const ini = startOfMonday();
-  const iniAnt = new Date(ini); iniAnt.setDate(ini.getDate() - 7);
-  return lista.filter(p => p.fecha_pedido && new Date(p.fecha_pedido) >= iniAnt && new Date(p.fecha_pedido) < ini);
-};
-const filtrarMes = (lista) => {
-  const hoy = startOfToday();
-  const ini = new Date(hoy); ini.setDate(hoy.getDate() - 30);
-  return lista.filter(p => p.fecha_pedido && new Date(p.fecha_pedido) >= ini);
-};
-const filtrarMesAnterior = (lista) => {
-  const hoy = startOfToday();
-  const ini = new Date(hoy); ini.setDate(hoy.getDate() - 30);
-  const iniAnt = new Date(hoy); iniAnt.setDate(hoy.getDate() - 60);
-  return lista.filter(p => p.fecha_pedido && new Date(p.fecha_pedido) >= iniAnt && new Date(p.fecha_pedido) < ini);
-};
-
-const filtrarPorPeriodo = (lista, periodo) => {
-  if (periodo === "hoy")   return filtrarHoy(lista);
-  if (periodo === "semana") return filtrarSemana(lista);
-  if (periodo === "mes")    return filtrarMes(lista);
-  return lista;
-};
-const filtrarPeriodoAnterior = (lista, periodo) => {
-  if (periodo === "hoy")   return filtrarAyer(lista);
-  if (periodo === "semana") return filtrarSemanaAnterior(lista);
-  if (periodo === "mes")    return filtrarMesAnterior(lista);
-  return [];
-};
-
-const pctDelta = (cur, prev) => {
-  if (prev === 0 && cur === 0) return { delta: "0%", positive: true };
-  if (prev === 0) return { delta: "+100%", positive: true };
-  const pct = Math.round(((cur - prev) / prev) * 100);
-  return { delta: `${pct >= 0 ? "+" : ""}${pct}%`, positive: pct >= 0 };
-};
-
-const clienteKey = (p) => p.cliente?.correo || p.cliente?.nombre || p.cliente?.telefono || "?";
 
 /* ── Custom Tooltip ─────────────────────────────────────── */
 function CustomTooltip({ active, payload, label, prefix = "" }) {
@@ -145,120 +80,43 @@ function ChartCard({ title, period, onPeriod, children, defaultOpen = true, clas
   );
 }
 
+const EMPTY_DATA = { kpi: { ventas: {}, pedidos: {}, clientes: {}, ticket: {} }, graficaVentas: [], productosTop: [] };
+
 /* ── Main Dashboard ─────────────────────────────────────── */
 export default function Dashboard() {
-  const [allPedidos, setAllPedidos] = useState([]);
-  const [loading,    setLoading]    = useState(true);
-  const [animated,   setAnimated]   = useState(false);
-  const [pVentas,    setPVentas]    = useState("hoy");
-  const [pPedidos,   setPPedidos]   = useState("hoy");
-  const [pTiempo,    setPTiempo]    = useState("hoy");
-  const [pKpi,       setPKpi]       = useState("hoy");
+  const [datos,    setDatos]    = useState(EMPTY_DATA);
+  const [loading,  setLoading]  = useState(true);
+  const [animated, setAnimated] = useState(false);
+  const [periodo,  setPeriodo]  = useState("hoy");
+  const [periodoCharts, setPeriodoCharts] = useState("hoy");
 
   useEffect(() => {
     const t = setTimeout(() => setAnimated(true), 50);
     return () => clearTimeout(t);
   }, []);
 
-  useEffect(() => {
-    getPedidos({ porPagina: 100 })
-      .then(res => setAllPedidos(res.pedidos || []))
-      .catch(() => setAllPedidos([]))
-      .finally(() => setLoading(false));
+  const cargar = useCallback(async (p) => {
+    setLoading(true);
+    try {
+      const d = await getDashboard(p);
+      setDatos(d);
+    } catch {
+      // mantener datos anteriores si falla
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  /* ── Flujo de Pedidos (Bar Chart) ── */
-  const getVentasData = () => {
-    const filtered = filtrarPorPeriodo(allPedidos, pVentas);
-    if (pVentas === "hoy") {
-      return HORAS_NUM.map((h, i) => ({
-        hora: HORAS_LABELS[i],
-        ventas: filtered.filter(p => new Date(p.fecha_pedido).getHours() === h).length,
-      }));
-    }
-    if (pVentas === "semana") {
-      return DIAS_LABELS.map((d, i) => ({
-        hora: d,
-        ventas: filtered.filter(p => {
-          const day = new Date(p.fecha_pedido).getDay();
-          return (day === 0 ? 6 : day - 1) === i;
-        }).length,
-      }));
-    }
-    // mes → semanas del mes
-    return ["Sem 1","Sem 2","Sem 3","Sem 4"].map((label, i) => ({
-      hora: label,
-      ventas: filtered.filter(p => Math.floor((new Date(p.fecha_pedido).getDate() - 1) / 7) === i).length,
-    }));
-  };
+  useEffect(() => { cargar(periodo); }, [periodo]);
 
-  /* ── Top Productos (Pie Chart) ── */
-  const getPedidosPorProducto = () => {
-    const filtered = filtrarPorPeriodo(allPedidos, pPedidos);
-    const conteo = {};
-    filtered.forEach(ped => {
-      (ped.productosItems || []).forEach(item => {
-        conteo[item.nombre] = (conteo[item.nombre] || 0) + (item.cantidad || 1);
-      });
-    });
-    const colors = ["#43a047","#ef5350","#fb8c00","#5c6bc0","#26c6da","#ec407a","#7e57c2"];
-    return Object.entries(conteo)
-      .map(([name, value], i) => ({ name, value, color: colors[i % colors.length] }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
-  };
+  const { kpi, graficaVentas, productosTop } = datos;
+  const totalUds = productosTop.reduce((s, p) => s + p.value, 0) || 1;
 
-  /* ── Ventas en el Tiempo (Area Chart) ── */
-  const getTiempoData = () => {
-    if (pTiempo === "hoy") {
-      const hoy   = filtrarHoy(allPedidos);
-      const ayer  = filtrarAyer(allPedidos);
-      return HORAS_NUM.map((h, i) => ({
-        t:        HORAS_LABELS[i],
-        actual:   hoy.filter(p  => new Date(p.fecha_pedido).getHours() === h).length,
-        anterior: ayer.filter(p => new Date(p.fecha_pedido).getHours() === h).length,
-      }));
-    }
-    // semana
-    const estaSemana  = filtrarSemana(allPedidos);
-    const semanaAnt   = filtrarSemanaAnterior(allPedidos);
-    return DIAS_LABELS.map((d, i) => {
-      const dayFilter = (lista) => lista.filter(p => {
-        const day = new Date(p.fecha_pedido).getDay();
-        return (day === 0 ? 6 : day - 1) === i;
-      }).length;
-      return { t: d, actual: dayFilter(estaSemana), anterior: dayFilter(semanaAnt) };
-    });
-  };
+  // Bar chart: ventas por hora/día/semana
+  const barData = graficaVentas.map(p => ({ hora: p.etiqueta, ventas: p.actual }));
 
-  /* ── KPIs ── */
-  const calculateKPI = (periodo) => {
-    const current  = filtrarPorPeriodo(allPedidos, periodo);
-    const previous = filtrarPeriodoAnterior(allPedidos, periodo);
-
-    const totalVentas   = current.reduce((s, p) => s + (p.total || 0), 0);
-    const totalPedidos  = current.length;
-    const uniqueClients = new Set(current.map(clienteKey)).size;
-    const ticket        = totalPedidos > 0 ? totalVentas / totalPedidos : 0;
-
-    const prevVentas    = previous.reduce((s, p) => s + (p.total || 0), 0);
-    const prevPedidos   = previous.length;
-    const prevClients   = new Set(previous.map(clienteKey)).size;
-    const prevTicket    = prevPedidos > 0 ? prevVentas / prevPedidos : 0;
-
-    return {
-      ventas:   { valor: `$${totalVentas.toLocaleString("es-CO")}`,        ...pctDelta(totalVentas,  prevVentas)  },
-      pedidos:  { valor: totalPedidos.toString(),                           ...pctDelta(totalPedidos, prevPedidos) },
-      clientes: { valor: uniqueClients.toString(),                          ...pctDelta(uniqueClients,prevClients) },
-      ticket:   { valor: `$${Math.round(ticket).toLocaleString("es-CO")}`, ...pctDelta(ticket,       prevTicket)  },
-    };
-  };
-
-  const ventasData   = getVentasData();
-  const pedidosData  = getPedidosPorProducto();
-  const totalUds     = pedidosData.reduce((s, p) => s + p.value, 0);
-  const tiempoData   = getTiempoData();
-  const kpi          = calculateKPI(pKpi);
+  // Area chart: comparativa actual vs anterior
+  const areaData = graficaVentas.map(p => ({ t: p.etiqueta, actual: p.actual, anterior: p.anterior }));
 
   if (loading) {
     return (
@@ -274,15 +132,17 @@ export default function Dashboard() {
     <div className={`dash-wrapper${animated ? " dash-wrapper--in" : ""}`}>
       <div className="dash-inner">
 
+        {/* KPI Strip */}
         <div className="kpi-strip" style={{ marginBottom: 20 }}>
-          <KpiStripInner kpi={kpi} pKpi={pKpi} setPKpi={setPKpi} />
+          <KpiStripInner kpi={kpi} periodo={periodo} setPeriodo={p => { setPeriodo(p); setPeriodoCharts(p); }} />
         </div>
 
         <div className="charts-row" style={{ animationDelay: "0.1s" }}>
 
-          <ChartCard title="Flujo de Pedidos" period={pVentas} onPeriod={setPVentas}>
+          {/* Flujo de Ventas — Bar Chart */}
+          <ChartCard title="Flujo de Ventas" period={periodoCharts} onPeriod={p => { setPeriodoCharts(p); setPeriodo(p); }}>
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={ventasData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+              <BarChart data={barData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
                 <defs>
                   <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#43a047" stopOpacity={1} />
@@ -290,37 +150,37 @@ export default function Dashboard() {
                   </linearGradient>
                 </defs>
                 <XAxis dataKey="hora" tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <Tooltip content={<CustomTooltip />} cursor={{ fill: "#f1f8f1" }} />
-                <Bar dataKey="ventas" name="Pedidos" fill="url(#barGradient)" radius={[6,6,0,0]} maxBarSize={36} />
+                <YAxis tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} allowDecimals={false}
+                  tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}k` : `$${v}`} />
+                <Tooltip content={<CustomTooltip prefix="$" />} cursor={{ fill: "#f1f8f1" }} />
+                <Bar dataKey="ventas" name="Ventas" fill="url(#barGradient)" radius={[6,6,0,0]} maxBarSize={36} />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard title="Top Productos" period={pPedidos} onPeriod={setPPedidos}>
-            {pedidosData.length === 0 ? (
+          {/* Top Productos — Pie Chart */}
+          <ChartCard title="Top Productos">
+            {productosTop.length === 0 ? (
               <div style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center", color: "#bdbdbd", fontSize: 13 }}>
-                Sin pedidos en este período
+                Sin ventas en este período
               </div>
             ) : (
               <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
                 <ResponsiveContainer width="55%" height={200}>
                   <PieChart>
-                    <Pie data={pedidosData} cx="50%" cy="50%" innerRadius={50} outerRadius={85}
+                    <Pie data={productosTop} cx="50%" cy="50%" innerRadius={50} outerRadius={85}
                       dataKey="value" paddingAngle={3} strokeWidth={0}>
-                      {pedidosData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                      {productosTop.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                     </Pie>
-                    <Tooltip formatter={(v) => [`${v} uds (${Math.round(v / (totalUds || 1) * 100)}%)`, ""]} />
+                    <Tooltip formatter={(v) => [`${v} uds (${Math.round(v / totalUds * 100)}%)`, ""]} />
                   </PieChart>
                 </ResponsiveContainer>
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
-                  {pedidosData.map((p, i) => (
+                  {productosTop.map((p, i) => (
                     <div key={i} style={{ display: "flex", alignItems: "center", gap: 7 }}>
                       <span style={{ width: 10, height: 10, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
                       <span style={{ fontSize: 11, color: "#424242", flex: 1, fontWeight: 500 }}>{p.name}</span>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "#1a1a1a" }}>
-                        {Math.round(p.value / (totalUds || 1) * 100)}%
-                      </span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "#1a1a1a" }}>{p.porcentaje}%</span>
                     </div>
                   ))}
                 </div>
@@ -331,16 +191,17 @@ export default function Dashboard() {
 
         <div className="charts-row charts-row--bottom">
 
+          {/* Ingresos Reales */}
           <ChartCard title="Ingresos Reales" className="chart-card--stat">
             <div className="stat-big">
-              <div className="stat-amount">{kpi.ventas.valor}</div>
-              <div className={"stat-change" + (kpi.ventas.positive ? " stat-change--up" : " stat-change--down")}>
-                <span>{kpi.ventas.positive ? "↑" : "↓"}</span> {kpi.ventas.delta} vs período anterior
+              <div className="stat-amount">{kpi.ventas?.valor ?? "$0"}</div>
+              <div className={"stat-change" + (kpi.ventas?.positive ? " stat-change--up" : " stat-change--down")}>
+                <span>{kpi.ventas?.positive ? "↑" : "↓"}</span> {kpi.ventas?.delta ?? "0%"} vs período anterior
               </div>
             </div>
-            {pedidosData.length > 0 && (
+            {productosTop.length > 0 && (
               <div className="stat-badges">
-                {pedidosData.slice(0, 3).map((p, i) => (
+                {productosTop.slice(0, 3).map((p, i) => (
                   <div key={i} className="stat-badge">
                     <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.color, flexShrink: 0 }} />
                     <span>{p.name}</span>
@@ -351,9 +212,10 @@ export default function Dashboard() {
             )}
           </ChartCard>
 
-          <ChartCard title="Pedidos en el Tiempo" period={pTiempo} onPeriod={setPTiempo}>
+          {/* Ventas en el Tiempo — Area Chart */}
+          <ChartCard title="Ventas en el Tiempo">
             <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={tiempoData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+              <AreaChart data={areaData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorActual" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%"  stopColor="#43a047" stopOpacity={0.3}/>
@@ -366,8 +228,9 @@ export default function Dashboard() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f5" vertical={false} />
                 <XAxis dataKey="t" tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <Tooltip content={<CustomTooltip />} />
+                <YAxis tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} allowDecimals={false}
+                  tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}k` : `$${v}`} />
+                <Tooltip content={<CustomTooltip prefix="$" />} />
                 <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
                 <Area type="monotone" dataKey="actual"   name="Actual"   stroke="#43a047" strokeWidth={2.5} fill="url(#colorActual)"   />
                 <Area type="monotone" dataKey="anterior" name="Anterior" stroke="#fb8c00" strokeWidth={2}   fill="url(#colorAnterior)" strokeDasharray="5 5" />
@@ -381,7 +244,7 @@ export default function Dashboard() {
   );
 }
 
-function KpiStripInner({ kpi, pKpi, setPKpi }) {
+function KpiStripInner({ kpi, periodo, setPeriodo }) {
   const [open, setOpen] = useState(true);
   return (
     <div className={`kpi-strip-inner${open ? " kpi-strip-inner--open" : ""}`}>
@@ -389,7 +252,7 @@ function KpiStripInner({ kpi, pKpi, setPKpi }) {
         <span className="kpi-strip__label">Resumen general</span>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div onClick={e => e.stopPropagation()}>
-            <PeriodSelect value={pKpi} onChange={setPKpi} />
+            <PeriodSelect value={periodo} onChange={setPeriodo} />
           </div>
           <div className="chart-card__chevron" style={{ width: 28, height: 28 }}>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -400,10 +263,10 @@ function KpiStripInner({ kpi, pKpi, setPKpi }) {
       </div>
       <div className="kpi-strip__body">
         <div className="kpi-grid">
-          <KpiCard icon="💰" label="Total ventas"    valor={kpi.ventas.valor}   delta={kpi.ventas.delta}   positive={kpi.ventas.positive}   color="#2e7d32" />
-          <KpiCard icon="📦" label="Pedidos"         valor={kpi.pedidos.valor}  delta={kpi.pedidos.delta}  positive={kpi.pedidos.positive}  color="#fb8c00" />
-          <KpiCard icon="👤" label="Clientes"        valor={kpi.clientes.valor} delta={kpi.clientes.delta} positive={kpi.clientes.positive} color="#5c6bc0" />
-          <KpiCard icon="🎫" label="Ticket promedio" valor={kpi.ticket.valor}   delta={kpi.ticket.delta}   positive={kpi.ticket.positive}   color="#26c6da" />
+          <KpiCard icon="💰" label="Total ventas"    valor={kpi.ventas?.valor   ?? "$0"} delta={kpi.ventas?.delta   ?? "0%"} positive={kpi.ventas?.positive   ?? true} color="#2e7d32" />
+          <KpiCard icon="📦" label="Pedidos"         valor={kpi.pedidos?.valor  ?? "0"}  delta={kpi.pedidos?.delta  ?? "0%"} positive={kpi.pedidos?.positive  ?? true} color="#fb8c00" />
+          <KpiCard icon="👤" label="Clientes nuevos" valor={kpi.clientes?.valor ?? "0"}  delta={kpi.clientes?.delta ?? "0%"} positive={kpi.clientes?.positive ?? true} color="#5c6bc0" />
+          <KpiCard icon="🎫" label="Ticket promedio" valor={kpi.ticket?.valor   ?? "$0"} delta={kpi.ticket?.delta   ?? "0%"} positive={kpi.ticket?.positive   ?? true} color="#26c6da" />
         </div>
       </div>
     </div>

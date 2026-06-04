@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { getUser, logout } from "../../services/authService";
 import { crearPedido } from "../../services/pedidosService";
 import { Menu, X, ShoppingCart, Bell } from "lucide-react";
@@ -24,6 +24,7 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
   const [showLogoutModal,  setShowLogoutModal]  = useState(false);
   const [notifOpen,        setNotifOpen]        = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const { noLeidas, agregarNotificacion } = useNotificaciones();
 
@@ -66,19 +67,20 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
     const total = getTotal();
 
     const payload = {
-      ID_Cliente:        currentUser?.id || null,
+      ID_Usuario:        currentUser?.id || null,
+      Metodo_Pago:       paymentMethod === 'digital' ? 'Transferencia 🏦' : 'Efectivo 💵',
       productos:         currentCart.map(item => ({
         ID_Producto: Number(item.id),
         Cantidad:    Number(item.cantidad),
       })),
-      Metodo_Pago:       paymentMethod === 'digital' ? 'Transferencia 🏦' : 'Efectivo 💵',
-      Domicilio:         true,
-      Direccion_Entrega: orderDetails.address,
-      Subtotal:          total,
-      Descuento:         0,
-      Total:             total,
-      Notas:             null,
-      Comprobante:       !!comprobante,
+      usar_credito:      false,
+      codigo_descuento:  null,
+      domicilio:         orderDetails?.address ? {
+        Direccion_entrega:  orderDetails.address || '',
+        Municipio_entrega:  orderDetails.departamento || '',
+        Departamento_entrega: orderDetails.departamento || '',
+        Observaciones:      null,
+      } : undefined,
     };
 
     try {
@@ -106,50 +108,41 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
       <nav className={`navbar ${isLanding ? 'is-landing' : ''}`}>
         <div className="navbar-inner">
 
-          {/* LEFT */}
-          <div className="nav-left-section">
-          </div>
-
           {/* CENTER — Logo */}
           <div
             className="logo-wrapper"
-            onClick={() => navigate(user?.tipo === 'usuario' ? "/" : "/panel")}
+            onClick={() => {
+              if (user?.tipo === 'empleado') navigate('/admin');
+              else navigate('/');
+            }}
             style={{ cursor: 'pointer' }}
           >
             <img src="/Logo.png" alt="Logo" className="logo" />
           </div>
 
-          {/* RIGHT */}
+          {/* RIGHT — íconos de acción */}
           <div className="nav-right">
-            <div className="links-bell-wrapper">
+            {/* Navegación de página */}
+            {(isLanding || user?.tipo === 'usuario' || user?.tipo === 'empleado') && (
               <div className="nav-links">
-
-                {/* Links landing / cliente */}
-                {(isLanding || user?.tipo === 'usuario') && (
+                {isLanding && (
                   <>
-                    <button onClick={() => {
-                      if (location.pathname === '/') scrollToSection('inicio');
-                      else navigate('/');
-                    }} className="nav-link">Inicio</button>
-
-                    <button onClick={() => {
-                      if (location.pathname === '/') scrollToSection('productos');
-                      else navigate('/#productos');
-                    }} className="nav-link">Productos</button>
-
-                    <button onClick={() => {
-                      if (location.pathname === '/') scrollToSection('nosotros');
-                      else navigate('/#nosotros');
-                    }} className="nav-link">Nosotros</button>
+                    <button onClick={() => scrollToSection('inicio')}    className="nav-link">Inicio</button>
+                    <button onClick={() => scrollToSection('productos')} className="nav-link">Productos</button>
+                    <button onClick={() => scrollToSection('nosotros')}  className="nav-link">Nosotros</button>
                   </>
                 )}
-
-                {/* Link Dashboard para empleado/admin */}
+                {!isLanding && user?.tipo === 'usuario' && (
+                  <>
+                    <button onClick={() => navigate('/cliente/inicio')}  className="nav-link">Página Principal</button>
+                    <button onClick={() => navigate('/cliente/pedidos')} className="nav-link">Mis Pedidos</button>
+                  </>
+                )}
                 {user?.tipo === 'empleado' && (
-                  <Link to="/admin" className="nav-link font-bold text-[#2e7d32]">Dashboard</Link>
+                  <Link to="/admin" className="nav-link" style={{ fontWeight: 700, color: 'var(--g)' }}>Dashboard</Link>
                 )}
               </div>
-            </div>
+            )}
 
             {/* Campanita */}
             {mostrarCampana && (
@@ -180,7 +173,7 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
             {!isLanding && user && (
               <div
                 className="user-area"
-                onClick={() => navigate(user.tipo === "usuario" ? "/perfil" : "/panel/perfil")}
+                onClick={() => navigate(user.tipo === "usuario" ? "/cliente/perfil" : "/admin/perfil")}
                 style={{ cursor: 'pointer' }}
               >
                 <div className="avatar">{user.nombre.charAt(0)}</div>

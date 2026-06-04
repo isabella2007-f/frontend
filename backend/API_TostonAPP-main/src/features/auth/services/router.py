@@ -166,8 +166,18 @@ def actualizar_perfil(
     actual: dict    = Depends(obtener_usuario_actual),
 ):
     registro = actual["registro"]
-    for campo, valor in datos.model_dump(exclude_none=True).items():
+    campos   = datos.model_dump(exclude_none=True)
+
+    # Cedula y Tipo_Documento solo se pueden establecer si aún no tienen valor
+    for campo_unico in ("Cedula", "Tipo_Documento"):
+        if campo_unico in campos:
+            valor_actual = getattr(registro, campo_unico, None)
+            if valor_actual:          # ya tiene valor → ignorar
+                del campos[campo_unico]
+
+    for campo, valor in campos.items():
         setattr(registro, campo, valor)
+
     db.commit()
     db.refresh(registro)
     return _formato_perfil(actual)

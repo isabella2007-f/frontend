@@ -7,7 +7,8 @@ from src.features.auth.services.dependencies import requiere_permiso
 from .schemas import InsumoCreate, InsumoUpdate, InsumoEstado, InsumoResponse, InsumoListResponse
 from .service import (
     obtener_insumos, obtener_insumo, crear_insumo,
-    editar_insumo, cambiar_estado, eliminar_insumo
+    editar_insumo, cambiar_estado, eliminar_insumo,
+    obtener_lotes_insumo,
 )
 
 router = APIRouter(prefix="/insumos", tags=["Gestión de Insumos"])
@@ -65,6 +66,16 @@ def toggle_estado(
 ):
     """Cambia el estado ON/OFF del insumo."""
     return cambiar_estado(db, id_insumo, datos.Estado)
+
+
+@router.get("/{id_insumo}/lotes")
+def lotes_insumo(
+    id_insumo: int,
+    db:        Session = Depends(get_db),
+    _:         dict    = Depends(requiere_permiso("ver_insumos"))
+):
+    """Retorna todos los lotes de compra asociados a un insumo."""
+    return obtener_lotes_insumo(db, id_insumo)
 
 
 @router.delete("/{id_insumo}")

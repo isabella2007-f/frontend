@@ -31,7 +31,7 @@ const OrdersPage = () => {
       const lista = (data.productos || data || []).map(p => ({
         id:          p.ID_Producto || p.id,
         nombre:      p.Nombre      || p.nombre      || "",
-        precio:      p.Precio_Venta|| p.precio      || 0,
+        precio:      p.Precio_venta || p.Precio_Venta || p.precio || 0,
         stock:       p.Stock       || p.stock       || 0,
         idCategoria: p.ID_Categoria|| p.idCategoria || null,
         publicado:   !!p.Publicado,
@@ -78,38 +78,46 @@ const OrdersPage = () => {
     showToast(`${product.nombre} agregado al carrito ✓`);
   };
 
+  const COSTO_DOMICILIO = 5000;
+
   const handleCheckout = (details) => {
     const user = getUser();
+    const subtotal = getCart().reduce((a, i) => a + i.precio * i.cantidad, 0);
     setOrderDetails({
       ...details,
-      clientName: user?.nombre || '',
-      items: getCart(),
-      total: getCart().reduce((a, i) => a + i.precio * i.cantidad, 0),
+      clientName:    user?.nombre || '',
+      items:         getCart(),
+      total:         subtotal + (details.tieneDomicilio ? COSTO_DOMICILIO : 0),
+      observaciones: details.observaciones || '',
+      tieneDomicilio: details.tieneDomicilio || false,
     });
     setCartOpen(false);
     setCheckoutOpen(true);
   };
 
-  const handleConfirmOrder = async (paymentMethod, onBehalfOf, comprobante) => {
+  const handleConfirmOrder = async (paymentMethod, onBehalfOf, comprobante, usarCredito) => {
     const user = getUser();
     const cart = getCart();
 
-    const direccion = orderDetails?.address || user?.direccion || '';
-    const municipio = orderDetails?.municipio || user?.municipio || '';
-    const departamento = orderDetails?.departamento || user?.departamento || '';
+    const tieneDomicilio = orderDetails?.tieneDomicilio;
+    const direccion      = orderDetails?.address      || '';
+    const municipio      = orderDetails?.municipio    || '';
+    const departamento   = orderDetails?.departamento || '';
 
     const payload = {
-      ID_Usuario: user?.id || null,
-      productos:  cart.map(item => ({
+      ID_Usuario:  user?.id || null,
+      productos:   cart.map(item => ({
         ID_Producto: Number(item.id),
         Cantidad:    Number(item.cantidad),
       })),
       Metodo_Pago:  paymentMethod === 'digital' ? 'Transferencia' : 'Efectivo',
-      A_Nombre_De: onBehalfOf || null,
-      domicilio: direccion ? {
+      A_Nombre_De:  onBehalfOf || null,
+      usar_credito: usarCredito || false,
+      domicilio: tieneDomicilio && direccion ? {
         Direccion_entrega:    direccion,
         Municipio_entrega:    municipio || 'Sin municipio',
         Departamento_entrega: departamento || 'Sin departamento',
+        Observaciones:        orderDetails?.observaciones || null,
       } : null,
     };
 
@@ -117,7 +125,7 @@ const OrdersPage = () => {
       await crearPedido(payload);
       clearCart();
       setCheckoutOpen(false);
-      showToast('¡Pedido creado exitosamente!');
+      showToast('¡Pedido creado exitosamente! 🎉');
     } catch (err) {
       showToast(err.message || 'Error al crear el pedido', 'error');
     }

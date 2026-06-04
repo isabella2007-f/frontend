@@ -3,15 +3,18 @@ import { createPortal } from "react-dom";
 import "./Roles.css";
 import { editarRol, gestionarPermisos } from "../../../services/rolesService.js";
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
-import PrivilegiosModal, { buildPrivilegios } from "./PrivilegiosModal.jsx";
+import PrivilegiosModal, { buildPrivilegios, buildAdminPrivilegios } from "./PrivilegiosModal.jsx";
 import { usePrivilegios } from "../../../context/PrivilegiosContext.jsx";
 
 const ICON_OPTIONS = ["👤","👑","🛡️","🔧","📦","💼","🧑‍💻","📊","🔑","⚙️","👷","🧑‍🍳"];
 
 export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
-  const normalize = (p) => (p?.length > 0 && p[0].modulo ? p : buildPrivilegios(p || []));
+  const normalize = (p, isAdmin = false) => {
+    if (isAdmin) return buildAdminPrivilegios();
+    return p?.length > 0 && p[0].modulo ? p : buildPrivilegios(p || []);
+  };
 
-  const [form, setForm]                       = useState({ ...rol, privilegios: normalize(rol.permisos) });
+  const [form, setForm]                       = useState({ ...rol, privilegios: normalize(rol.permisos, rol.esAdmin) });
   const [errors, setErrors]                   = useState({});
   const [saving, setSaving]                   = useState(false);
   const [pickingIcon, setPickingIcon]         = useState(false);
@@ -22,7 +25,7 @@ export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
   const { recargar: recargarPrivilegios } = usePrivilegios();
 
   useEffect(() => {
-    if (rol) setForm({ ...rol, privilegios: normalize(rol.permisos) });
+    if (rol) setForm({ ...rol, privilegios: normalize(rol.permisos, rol.esAdmin) });
   }, [rol]);
 
   const set = (k, v) => {
@@ -130,6 +133,29 @@ export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
                     {errors.nombre && <p className="field-error">{errors.nombre}</p>}
                   </>
               }
+            </div>
+
+            {/* Usuarios asignados */}
+            <div className="form-group">
+              <label className="form-label">Usuarios asignados</label>
+              <div style={{
+                display: "inline-flex", alignItems: "center", gap: 10,
+                padding: "8px 14px",
+                borderRadius: 10,
+                background: (rol.totalUsuarios ?? 0) > 0 ? "#e8f5e9" : "#fafafa",
+                border: `1px solid ${(rol.totalUsuarios ?? 0) > 0 ? "#c8e6c9" : "#e0e0e0"}`,
+              }}>
+                <span style={{ fontSize: 18 }}>👥</span>
+                <span style={{
+                  fontSize: 15, fontWeight: 700,
+                  color: (rol.totalUsuarios ?? 0) > 0 ? "#2e7d32" : "#9e9e9e",
+                }}>
+                  {rol.totalUsuarios ?? 0}
+                </span>
+                <span style={{ fontSize: 12, color: "#757575" }}>
+                  {(rol.totalUsuarios ?? 0) === 1 ? "usuario" : "usuarios"}
+                </span>
+              </div>
             </div>
 
             {/* Privilegios */}
