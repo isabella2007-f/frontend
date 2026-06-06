@@ -5,9 +5,7 @@ from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from typing import Dict, Any
-import json
-import urllib.request
-import urllib.error
+import requests as _requests
 import random
 import uuid
 import os
@@ -29,8 +27,8 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 RESET_TOKEN_EXPIRE_MIN = 10
 CODE_EXPIRE_MIN        = 10
 
-RESEND_API_KEY  = os.getenv("RESEND_API_KEY", "")
-EMAIL_FROM      = "Brom's <onboarding@resend.dev>"
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "").strip()
+EMAIL_FROM     = "Brom's <onboarding@resend.dev>"
 
 # Almacén en memoria: { correo_lower: { "codigo": "123456", "expires": datetime } }
 _codigos_reset: Dict[str, Dict[str, Any]] = {}
@@ -210,35 +208,24 @@ def registrar_cliente(db: Session, datos) -> None:
 # ─────────────────────────────────────────
 
 def _resend_http(to_email: str, subject: str, html: str) -> None:
-    """Envía email vía Resend HTTP API (HTTPS puerto 443 — compatible con Render free tier)."""
-    if not RESEND_API_KEY:
+    """Envía email vía Resend HTTP API — usa requests para timeout confiable (cubre DNS + TLS + lectura)."""
+    key = (os.getenv("RESEND_API_KEY") or RESEND_API_KEY or "").strip()
+    if not key:
         raise ValueError("RESEND_API_KEY no está configurado en las variables de entorno")
 
-    payload = json.dumps({
-        "from":    EMAIL_FROM,
-        "to":      [to_email],
-        "subject": subject,
-        "html":    html,
-    }).encode("utf-8")
-
-    req = urllib.request.Request(
-        "https://api.resend.com/emails",
-        data    = payload,
-        headers = {
-            "Authorization": f"Bearer {RESEND_API_KEY}",
-            "Content-Type":  "application/json",
-        },
-        method  = "POST",
-    )
-
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            resp.read()  # consume body (2xx OK)
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8", errors="replace")
-        raise ValueError(f"Resend respondió {e.code}: {body}")
-    except urllib.error.URLError as e:
-        raise ValueError(f"No se pudo conectar con Resend: {e.reason}")
+        resp = _requests.post(
+            "https://api.resend.com/emails",
+            json    = {"from": EMAIL_FROM, "to": [to_email], "subject": subject, "html": html},
+            headers = {"Authorization": f"Bearer {key}"},
+            timeout = 12,  # cubre connect + read
+        )
+        if resp.status_code >= 400:
+            raise ValueError(f"Resend respondió {resp.status_code}: {resp.text}")
+    except _requests.exceptions.Timeout:
+        raise ValueError("Timeout al contactar Resend API (>12s)")
+    except _requests.exceptions.RequestException as e:
+        raise ValueError(f"Error de red al contactar Resend: {e}")
 
 
 def _enviar_email_verificacion(correo_destino: str, token: str, nombre: str = "") -> None:
