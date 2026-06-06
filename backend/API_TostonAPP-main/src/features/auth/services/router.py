@@ -19,6 +19,7 @@ from .service import (
     verificar_codigo_recuperacion, resetear_contrasena,
     cambiar_contrasena, actualizar_foto_perfil, eliminar_foto_perfil,
     obtener_mis_permisos, verificar_email_token, reenviar_verificacion,
+    verificar_token_empleado,
 )
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -89,6 +90,15 @@ def registro_cliente(datos: RegistroInput, db: Session = Depends(get_db)):
     return RegistroResponse(
         mensaje="Registro exitoso. Revisa tu correo electrónico para verificar tu cuenta antes de iniciar sesión."
     )
+
+
+@router.get("/verificar-empleado")
+def verificar_empleado(token: str, db: Session = Depends(get_db)):
+    try:
+        redirect_url = verificar_token_empleado(db, token)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return RedirectResponse(url=redirect_url)
 
 
 @router.get("/verificar-email")

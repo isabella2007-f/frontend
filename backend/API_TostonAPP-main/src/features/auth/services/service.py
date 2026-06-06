@@ -130,7 +130,7 @@ def autenticar(db: Session, correo: str, contrasena: str):
         _intentos_login[clave].append(time.time())
         return None, None
 
-    if tipo == "usuario" and getattr(registro, "Estado", None) == 2:
+    if getattr(registro, "Estado", None) == 2:
         raise HTTPException(
             status_code=403,
             detail="Debes verificar tu correo electrónico antes de iniciar sesión. Revisa tu bandeja de entrada.",
@@ -188,17 +188,13 @@ def registrar_cliente(db: Session, datos) -> None:
         Usado      = False,
     ))
 
-    # Intentar enviar email; si falla, activar usuario directamente en vez de bloquear el registro
-    email_enviado = False
     if RESEND_API_KEY:
         try:
             _enviar_email_verificacion(datos.Correo, token, datos.Nombre)
-            email_enviado = True
         except Exception:
-            pass
-
-    if not email_enviado:
-        nuevo.Estado = 1  # activar directamente si no se pudo enviar email
+            pass  # Estado=2 queda igual; el usuario puede pedir un nuevo enlace
+    else:
+        nuevo.Estado = 1  # solo en dev local sin RESEND configurado
 
     db.commit()
 
@@ -228,8 +224,8 @@ def _resend_http(to_email: str, subject: str, html: str) -> None:
         raise ValueError(f"Error de red al contactar Resend: {e}")
 
 
-def _enviar_email_verificacion(correo_destino: str, token: str, nombre: str = "") -> None:
-    link   = f"{API_URL}/api/auth/verificar-email?token={token}"
+def _enviar_email_verificacion(correo_destino: str, token: str, nombre: str = "", endpoint: str = "verificar-email") -> None:
+    link   = f"{API_URL}/api/auth/{endpoint}?token={token}"
     saludo = f"Hola <strong>{nombre}</strong>," if nombre else "Hola,"
     html   = f"""
     <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:20px;">
@@ -250,6 +246,38 @@ def _enviar_email_verificacion(correo_destino: str, token: str, nombre: str = ""
     </div>
     """
     _resend_http(correo_destino, "✅ Verifica tu correo — Brom's", html)
+
+
+def crear_token_verificacion_empleado(id_empleado: int) -> str:
+    """Genera un JWT para verificar el email de un empleado (válido 24 h)."""
+    payload = {
+        "id_empleado": id_empleado,
+        "tipo":        "verificar_empleado",
+        "exp":         datetime.utcnow() + timedelta(hours=24),
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def verificar_token_empleado(db: Session, token: str) -> str:
+    """Valida el JWT y activa al empleado (Estado=1). Retorna URL de redirect."""
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError:
+        raise ValueError("Token inválido o expirado")
+
+    if payload.get("tipo") != "verificar_empleado":
+        raise ValueError("Token inválido")
+
+    id_empleado = payload.get("id_empleado")
+    empleado = db.query(Empleado).filter(Empleado.ID_Empleado == id_empleado).first()
+    if not empleado:
+        raise ValueError("Empleado no encontrado")
+    if empleado.Estado == 1:
+        return f"{FRONTEND_URL}/login?verificado=1"  # ya verificado
+
+    empleado.Estado = 1
+    db.commit()
+    return f"{FRONTEND_URL}/login?verificado=1"
 
 
 def verificar_email_token(db: Session, token: str) -> str:
