@@ -130,7 +130,7 @@ def autenticar(db: Session, correo: str, contrasena: str):
         _intentos_login[clave].append(time.time())
         return None, None
 
-    if getattr(registro, "Estado", None) == 2:
+    if tipo == "usuario" and getattr(registro, "Estado", None) == 2:
         raise HTTPException(
             status_code=403,
             detail="Debes verificar tu correo electrónico antes de iniciar sesión. Revisa tu bandeja de entrada.",
