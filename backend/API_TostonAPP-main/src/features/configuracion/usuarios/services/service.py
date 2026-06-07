@@ -5,8 +5,7 @@ import uuid
 
 from src.shared.services.models import Empleado, Usuario, Rol, UsuarioXRol, Venta, Domicilio, VerificacionEmail
 from src.features.auth.services.service import (
-    hashear_contrasena, _enviar_email_verificacion,
-    RESEND_API_KEY, crear_token_verificacion_empleado,
+    hashear_contrasena, _enviar_email_verificacion, RESEND_API_KEY,
 )
 from .schemas import EmpleadoCreate, UsuarioCreate, PersonaUpdate
 
@@ -115,20 +114,9 @@ def crear_empleado(db: Session, datos: EmpleadoCreate) -> dict:
         ID_Rol         = datos.ID_Rol,
         Contrasena     = hashear_contrasena(datos.Contrasena),
         Fecha_creacion = datetime.now(),
-        Estado         = 2  # inactivo hasta verificar email
+        Estado         = 1  # admin los crea directamente activos
     )
     db.add(nuevo)
-    db.flush()
-
-    if RESEND_API_KEY:
-        try:
-            token = crear_token_verificacion_empleado(nuevo.ID_Empleado)
-            _enviar_email_verificacion(datos.Correo, token, datos.Nombre, endpoint="verificar-empleado")
-        except Exception:
-            nuevo.Estado = 1  # si falla el email, activar para no bloquear al admin
-    else:
-        nuevo.Estado = 1  # dev local sin RESEND
-
     db.commit()
     db.refresh(nuevo)
     return _formato_persona(nuevo, "empleado")
