@@ -9,9 +9,11 @@ from src.features.ventas.gestion_ventas.services.service import _formato_venta
 ESTADO_PENDIENTE   = 1      # pedido en carrito / sin confirmar
 ESTADO_EN_PROCESO  = 13     # esperando órdenes de producción
 ESTADO_CONFIRMADO  = 4      # Confirmado (tabla Estados ID=4)
+ESTADO_EN_CAMINO   = 9      # En camino (domicilio en tránsito)
 ESTADO_CANCELADO   = 5      # Cancelado  (tabla Estados ID=5)
 
-ESTADOS_ACTIVOS = (ESTADO_PENDIENTE, ESTADO_EN_PROCESO, ESTADO_CONFIRMADO)
+# Incluye "En camino" para que el admin pueda verlos en gestión de pedidos
+ESTADOS_ACTIVOS = (ESTADO_PENDIENTE, ESTADO_EN_PROCESO, ESTADO_CONFIRMADO, ESTADO_EN_CAMINO)
 
 
 def obtener_pedidos(

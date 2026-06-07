@@ -3,7 +3,7 @@ from fastapi import HTTPException
 from datetime import datetime
 from decimal import Decimal
 
-from src.shared.services.models import Producto, CategoriaProducto, ProductoImagen, FichaTecnica, FichaTecnicaInsumo, Insumo, OrdenProduccion, VentaXProducto, DevolucionDetalle, LoteProducto
+from src.shared.services.models import Producto, CategoriaProducto, ProductoImagen, FichaTecnica, FichaTecnicaInsumo, Insumo, OrdenProduccion, VentaXProducto, DevolucionDetalle, LoteProducto, Venta
 from .schemas import ProductoCreate, ProductoUpdate, FichaTecnicaInput
 
 
@@ -169,13 +169,22 @@ def verificar_puede_eliminar_producto(db: Session, id_producto: int) -> dict:
             "razon": f"Este producto tiene {ordenes} orden(es) de producción asociada(s). Elimínalas primero desde Gestión de Órdenes.",
         }
 
-    ventas = db.query(VentaXProducto).filter(
-        VentaXProducto.ID_Producto == id_producto
-    ).count()
-    if ventas > 0:
+    # Solo bloquear si hay pedidos ACTIVOS (pendiente, en proceso, confirmado, en camino)
+    # Los pedidos completados o cancelados no impiden eliminar el producto
+    ESTADOS_ACTIVOS_VENTA = (1, 4, 9, 13)
+    ventas_activas = (
+        db.query(VentaXProducto)
+        .join(Venta, Venta.ID_Venta == VentaXProducto.ID_Venta)
+        .filter(
+            VentaXProducto.ID_Producto == id_producto,
+            Venta.Estado.in_(ESTADOS_ACTIVOS_VENTA),
+        )
+        .count()
+    )
+    if ventas_activas > 0:
         return {
             "ok": False,
-            "razon": f"Este producto está en {ventas} venta(s) registrada(s) y no puede eliminarse.",
+            "razon": f"Este producto está en {ventas_activas} pedido(s) activo(s) y no puede eliminarse.",
         }
 
     devoluciones = db.query(DevolucionDetalle).filter(
