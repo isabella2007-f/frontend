@@ -8,7 +8,7 @@ import "./Salidas.css";
    HELPERS
 ══════════════════════════════════════════════════════════ */
 
-const ITEMS_PER_PAGE = 3;
+const ITEMS_PER_PAGE = 10;
 
 function hoyISO() { return new Date().toISOString().split("T")[0]; }
 function formatFecha(f) {
@@ -45,9 +45,59 @@ function adaptarSalida(s) {
     motivo:        s.Motivo,
     fecha:         s.Fecha,
     anulada:       s.estado_label === "Anulada",
+    estadoLabel:   s.estado_label || "Activa",
+    empleado:      s.nombre_empleado || "—",
   };
 }
 
+
+/* ══════════════════════════════════════════════════════════
+   MODAL VER DETALLE
+══════════════════════════════════════════════════════════ */
+function InfoRow({ label, value, color }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <span style={{ fontSize: 10, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: "0.6px" }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: 600, color: color || "#1a1a1a" }}>{value}</span>
+    </div>
+  );
+}
+
+function ModalVerDetalle({ salida, onClose }) {
+  const tc = TIPO_MAP[salida.tipo] || { color: "#757575", bg: "#f5f5f5", border: "#e0e0e0", icon: "📋", label: salida.tipo };
+  return (
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 30000 }}>
+      <div className="modal-box" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header" style={{ background: `linear-gradient(135deg, ${tc.color} 0%, ${tc.color}cc 100%)` }}>
+          <div>
+            <p className="modal-header__eyebrow">Detalle de salida #{salida.id}</p>
+            <h2 className="modal-header__title">{tc.icon} {tc.label}</h2>
+          </div>
+          <button className="modal-close-btn" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body" style={{ padding: "20px 24px 24px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+            <InfoRow label="Estado"         value={salida.estadoLabel} color={salida.anulada ? "#c62828" : "#2e7d32"} />
+            <InfoRow label="Tipo elemento"  value={salida.entidadTipo === "producto" ? "📦 Producto" : "🧺 Insumo"} />
+            <InfoRow label="Elemento"       value={salida.entidadNombre} />
+            <InfoRow label="Categoría"      value={salida.entidadCat} />
+            <InfoRow label="Cantidad"       value={`-${salida.cantidad} ${salida.unidad}`} color="#c62828" />
+            <InfoRow label="Registrado por" value={salida.empleado} />
+            <InfoRow label="Fecha registro" value={salida.fecha || "—"} />
+          </div>
+          {salida.motivo && (
+            <div style={{ marginTop: 14, padding: "10px 14px", background: "#f9f9f9", borderRadius: 9, border: "1px solid #e0e0e0" }}>
+              <InfoRow label="Motivo" value={salida.motivo} />
+            </div>
+          )}
+          <div style={{ marginTop: 20, textAlign: "right" }}>
+            <button className="btn-ghost" onClick={onClose}>Cerrar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* ══════════════════════════════════════════════════════════
    MODAL CONFIRMAR ANULAR
@@ -255,7 +305,14 @@ function RegistrarSalida({ productos, insumos, onClose, onRegistrada }) {
                   <input type="number" min="1" max={stockActual}
                     className={`sl-input${errors.cantidad ? " sl-input--error" : ""}`}
                     value={cantidad}
-                    onChange={e => { setCantidad(e.target.value); setErrors(p => ({ ...p, cantidad: "" })); }}
+                    onKeyDown={e => { if (e.key === "-" || e.key === "e" || e.key === "E" || e.key === "+") e.preventDefault(); }}
+                    onChange={e => {
+                      const v = e.target.value;
+                      if (v === "" || Number(v) > 0) {
+                        setCantidad(v);
+                        setErrors(p => ({ ...p, cantidad: "" }));
+                      }
+                    }}
                     placeholder={seleccionado ? `Máx. ${stockActual}` : "—"}
                     disabled={!seleccionado} />
                   <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: "#9e9e9e", pointerEvents: "none" }}>
@@ -325,6 +382,7 @@ function HistorialSalidas({ salidas, loading, onAgregarClick, cargarSalidas }) {
   const [busqueda,        setBusqueda]       = useState("");
   const [showFilter,      setShowFilter]     = useState(false);
   const [salidaAAnular,   setSalidaAAnular]  = useState(null);
+  const [salidaAVer,      setSalidaAVer]     = useState(null);
   const [toast,           setToast]          = useState(null);
   const [page,            setPage]           = useState(1);
   const filterRef = useRef();
@@ -405,7 +463,7 @@ function HistorialSalidas({ salidas, loading, onAgregarClick, cargarSalidas }) {
         </div>
         <div ref={filterRef} style={{ position: "relative", display: "flex" }}>
           <button className={`sl-filter-btn ${filtroTipo !== "todos" || filtroEntidad !== "todos" ? "has-filter" : ""}`}
-            onClick={() => setShowFilter(v => !v)}>▼ Filtrar</button>
+            onClick={() => setShowFilter(v => !v)}>▼ Filtros</button>
           {showFilter && (
             <div className="sl-filter-dropdown sl-filter-dropdown--wide">
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
@@ -490,6 +548,8 @@ function HistorialSalidas({ salidas, loading, onAgregarClick, cargarSalidas }) {
                     <td><span style={{ fontSize: 12, color: "#9e9e9e" }}>{s.fecha || "—"}</span></td>
                     <td>
                       <div className="sl-table-actions">
+                        <button className="sl-action-btn" title="Ver detalles" onClick={() => setSalidaAVer(s)}
+                          style={{ background: "#e3f2fd", color: "#1565c0", border: "1.5px solid #90caf9" }}>👁</button>
                         {s.anulada
                           ? <span className="sl-action-locked" title="Salida anulada">🚫</span>
                           : <button className="sl-action-btn sl-action-btn--delete" title="Anular salida" onClick={() => setSalidaAAnular(s)}>🚫</button>
@@ -516,6 +576,10 @@ function HistorialSalidas({ salidas, loading, onAgregarClick, cargarSalidas }) {
           </div>
         </div>
       </div>
+
+      {salidaAVer && (
+        <ModalVerDetalle salida={salidaAVer} onClose={() => setSalidaAVer(null)} />
+      )}
 
       {salidaAAnular && (
         <ModalConfirmarAnular
