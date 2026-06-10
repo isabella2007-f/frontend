@@ -148,59 +148,79 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
   const generarNotifAutomaticas = useCallback(() => {
     const rol = user?.rol?.toLowerCase();
     const isAdmin = rol === 'admin' || rol === 'administrador';
-    
+
     if (!autoActivo || !isAdmin) return;
 
     setNotificaciones(prev => {
       const nuevas = [];
+      const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
 
-      // Purga notificaciones obsoletas cuyo insumo/lote ya no existe en los datos actuales
-      const insumoIds = new Set(insumos.map(i => i.id));
-      const loteIds   = new Set(lotes.map(l => l.id));
+      // Purga notificaciones cuya condición ya no está activa.
+      // Esto evita que notificaciones leídas persistan después de que el problema se resolvió.
       const notificacionesActuales = prev.filter(n => {
-        if ([TIPOS.STOCK_MINIMO, TIPOS.STOCK_AGOTADO].includes(n.tipo)) {
-          return insumoIds.has(n.idReferencia);
+        if (n.tipo === TIPOS.STOCK_AGOTADO) {
+          const ins = insumos.find(i => i.id === n.idReferencia);
+          return ins && ins.stockActual <= 0;
         }
-        if ([TIPOS.LOTE_POR_VENCER, TIPOS.LOTE_VENCIDO].includes(n.tipo)) {
-          return loteIds.has(n.idReferencia);
+        if (n.tipo === TIPOS.STOCK_MINIMO) {
+          const ins = insumos.find(i => i.id === n.idReferencia);
+          if (!ins) return false;
+          const min = nivelesMinimos[ins.id] !== undefined ? nivelesMinimos[ins.id] : ins.stockMinimo;
+          return ins.stockActual > 0 && ins.stockActual <= min;
+        }
+        if (n.tipo === TIPOS.LOTE_POR_VENCER) {
+          const lote = lotes.find(l => l.id === n.idReferencia);
+          if (!lote || lote.cantidadActual <= 0) return false;
+          const dias = Math.round((new Date(lote.fechaVencimiento + "T00:00:00") - hoy) / 86_400_000);
+          return dias >= 0 && dias <= 7;
+        }
+        if (n.tipo === TIPOS.LOTE_VENCIDO) {
+          const lote = lotes.find(l => l.id === n.idReferencia);
+          if (!lote || lote.cantidadActual <= 0) return false;
+          const dias = Math.round((new Date(lote.fechaVencimiento + "T00:00:00") - hoy) / 86_400_000);
+          return dias < 0;
+        }
+        if (n.tipo === TIPOS.COMPRA_PENDIENTE) {
+          const compra = compras.find(c => c.id === n.idReferencia);
+          return compra && compra.estado === "pendiente";
         }
         return true;
       });
 
+      // Genera notificaciones nuevas solo si NO existe ya una con la misma clave
+      // (leída o no leída). Así marcar como leída suprime el duplicado mientras
+      // la condición persista.
       insumos.forEach(ins => {
         const minimo = nivelesMinimos[ins.id] !== undefined ? nivelesMinimos[ins.id] : ins.stockMinimo;
         const stock  = ins.stockActual;
 
         if (stock <= 0) {
           const clave = `${TIPOS.STOCK_AGOTADO}-${ins.id}`;
-          const yaExiste = notificacionesActuales.some(n => n.clave === clave && !n.leida);
-          if (!yaExiste) {
+          if (!notificacionesActuales.some(n => n.clave === clave)) {
             nuevas.push({
               id: uid(), clave, tipo: TIPOS.STOCK_AGOTADO,
               titulo: `Stock agotado: ${ins.nombre}`,
               mensaje: `El insumo "${ins.nombre}" tiene stock en 0. Se requiere realizar una compra urgente.`,
               idReferencia: ins.id, refNombre: ins.nombre,
               fecha: fechaHoy(), leida: false,
-              idDestinatario: 'admin'
+              idDestinatario: 'admin',
             });
           }
         } else if (minimo !== undefined && stock <= minimo) {
           const clave = `${TIPOS.STOCK_MINIMO}-${ins.id}`;
-          const yaExiste = notificacionesActuales.some(n => n.clave === clave && !n.leida);
-          if (!yaExiste) {
+          if (!notificacionesActuales.some(n => n.clave === clave)) {
             nuevas.push({
               id: uid(), clave, tipo: TIPOS.STOCK_MINIMO,
               titulo: `Stock bajo mínimo: ${ins.nombre}`,
               mensaje: `El insumo "${ins.nombre}" tiene ${stock} ${ins.unidad || "und"} disponibles, por debajo del mínimo configurado de ${minimo}. Se requiere realizar una compra.`,
               idReferencia: ins.id, refNombre: ins.nombre,
               fecha: fechaHoy(), leida: false,
-              idDestinatario: 'admin'
+              idDestinatario: 'admin',
             });
           }
         }
       });
 
-      const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
       lotes.forEach(lote => {
         if (!lote.fechaVencimiento || lote.cantidadActual <= 0) return;
         const fv   = new Date(lote.fechaVencimiento + "T00:00:00");
@@ -210,26 +230,26 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
 
         if (dias < 0) {
           const clave = `${TIPOS.LOTE_VENCIDO}-${lote.id}`;
-          if (!notificacionesActuales.some(n => n.clave === clave && !n.leida)) {
+          if (!notificacionesActuales.some(n => n.clave === clave)) {
             nuevas.push({
               id: uid(), clave, tipo: TIPOS.LOTE_VENCIDO,
               titulo: `Lote vencido: ${nombre}`,
               mensaje: `El lote ${lote.id} de "${nombre}" venció el ${lote.fechaVencimiento}. Contiene ${lote.cantidadActual} unidades. Retírelo del inventario.`,
               idReferencia: lote.id, refNombre: nombre,
               fecha: fechaHoy(), leida: false,
-              idDestinatario: 'admin'
+              idDestinatario: 'admin',
             });
           }
         } else if (dias <= 7) {
           const clave = `${TIPOS.LOTE_POR_VENCER}-${lote.id}`;
-          if (!notificacionesActuales.some(n => n.clave === clave && !n.leida)) {
+          if (!notificacionesActuales.some(n => n.clave === clave)) {
             nuevas.push({
               id: uid(), clave, tipo: TIPOS.LOTE_POR_VENCER,
               titulo: `Lote próximo a vencer: ${nombre}`,
               mensaje: `El lote ${lote.id} de "${nombre}" vence en ${dias} día${dias === 1 ? "" : "s"} (${lote.fechaVencimiento}). Contiene ${lote.cantidadActual} unidades.`,
               idReferencia: lote.id, refNombre: nombre,
               fecha: fechaHoy(), leida: false,
-              idDestinatario: 'admin'
+              idDestinatario: 'admin',
             });
           }
         }
@@ -240,14 +260,14 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
         const dias = Math.round((hoy - new Date(compra.fecha + "T00:00:00")) / 86_400_000);
         if (dias >= 5) {
           const clave = `${TIPOS.COMPRA_PENDIENTE}-${compra.id}`;
-          if (!notificacionesActuales.some(n => n.clave === clave && !n.leida)) {
+          if (!notificacionesActuales.some(n => n.clave === clave)) {
             nuevas.push({
               id: uid(), clave, tipo: TIPOS.COMPRA_PENDIENTE,
               titulo: `Compra pendiente: ${compra.id}`,
               mensaje: `La compra ${compra.id} lleva ${dias} días en estado pendiente. Verifique su estado con el proveedor.`,
               idReferencia: compra.id, refNombre: compra.id,
               fecha: fechaHoy(), leida: false,
-              idDestinatario: 'admin'
+              idDestinatario: 'admin',
             });
           }
         }

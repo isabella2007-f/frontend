@@ -45,10 +45,10 @@ export default function NotificacionDetalle({ notif, onClose }) {
       <div className="modal-box modal-box--sm notif-detalle" onClick={e => e.stopPropagation()}>
 
         {/* Header */}
-        <div className="modal-header" style={{ background: `linear-gradient(135deg, ${color}18, #fff)` }}>
+        <div className="modal-header" style={{ background: `linear-gradient(135deg, ${color} 0%, ${color}cc 100%)` }}>
           <div>
             <p className="modal-header__eyebrow">DETALLE DE NOTIFICACIÓN</p>
-            <h2 className="modal-header__title" style={{ color }}>
+            <h2 className="modal-header__title">
               {TIPO_ICONS[notif.tipo]} {TIPO_LABELS[notif.tipo]}
             </h2>
           </div>
