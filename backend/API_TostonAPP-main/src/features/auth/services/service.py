@@ -207,25 +207,37 @@ def registrar_cliente(db: Session, datos) -> None:
 # ─────────────────────────────────────────
 
 def _enviar_smtp(msg: MIMEMultipart, correo_destino: str) -> None:
-    """Envía un MIMEMultipart usando Gmail (preferido) o Resend SMTP como fallback."""
+    """Envía usando Gmail SSL (preferido) o Resend HTTP como fallback."""
     if GMAIL_USER and GMAIL_PASSWORD:
         msg["From"] = GMAIL_USER
         msg["To"]   = correo_destino
-        with smtplib.SMTP("smtp.gmail.com", 587) as s:
-            s.ehlo()
-            s.starttls()
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as s:
             s.login(GMAIL_USER, GMAIL_PASSWORD)
             s.sendmail(GMAIL_USER, correo_destino, msg.as_string())
     elif RESEND_API_KEY:
-        remitente = "Brom's <onboarding@resend.dev>"
-        msg["From"] = remitente
-        msg["To"]   = correo_destino
-        with smtplib.SMTP("smtp.resend.com", 587) as s:
-            s.starttls()
-            s.login("resend", RESEND_API_KEY)
-            s.sendmail(remitente, correo_destino, msg.as_string())
+        _resend_http_msg(msg, correo_destino)
     else:
         raise RuntimeError("Sin proveedor de email. Configura GMAIL_USER+GMAIL_APP_PASSWORD o RESEND_API_KEY.")
+
+
+def _resend_http_msg(msg: MIMEMultipart, correo_destino: str) -> None:
+    """Fallback: envía via Resend HTTP API (solo llega al dueño de la cuenta Resend)."""
+    import re
+    html_part = next((p.get_payload(decode=True).decode() for p in msg.walk()
+                      if p.get_content_type() == "text/html"), "")
+    subject   = msg.get("Subject", "")
+    key = RESEND_API_KEY
+    if not key:
+        raise RuntimeError("RESEND_API_KEY no configurado")
+    resp = _requests.post(
+        "https://api.resend.com/emails",
+        json    = {"from": "Brom's <onboarding@resend.dev>", "to": [correo_destino],
+                   "subject": subject, "html": html_part},
+        headers = {"Authorization": f"Bearer {key}"},
+        timeout = 12,
+    )
+    if resp.status_code >= 400:
+        raise RuntimeError(f"Resend error {resp.status_code}: {resp.text}")
 
 
 # ─────────────────────────────────────────
