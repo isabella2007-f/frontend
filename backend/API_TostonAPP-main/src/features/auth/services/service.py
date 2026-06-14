@@ -31,7 +31,7 @@ RESET_TOKEN_EXPIRE_MIN = 10
 CODE_EXPIRE_MIN        = 10
 
 # Proveedores de email — prioridad: Gmail API > Brevo > Resend HTTP
-GMAIL_USER          = os.getenv("GMAIL_USER", "TostonApp@gmail.com").strip()
+GMAIL_USER          = os.getenv("GMAIL_USER", "bromsapp@outlook.com").strip()
 GMAIL_CLIENT_ID     = os.getenv("GMAIL_CLIENT_ID", "").strip()
 GMAIL_CLIENT_SECRET = os.getenv("GMAIL_CLIENT_SECRET", "").strip()
 GMAIL_REFRESH_TOKEN = os.getenv("GMAIL_REFRESH_TOKEN", "").strip()
