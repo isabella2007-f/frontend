@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from typing import Dict, Any
 import requests as _requests
-import smtplib
 import random
 import uuid
 import os
@@ -31,9 +30,9 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 RESET_TOKEN_EXPIRE_MIN = 10
 CODE_EXPIRE_MIN        = 10
 
-# Proveedores de email — prioridad: Gmail > Resend SMTP > Resend HTTP
-GMAIL_USER     = os.getenv("GMAIL_USER", "").strip()
-GMAIL_PASSWORD = os.getenv("GMAIL_APP_PASSWORD", "").strip()
+# Proveedores de email — prioridad: Brevo > Resend HTTP
+BREVO_API_KEY  = os.getenv("BREVO_API_KEY", "").strip()
+GMAIL_USER     = os.getenv("GMAIL_USER", "").strip()   # solo para mostrar como remitente
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "").strip()
 
 # Rate limiting de login: { correo_lower: [timestamps de intentos fallidos] }
@@ -191,7 +190,7 @@ def registrar_cliente(db: Session, datos) -> None:
         Usado      = False,
     ))
 
-    if GMAIL_USER or RESEND_API_KEY:
+    if BREVO_API_KEY or RESEND_API_KEY:
         try:
             _enviar_email_verificacion(datos.Correo, token, datos.Nombre)
         except Exception:
@@ -207,37 +206,40 @@ def registrar_cliente(db: Session, datos) -> None:
 # ─────────────────────────────────────────
 
 def _enviar_smtp(msg: MIMEMultipart, correo_destino: str) -> None:
-    """Envía usando Gmail SSL (preferido) o Resend HTTP como fallback."""
-    if GMAIL_USER and GMAIL_PASSWORD:
-        msg["From"] = GMAIL_USER
-        msg["To"]   = correo_destino
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as s:
-            s.login(GMAIL_USER, GMAIL_PASSWORD)
-            s.sendmail(GMAIL_USER, correo_destino, msg.as_string())
-    elif RESEND_API_KEY:
-        _resend_http_msg(msg, correo_destino)
-    else:
-        raise RuntimeError("Sin proveedor de email. Configura GMAIL_USER+GMAIL_APP_PASSWORD o RESEND_API_KEY.")
-
-
-def _resend_http_msg(msg: MIMEMultipart, correo_destino: str) -> None:
-    """Fallback: envía via Resend HTTP API (solo llega al dueño de la cuenta Resend)."""
-    import re
-    html_part = next((p.get_payload(decode=True).decode() for p in msg.walk()
-                      if p.get_content_type() == "text/html"), "")
-    subject   = msg.get("Subject", "")
-    key = RESEND_API_KEY
-    if not key:
-        raise RuntimeError("RESEND_API_KEY no configurado")
-    resp = _requests.post(
-        "https://api.resend.com/emails",
-        json    = {"from": "Brom's <onboarding@resend.dev>", "to": [correo_destino],
-                   "subject": subject, "html": html_part},
-        headers = {"Authorization": f"Bearer {key}"},
-        timeout = 12,
+    """Envía usando Brevo HTTP (preferido) o Resend HTTP como fallback."""
+    html_part = next(
+        (p.get_payload(decode=True).decode() for p in msg.walk()
+         if p.get_content_type() == "text/html"), ""
     )
-    if resp.status_code >= 400:
-        raise RuntimeError(f"Resend error {resp.status_code}: {resp.text}")
+    subject   = msg.get("Subject", "")
+    remitente = GMAIL_USER or "TostonApp@gmail.com"
+
+    if BREVO_API_KEY:
+        resp = _requests.post(
+            "https://api.brevo.com/v3/smtp/email",
+            json={
+                "sender":      {"name": "Brom's", "email": remitente},
+                "to":          [{"email": correo_destino}],
+                "subject":     subject,
+                "htmlContent": html_part,
+            },
+            headers={"api-key": BREVO_API_KEY, "Content-Type": "application/json"},
+            timeout=12,
+        )
+        if resp.status_code >= 400:
+            raise RuntimeError(f"Brevo error {resp.status_code}: {resp.text}")
+    elif RESEND_API_KEY:
+        resp = _requests.post(
+            "https://api.resend.com/emails",
+            json    = {"from": "Brom's <onboarding@resend.dev>", "to": [correo_destino],
+                       "subject": subject, "html": html_part},
+            headers = {"Authorization": f"Bearer {RESEND_API_KEY}"},
+            timeout = 12,
+        )
+        if resp.status_code >= 400:
+            raise RuntimeError(f"Resend error {resp.status_code}: {resp.text}")
+    else:
+        raise RuntimeError("Sin proveedor de email. Configura BREVO_API_KEY en Render.")
 
 
 # ─────────────────────────────────────────
