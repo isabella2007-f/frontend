@@ -30,3 +30,6 @@ typing-inspection==0.4.2
 typing_extensions==4.15.0
 requests==2.32.3
 uvicorn==0.42.0
+google-auth==2.40.0
+google-auth-httplib2==0.2.0
+google-api-python-client==2.169.0

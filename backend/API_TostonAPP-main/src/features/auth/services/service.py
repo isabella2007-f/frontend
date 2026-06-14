@@ -30,10 +30,13 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 RESET_TOKEN_EXPIRE_MIN = 10
 CODE_EXPIRE_MIN        = 10
 
-# Proveedores de email — prioridad: Brevo > Resend HTTP
-BREVO_API_KEY  = os.getenv("BREVO_API_KEY", "").strip()
-GMAIL_USER     = os.getenv("GMAIL_USER", "").strip()   # solo para mostrar como remitente
-RESEND_API_KEY = os.getenv("RESEND_API_KEY", "").strip()
+# Proveedores de email — prioridad: Gmail API > Brevo > Resend HTTP
+GMAIL_USER          = os.getenv("GMAIL_USER", "TostonApp@gmail.com").strip()
+GMAIL_CLIENT_ID     = os.getenv("GMAIL_CLIENT_ID", "").strip()
+GMAIL_CLIENT_SECRET = os.getenv("GMAIL_CLIENT_SECRET", "").strip()
+GMAIL_REFRESH_TOKEN = os.getenv("GMAIL_REFRESH_TOKEN", "").strip()
+BREVO_API_KEY       = os.getenv("BREVO_API_KEY", "").strip()
+RESEND_API_KEY      = os.getenv("RESEND_API_KEY", "").strip()
 
 # Rate limiting de login: { correo_lower: [timestamps de intentos fallidos] }
 _intentos_login: Dict[str, list] = defaultdict(list)
@@ -190,7 +193,7 @@ def registrar_cliente(db: Session, datos) -> None:
         Usado      = False,
     ))
 
-    if BREVO_API_KEY or RESEND_API_KEY:
+    if GMAIL_CLIENT_ID or BREVO_API_KEY or RESEND_API_KEY:
         try:
             _enviar_email_verificacion(datos.Correo, token, datos.Nombre)
         except Exception:
@@ -206,19 +209,20 @@ def registrar_cliente(db: Session, datos) -> None:
 # ─────────────────────────────────────────
 
 def _enviar_smtp(msg: MIMEMultipart, correo_destino: str) -> None:
-    """Envía usando Brevo HTTP (preferido) o Resend HTTP como fallback."""
+    """Envía usando Gmail API (preferido) > Brevo HTTP > Resend HTTP."""
     html_part = next(
         (p.get_payload(decode=True).decode() for p in msg.walk()
          if p.get_content_type() == "text/html"), ""
     )
-    subject   = msg.get("Subject", "")
-    remitente = GMAIL_USER or "TostonApp@gmail.com"
+    subject = msg.get("Subject", "")
 
-    if BREVO_API_KEY:
+    if GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET and GMAIL_REFRESH_TOKEN:
+        _send_via_gmail_api(correo_destino, subject, html_part)
+    elif BREVO_API_KEY:
         resp = _requests.post(
             "https://api.brevo.com/v3/smtp/email",
             json={
-                "sender":      {"name": "Brom's", "email": remitente},
+                "sender":      {"name": "Brom's", "email": GMAIL_USER},
                 "to":          [{"email": correo_destino}],
                 "subject":     subject,
                 "htmlContent": html_part,
@@ -239,7 +243,36 @@ def _enviar_smtp(msg: MIMEMultipart, correo_destino: str) -> None:
         if resp.status_code >= 400:
             raise RuntimeError(f"Resend error {resp.status_code}: {resp.text}")
     else:
-        raise RuntimeError("Sin proveedor de email. Configura BREVO_API_KEY en Render.")
+        raise RuntimeError("Sin proveedor de email. Configura GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET y GMAIL_REFRESH_TOKEN en Render.")
+
+
+def _send_via_gmail_api(to: str, subject: str, html: str) -> None:
+    """Envía email usando la API oficial de Gmail con OAuth2."""
+    import base64
+    from email.message import EmailMessage as StdEmailMessage
+    from google.oauth2.credentials import Credentials
+    from google.auth.transport.requests import Request
+    from googleapiclient.discovery import build
+
+    creds = Credentials(
+        token         = None,
+        refresh_token = GMAIL_REFRESH_TOKEN,
+        client_id     = GMAIL_CLIENT_ID,
+        client_secret = GMAIL_CLIENT_SECRET,
+        token_uri     = "https://oauth2.googleapis.com/token",
+        scopes        = ["https://www.googleapis.com/auth/gmail.send"],
+    )
+    creds.refresh(Request())
+
+    em = StdEmailMessage()
+    em["To"]      = to
+    em["From"]    = f"Brom's <{GMAIL_USER}>"
+    em["Subject"] = subject
+    em.set_content(html, subtype="html")
+
+    service = build("gmail", "v1", credentials=creds)
+    encoded = base64.urlsafe_b64encode(em.as_bytes()).decode()
+    service.users().messages().send(userId="me", body={"raw": encoded}).execute()
 
 
 # ─────────────────────────────────────────
