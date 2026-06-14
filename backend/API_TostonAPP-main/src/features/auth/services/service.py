@@ -222,7 +222,7 @@ def _enviar_smtp(msg: MIMEMultipart, correo_destino: str) -> None:
         resp = _requests.post(
             "https://api.brevo.com/v3/smtp/email",
             json={
-                "sender":      {"name": "Brom's", "email": GMAIL_USER},
+                "sender":      {"name": "TostonApp", "email": GMAIL_USER},
                 "to":          [{"email": correo_destino}],
                 "subject":     subject,
                 "htmlContent": html_part,
@@ -266,7 +266,7 @@ def _send_via_gmail_api(to: str, subject: str, html: str) -> None:
 
     em = StdEmailMessage()
     em["To"]      = to
-    em["From"]    = f"Brom's <{GMAIL_USER}>"
+    em["From"]    = f"TostonApp <{GMAIL_USER}>"
     em["Subject"] = subject
     em.set_content(html, subtype="html")
 
