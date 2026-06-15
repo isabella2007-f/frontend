@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
 from src.shared.services.models import Venta, Estado, DetalleVenta, Domicilio
-from src.features.ventas.gestion_ventas.services.service import _formato_venta
+from src.features.ventas.gestion_ventas.services.service import _formato_venta, cambiar_estado as _gv_cambiar_estado
 
 
 # IDs de estado según tabla global Estados
@@ -135,10 +135,7 @@ def confirmar_pedido(db: Session, id_venta: int) -> dict:
                    "Si el pedido está En producción, espera a que se completen las órdenes de producción."
         )
 
-    pedido.Estado = ESTADO_CONFIRMADO
-    db.commit()
-    db.refresh(pedido)
-    return _formato_venta(pedido, db)
+    return _gv_cambiar_estado(db, id_venta, ESTADO_CONFIRMADO)
 
 
 def cancelar_pedido(db: Session, id_venta: int, actual: dict = None) -> dict:

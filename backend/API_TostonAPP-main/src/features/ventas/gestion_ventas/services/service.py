@@ -442,28 +442,50 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
 
     ESTADOS_CANCELACION = {3, 5}
+    ESTADO_CONFIRMADO   = 4
     ESTADO_ENTREGADO    = 8
 
-    # Al entregar (8): descontar stock — solo si aún no se había entregado
-    if nuevo_estado == ESTADO_ENTREGADO and venta.Estado != ESTADO_ENTREGADO:
-        items = db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()
-        for item in items:
-            producto = db.query(Producto).filter(Producto.ID_Producto == item.ID_Producto).first()
-            if not producto:
-                continue
-            producto.Stock = max(0, (producto.Stock or 0) - (item.Cantidad or 0))
-            _actualizar_estado_producto(producto)
-            notificar_stock_producto(db, producto)
+    tiene_domicilio = db.query(Domicilio).filter(Domicilio.ID_Venta == id_venta).first() is not None
 
-    # Al cancelar: restaurar stock solo si la venta ya fue entregada (stock ya descontado)
-    if nuevo_estado in ESTADOS_CANCELACION and venta.Estado == ESTADO_ENTREGADO:
-        items = db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()
-        for item in items:
-            producto = db.query(Producto).filter(Producto.ID_Producto == item.ID_Producto).first()
-            if producto:
-                producto.Stock = (producto.Stock or 0) + (item.Cantidad or 0)
+    # Al confirmar (4) un pedido SIN domicilio (recoger en tienda): descontar stock
+    if nuevo_estado == ESTADO_CONFIRMADO and venta.Estado not in ESTADOS_CANCELACION | {ESTADO_CONFIRMADO}:
+        if not tiene_domicilio:
+            items = db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()
+            for item in items:
+                producto = db.query(Producto).filter(Producto.ID_Producto == item.ID_Producto).first()
+                if not producto:
+                    continue
+                producto.Stock = max(0, (producto.Stock or 0) - (item.Cantidad or 0))
                 _actualizar_estado_producto(producto)
                 notificar_stock_producto(db, producto)
+
+    # Al entregar (8) un pedido CON domicilio: descontar stock
+    if nuevo_estado == ESTADO_ENTREGADO and venta.Estado != ESTADO_ENTREGADO:
+        if tiene_domicilio:
+            items = db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()
+            for item in items:
+                producto = db.query(Producto).filter(Producto.ID_Producto == item.ID_Producto).first()
+                if not producto:
+                    continue
+                producto.Stock = max(0, (producto.Stock or 0) - (item.Cantidad or 0))
+                _actualizar_estado_producto(producto)
+                notificar_stock_producto(db, producto)
+
+    # Al cancelar: restaurar stock si ya fue descontado
+    # — pickup confirmado (estado 4, sin domicilio) o cualquier pedido entregado (estado 8)
+    if nuevo_estado in ESTADOS_CANCELACION:
+        stock_descontado = (
+            (venta.Estado == ESTADO_CONFIRMADO and not tiene_domicilio) or
+            venta.Estado == ESTADO_ENTREGADO
+        )
+        if stock_descontado:
+            items = db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()
+            for item in items:
+                producto = db.query(Producto).filter(Producto.ID_Producto == item.ID_Producto).first()
+                if producto:
+                    producto.Stock = (producto.Stock or 0) + (item.Cantidad or 0)
+                    _actualizar_estado_producto(producto)
+                    notificar_stock_producto(db, producto)
 
     # Al cancelar: devolver crédito si se usó (independiente del stock)
     if nuevo_estado in ESTADOS_CANCELACION and venta.Estado not in ESTADOS_CANCELACION:
