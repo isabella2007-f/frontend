@@ -255,13 +255,13 @@ def asignar_repartidor(db: Session, id_domicilio: int, id_empleado: int) -> dict
         db.commit()
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error al guardar: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"COMMIT_ERROR | {type(e).__name__}: {e}")
 
     try:
         db.refresh(dom)
         return _formato_domicilio(dom, db)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al formatear respuesta: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"FORMAT_ERROR | {type(e).__name__}: {e}")
 
 
 def generar_otp(id_domicilio: int) -> str:
