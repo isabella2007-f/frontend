@@ -3,6 +3,26 @@ from typing import Optional
 from datetime import datetime
 
 
+def validar_cedula(cedula: str, tipo_documento: str) -> Optional[str]:
+    limpia = cedula.replace(" ", "").replace("-", "")
+    if not limpia.isdigit():
+        return "La cédula debe contener solo números"
+    min_d = 9 if tipo_documento == "NIT" else 8
+    max_d = 11 if tipo_documento == "NIT" else 10
+    if not (min_d <= len(limpia) <= max_d):
+        return f"La cédula debe tener entre {min_d} y {max_d} dígitos"
+    return None
+
+
+def validar_telefono(telefono: str) -> Optional[str]:
+    limpio = telefono.replace(" ", "").replace("-", "")
+    if not limpio.isdigit():
+        return "El teléfono debe contener solo números"
+    if not (7 <= len(limpio) <= 15):
+        return "El teléfono debe tener entre 7 y 15 dígitos"
+    return None
+
+
 # ── Crear empleado (cualquier rol no-cliente) ──
 class EmpleadoCreate(BaseModel):
     Cedula:         str

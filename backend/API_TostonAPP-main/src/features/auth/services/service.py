@@ -15,7 +15,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 from src.shared.services.models import (
-    Usuario, Empleado, Rol, UsuarioXRol, Permiso, RolXPermiso, VerificacionEmail
+    Usuario, Rol, Permiso, RolXPermiso, VerificacionEmail, CodigoReset
 )
 
 load_dotenv()
