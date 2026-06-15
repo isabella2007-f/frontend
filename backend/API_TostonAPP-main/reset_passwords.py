@@ -12,7 +12,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from passlib.context import CryptContext
 from src.shared.services.database import SessionLocal
-from src.shared.services.models import Empleado, Usuario
+from src.shared.services.models import Usuario
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 CONTRASENA  = "Admin123@"
@@ -22,11 +22,6 @@ def reset():
     try:
         nuevo_hash = pwd_context.hash(CONTRASENA)
         print(f"Hash generado: {nuevo_hash[:30]}...")
-
-        empleados = db.query(Empleado).all()
-        for e in empleados:
-            e.Contrasena = nuevo_hash
-        print(f"  {len(empleados)} empleado(s) actualizados")
 
         usuarios = db.query(Usuario).all()
         for u in usuarios:

@@ -3,7 +3,7 @@ from fastapi import HTTPException
 from datetime import datetime, timedelta
 
 from collections import defaultdict
-from src.shared.services.models import Domicilio, Venta, Empleado, Usuario, Estado, Producto, VentaXProducto, Rol
+from src.shared.services.models import Domicilio, Venta, Usuario, Estado, Producto, VentaXProducto, Rol
 
 # Chat en memoria — temporal (se pierde al reiniciar el servidor)
 _chat: dict = defaultdict(list)
@@ -72,16 +72,16 @@ def _formato_domicilio(dom: Domicilio, db: Session) -> dict:
 
 
 def obtener_repartidores(db: Session) -> list:
-    """Empleados cuyo rol contiene 'domiciliario'."""
-    empleados = (
-        db.query(Empleado)
-        .join(Rol, Empleado.ID_Rol == Rol.ID_Rol)
+    """Usuarios cuyo rol contiene 'domiciliario'."""
+    repartidores = (
+        db.query(Usuario)
+        .join(Rol, Usuario.ID_Rol == Rol.ID_Rol)
         .filter(Rol.Rol.ilike("%domiciliario%"))
         .all()
     )
     return [
-        {"id": emp.ID_Empleado, "nombre": f"{emp.Nombre} {emp.Apellidos}"}
-        for emp in empleados
+        {"id": u.ID_Usuario, "nombre": f"{u.Nombre} {u.Apellidos}"}
+        for u in repartidores
     ]
 
 
