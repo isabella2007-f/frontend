@@ -2,15 +2,10 @@ import { useMemo, useState } from "react";
 import { getUser } from "../../../services/authService.js";
 import { useApp } from "../../../AppContext.jsx";
 import { useNotificaciones } from "../../notificaciones/context/NotificacionesContext.jsx";
+import { fmtFecha } from "../../../utils/dateUtils.js";
 import "./DashboardCocina.css";
 
 const COOK_ROLE_ALIASES = ["producción", "produccion", "cocinero"];
-
-const formatDate = (iso) => {
-  if (!iso) return "—";
-  const date = new Date(`${iso}T00:00:00`);
-  return date.toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" });
-};
 
 const formatDuration = (minutes) => {
   if (minutes == null || Number.isNaN(minutes)) return "—";
@@ -164,7 +159,7 @@ export default function DashboardCocina() {
               </div>
               <div className="pedido-card__body">
                 <p><strong>Cliente:</strong> {pedido.cliente?.nombre || "Cliente anónimo"}</p>
-                <p><strong>Hora:</strong> {formatDate(pedido.fecha_pedido)}</p>
+                <p><strong>Hora:</strong> {fmtFecha(pedido.fecha_pedido)}</p>
                 <p><strong>Prioridad:</strong> {buildPriority(pedido)}</p>
                 <p><strong>Productos:</strong> {pedido.productosItems?.length || 0}</p>
               </div>
@@ -344,7 +339,7 @@ export default function DashboardCocina() {
                   <span>{p.estado}</span>
                 </div>
                 <div>
-                  <span>{formatDate(p.fecha_pedido)}</span>
+                  <span>{fmtFecha(p.fecha_pedido)}</span>
                   <span>{formatDuration(getTimeMinutes(p.fechaInicio || p.fecha_pedido, p.fechaCierre || p.fecha_pedido))}</span>
                 </div>
               </div>

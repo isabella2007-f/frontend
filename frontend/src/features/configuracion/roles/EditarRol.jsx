@@ -5,8 +5,7 @@ import { editarRol, gestionarPermisos } from "../../../services/rolesService.js"
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
 import PrivilegiosModal, { buildPrivilegios, buildAdminPrivilegios } from "./PrivilegiosModal.jsx";
 import { usePrivilegios } from "../../../context/PrivilegiosContext.jsx";
-
-const ICON_OPTIONS = ["👤","👑","🛡️","🔧","📦","💼","🧑‍💻","📊","🔑","⚙️","👷","🧑‍🍳"];
+import EmojiPickerGrid from "./EmojiPickerGrid.jsx";
 
 export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
   const normalize = (p, isAdmin = false) => {
@@ -104,15 +103,10 @@ export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
                 <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleIconFile} />
               </div>
               {!isView && pickingIcon && (
-                <div className="icon-picker-grid">
-                  {ICON_OPTIONS.map(ic => (
-                    <button key={ic}
-                      className={`icon-option${form.icono === ic ? " selected" : ""}`}
-                      onClick={() => { set("icono", ic); set("iconoPreview", null); setIconFile(null); setPickingIcon(false); }}>
-                      {ic}
-                    </button>
-                  ))}
-                </div>
+                <EmojiPickerGrid
+                  selected={form.icono}
+                  onSelect={ic => { set("icono", ic); set("iconoPreview", null); setIconFile(null); setPickingIcon(false); }}
+                />
               )}
             </div>
 

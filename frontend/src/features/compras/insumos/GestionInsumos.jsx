@@ -32,6 +32,7 @@ const ADAPT_INSUMO = raw => ({
   simboloUnidad:    raw.simbolo_unidad ?? "",
   proxVencimiento:  raw.proximo_vencimiento ?? null,
   diasParaVencer:   raw.dias_para_vencer ?? null,
+  loteId:           raw.lote_id ?? null,
   tieneFicha:       raw.tiene_ficha_tecnica ?? false,
 });
 
@@ -141,6 +142,7 @@ function SkeletonRows() {
       <td><div className="skeleton-cell" style={{ width: 28 }} /></td>
       <td><div className="skeleton-cell" style={{ width: "70%" }} /></td>
       <td><div className="skeleton-cell" style={{ width: 34 }} /></td>
+      <td><div className="skeleton-cell" style={{ width: 56 }} /></td>
       <td><div className="skeleton-cell" style={{ width: 120 }} /></td>
       <td><div className="skeleton-cell" style={{ width: 70 }} /></td>
       <td><div className="skeleton-cell" style={{ width: 52 }} /></td>
@@ -361,6 +363,7 @@ export default function GestionInsumos() {
                   <th>Nº</th>
                   <th>Insumo</th>
                   <th>Categoría</th>
+                  <th>Lote</th>
                   <th>Stock</th>
                   <th>Próx. Venc.</th>
                   <th>Activo</th>
@@ -372,7 +375,7 @@ export default function GestionInsumos() {
                   <SkeletonRows />
                 ) : paginated.length === 0 ? (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={8}>
                       <div className="empty-state">
                         <div className="empty-state__icon">🧺</div>
                         <p className="empty-state__text">
@@ -398,6 +401,12 @@ export default function GestionInsumos() {
                         </div>
                       </td>
                       <td><CatCell cat={cat} /></td>
+                      <td>
+                        {ins.loteId
+                          ? <span style={{ fontSize: 11, fontWeight: 700, color: "#1565c0", background: "#e3f2fd", border: "1px solid #90caf9", borderRadius: 6, padding: "3px 8px" }}>#{String(ins.loteId).padStart(4, "0")}</span>
+                          : <span style={{ fontSize: 13, color: "#bdbdbd", fontWeight: 500 }}>—</span>
+                        }
+                      </td>
                       <td><StockBar actual={ins.stockActual} minimo={ins.stockMinimo} /></td>
                       <td><VencCell fecha={ins.proxVencimiento} dias={ins.diasParaVencer} /></td>
                       <td><Toggle value={ins.estado} onChange={() => handleToggle(ins)} /></td>

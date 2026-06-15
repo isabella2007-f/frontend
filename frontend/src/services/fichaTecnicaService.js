@@ -1,4 +1,5 @@
 import { apiFetch } from "../utils/api";
+import { fmtFecha } from "../utils/dateUtils.js";
 
 // Adapta un producto (con ficha_tecnica anidada) al shape que usa la UI
 const adaptFicha = (producto) => {
@@ -10,7 +11,7 @@ const adaptFicha = (producto) => {
     categoria:     producto.nombre_categoria || "",
     version:       f.Version || "v1.0",
     estado:        f.Estado === 1,
-    fecha:         f.Fecha_Creacion ? String(f.Fecha_Creacion).split("T")[0] : "",
+    fecha:         fmtFecha(f.Fecha_Creacion),
     fotoPreview:   (producto.imagenes || [])[0]?.url || null,
     procedimiento: f.Procedimiento || "",
     observaciones: f.Observaciones || "",

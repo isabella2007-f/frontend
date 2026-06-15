@@ -22,6 +22,7 @@ def _formato_insumo(insumo: Insumo, db: Session) -> dict:
         .filter(
             LoteCompra.ID_Insumo == insumo.ID_Insumo,
             LoteCompra.Fecha_Vencimiento != None,
+            LoteCompra.Estado == 1,  # Solo lotes activos (compra ya recibida)
         )
         .order_by(LoteCompra.Fecha_Vencimiento.asc())
         .first()
@@ -49,6 +50,7 @@ def _formato_insumo(insumo: Insumo, db: Session) -> dict:
         "Estado":              insumo.Estado,
         "proximo_vencimiento": proximo_venc,
         "dias_para_vencer":    dias_para_vencer,
+        "lote_id":             proximo_lote.ID_Lote_Compra if proximo_lote else None,
         "tiene_ficha_tecnica": en_ficha,
     }
 
@@ -222,6 +224,7 @@ def obtener_lotes_insumo(db: Session, id_insumo: int) -> dict:
             "vencido":          vencido,
             "dias_para_vencer": dias,
             "estado":           l.Estado,
+            "pendiente":        l.Estado == 3,  # True = compra registrada pero no recibida
         })
     return {"lotes": resultado, "total": len(resultado)}
 

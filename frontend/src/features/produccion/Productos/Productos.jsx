@@ -8,6 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation } from "react-router-dom";
+import { fmtFecha } from "../../../utils/dateUtils.js";
 import { crearFicha, editarFicha } from "../../../services/fichaTecnicaService.js";
 import { Toast } from "./ui.jsx";
 import CrearProducto from "./CrearProducto.jsx";
@@ -49,12 +50,6 @@ const ESTADO_STYLES = {
 };
 function hoyISO() {
   return new Date().toISOString().split("T")[0];
-}
-function formatFecha(f) {
-  if (!f) return "—";
-  if (f.includes("/")) return f;
-  const [y, m, d] = f.split("-");
-  return `${d}/${m}/${y}`;
 }
 function estaVencido(fechaVenc) {
   if (!fechaVenc) return false;
@@ -471,7 +466,7 @@ function VerProducto({ product, catObj, onClose, onOpenFicha }) {
                 </div>
                 <div className="ver-ins-field">
                   <span className="ver-ins-field__label">Fecha creación</span>
-                  <span style={{ fontWeight: 600, fontSize: 14 }}>{formatFecha(product.fechaCreacion)}</span>
+                  <span style={{ fontWeight: 600, fontSize: 14 }}>{fmtFecha(product.fechaCreacion)}</span>
                 </div>
                 <div className="ver-ins-field">
                   <span className="ver-ins-field__label">Precio de venta</span>
@@ -645,7 +640,7 @@ function VerProducto({ product, catObj, onClose, onOpenFicha }) {
                       <div className="lote-item__head">
                         <span className="lote-item__id">{lote.id}</span>
                         <span style={{ fontWeight: 600, fontSize: 12 }}>
-                          Venció: {formatFecha(lote.fechaVencimiento)}
+                          Venció: {fmtFecha(lote.fechaVencimiento)}
                         </span>
                       </div>
                       <div
@@ -655,7 +650,7 @@ function VerProducto({ product, catObj, onClose, onOpenFicha }) {
                         }}
                       >
                         <div><strong>Cantidad actual:</strong> {lote.cantidadActual} uds.</div>
-                        <div><strong>Ingreso:</strong> {formatFecha(lote.fechaIngreso)}</div>
+                        <div><strong>Ingreso:</strong> {fmtFecha(lote.fechaIngreso)}</div>
                       </div>
                     </div>
                   ))}

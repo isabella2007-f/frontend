@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { DEPARTAMENTOS, getCiudades } from "../../../utils/departamentosYCiudades.js";
 import { getUsuarios } from "../../../services/usuariosService.js";
 import { getProductos } from "../../../services/productosService.js";
+import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
 import "./Pedidos.css";
 
 /* ─── Datos de transferencia ─────────────────────────────── */
@@ -279,6 +280,17 @@ export default function CrearPedido({ onClose, onSave }) {
 
     setSaved(true);
 
+    let comprobanteUrl = null;
+    if (form.comprobante) {
+      try {
+        comprobanteUrl = await subirImagenCloudinary(form.comprobante);
+      } catch {
+        setSaved(false);
+        setErrors(err => ({ ...err, comprobante: "Error al subir el comprobante. Intenta de nuevo." }));
+        return;
+      }
+    }
+
     const cliente = clientes.find(c => String(c.id) === String(form.idCliente));
 
     const payload = {
@@ -290,7 +302,7 @@ export default function CrearPedido({ onClose, onSave }) {
       },
       productosItems:    form.productosItems,
       metodo_pago:       form.metodo_pago,
-      comprobante:       form.comprobantePreview,
+      comprobante:       comprobanteUrl,
       domicilio:         form.domicilio,
       direccion_entrega: form.domicilio ? form.direccion_entrega : null,
       departamento:      form.domicilio ? form.departamento      : null,

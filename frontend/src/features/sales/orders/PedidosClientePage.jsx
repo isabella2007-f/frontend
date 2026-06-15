@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getPedidos, getMisVentas } from '../../../services/pedidosService';
+import { fmtFecha } from '../../../utils/dateUtils.js';
 import { getCurrentUser } from '../../client/profile/services/profileService.js';
 import {
   Package, Calendar, MapPin, DollarSign, Leaf, Search,
@@ -271,7 +272,7 @@ const PedidosClientePage = () => {
                       <div className="flex items-center gap-1.5 text-gray-500">
                         <Calendar size={12} />
                         <span className="text-[11px] font-bold">
-                          {new Date(pedido.fecha_pedido).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          {fmtFecha(pedido.fecha_pedido)}
                         </span>
                       </div>
                     </div>
@@ -397,7 +398,7 @@ const PedidosClientePage = () => {
                 <div style={{ background: '#f9fdf9', border: '1px solid #c8e6c9', borderRadius: 12, padding: '12px 14px' }}>
                   <p style={{ fontSize: 9, fontWeight: 700, color: '#9e9e9e', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>💳 Pago</p>
                   <p style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a' }}>{selectedPedido.metodo_pago || '—'}</p>
-                  <p style={{ fontSize: 11, color: '#9e9e9e', marginTop: 2 }}>{selectedPedido.fecha_pedido}</p>
+                  <p style={{ fontSize: 11, color: '#9e9e9e', marginTop: 2 }}>{fmtFecha(selectedPedido.fecha_pedido)}</p>
                 </div>
               </div>
 

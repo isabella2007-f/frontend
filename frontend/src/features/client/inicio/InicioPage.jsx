@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getPedidos, getMiCredito } from '../../../services/pedidosService.js';
+import { fmtFecha } from '../../../utils/dateUtils.js';
 import { getProductos } from '../../../services/productosService.js';
 import { getCurrentUser } from '../profile/services/profileService.js';
 import { Package, Clock, CheckCircle, UserCircle, Leaf, Gift, ShoppingCart } from 'lucide-react';
@@ -129,38 +130,52 @@ const InicioPage = () => {
             </div>
           </div>
 
-          {/* Productos disponibles */}
+          {/* Nuestros productos */}
           <section>
             <h2 style={{ marginBottom: 16, fontSize: 20, fontWeight: 700, color: 'var(--gray-900)' }}>
-              Productos disponibles
+              Nuestros productos
             </h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 20 }}>
-              {productos.filter(p => p.stock > 0).map(producto => (
-                <div key={producto.id} className="card" style={{ padding: 20, cursor: 'pointer', transition: 'transform 0.2s' }}
-                     onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
-                     onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
-                  <div style={{ width: '100%', height: 150, background: 'var(--gray-100)', borderRadius: 8, marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48 }}>
-                    🥑
+              {productos.map(producto => {
+                const agotado = producto.stock === 0;
+                return (
+                  <div key={producto.id} className="card" style={{ padding: 20, cursor: agotado ? 'default' : 'pointer', transition: 'transform 0.2s', opacity: agotado ? 0.75 : 1 }}
+                       onMouseEnter={e => { if (!agotado) e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                       onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
+                    <div style={{ position: 'relative', width: '100%', height: 150, background: 'var(--gray-100)', borderRadius: 8, marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48, filter: agotado ? 'grayscale(0.6)' : 'none' }}>
+                      🥑
+                      {agotado && (
+                        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.25)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <span style={{ background: '#d32f2f', color: '#fff', fontWeight: 800, fontSize: 12, padding: '4px 14px', borderRadius: 99, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                            Agotado
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--gray-900)', marginBottom: 8 }}>
+                      {producto.nombre}
+                    </h3>
+                    <p style={{ margin: 0, fontSize: 12, color: 'var(--gray-500)', marginBottom: 8 }}>
+                      {getCategoriaNombre(producto)}
+                    </p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 18, fontWeight: 800, color: agotado ? 'var(--gray-400)' : 'var(--green-700)' }}>
+                        ${producto.precio.toLocaleString()}
+                      </span>
+                      <span style={{ fontSize: 12, color: agotado ? '#d32f2f' : 'var(--gray-500)', fontWeight: agotado ? 700 : 400 }}>
+                        {agotado ? 'Sin stock' : `Stock: ${producto.stock}`}
+                      </span>
+                    </div>
+                    <button
+                      className="btn-primary"
+                      disabled={agotado}
+                      style={{ width: '100%', marginTop: 12, justifyContent: 'center', opacity: agotado ? 0.5 : 1, cursor: agotado ? 'not-allowed' : 'pointer' }}
+                    >
+                      <ShoppingCart size={14} /> {agotado ? 'Sin stock' : 'Agregar al carrito'}
+                    </button>
                   </div>
-                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--gray-900)', marginBottom: 8 }}>
-                    {producto.nombre}
-                  </h3>
-                  <p style={{ margin: 0, fontSize: 12, color: 'var(--gray-500)', marginBottom: 8 }}>
-                    {getCategoriaNombre(producto)}
-                  </p>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 18, fontWeight: 800, color: 'var(--green-700)' }}>
-                      ${producto.precio.toLocaleString()}
-                    </span>
-                    <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>
-                      Stock: {producto.stock}
-                    </span>
-                  </div>
-                  <button className="btn-primary" style={{ width: '100%', marginTop: 12, justifyContent: 'center' }}>
-                    <ShoppingCart size={14} /> Agregar al carrito
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
 
@@ -189,7 +204,7 @@ const InicioPage = () => {
                             {pedido.numero}
                           </h4>
                           <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--gray-500)' }}>
-                            {pedido.fecha_pedido} • {pedido.productosItems.length} producto{pedido.productosItems.length !== 1 ? 's' : ''}
+                            {fmtFecha(pedido.fecha_pedido)} • {pedido.productosItems.length} producto{pedido.productosItems.length !== 1 ? 's' : ''}
                           </p>
                         </div>
                         <span style={{

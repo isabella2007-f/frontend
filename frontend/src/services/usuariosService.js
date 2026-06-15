@@ -1,4 +1,5 @@
 import { apiFetch } from "../utils/api";
+import { fmtFecha } from "../utils/dateUtils.js";
 
 function adaptarUsuario(u) {
   return {
@@ -15,7 +16,7 @@ function adaptarUsuario(u) {
     idRol:         u.ID_Rol,
     rol:           u.nombre_rol,
     estado:        u.Estado === 1,
-    fechaCreacion: u.Fecha_creacion,
+    fechaCreacion: fmtFecha(u.Fecha_creacion),
     tipo:          u.tipo,
     foto:          null,
   };

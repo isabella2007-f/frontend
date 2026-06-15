@@ -41,25 +41,39 @@ def _label_estado(db: Session, id_estado: int) -> str:
     return estado.Estado if estado else None
 
 
-def _calcular_costo(db: Session, id_insumo: int, cantidad: int) -> Decimal:
-    """
-    Calcula el costo de la orden buscando el precio unitario del insumo
-    en su último lote de compra.
-    Fórmula: precio_unitario_lote * cantidad
-    Si no hay lote, retorna 0.
-    """
-    from src.shared.services.models import LoteCompra, DetalleCompra
-
-    # Busca el último detalle de compra del insumo para obtener el precio unitario
+def _precio_ultimo_lote(db: Session, id_insumo: int) -> Decimal:
+    """Precio unitario del insumo en su compra más reciente."""
+    from src.shared.services.models import DetalleCompra
     detalle = (
         db.query(DetalleCompra)
         .filter(DetalleCompra.ID_Insumo == id_insumo)
         .order_by(DetalleCompra.ID_Detalle_Compra.desc())
         .first()
     )
+    return Decimal(str(detalle.Precio_Und)) if (detalle and detalle.Precio_Und) else Decimal("0")
 
-    if detalle and detalle.Precio_Und:
-        return Decimal(str(detalle.Precio_Und)) * Decimal(str(cantidad))
+
+def _calcular_costo(db: Session, id_ficha, id_insumo, cantidad: int) -> Decimal:
+    """
+    Costo estimado de producción:
+    - Con ficha técnica: suma (precio_último_lote * cantidad_insumo_ficha * cantidad_a_producir)
+      para cada insumo de la ficha.
+    - Sin ficha (insumo directo): precio_último_lote * cantidad.
+    """
+    if id_ficha:
+        insumos_ficha = db.query(FichaTecnicaInsumo).filter(
+            FichaTecnicaInsumo.ID_Ficha == id_ficha
+        ).all()
+        total = Decimal("0")
+        for fi in insumos_ficha:
+            precio = _precio_ultimo_lote(db, fi.ID_Insumo)
+            cant_fi = Decimal(str(fi.Cantidad or 0))
+            total += precio * cant_fi * Decimal(str(cantidad))
+        return total
+
+    if id_insumo:
+        return _precio_ultimo_lote(db, id_insumo) * Decimal(str(cantidad))
+
     return Decimal("0")
 
 
@@ -160,7 +174,7 @@ def crear_orden(db: Session, datos: OrdenCreate) -> dict:
     if datos.ID_Insumo and not db.query(Insumo).filter(Insumo.ID_Insumo == datos.ID_Insumo).first():
         raise HTTPException(status_code=404, detail="Insumo no encontrado")
 
-    costo = _calcular_costo(db, datos.ID_Insumo, datos.Cantidad) if datos.ID_Insumo else Decimal("0")
+    costo = _calcular_costo(db, datos.ID_Ficha, datos.ID_Insumo, datos.Cantidad)
 
     nueva = OrdenProduccion(
         ID_Producto   = datos.ID_Producto,
@@ -189,9 +203,9 @@ def editar_orden(db: Session, id_orden: int, datos: OrdenUpdate) -> dict:
     for campo, valor in datos.model_dump(exclude_none=True).items():
         setattr(orden, campo, valor)
 
-    # Recalcula costo si cambió cantidad o insumo
-    if datos.Cantidad or datos.ID_Insumo:
-        orden.Costo = _calcular_costo(db, orden.ID_Insumo, orden.Cantidad)
+    # Recalcula costo si cambió cantidad, insumo o ficha
+    if datos.Cantidad or datos.ID_Insumo or datos.ID_Ficha:
+        orden.Costo = _calcular_costo(db, orden.ID_Ficha, orden.ID_Insumo, orden.Cantidad)
 
     db.commit()
     db.refresh(orden)

@@ -109,6 +109,22 @@ def migrate_db():
             except Exception:
                 pass
 
+    # Corrección de lotes huérfanos: lotes con Estado=1 que pertenecen a compras Pendientes
+    # (creados antes de que el flujo fuera corregido para usar Estado=3)
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("""
+                UPDATE Lote_Compra lc
+                JOIN Detalle_Compra dc ON dc.ID_Lote_Compra = lc.ID_Lote_Compra
+                JOIN Compras c ON c.ID_Compra = dc.ID_Compra
+                SET lc.Estado = 3
+                WHERE lc.Estado = 1
+                  AND c.Estado = 3
+            """))
+            conn.commit()
+        except Exception:
+            pass
+
 # ── CORS ──
 app.add_middleware(
     CORSMiddleware,

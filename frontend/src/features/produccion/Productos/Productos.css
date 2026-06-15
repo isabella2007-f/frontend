@@ -66,9 +66,8 @@
 .filter-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 
 /* ─── Table ──────────────────────────────────────────────── */
-.tbl { 
+.tbl {
     width: 100%;
-    min-width: 900px; /* o lo que necesites */ 
     border-collapse: collapse;
 }
 .tbl thead tr { background: #2e7d32; }

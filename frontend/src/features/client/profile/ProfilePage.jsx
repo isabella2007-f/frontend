@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { fmtFecha } from '../../../utils/dateUtils.js';
 import ProfileView from './components/ProfileView.jsx';
 import ProfileForm from './components/ProfileForm.jsx';
 import { getCurrentUser, updateUser } from './services/profileService.js';
@@ -254,7 +255,7 @@ const ProfilePage = () => {
                           {pedido.numero}
                         </p>
                         <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--gray-500)' }}>
-                          {pedido.fecha_pedido} • {pedido.productosItems.length} producto{pedido.productosItems.length !== 1 ? 's' : ''}
+                          {fmtFecha(pedido.fecha_pedido)} • {pedido.productosItems.length} producto{pedido.productosItems.length !== 1 ? 's' : ''}
                         </p>
                       </div>
                       <div style={{ textAlign: 'right' }}>

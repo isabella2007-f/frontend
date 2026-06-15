@@ -1,16 +1,11 @@
 import { useState, useEffect } from "react";
 import { getDomicilios, cambiarEstadoDomicilio } from "../../../services/domiciliosService.js";
 import { getUser } from "../../../services/authService.js";
+import { fmtFechaHora as fmtFecha } from "../../../utils/dateUtils.js";
 import "./Domicilios.css";
 
 const fmt = (n) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
-
-const fmtFecha = (iso) => {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return d.toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
-};
 
 const ESTADO_INFO = {
   "Pendiente":   { color: "#f9a825", bg: "#fff8e1", border: "#ffe082", icon: "⏳" },

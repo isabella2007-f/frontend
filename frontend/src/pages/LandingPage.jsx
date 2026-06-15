@@ -97,17 +97,15 @@ const LandingPage = ({ hideNavbar = false }) => {
         setCategoriasMap(map);
 
         setProductos(
-          lista
-            .filter(p => p.Estado !== 15)   // excluir agotados
-            .map(p => ({
-              id:               p.ID_Producto,
-              nombre:           p.nombre,
-              precio:           p.Precio_venta,
-              stock:            p.Stock,
-              idCategoria:      p.ID_Categoria,
-              imagen:           p.imagenes?.[0]?.url || null,
-              descripcion_corta: p.Descripcion_Corta ?? "",
-            }))
+          lista.map(p => ({
+            id:               p.ID_Producto,
+            nombre:           p.nombre,
+            precio:           p.Precio_venta,
+            stock:            p.Stock ?? 0,
+            idCategoria:      p.ID_Categoria,
+            imagen:           p.imagenes?.[0]?.url || null,
+            descripcion_corta: p.Descripcion_Corta ?? "",
+          }))
         );
       } catch {
         // silent — show empty grid
@@ -398,17 +396,25 @@ const LandingPage = ({ hideNavbar = false }) => {
               const cat = getCat(p.idCategoria);
               const qty = getQty(p.id);
               const inCartItem = getCart().find(i => i.id === p.id);
+              const agotado = p.stock === 0;
               return (
                 <div key={p.id} className="group bg-white rounded-[40px] overflow-hidden border border-[#f1f8f1] hover:border-[#c8e6c9] hover:shadow-[0_30px_60px_rgba(27,94,32,0.1)] transition-all duration-500 flex flex-col">
                   <div className="relative h-72 overflow-hidden">
                     {p.imagenPreview || p.imagen
-                      ? <img src={p.imagenPreview || p.imagen} alt={p.nombre} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-                      : <div className="w-full h-full bg-[#f7faf8] flex items-center justify-center"><span className="text-7xl group-hover:scale-125 transition-transform duration-500">{cat.icon || '🍌'}</span></div>
+                      ? <img src={p.imagenPreview || p.imagen} alt={p.nombre} className={`w-full h-full object-cover transition-transform duration-700 ${agotado ? 'grayscale opacity-70' : 'group-hover:scale-110'}`} />
+                      : <div className={`w-full h-full bg-[#f7faf8] flex items-center justify-center ${agotado ? 'opacity-50' : ''}`}><span className="text-7xl group-hover:scale-125 transition-transform duration-500">{cat.icon || '🍌'}</span></div>
                     }
+                    {agotado && (
+                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                        <span className="bg-red-600 text-white font-black text-sm px-6 py-2.5 rounded-2xl shadow-xl tracking-wide uppercase">
+                          Agotado
+                        </span>
+                      </div>
+                    )}
                     <div className="absolute top-6 right-6 bg-white/95 backdrop-blur-sm px-5 py-2.5 rounded-2xl font-black text-[#1b5e20] shadow-lg">
                       ${p.precio?.toLocaleString('es-CO')}
                     </div>
-                    {inCartItem && (
+                    {!agotado && inCartItem && (
                       <div className="absolute top-6 left-6 bg-[#1b5e20] text-white px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-lg border border-white/20">
                         <ShoppingCart className="w-3 h-3" />
                         {inCartItem.cantidad} en carrito
@@ -422,7 +428,7 @@ const LandingPage = ({ hideNavbar = false }) => {
                     </div>
                     <p className="text-[#555] font-medium text-sm mb-6 flex-1 leading-relaxed">{cat.descripcion || 'Sabor auténtico y natural en cada bocado.'}</p>
                     <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1 bg-[#f7faf8] rounded-2xl border border-[#e8f5e9] p-1.5">
+                      <div className={`flex items-center gap-1 bg-[#f7faf8] rounded-2xl border border-[#e8f5e9] p-1.5 ${agotado ? 'opacity-40 pointer-events-none' : ''}`}>
                         <button onClick={() => setQty(p.id, qty - 1)} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-[#e8f5e9] transition-colors active:scale-90">
                           <Minus className="w-3.5 h-3.5 text-[#1b5e20]" />
                         </button>
@@ -431,9 +437,17 @@ const LandingPage = ({ hideNavbar = false }) => {
                           <Plus className="w-3.5 h-3.5 text-[#1b5e20]" />
                         </button>
                       </div>
-                      <button onClick={() => handleAddToCart(p)} className="flex-1 flex items-center justify-center gap-2 py-4 bg-[#f1f8f1] text-[#1b5e20] font-black rounded-2xl group-hover:bg-[#1b5e20] group-hover:text-white transition-all active:scale-95 shadow-sm">
+                      <button
+                        onClick={() => !agotado && handleAddToCart(p)}
+                        disabled={agotado}
+                        className={`flex-1 flex items-center justify-center gap-2 py-4 font-black rounded-2xl transition-all shadow-sm ${
+                          agotado
+                            ? 'bg-[#f5f5f5] text-[#bdbdbd] cursor-not-allowed'
+                            : 'bg-[#f1f8f1] text-[#1b5e20] group-hover:bg-[#1b5e20] group-hover:text-white active:scale-95'
+                        }`}
+                      >
                         <ShoppingCart className="w-4 h-4" />
-                        Agregar
+                        {agotado ? 'Sin stock' : 'Agregar'}
                       </button>
                     </div>
                   </div>

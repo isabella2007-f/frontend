@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { fmtFecha } from "../../../utils/dateUtils.js";
 import {
   getOrdenes, crearOrden, editarOrden, eliminarOrden, cambiarEstadoOrden,
 } from "../../../services/ordenesProduccionService.js";
@@ -28,12 +29,6 @@ const ESTADO_CONFIG = {
 
 const fmt = (n) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n ?? 0);
-
-const fmtFecha = (iso) => {
-  if (!iso) return "—";
-  const [y, m, d] = iso.split("-");
-  return `${d}/${m}/${y}`;
-};
 
 const urgenciaFecha = (fechaISO) => {
   if (!fechaISO) return "normal";
@@ -88,7 +83,7 @@ function Toast({ toast }) {
 function SkeletonRows() {
   return Array.from({ length: 5 }, (_, i) => (
     <tr key={i}>
-      {Array.from({ length: 7 }, (_, j) => (
+      {Array.from({ length: 6 }, (_, j) => (
         <td key={j}><div className="skeleton-cell" /></td>
       ))}
     </tr>
@@ -207,6 +202,18 @@ function ModalDetallesOrden({ orden, onClose }) {
             </div>
           </div>
 
+          {/* Fechas — siempre visible, antes del bloque de insumos */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div className="field-input field-input--disabled" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: 1 }}>Inicio</div>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>{fmtFecha(orden.fechaInicio)}</div>
+            </div>
+            <div className="field-input field-input--disabled" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#2e7d32", textTransform: "uppercase", letterSpacing: 1 }}>Entrega</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#2e7d32" }}>{fmtFecha(orden.fechaEntrega)}</div>
+            </div>
+          </div>
+
           {(orden.idFicha || orden.nombreInsumo) && (
             <div style={{ display: "grid", gap: 10 }}>
               <div className="field-input field-input--disabled" style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -305,18 +312,6 @@ function ModalDetallesOrden({ orden, onClose }) {
               )}
             </div>
           )}
-
-          {/* Fechas */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div className="field-input field-input--disabled" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: 1 }}>Inicio</div>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>{fmtFecha(orden.fechaInicio)}</div>
-            </div>
-            <div className="field-input field-input--disabled" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: 1 }}>Entrega</div>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>{fmtFecha(orden.fechaEntrega)}</div>
-            </div>
-          </div>
 
           {/* Lote — solo si la orden está completada */}
           {orden.lote && (
@@ -966,7 +961,6 @@ export default function GestionOrdenesProduccion() {
                 <tr>
                   <th style={{ width: 44 }}>Nº</th>
                   <th>Producto</th>
-                  <th>Insumo</th>
                   <th>Cantidad</th>
                   <th>Entrega</th>
                   <th>Costo</th>
@@ -979,7 +973,7 @@ export default function GestionOrdenesProduccion() {
                   <SkeletonRows />
                 ) : paged.length === 0 ? (
                   <tr>
-                    <td colSpan={8}>
+                    <td colSpan={7}>
                       <div className="empty-state">
                         <div className="empty-state__icon">🏭</div>
                         <p className="empty-state__text">
@@ -1001,7 +995,6 @@ export default function GestionOrdenesProduccion() {
                       </div>
                       <div style={{ fontSize: 10, color: "#9e9e9e" }}>#{orden.id}</div>
                     </td>
-                    <td style={{ fontSize: 12, color: "#616161" }}>{orden.nombreInsumo || "—"}</td>
                     <td style={{ fontSize: 14, fontWeight: 700, color: "#2e7d32" }}>{orden.cantidad}</td>
                     <td>
                       <span className={`date-badge${urgenciaFecha(orden.fechaEntrega) === "urgente" ? " date-badge--urgente" : urgenciaFecha(orden.fechaEntrega) === "pronto" ? " date-badge--pronto" : ""}`}>

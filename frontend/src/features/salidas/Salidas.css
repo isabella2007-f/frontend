@@ -12,11 +12,11 @@
 .sl-page {
   display: flex;
   flex-direction: column;
-  height: 100dvh;
-  overflow: hidden;
+  min-height: 100vh;
   background: linear-gradient(180deg, #e8f5e9 0%, #f5fbf5 14%, #ffffff 36%);
   font-family: 'DM Sans', sans-serif;
   color: #1a1a1a;
+  padding-bottom: 60px;
 }
 
 .sl-page__header {
@@ -66,8 +66,6 @@
 .sl-tab.active { color: #2e7d32; border-bottom-color: #2e7d32; font-weight: 700; background: #f9fdf9; }
 
 .sl-page__body {
-  flex: 1;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
   padding: 16px 24px;
@@ -229,10 +227,7 @@
 .sl-tab-content {
   display: flex;
   flex-direction: column;
-  height: 100%;
   gap: 12px;
-  overflow: hidden;
-  min-height: 0;
 }
 
 .sl-stats-row {
@@ -300,18 +295,15 @@
 /* ── Tabla ────────────────────────────────────────────── */
 .sl-table-wrap {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: auto;
+  overflow: hidden;
   min-height: 0;
   border-radius: 12px;
   border: 1.5px solid #c8e6c9;
   background: #fff;
   box-shadow: 0 2px 12px rgba(46,125,50,0.07);
 }
-.sl-table-wrap::-webkit-scrollbar       { width: 4px; }
-.sl-table-wrap::-webkit-scrollbar-thumb { background: #c8e6c9; border-radius: 4px; }
 
-.sl-table { width: 100%; border-collapse: collapse; min-width: 760px; }
+.sl-table { width: 100%; border-collapse: collapse; }
 .sl-table thead tr { background: #2e7d32; position: sticky; top: 0; z-index: 1; }
 .sl-table th {
   padding: 13px 16px; font-size: 13px; font-weight: 700;

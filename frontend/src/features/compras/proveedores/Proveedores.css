@@ -40,16 +40,7 @@
   margin-bottom: 0;
 }
 
-/* ─── Tabla scrollable y sticky headers ─── */
-.card .tbl-wrapper {
-  overflow-x: auto;
-  border-radius: 8px;
-}
-
 .tbl thead th {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: #f8fcf8; /* Fondo que combine con el resto */
+  background: #f8fcf8;
   box-shadow: inset 0 -1px 0 #e0e0e0;
 }

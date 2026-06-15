@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import { fmtFecha } from '../../../utils/dateUtils.js';
 import { getCurrentUser } from '../../client/profile/services/profileService.js';
 import ReturnForm        from './components/ReturnForm';
 import ReturnList        from './components/ReturnList';
@@ -157,7 +158,7 @@ const ReturnsPage = () => {
                       <div className="flex justify-between items-start mb-3">
                         <div>
                           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Pedido #{order.numero}</p>
-                          <p className="text-[11px] font-bold text-gray-500">{new Date(order.fecha_pedido).toLocaleDateString()}</p>
+                          <p className="text-[11px] font-bold text-gray-500">{fmtFecha(order.fecha_pedido)}</p>
                         </div>
                         <div className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border border-green-200">
                           Entregado

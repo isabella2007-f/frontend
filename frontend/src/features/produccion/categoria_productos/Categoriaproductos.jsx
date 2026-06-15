@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { fmtFecha } from "../../../utils/dateUtils.js";
 import { Toast, ModalOverlay } from "./ui.jsx";
 import CrearCategoria from "./CrearCategoria.jsx";
 import EditarCategoria from "./EditarCategoria.jsx";
@@ -21,9 +22,7 @@ function adaptCat(c) {
     descripcion: c.Descripcion ?? "",
     icon: c.Icono ?? "📦",
     estado: c.Estado === 1,
-    fecha: (c.Fecha_creacion || c.Fecha_Creacion)
-      ? new Date(c.Fecha_creacion || c.Fecha_Creacion).toLocaleDateString("es-CO")
-      : "",
+    fecha: fmtFecha(c.Fecha_creacion || c.Fecha_Creacion),
     totalProductos: c.total_productos ?? 0,
   };
 }

@@ -128,6 +128,33 @@ const PERMISOS_REVERSE = {
   "cambiar_estado_domicilios": "Domicilios_cambiar_estado",
 };
 
+const DEFAULT_EMOJI_MAP = [
+  [["admin", "administrador", "gerente", "director"],              "👑"],
+  [["domiciliario", "repartidor", "delivery", "mensajero"],        "🛵"],
+  [["vendedor", "venta", "ventas", "comercial", "asesor"],         "🛒"],
+  [["produccion", "producción", "chef", "cocina", "cocinero"],     "🧑‍🍳"],
+  [["bodega", "almacen", "almacén", "inventario", "logistica"],    "📦"],
+  [["contador", "contabilidad", "finanzas", "tesorero"],           "📊"],
+  [["sistemas", "soporte", "tecnico", "técnico", "informatica"],   "🧑‍💻"],
+  [["supervisor", "coordinador", "jefe"],                          "🔍"],
+  [["cajero", "caja", "cobrador"],                                 "💵"],
+  [["seguridad", "vigilante", "portero"],                          "🛡️"],
+  [["rrhh", "recursos", "talento", "personal"],                    "🤝"],
+  [["marketing", "publicidad", "community"],                       "📢"],
+  [["cliente", "comprador"],                                       "🧑"],
+];
+
+function getDefaultEmoji(nombre) {
+  const lower = (nombre || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+  for (const [keys, emoji] of DEFAULT_EMOJI_MAP) {
+    if (keys.some(k => lower.includes(k))) return emoji;
+  }
+  return "👤";
+}
+
 function adaptarRol(r) {
   const isUrl = typeof r.Icono === "string" && r.Icono.startsWith("http");
 
@@ -148,7 +175,7 @@ function adaptarRol(r) {
   return {
     id:            r.ID_Rol,
     nombre:        r.Rol,
-    icono:         isUrl ? "👤" : (r.Icono || "👤"),
+    icono:         isUrl ? getDefaultEmoji(r.Rol) : (r.Icono || getDefaultEmoji(r.Rol)),
     iconoPreview:  isUrl ? r.Icono : null,
     estado:        r.Estado === 1,
     totalUsuarios: r.total_usuarios ?? 0,

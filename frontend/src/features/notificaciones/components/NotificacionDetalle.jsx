@@ -1,14 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useNotificaciones, TIPO_ICONS, TIPO_LABELS, TIPO_COLORS, TIPOS } from "../context/NotificacionesContext";
+import { fmtFechaHora as fmtFechaCompleta } from "../../../utils/dateUtils.js";
 import "./notificaciones.css";
-
-const fmtFechaCompleta = (iso) => {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString("es-CO", {
-    day: "2-digit", month: "long", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  });
-};
 
 /* Mapeo de rutas para navegación rápida */
 const RUTA_MAP = {

@@ -167,7 +167,7 @@ def crear_compra(db: Session, datos: CompraCreate) -> dict:
             ID_Insumo         = item.ID_Insumo,
             Fecha_Vencimiento = item.Fecha_Vencimiento,
             Cantidad_Inicial  = item.Cantidad,
-            Estado            = 1,
+            Estado            = 3,  # Pendiente — se activa al confirmar llegada
         )
         db.add(lote)
         db.flush()
@@ -244,6 +244,13 @@ def completar_compra(db: Session, id_compra: int, fecha_llegada=None) -> dict:
             insumo.ID_Lote_Compra = detalle.ID_Lote_Compra
             _actualizar_estado_insumo(insumo)
 
+        if detalle.ID_Lote_Compra:
+            lote = db.query(LoteCompra).filter(
+                LoteCompra.ID_Lote_Compra == detalle.ID_Lote_Compra
+            ).first()
+            if lote:
+                lote.Estado = 1  # Activo — la mercancía llegó
+
     compra.Estado = ESTADO_COMPLETADA
     if fecha_llegada:
         compra.Fecha_Llegada = fecha_llegada
@@ -265,8 +272,8 @@ def completar_compra(db: Session, id_compra: int, fecha_llegada=None) -> dict:
 def anular_compra(db: Session, id_compra: int) -> dict:
     """
     Anula la compra.
-    - Desde Pendiente (3): solo cambia estado, sin afectar stock.
-    - Desde Completada (4): revierte el stock de cada insumo antes de anular.
+    - Desde Pendiente (3): marca los lotes como Anulados (12), sin afectar stock.
+    - Desde Completada (11): revierte el stock de cada insumo y marca los lotes como Anulados.
     """
     compra = db.query(Compra).filter(Compra.ID_Compra == id_compra).first()
     if not compra:
@@ -277,9 +284,9 @@ def anular_compra(db: Session, id_compra: int) -> dict:
             detail="Solo se pueden anular compras en estado Pendiente o Completada"
         )
 
-    if compra.Estado == ESTADO_COMPLETADA:
-        detalles = db.query(DetalleCompra).filter(DetalleCompra.ID_Compra == id_compra).all()
+    detalles = db.query(DetalleCompra).filter(DetalleCompra.ID_Compra == id_compra).all()
 
+    if compra.Estado == ESTADO_COMPLETADA:
         # Verificar que ningún insumo haya sido consumido en producción antes de revertir
         for detalle in detalles:
             insumo = db.query(Insumo).filter(Insumo.ID_Insumo == detalle.ID_Insumo).first()
@@ -299,11 +306,27 @@ def anular_compra(db: Session, id_compra: int) -> dict:
             if insumo:
                 insumo.Stock_Actual = max(0, (insumo.Stock_Actual or 0) - detalle.Cantidad)
                 _actualizar_estado_insumo(insumo)
+            if detalle.ID_Lote_Compra:
+                lote = db.query(LoteCompra).filter(
+                    LoteCompra.ID_Lote_Compra == detalle.ID_Lote_Compra
+                ).first()
+                if lote:
+                    lote.Estado = 12  # Anulada
 
         for detalle in detalles:
             insumo = db.query(Insumo).filter(Insumo.ID_Insumo == detalle.ID_Insumo).first()
             if insumo:
                 notificar_stock_insumo(db, insumo)
+
+    elif compra.Estado == ESTADO_PENDIENTE:
+        # Marcar lotes pendientes como anulados
+        for detalle in detalles:
+            if detalle.ID_Lote_Compra:
+                lote = db.query(LoteCompra).filter(
+                    LoteCompra.ID_Lote_Compra == detalle.ID_Lote_Compra
+                ).first()
+                if lote and lote.Estado == 3:
+                    lote.Estado = 12  # Anulada
 
     compra.Estado = ESTADO_ANULADA
     db.commit()

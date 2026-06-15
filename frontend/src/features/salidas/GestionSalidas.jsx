@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { getSalidas, registrarSalida, anularSalida } from "../../services/salidasService.js";
 import { getProductos } from "../../services/productosService.js";
 import { getInsumos } from "../../services/insumosService.js";
+import { fmtFecha } from "../../utils/dateUtils.js";
 import "./Salidas.css";
 
 /* ══════════════════════════════════════════════════════════
@@ -11,12 +12,6 @@ import "./Salidas.css";
 const ITEMS_PER_PAGE = 10;
 
 function hoyISO() { return new Date().toISOString().split("T")[0]; }
-function formatFecha(f) {
-  if (!f) return "—";
-  if (f.includes("/")) return f;
-  const [y, m, d] = f.split("-");
-  return `${d}/${m}/${y}`;
-}
 function estaVencido(fv)    { return fv ? fv < hoyISO() : false; }
 function diasParaVencer(fv) {
   if (!fv) return null;
@@ -505,10 +500,8 @@ function HistorialSalidas({ salidas, loading, onAgregarClick, cargarSalidas }) {
         </button>
       </div>
 
-      {/* Tabla + paginación — flex:1 para ocupar el espacio restante del sl-tab-content */}
-      <div className="card" style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <div style={{ flex: 1, overflowY: "auto", overflowX: "auto", minHeight: 0 }}>
-          <table className="tbl">
+      <div className="card">
+        <table className="tbl">
             <thead>
               <tr>
                 <th>Tipo</th>
@@ -567,7 +560,6 @@ function HistorialSalidas({ salidas, loading, onAgregarClick, cargarSalidas }) {
               })}
             </tbody>
           </table>
-        </div>
 
         <div className="pagination-bar">
           <span className="pagination-count">
@@ -709,9 +701,9 @@ function Vencidos() {
                   </div>
                   <div className="sl-vencido-card__body">
                     <div><span className="sl-vencido-card__key">Lote</span><span className="sl-vencido-card__val">{lote.id}</span></div>
-                    <div><span className="sl-vencido-card__key">Vencimiento</span><span className="sl-vencido-card__val" style={{ color: vencido ? "#c62828" : "#e65100", fontWeight: 700 }}>{formatFecha(lote.fechaVencimiento)}</span></div>
+                    <div><span className="sl-vencido-card__key">Vencimiento</span><span className="sl-vencido-card__val" style={{ color: vencido ? "#c62828" : "#e65100", fontWeight: 700 }}>{fmtFecha(lote.fechaVencimiento)}</span></div>
                     <div><span className="sl-vencido-card__key">Cantidad</span><span className="sl-vencido-card__val">{lote.cantidadActual} {lote.unidad}</span></div>
-                    <div><span className="sl-vencido-card__key">Ingreso</span><span className="sl-vencido-card__val">{formatFecha(lote.fechaIngreso)}</span></div>
+                    <div><span className="sl-vencido-card__key">Ingreso</span><span className="sl-vencido-card__val">{fmtFecha(lote.fechaIngreso)}</span></div>
                   </div>
                 </div>
               );

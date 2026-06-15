@@ -65,15 +65,12 @@ html, body, #root {
 }
 
 .tbl-container {
-  overflow-x: auto;
   width: 100%;
-  -webkit-overflow-scrolling: touch;
 }
 
 .tbl {
   width: 100%;
   border-collapse: collapse;
-  min-width: 850px; /* Suficiente para no amontonar datos */
 }
 
 .tbl th {

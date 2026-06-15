@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { fmtFecha } from "../../../utils/dateUtils.js";
 import { getPedidos, confirmarPedido, cancelarPedido, crearPedido, editarPedido, eliminarPedido } from "../../../services/pedidosService.js";
 import { getUsuarios } from "../../../services/usuariosService.js";
 import CrearPedido from "./CrearPedido.jsx";
@@ -212,7 +213,7 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit }) {
                   )}
                   <div className="ver-ped-field">
                     <span className="ver-ped-field__label">Fecha del pedido</span>
-                    <span className="ver-ped-field__value">📅 {pedido.fecha_pedido}</span>
+                    <span className="ver-ped-field__value">📅 {fmtFecha(pedido.fecha_pedido)}</span>
                   </div>
                 </div>
               </div>
@@ -842,7 +843,7 @@ export default function GestionPedidos() {
                         <div className="client-name font-bold text-gray-800">{ped.cliente?.nombre || "—"}</div>
                         <div className="client-email text-[11px] text-gray-400 font-medium">{ped.cliente?.correo || ""}</div>
                       </td>
-                      <td><div className="date-badge inline-block px-2 py-1 bg-gray-100 rounded-lg text-[11px] font-bold text-gray-600 border border-gray-200">{ped.fecha_pedido}</div></td>
+                      <td><div className="date-badge inline-block px-2 py-1 bg-gray-100 rounded-lg text-[11px] font-bold text-gray-600 border border-gray-200">{fmtFecha(ped.fecha_pedido)}</div></td>
                       <td>
                         <div className="total-amount font-black text-gray-900">{fmt(ped.total)}</div>
                         <div className="total-method text-[10px] font-black uppercase text-green-600/70">{ped.metodo_pago}</div>

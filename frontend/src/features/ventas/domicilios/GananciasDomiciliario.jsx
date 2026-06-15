@@ -1,15 +1,11 @@
 import { useState, useEffect } from "react";
 import { getUser } from "../../../services/authService";
 import { getDomicilios } from "../../../services/domiciliosService";
+import { fmtFecha } from "../../../utils/dateUtils.js";
 import "./Domicilios.css";
 
 const fmt = (n) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
-
-const fmtFecha = (iso) => {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
-};
 
 const PERIODOS = [
   { id: "hoy",   label: "Hoy" },

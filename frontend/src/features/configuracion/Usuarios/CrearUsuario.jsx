@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
 import { GB, getRolStyle, EMPTY_FORM, TIPO_DOC, validatePassword, validateCedula, validateTelefono } from "./usuariosUtils.js";
 import { Ic } from "./usuariosIcons.jsx";
 import { crearEmpleado, crearCliente, editarUsuario } from "../../../services/usuariosService.js";
@@ -193,7 +194,7 @@ function PhotoUploader({ foto, onFoto }) {
   const handleFile = e => {
     const file = e.target.files[0]; if (!file) return;
     const reader = new FileReader();
-    reader.onload = ev => onFoto(ev.target.result);
+    reader.onload = ev => onFoto(ev.target.result, file);
     reader.readAsDataURL(file);
   };
   return (
@@ -260,6 +261,7 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
   const [errors,      setErrors]      = useState({});
   const [saving,      setSaving]      = useState(false);
   const [step,        setStep]        = useState(1);
+  const [fotoFile,    setFotoFile]    = useState(null);
   const [showPass,    setShowPass]    = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -278,20 +280,26 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
       if (!form.apellidos.trim()) e.apellidos = "Los apellidos son obligatorios";
       if (!form.correo.trim())    e.correo    = "El correo es obligatorio";
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo)) e.correo = "Formato de correo inválido";
-      
-      // Validaciones de cédula
-      const cedulaError = validateCedula(form.cedula, form.tipoDocumento);
-      if (cedulaError) e.cedula = cedulaError;
-      
-      // Validaciones de teléfono
-      const telefonoError = validateTelefono(form.telefono);
-      if (telefonoError) e.telefono = telefonoError;
+
+      // En edición solo validar formato si el campo tiene valor
+      if (!isEdit || form.cedula?.trim()) {
+        const cedulaError = validateCedula(form.cedula || "", form.tipoDocumento);
+        if (cedulaError) e.cedula = cedulaError;
+      }
+      if (!isEdit || form.telefono?.trim()) {
+        const telefonoError = validateTelefono(form.telefono || "");
+        if (telefonoError) e.telefono = telefonoError;
+      }
     }
 
     if (s === 2) {
-      if (!form.departamento)     e.departamento = "Selecciona un departamento";
-      if (!form.municipio)        e.municipio    = "Selecciona un municipio";
-      if (!form.direccion.trim()) e.direccion    = "La dirección es obligatoria";
+      // En edición: ubicación es opcional si todos los campos están vacíos
+      const tieneUbicacion = form.departamento || form.municipio || form.direccion?.trim();
+      if (!isEdit || tieneUbicacion) {
+        if (!form.departamento)      e.departamento = "Selecciona un departamento";
+        if (!form.municipio)         e.municipio    = "Selecciona un municipio";
+        if (!form.direccion?.trim()) e.direccion    = "La dirección es obligatoria";
+      }
     }
 
     if (s === 3) {
@@ -327,18 +335,38 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
     const esCliente = form.rol === "Cliente";
 
     const payload = {
-      Nombre:         form.nombre.trim(),
-      Apellidos:      form.apellidos.trim(),
-      Correo:         form.correo.trim(),
-      Tipo_Documento: form.tipoDocumento,
-      Cedula:         form.cedula.trim(),
-      Telefono:       form.telefono.trim(),
-      Departamento:   form.departamento,
-      Municipio:      form.municipio,
-      Direccion:      form.direccion.trim(),
+      Nombre:    form.nombre.trim(),
+      Apellidos: form.apellidos.trim(),
+      Correo:    form.correo.trim(),
     };
 
-    if (form.foto)        payload.Foto       = form.foto;
+    if (!isEdit) {
+      payload.Tipo_Documento = form.tipoDocumento;
+      payload.Cedula         = form.cedula.trim();
+      payload.Telefono       = form.telefono.trim();
+      payload.Departamento   = form.departamento;
+      payload.Municipio      = form.municipio;
+      payload.Direccion      = form.direccion.trim();
+    } else {
+      if (form.tipoDocumento)     payload.Tipo_Documento = form.tipoDocumento;
+      if (form.cedula?.trim())    payload.Cedula         = form.cedula.trim();
+      if (form.telefono?.trim())  payload.Telefono       = form.telefono.trim();
+      if (form.departamento)      payload.Departamento   = form.departamento;
+      if (form.municipio)         payload.Municipio      = form.municipio;
+      if (form.direccion?.trim()) payload.Direccion      = form.direccion.trim();
+    }
+
+    if (fotoFile) {
+      try {
+        payload.Foto = await subirImagenCloudinary(fotoFile);
+      } catch {
+        setErrors(e => ({ ...e, _api: "Error al subir la foto. Intenta de nuevo." }));
+        setSaving(false);
+        return;
+      }
+    } else if (form.foto && !form.foto.startsWith("data:")) {
+      payload.Foto = form.foto; // URL existente de Cloudinary
+    }
     if (rolObj)           payload.ID_Rol     = rolObj.id;
     if (form.contrasena)  payload.Contrasena = form.contrasena;
 
@@ -387,7 +415,7 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
           {step === 1 && (
             <>
               <div style={{ display: "flex", gap: 18, alignItems: "flex-start" }}>
-                <PhotoUploader foto={form.foto} onFoto={v => set("foto", v)} />
+                <PhotoUploader foto={form.foto} onFoto={(preview, file) => { set("foto", preview); setFotoFile(file); }} />
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
                   <Field required label="Nombre"    placeholder="Ej: Juan"        value={form.nombre}    onChange={e => set("nombre",    e.target.value)} error={errors.nombre} />
                   <Field required label="Apellidos" placeholder="Ej: Pérez Gómez" value={form.apellidos} onChange={e => set("apellidos", e.target.value)} error={errors.apellidos} />

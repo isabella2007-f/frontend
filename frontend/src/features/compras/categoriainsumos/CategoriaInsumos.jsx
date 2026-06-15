@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { fmtFecha } from "../../../utils/dateUtils.js";
 import { Toast, ModalOverlay } from "./ui.jsx";
 import CrearCategoriaInsumo from "./CrearCategoriaInsumo.jsx";
 import EditarCategoriaInsumo from "./EditarCategoriaInsumo.jsx";
@@ -20,7 +21,7 @@ const ADAPT = raw => ({
   descripcion:  raw.Descripcion ?? "",
   icon:         raw.Icono ?? "🧺",
   estado:       raw.Estado === 1,
-  fecha:        raw.Fecha_creacion ?? "",
+  fecha:        fmtFecha(raw.Fecha_creacion),
   totalInsumos: raw.total_insumos ?? 0,
 });
 

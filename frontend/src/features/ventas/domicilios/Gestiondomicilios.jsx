@@ -2,9 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { getDomicilios, asignarRepartidor, actualizarDomicilio } from "../../../services/domiciliosService.js";
 import { getUsuarios, toggleEstadoUsuario, crearEmpleado, editarUsuario } from "../../../services/usuariosService.js";
+import { fmtFecha } from "../../../utils/dateUtils.js";
 import "./Domicilios.css";
 
-function SkeletonRows({ cols = 9, rows = 5 }) {
+function SkeletonRows({ cols = 8, rows = 5 }) {
   return Array.from({ length: rows }).map((_, i) => (
     <tr key={i}>
       {Array.from({ length: cols }).map((__, j) => (
@@ -17,12 +18,6 @@ function SkeletonRows({ cols = 9, rows = 5 }) {
 /* ─── Helpers ────────────────────────────────────────────── */
 const fmt = (n) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
-
-const fmtFecha = (iso) => {
-  if (!iso) return "—";
-  const [y, m, d] = iso.split("-");
-  return `${d}/${m}/${y}`;
-};
 
 const PER_PAGE = 5;
 
@@ -959,11 +954,7 @@ export default function GestionDomicilios() {
                 />
               </div>
 
-              <button
-                className="btn-action"
-                onClick={() => exportToCsv(filtered)}
-                style={{ marginRight: 12, minWidth: 160, alignSelf: "center" }}
-              >
+              <button className="btn-action" onClick={() => exportToCsv(filtered)}>
                 📄 Exportar CSV
               </button>
 
@@ -1007,17 +998,16 @@ export default function GestionDomicilios() {
                       <th className="col-cliente">Cliente</th>
                       <th className="col-dir">Dirección</th>
                       <th className="col-domi">Domiciliario</th>
-                      <th className="col-fecha">Fecha pedido</th>
-                      <th className="col-entrega">Entrega real</th>
+                      <th className="col-fechas">Fechas</th>
                       <th className="col-estado">Estado</th>
                       <th className="col-acciones">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loading ? (
-                      <SkeletonRows cols={9} rows={5} />
+                      <SkeletonRows cols={8} rows={5} />
                     ) : paged.length === 0 ? (
-                      <tr><td colSpan={9}>
+                      <tr><td colSpan={8}>
                         <div className="empty-state">
                           <div className="empty-state__icon">🛵</div>
                           <p className="empty-state__text">
@@ -1077,12 +1067,13 @@ export default function GestionDomicilios() {
                             )}
                           </td>
                           <td>
-                            <span className="date-badge">{fmtFecha(ped.fecha_pedido)}</span>
-                          </td>
-                          <td>
-                            <span className={`date-badge${!ped.fecha_entrega_real ? " date-badge--none" : ""}`}>
-                              {ped.fecha_entrega_real ? fmtFecha(ped.fecha_entrega_real) : "—"}
-                            </span>
+                            <div className="date-col">
+                              <span className="date-row date-row--pedido">📅 {fmtFecha(ped.fecha_pedido)}</span>
+                              {ped.fecha_entrega_real
+                                ? <span className="date-row date-row--entrega">✅ {fmtFecha(ped.fecha_entrega_real)}</span>
+                                : <span className="date-row date-row--pendiente">⏳ Pendiente</span>
+                              }
+                            </div>
                           </td>
                           <td>
                             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>

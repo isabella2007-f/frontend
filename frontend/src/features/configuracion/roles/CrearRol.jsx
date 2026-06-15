@@ -4,8 +4,7 @@ import "./Roles.css";
 import { crearRol, gestionarPermisos } from "../../../services/rolesService.js";
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
 import PrivilegiosModal, { buildPrivilegios } from "./PrivilegiosModal.jsx";
-
-const ICON_OPTIONS = ["👤","👑","🛡️","🔧","📦","💼","🧑‍💻","📊","🔑","⚙️","👷","🧑‍🍳"];
+import EmojiPickerGrid from "./EmojiPickerGrid.jsx";
 
 export default function CrearRol({ onClose, onSave }) {
   const [form, setForm] = useState({
@@ -88,15 +87,10 @@ export default function CrearRol({ onClose, onSave }) {
                 <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleIconFile} />
               </div>
               {pickingIcon && (
-                <div className="icon-picker-grid">
-                  {ICON_OPTIONS.map(ic => (
-                    <button key={ic}
-                      className={`icon-option${form.icono === ic ? " selected" : ""}`}
-                      onClick={() => { set("icono", ic); set("iconoPreview", null); setIconFile(null); setPickingIcon(false); }}>
-                      {ic}
-                    </button>
-                  ))}
-                </div>
+                <EmojiPickerGrid
+                  selected={form.icono}
+                  onSelect={ic => { set("icono", ic); set("iconoPreview", null); setIconFile(null); setPickingIcon(false); }}
+                />
               )}
             </div>
 
