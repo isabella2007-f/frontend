@@ -236,6 +236,8 @@ def asignar_repartidor(db: Session, id_domicilio: int, id_empleado: int) -> dict
     Asigna un repartidor al domicilio.
     Si estaba Pendiente, cambia automáticamente a Asignado.
     """
+    import traceback
+
     dom = db.query(Domicilio).filter(Domicilio.ID_Domicilio == id_domicilio).first()
     if not dom:
         raise HTTPException(status_code=404, detail="Domicilio no encontrado")
@@ -246,13 +248,20 @@ def asignar_repartidor(db: Session, id_domicilio: int, id_empleado: int) -> dict
     ESTADO_PENDIENTE = 3   # Pendiente
     ESTADO_ASIGNADO  = 10  # Asignado
 
-    dom.ID_Empleado = id_empleado
-    if dom.Estado == ESTADO_PENDIENTE:
-        dom.Estado = ESTADO_ASIGNADO
+    try:
+        dom.ID_Empleado = id_empleado
+        if dom.Estado == ESTADO_PENDIENTE:
+            dom.Estado = ESTADO_ASIGNADO
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al guardar: {traceback.format_exc()}")
 
-    db.commit()
-    db.refresh(dom)
-    return _formato_domicilio(dom, db)
+    try:
+        db.refresh(dom)
+        return _formato_domicilio(dom, db)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al formatear respuesta: {traceback.format_exc()}")
 
 
 def generar_otp(id_domicilio: int) -> str:
