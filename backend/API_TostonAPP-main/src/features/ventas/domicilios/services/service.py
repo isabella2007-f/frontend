@@ -293,9 +293,9 @@ def enviar_mensaje(
 
 
 def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observaciones: str = None) -> dict:
-    # Estados de la tabla global: 9=En camino, 8=Entregado, 5=Cancelado
-    ESTADO_ENTREGADO = 8
-    ESTADOS_PROPAGAR = {9, 8, 5}
+    # La app móvil envía: 1=Pendiente, 3=EnCamino, 4=Entregado, 5=Cancelado
+    ESTADO_ENTREGADO = 4
+    ESTADOS_PROPAGAR = {3, 4, 5}  # EnCamino, Entregado, Cancelado → sincronizar con la Venta
 
     dom = db.query(Domicilio).filter(Domicilio.ID_Domicilio == id_domicilio).first()
     if not dom:
