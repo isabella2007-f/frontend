@@ -82,12 +82,32 @@ def migrate_db():
                 FOREIGN KEY (ID_Producto)         REFERENCES Productos(ID_Producto),
                 FOREIGN KEY (Estado)              REFERENCES Estados(ID_Estados)
             )""",
+            """CREATE TABLE IF NOT EXISTS Codigos_Reset (
+                ID_Codigo INT AUTO_INCREMENT PRIMARY KEY,
+                Correo    VARCHAR(255),
+                Codigo    VARCHAR(6),
+                Expira_En DATETIME,
+                Usado     TINYINT(1) DEFAULT 0
+            )""",
         ]:
             try:
                 conn.execute(text(stmt))
                 conn.commit()
             except Exception:
                 pass  # ya existe
+
+    # Comprobante_Pago: LONGTEXT para soportar imágenes en base64
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE Ventas ADD COLUMN Comprobante_Pago LONGTEXT NULL"))
+            conn.commit()
+        except Exception:
+            try:
+                conn.rollback()
+                conn.execute(text("ALTER TABLE Ventas MODIFY COLUMN Comprobante_Pago LONGTEXT NULL"))
+                conn.commit()
+            except Exception:
+                pass
 
 # ── CORS ──
 app.add_middleware(

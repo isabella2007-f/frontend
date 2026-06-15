@@ -5,7 +5,7 @@ from typing import Optional
 from src.shared.services.database import get_db
 from src.features.auth.services.dependencies import requiere_permiso, obtener_usuario_actual
 from .schemas import VentaCreate, VentaEstado, VentaResponse, VentaListResponse
-from .service import obtener_ventas, obtener_venta, crear_venta, cambiar_estado, obtener_mis_ventas, obtener_mi_credito
+from .service import obtener_ventas, obtener_venta, obtener_mi_venta, crear_venta, cambiar_estado, obtener_mis_ventas, obtener_mi_credito
 
 router = APIRouter(prefix="/ventas", tags=["Gestión de Ventas"])
 
@@ -42,6 +42,16 @@ def listar_ventas(
 ):
     """Lista paginada de ventas. Filtra por id_usuario, estado o busca por nombre."""
     return obtener_ventas(db, pagina, por_pagina, busqueda, id_usuario, estado)
+
+
+@router.get("/mis-ventas/{id_venta}", response_model=VentaResponse)
+def ver_mi_venta(
+    id_venta: int,
+    db:       Session = Depends(get_db),
+    actual:   dict    = Depends(obtener_usuario_actual),
+):
+    """Retorna el detalle de una venta propia del cliente autenticado."""
+    return obtener_mi_venta(db, id_venta, actual)
 
 
 @router.get("/{id_venta}", response_model=VentaResponse)

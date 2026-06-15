@@ -52,6 +52,7 @@ class DomicilioResponse(BaseModel):
     total:                Optional[float]    = None
     metodo_pago:          Optional[str]      = None
     productos:            Optional[List[Any]] = None
+    telefono_cliente:     Optional[str]      = None
 
     class Config:
         from_attributes = True

@@ -15,6 +15,7 @@ from .service import (
     obtener_domicilios, obtener_domicilio, crear_domicilio,
     editar_domicilio, asignar_repartidor, cambiar_estado,
     obtener_resumen_dia, verificar_otp, obtener_mensajes, enviar_mensaje,
+    obtener_repartidores,
 )
 
 router = APIRouter(prefix="/domicilios", tags=["Domicilios"])
@@ -47,6 +48,15 @@ def listar_domicilios(
 ):
     """Lista paginada. Filtra por empleado, estado y rango de fechas (fecha_inicio / fecha_fin ISO)."""
     return obtener_domicilios(db, pagina, por_pagina, busqueda, estado, id_empleado, fecha_inicio, fecha_fin)
+
+
+@router.get("/repartidores")
+def listar_repartidores(
+    db: Session = Depends(get_db),
+    _:  dict    = Depends(requiere_permiso("ver_domicilios")),
+):
+    """Empleados con rol de domiciliario, para el dropdown de asignación."""
+    return obtener_repartidores(db)
 
 
 @router.get("/{id_domicilio}", response_model=DomicilioResponse)
