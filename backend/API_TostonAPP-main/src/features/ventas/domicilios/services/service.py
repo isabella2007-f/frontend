@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 
 from collections import defaultdict
 from src.shared.services.models import Domicilio, Venta, Usuario, Estado, Producto, VentaXProducto, Rol
+from src.shared.services.notificaciones_utils import notificar_stock_producto
+from src.features.ventas.gestion_ventas.services.service import _actualizar_estado_producto
 
 # Chat en memoria — temporal (se pierde al reiniciar el servidor)
 _chat: dict = defaultdict(list)
@@ -324,7 +326,21 @@ def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observacio
     if nuevo_estado in ESTADOS_PROPAGAR and dom.ID_Venta:
         venta = db.query(Venta).filter(Venta.ID_Venta == dom.ID_Venta).first()
         if venta:
-            venta.Estado = FLUTTER_TO_VENTA.get(nuevo_estado, nuevo_estado)
+            nuevo_estado_venta = FLUTTER_TO_VENTA.get(nuevo_estado, nuevo_estado)
+            # Al entregar (Flutter 4 → DB 8): descontar stock si aún no se había entregado
+            if nuevo_estado_venta == 8 and venta.Estado != 8:
+                items = db.query(VentaXProducto).filter(
+                    VentaXProducto.ID_Venta == dom.ID_Venta
+                ).all()
+                for item in items:
+                    producto = db.query(Producto).filter(
+                        Producto.ID_Producto == item.ID_Producto
+                    ).first()
+                    if producto:
+                        producto.Stock = max(0, (producto.Stock or 0) - (item.Cantidad or 0))
+                        _actualizar_estado_producto(producto)
+                        notificar_stock_producto(db, producto)
+            venta.Estado = nuevo_estado_venta
 
     dom.Estado = nuevo_estado
 

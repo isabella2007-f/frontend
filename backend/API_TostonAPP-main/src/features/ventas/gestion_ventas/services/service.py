@@ -442,32 +442,26 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
 
     ESTADOS_CANCELACION = {3, 5}
-    # Estados donde el stock ya fue descontado (venta confirmada o en curso)
-    ESTADOS_CONFIRMADOS = {4, 8, 9, 11, 13}
+    ESTADO_ENTREGADO    = 8
 
-    # Al confirmar (4): validar y descontar stock de cada producto
-    if nuevo_estado == 4 and venta.Estado not in ESTADOS_CANCELACION | {4}:
+    # Al entregar (8): descontar stock — solo si aún no se había entregado
+    if nuevo_estado == ESTADO_ENTREGADO and venta.Estado != ESTADO_ENTREGADO:
         items = db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()
         for item in items:
             producto = db.query(Producto).filter(Producto.ID_Producto == item.ID_Producto).first()
             if not producto:
                 continue
-            if (producto.Stock or 0) < item.Cantidad:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Stock insuficiente para '{producto.nombre}': disponible {producto.Stock or 0}"
-                )
-            producto.Stock -= item.Cantidad
+            producto.Stock = max(0, (producto.Stock or 0) - (item.Cantidad or 0))
             _actualizar_estado_producto(producto)
             notificar_stock_producto(db, producto)
 
-    # Al cancelar: restaurar stock solo si la venta ya estaba confirmada
-    if nuevo_estado in ESTADOS_CANCELACION and venta.Estado in ESTADOS_CONFIRMADOS:
+    # Al cancelar: restaurar stock solo si la venta ya fue entregada (stock ya descontado)
+    if nuevo_estado in ESTADOS_CANCELACION and venta.Estado == ESTADO_ENTREGADO:
         items = db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()
         for item in items:
             producto = db.query(Producto).filter(Producto.ID_Producto == item.ID_Producto).first()
             if producto:
-                producto.Stock = (producto.Stock or 0) + item.Cantidad
+                producto.Stock = (producto.Stock or 0) + (item.Cantidad or 0)
                 _actualizar_estado_producto(producto)
                 notificar_stock_producto(db, producto)
 
