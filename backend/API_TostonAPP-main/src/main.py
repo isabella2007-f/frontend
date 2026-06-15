@@ -97,6 +97,23 @@ def migrate_db():
             except Exception:
                 pass  # ya existe
 
+    # Migrar FK de Domicilios.ID_Empleado: Empleados → Usuarios
+    # El código usa Usuarios.ID_Usuario pero la DB de producción aún apunta a Empleados
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE Domicilios DROP FOREIGN KEY Domicilios_ibfk_2"))
+            conn.commit()
+        except Exception:
+            pass
+        try:
+            conn.execute(text(
+                "ALTER TABLE Domicilios ADD CONSTRAINT Domicilios_ibfk_2 "
+                "FOREIGN KEY (ID_Empleado) REFERENCES Usuarios(ID_Usuario)"
+            ))
+            conn.commit()
+        except Exception:
+            pass
+
     # Comprobante_Pago: LONGTEXT para soportar imágenes en base64
     with engine.connect() as conn:
         try:
