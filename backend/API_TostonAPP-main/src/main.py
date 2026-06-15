@@ -89,6 +89,7 @@ def migrate_db():
                 Expira_En DATETIME,
                 Usado     TINYINT(1) DEFAULT 0
             )""",
+            "INSERT IGNORE INTO Estados (ID_Estados, Codigo, Estado) VALUES (10, 10, 'Asignado')",
         ]:
             try:
                 conn.execute(text(stmt))
