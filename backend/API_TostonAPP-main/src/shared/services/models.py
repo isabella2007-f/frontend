@@ -27,9 +27,7 @@ class Rol(Base):
     Estado = Column(Integer, ForeignKey("Estados.ID_Estados"))
     Icono = Column(String(500), nullable=True)
 
-    empleados = relationship("Empleado", back_populates="rol")
     permisos  = relationship("RolXPermiso", back_populates="rol")
-    usuarios  = relationship("UsuarioXRol", back_populates="rol")
 
 
 class Permiso(Base):
@@ -59,9 +57,10 @@ class RolXPermiso(Base):
 class Usuario(Base):
     __tablename__ = "Usuarios"
 
-    ID_Usuario     = Column(Integer, primary_key=True, index=True, autoincrement=True)  # ← PK autoincremental
-    Cedula         = Column(String(20), nullable=True)                                   # ← campo normal
-    Tipo_Documento = Column(String(5), nullable=True)                                    # ← CC, CE, NIT, etc.
+    ID_Usuario     = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    Cedula         = Column(String(20), nullable=True)
+    Tipo_Documento = Column(String(5), nullable=True)
+    ID_Rol         = Column(Integer, ForeignKey("Roles.ID_Rol"), nullable=True)
     Nombre         = Column(String(50))
     Apellidos      = Column(String(50))
     Correo         = Column(String(255), unique=True, index=True)
@@ -74,42 +73,9 @@ class Usuario(Base):
     Contrasena     = Column(String(255))
     Estado         = Column(Integer, ForeignKey("Estados.ID_Estados"))
 
-    roles        = relationship("UsuarioXRol", back_populates="usuario")
+    rol          = relationship("Rol", foreign_keys=[ID_Rol])
     ventas       = relationship("Venta", back_populates="usuario")
     devoluciones = relationship("Devolucion", back_populates="usuario")
-
-
-class Empleado(Base):
-    __tablename__ = "Empleados"
-
-    ID_Empleado    = Column(Integer, primary_key=True, index=True, autoincrement=True)   # ← PK autoincremental
-    Cedula         = Column(String(20), nullable=True)                                    # ← campo normal
-    Tipo_Documento = Column(String(5), nullable=True)                                     # ← CC, CE, NIT, etc.
-    ID_Rol         = Column(Integer, ForeignKey("Roles.ID_Rol"))
-    Nombre         = Column(String(50))
-    Apellidos      = Column(String(50))
-    Correo         = Column(String(255), unique=True, index=True)
-    Direccion      = Column(String(50))
-    Municipio      = Column(String(25))
-    Departamento   = Column(String(60))
-    Telefono       = Column(String(20))
-    Foto_perfil    = Column(String(500), nullable=True)
-    Fecha_creacion = Column(DateTime)
-    Contrasena     = Column(String(255))
-    Estado         = Column(Integer, ForeignKey("Estados.ID_Estados"))
-
-    rol = relationship("Rol", back_populates="empleados")
-    domicilios = relationship("Domicilio", back_populates="empleado")
-
-
-class UsuarioXRol(Base):
-    __tablename__ = "Usuario_x_Rol"
-
-    ID_Rol     = Column(Integer, ForeignKey("Roles.ID_Rol"), primary_key=True)
-    ID_Usuario = Column(Integer, ForeignKey("Usuarios.ID_Usuario"), primary_key=True)   # ← actualizado
-
-    rol     = relationship("Rol", back_populates="usuarios")
-    usuario = relationship("Usuario", back_populates="roles")
 
 
 class VerificacionEmail(Base):
@@ -437,7 +403,7 @@ class Domicilio(Base):
 
     ID_Domicilio         = Column(Integer, primary_key=True, index=True)
     ID_Venta             = Column(Integer, ForeignKey("Ventas.ID_Venta"))
-    ID_Empleado          = Column(Integer, ForeignKey("Empleados.ID_Empleado"))     # ← actualizado
+    ID_Empleado          = Column(Integer, ForeignKey("Usuarios.ID_Usuario"), nullable=True)
     Fecha_asignacion     = Column(DateTime)
     Fecha_entrega        = Column(DateTime)
     Observaciones        = Column(Text)
@@ -447,7 +413,7 @@ class Domicilio(Base):
     Departamento_entrega = Column(String(60))
 
     venta    = relationship("Venta", back_populates="domicilios")
-    empleado = relationship("Empleado", foreign_keys=[ID_Empleado])
+    empleado = relationship("Usuario", foreign_keys=[ID_Empleado])
 
 
 class Devolucion(Base):
@@ -529,13 +495,13 @@ class Salida(Base):
     ID_Producto = Column(Integer, ForeignKey("Productos.ID_Producto"), nullable=True)
     Cantidad    = Column(Integer)
     Motivo      = Column(Text, nullable=True)
-    ID_Empleado = Column(Integer, ForeignKey("Empleados.ID_Empleado"), nullable=True)
+    ID_Empleado = Column(Integer, ForeignKey("Usuarios.ID_Usuario"), nullable=True)
     Fecha       = Column(DateTime)
     Estado      = Column(Integer, ForeignKey("Estados.ID_Estados"))
 
     insumo   = relationship("Insumo",   foreign_keys=[ID_Insumo])
     producto = relationship("Producto", foreign_keys=[ID_Producto])
-    empleado = relationship("Empleado", foreign_keys=[ID_Empleado])
+    empleado = relationship("Usuario",  foreign_keys=[ID_Empleado])
 
 
 # ─────────────────────────────────────────

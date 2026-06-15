@@ -279,6 +279,21 @@ def anular_compra(db: Session, id_compra: int) -> dict:
 
     if compra.Estado == ESTADO_COMPLETADA:
         detalles = db.query(DetalleCompra).filter(DetalleCompra.ID_Compra == id_compra).all()
+
+        # Verificar que ningún insumo haya sido consumido en producción antes de revertir
+        for detalle in detalles:
+            insumo = db.query(Insumo).filter(Insumo.ID_Insumo == detalle.ID_Insumo).first()
+            if insumo and (insumo.Stock_Actual or 0) < detalle.Cantidad:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"No se puede anular: '{insumo.Nombre}' tiene "
+                        f"{insumo.Stock_Actual or 0} unidades disponibles, pero esta compra "
+                        f"ingresó {detalle.Cantidad}. Es probable que hayan sido consumidas "
+                        f"en producción."
+                    )
+                )
+
         for detalle in detalles:
             insumo = db.query(Insumo).filter(Insumo.ID_Insumo == detalle.ID_Insumo).first()
             if insumo:

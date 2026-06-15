@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { getProveedores } from "../../../services/proveedoresService.js";
 import { getInsumos } from "../../../services/insumosService.js";
-import { DEPARTAMENTOS, getCiudades } from "../../../utils/departamentosYCiudades.js";
 import "./compras.css";
 
 const METODOS_PAGO = [
@@ -104,11 +103,18 @@ export function AnularCompraModal({ compra, onClose, onConfirm }) {
           <h3 className="delete-title">Anular compra #{compra.id}</h3>
           {yaCompletada ? (
             <div className="stock-aviso stock-aviso--block" style={{ marginTop: 12, textAlign: "left" }}>
-              ⚠️ Esta compra ya fue <strong>completada</strong>. Al anularla se <strong>revertirá el stock</strong> de todos los insumos que ingresaron con esta compra.
+              <p style={{ margin: "0 0 6px" }}>
+                ⚠️ Esta compra ya fue <strong>completada</strong> y su stock fue aplicado al inventario.
+                Al anularla, el sistema intentará <strong>revertir el stock</strong> de cada insumo.
+              </p>
+              <p style={{ margin: 0, fontSize: 12, color: "#b71c1c" }}>
+                Si algún insumo ya fue consumido en producción, la anulación será bloqueada para evitar inventario negativo.
+              </p>
             </div>
           ) : (
             <p className="delete-body" style={{ marginTop: 8 }}>
-              La compra está <strong>pendiente</strong>. Se anulará sin afectar el stock.
+              La compra está <strong>pendiente</strong> — el stock aún no fue aplicado.
+              La anulación no afectará el inventario.
             </p>
           )}
           <label style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 18, textAlign: "left", cursor: "pointer", fontSize: 13, color: "#424242" }}>
@@ -150,7 +156,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
         const lista = (d.insumos || d || []).map(i => ({
           id:     i.ID_Insumo || i.id,
           nombre: i.Nombre    || i.nombre || "",
-          unidad: i.unidad    || "",
+          unidad: i.simbolo_unidad || i.unidad || "",
           estado: i.Estado !== 0,
         }));
         setInsumosActivos(lista.filter(i => i.estado));
@@ -167,13 +173,11 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
   const [step, setStep] = useState(1);
 
   const [form, setForm] = useState({
-    idProveedor:  compra.idProveedor  || "",
-    fecha:        compra.fecha        || "",
-    estado:       compra.estado       || "pendiente",
-    metodoPago:   compra.metodoPago   || "",
-    departamento: String(compra.departamento || ""),
-    ciudad:       String(compra.ciudad       || ""),
-    notas:        String(compra.notas        || ""),
+    idProveedor:   compra.idProveedor  || "",
+    fecha:         compra.fecha        || "",
+    estado:        compra.estado       || "pendiente",
+    metodoPago:    compra.metodoPago   || "",
+    notas:         String(compra.notas || ""),
     fecha_llegada: compra.fecha_llegada || "",
   });
 
@@ -306,8 +310,14 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {(compra.items || []).map((d, idx) => {
-                    const ins  = getInsumoById(d.idInsumo);
+                  {(compra.items || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={5} style={{ padding: "20px 12px", textAlign: "center", color: "#bdbdbd", fontSize: 13 }}>
+                        Sin insumos registrados en esta compra
+                      </td>
+                    </tr>
+                  ) : (compra.items || []).map((d, idx) => {
+                    const ins  = insumosActivos.find(i => i.id === Number(d.idInsumo));
                     const dias = diasHasta(d.fechaVencimiento);
                     return (
                       <tr key={d.idInsumo || idx} style={{ borderTop: "1px solid #f0f0f0" }}>
@@ -420,19 +430,27 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
               {form.metodoPago === "transferencia" && (
                 <div className="field-wrap comprobante-wrap">
                   <label className="field-label">Comprobante de transferencia</label>
-                  <label className="comprobante-upload-btn">
-                    <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} onChange={e => setComprobante(e.target.files?.[0] || null)} />
-                    <span className="comprobante-upload-icon">📎</span>
-                    {comprobante
-                      ? <span className="comprobante-filename">{comprobante.name}</span>
-                      : compra.comprobante
-                        ? <span className="comprobante-filename">{compra.comprobante.name || "Comprobante existente"}</span>
-                        : <span>Adjuntar comprobante (imagen o PDF)</span>
-                    }
-                  </label>
-                  {(comprobante || compra.comprobante) && (
-                    <button type="button" className="comprobante-remove-btn" onClick={() => setComprobante(null)}>✕ Quitar archivo</button>
-                  )}
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <label className="comprobante-upload-btn" style={{ flex: 1 }}>
+                      <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} onChange={e => setComprobante(e.target.files?.[0] || null)} />
+                      <span className="comprobante-upload-icon">📎</span>
+                      {comprobante
+                        ? <span className="comprobante-filename">{comprobante.name}</span>
+                        : compra.comprobante
+                          ? <span className="comprobante-filename">{compra.comprobante.name || "Comprobante existente"}</span>
+                          : <span>Adjuntar comprobante (imagen o PDF)</span>
+                      }
+                    </label>
+                    {(comprobante || compra.comprobante) && (
+                      <button
+                        type="button"
+                        onClick={e => { e.preventDefault(); setComprobante(null); }}
+                        style={{ flexShrink: 0, padding: "0 12px", height: 36, borderRadius: 8, border: "1.5px solid #ef5350", background: "#fff", color: "#c62828", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                      >
+                        ✕ Quitar
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -532,40 +550,6 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                     {errors.metodoPago && <span className="field-error">{errors.metodoPago}</span>}
                   </div>
 
-                  <div className="field-grid-2">
-                    <div className="field-wrap">
-                      <label className="field-label">Departamento</label>
-                      <div className="select-wrap">
-                        <select
-                          className="field-select"
-                          value={form.departamento}
-                          onChange={e => { set("departamento", e.target.value); set("ciudad", ""); }}
-                        >
-                          <option value="">— Seleccionar —</option>
-                          {DEPARTAMENTOS.map(dept => <option key={dept} value={dept}>{dept}</option>)}
-                        </select>
-                        <span className="select-arrow">▾</span>
-                      </div>
-                    </div>
-                    <div className="field-wrap">
-                      <label className="field-label">Ciudad</label>
-                      <div className="select-wrap">
-                        <select
-                          className="field-select"
-                          value={form.ciudad}
-                          onChange={e => set("ciudad", e.target.value)}
-                          disabled={!form.departamento}
-                        >
-                          <option value="">— Seleccionar —</option>
-                          {form.departamento && getCiudades(form.departamento).map(city => (
-                            <option key={city} value={city}>{city}</option>
-                          ))}
-                        </select>
-                        <span className="select-arrow">▾</span>
-                      </div>
-                    </div>
-                  </div>
-
                   <div className="field-wrap">
                     <label className="field-label">Notas</label>
                     <textarea
@@ -587,7 +571,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                   </div>
 
                   {detalles.map((d, i) => {
-                    const insumoSel = getInsumoById(d.idInsumo);
+                    const insumoSel = getInsumoById(d.idInsumo) || insumosActivos.find(ins => String(ins.id) === String(d.idInsumo));
 
                     if (!d.isExpanded) {
                       return (
@@ -666,7 +650,9 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                           </div>
 
                           <div className="field-wrap" style={{ gridColumn: "span 1" }}>
-                            <label className="field-label">Cantidad</label>
+                            <label className="field-label">
+                              Cantidad{insumoSel?.unidad ? ` (${insumoSel.unidad})` : ""}
+                            </label>
                             <input
                               type="number"
                               className={`field-input ${errors[`cant_${i}`] ? "error" : ""}`}

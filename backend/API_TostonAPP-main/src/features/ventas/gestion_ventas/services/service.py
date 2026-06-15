@@ -7,7 +7,6 @@ from src.shared.services.models import (
     Venta, VentaXProducto, DetalleVenta, Producto, Usuario,
     Estado, Domicilio, CreditoCliente, MovimientoCredito,
     Descuento, DescuentoXUsuario, DescuentoXVenta, OrdenProduccion, FichaTecnica,
-    Empleado
 )
 from src.shared.services.notificaciones_utils import notificar, descartar_notificacion, notificar_stock_producto
 from .schemas import VentaCreate, DomicilioVentaInput
@@ -58,7 +57,7 @@ def _formato_venta(venta: Venta, db: Session) -> dict:
 
     domiciliario = None
     if domicilio and domicilio.ID_Empleado:
-        emp = db.query(Empleado).filter(Empleado.ID_Empleado == domicilio.ID_Empleado).first()
+        emp = db.query(Usuario).filter(Usuario.ID_Usuario == domicilio.ID_Empleado).first()
         if emp:
             domiciliario = f"{emp.Nombre} {emp.Apellidos}"
 

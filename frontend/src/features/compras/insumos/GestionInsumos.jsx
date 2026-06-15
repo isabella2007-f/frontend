@@ -32,6 +32,7 @@ const ADAPT_INSUMO = raw => ({
   simboloUnidad:    raw.simbolo_unidad ?? "",
   proxVencimiento:  raw.proximo_vencimiento ?? null,
   diasParaVencer:   raw.dias_para_vencer ?? null,
+  tieneFicha:       raw.tiene_ficha_tecnica ?? false,
 });
 
 const ADAPT_CAT = raw => ({
@@ -202,7 +203,8 @@ export default function GestionInsumos() {
     const matchCat = filterCat === "todas" || ins.idCategoria === Number(filterCat);
     const est      = calcEstado(ins.stockActual, ins.stockMinimo);
     const matchEst = filterEst === "todos" || filterEst === est ||
-      (filterEst === "activo" ? ins.estado : filterEst === "inactivo" ? !ins.estado : true);
+      (filterEst === "activo" && ins.estado) ||
+      (filterEst === "inactivo" && !ins.estado);
     return matchQ && matchCat && matchEst;
   });
 
@@ -338,6 +340,12 @@ export default function GestionInsumos() {
             )}
           </div>
 
+          {(hasFilter || search) && (
+            <button className="btn-limpiar" onClick={() => { setSearch(""); setFilterCat("todas"); setFilterEst("todos"); }}>
+              ✕ Limpiar
+            </button>
+          )}
+
           {puedeCrear && (
             <button className="btn-agregar" onClick={() => setModal({ type: "crear" })}>
               Agregar <span style={{ fontSize: 18 }}>+</span>
@@ -346,7 +354,7 @@ export default function GestionInsumos() {
         </div>
 
         <div className="card">
-          <div style={{ overflowX: "auto" }}>
+          <div className="tbl-wrapper">
             <table className="tbl">
               <thead>
                 <tr>
@@ -445,13 +453,44 @@ export default function GestionInsumos() {
         />
       )}
       {modal?.type === "eliminar" && (
-        <ModalEliminarValidado
-          titulo="Eliminar insumo"
-          descripcion={`¿Está seguro de que desea eliminar el insumo "${modal.ins.nombre}"?`}
-          validacion={{ ok: true }}
-          onClose={() => setModal(null)}
-          onConfirm={handleDelete}
-        />
+        modal.ins.tieneFicha ? (
+          <div className="modal-overlay" onClick={() => setModal(null)} style={{ zIndex: 30000 }}>
+            <div className="modal-box" onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <div>
+                  <p className="modal-header__eyebrow">Gestión de Insumos</p>
+                  <h2 className="modal-header__title">No se puede eliminar</h2>
+                </div>
+                <button className="modal-close-btn" onClick={() => setModal(null)}>✕</button>
+              </div>
+              <div className="modal-body" style={{ padding: "20px 24px 24px" }}>
+                <div style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: 16, borderRadius: 10, background: "#fff3e0", border: "1px solid #ffcc80" }}>
+                  <span style={{ fontSize: 28, lineHeight: 1 }}>⚠️</span>
+                  <div>
+                    <p style={{ margin: 0, fontWeight: 700, color: "#e65100", fontSize: 14 }}>
+                      El insumo está asociado a una ficha técnica de producción
+                    </p>
+                    <p style={{ margin: "6px 0 0", fontSize: 13, color: "#424242" }}>
+                      El insumo <strong>"{modal.ins.nombre}"</strong> forma parte de la receta de uno o más productos.
+                      Debes retirarlo de todas las fichas técnicas antes de poder eliminarlo.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn-ghost" onClick={() => setModal(null)}>Entendido</button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <ModalEliminarValidado
+            titulo="Eliminar insumo"
+            descripcion={`¿Está seguro de que desea eliminar el insumo "${modal.ins.nombre}"?`}
+            validacion={{ ok: true }}
+            onClose={() => setModal(null)}
+            onConfirm={handleDelete}
+          />
+        )
       )}
 
       {toast && (

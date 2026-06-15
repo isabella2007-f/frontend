@@ -113,6 +113,12 @@ export default function GestionEmpleados() {
             )}
           </div>
 
+          {(hasFilter || search) && (
+            <button className="btn-limpiar" onClick={() => { setSearch(""); setFilter("todos"); setFilterRol(0); }}>
+              ✕ Limpiar
+            </button>
+          )}
+
           <button className="btn-agregar" onClick={() => setModal({ type:"crear" })}>
             Agregar <span style={{ fontSize:18 }}>+</span>
           </button>
@@ -120,7 +126,7 @@ export default function GestionEmpleados() {
 
         {/* Tabla */}
         <div className="card">
-          <div style={{ overflowX:"auto" }}>
+          <div className="tbl-wrapper">
             <table className="tbl">
               <thead>
                 <tr>

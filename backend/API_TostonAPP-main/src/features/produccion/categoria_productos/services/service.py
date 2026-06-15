@@ -102,7 +102,7 @@ def editar_categoria(db: Session, id_categoria: int, datos: CategoriaProductoUpd
 
 
 def cambiar_estado(db: Session, id_categoria: int, nuevo_estado: int) -> dict:
-    """Cambia el estado ON/OFF."""
+    """Cambia el estado ON/OFF de la categoría y cascada a sus productos."""
     categoria = db.query(CategoriaProducto).filter(
         CategoriaProducto.ID_Categoria == id_categoria
     ).first()
@@ -110,6 +110,9 @@ def cambiar_estado(db: Session, id_categoria: int, nuevo_estado: int) -> dict:
         raise HTTPException(status_code=404, detail="Categoría no encontrada")
 
     categoria.Estado = nuevo_estado
+    db.query(Producto).filter(
+        Producto.ID_Categoria == id_categoria
+    ).update({"Estado": nuevo_estado})
     db.commit()
     db.refresh(categoria)
     return _formato_categoria(categoria, db)

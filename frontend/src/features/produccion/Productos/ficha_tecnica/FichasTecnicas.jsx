@@ -183,13 +183,19 @@ export default function FichaTecnica() {
             )}
           </div>
 
+          {(filterCat !== "Todas" || search) && (
+            <button className="btn-limpiar" onClick={() => { setSearch(""); setFilterCat("Todas"); }}>
+              ✕ Limpiar
+            </button>
+          )}
+
           <button className="btn-agregar" onClick={() => setModal({ mode: "new" })}>
             Agregar <span style={{ fontSize: 18 }}>+</span>
           </button>
         </div>
 
         <div className="card">
-          <div style={{ overflowX: "auto" }}>
+          <div className="tbl-wrapper">
             <table className="tbl">
               <thead>
                 <tr>

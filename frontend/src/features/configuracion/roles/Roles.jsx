@@ -180,6 +180,12 @@ export default function GestionRoles() {
             )}
           </div>
 
+          {(filter !== "todos" || search) && (
+            <button className="btn-limpiar" onClick={() => { setSearch(""); setFilter("todos"); }}>
+              ✕ Limpiar
+            </button>
+          )}
+
           {puedeCrear && (
             <button className="btn-agregar" onClick={() => setModal({ mode: "new" })}>
               Agregar <span style={{ fontSize: 18 }}>+</span>
@@ -188,7 +194,7 @@ export default function GestionRoles() {
         </div>
 
         <div className="card">
-          <div style={{ overflowX: "auto" }}>
+          <div className="tbl-wrapper">
             <table className="tbl">
               <thead>
                 <tr>

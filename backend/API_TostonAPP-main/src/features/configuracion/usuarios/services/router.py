@@ -21,19 +21,16 @@ def listar_todos(
     db:         Session       = Depends(get_db),
     _:          dict          = Depends(requiere_permiso("ver_usuarios"))
 ):
-    """Lista paginada de empleados + clientes. Busca por nombre, correo o cédula."""
     return obtener_todos(db, pagina, por_pagina, busqueda)
 
 
-@router.get("/{tipo}/{id_persona}", response_model=PersonaResponse)
+@router.get("/{id_persona}", response_model=PersonaResponse)
 def ver_persona(
     id_persona: int,
-    tipo:       str,
     db:         Session = Depends(get_db),
     _:          dict    = Depends(requiere_permiso("ver_usuarios"))
 ):
-    """Retorna el detalle. tipo puede ser 'empleado' o 'cliente'."""
-    return obtener_persona(db, id_persona, tipo)
+    return obtener_persona(db, id_persona)
 
 
 @router.post("/empleado", response_model=PersonaResponse, status_code=201)
@@ -54,33 +51,30 @@ def agregar_cliente(
     return crear_cliente(db, datos)
 
 
-@router.put("/{tipo}/{id_persona}", response_model=PersonaResponse)
+@router.put("/{id_persona}", response_model=PersonaResponse)
 def actualizar_persona(
     id_persona: int,
-    tipo:       str,
     datos:      PersonaUpdate,
     db:         Session = Depends(get_db),
     _:          dict    = Depends(requiere_permiso("editar_usuarios"))
 ):
-    return editar_persona(db, id_persona, tipo, datos)
+    return editar_persona(db, id_persona, datos)
 
 
-@router.patch("/{tipo}/{id_persona}/estado", response_model=PersonaResponse)
+@router.patch("/{id_persona}/estado", response_model=PersonaResponse)
 def toggle_estado(
     id_persona: int,
-    tipo:       str,
     datos:      PersonaEstado,
     db:         Session = Depends(get_db),
     _:          dict    = Depends(requiere_permiso("editar_usuarios"))
 ):
-    return cambiar_estado(db, id_persona, tipo, datos.Estado)
+    return cambiar_estado(db, id_persona, datos.Estado)
 
 
-@router.delete("/{tipo}/{id_persona}")
+@router.delete("/{id_persona}")
 def borrar_persona(
     id_persona: int,
-    tipo:       str,
     db:         Session = Depends(get_db),
     _:          dict    = Depends(requiere_permiso("eliminar_usuarios"))
 ):
-    return eliminar_persona(db, id_persona, tipo)
+    return eliminar_persona(db, id_persona)

@@ -1,8 +1,26 @@
 // src/utils/api.js
 import { API_URL } from "../config/api";
 
+const INACTIVITY_LIMIT = 8 * 60 * 60 * 1000; // 8 horas en ms
+
 function getToken() {
   return localStorage.getItem("token");
+}
+
+export function updateActivity() {
+  localStorage.setItem("last_activity", Date.now().toString());
+}
+
+export function isInactive() {
+  const last = parseInt(localStorage.getItem("last_activity") || "0", 10);
+  if (!last) return false;
+  return Date.now() - last > INACTIVITY_LIMIT;
+}
+
+export function clearSession() {
+  localStorage.removeItem("token");
+  localStorage.removeItem("usuario");
+  localStorage.removeItem("last_activity");
 }
 
 export async function apiFetch(endpoint, options = {}) {
@@ -30,6 +48,8 @@ export async function apiFetch(endpoint, options = {}) {
       window.location.href = "/login";
       return;
     }
+
+    updateActivity();
 
     if (!res.ok) {
       const error = await res.json().catch(() => ({}));

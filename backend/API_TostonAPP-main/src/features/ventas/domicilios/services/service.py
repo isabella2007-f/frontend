@@ -3,7 +3,7 @@ from fastapi import HTTPException
 from datetime import datetime, timedelta
 
 from collections import defaultdict
-from src.shared.services.models import Domicilio, Venta, Empleado, Usuario, Estado, Producto, VentaXProducto
+from src.shared.services.models import Domicilio, Venta, Usuario, Estado, Producto, VentaXProducto
 
 # Chat en memoria — temporal (se pierde al reiniciar el servidor)
 _chat: dict = defaultdict(list)
@@ -24,9 +24,9 @@ def _formato_domicilio(dom: Domicilio, db: Session) -> dict:
         Usuario.ID_Usuario == venta.ID_Usuario
     ).first() if venta else None
 
-    # Obtiene el repartidor
-    repartidor = db.query(Empleado).filter(
-        Empleado.ID_Empleado == dom.ID_Empleado
+    # Obtiene el repartidor (ahora en la tabla Usuarios)
+    repartidor = db.query(Usuario).filter(
+        Usuario.ID_Usuario == dom.ID_Empleado
     ).first() if dom.ID_Empleado else None
 
     # Datos de la venta: total, metodo_pago y productos
@@ -129,12 +129,12 @@ def obtener_domicilios(
             .subquery()
         )
 
-        # IDs de repartidores que coinciden
+        # IDs de repartidores que coinciden (en Usuarios)
         repartidores_ids = (
-            db.query(Empleado.ID_Empleado)
+            db.query(Usuario.ID_Usuario)
             .filter(
-                Empleado.Nombre.ilike(termino) |
-                Empleado.Apellidos.ilike(termino)
+                Usuario.Nombre.ilike(termino) |
+                Usuario.Apellidos.ilike(termino)
             )
             .subquery()
         )
@@ -178,8 +178,8 @@ def crear_domicilio(db: Session, datos: DomicilioCreate) -> dict:
         )
 
     if datos.ID_Empleado:
-        if not db.query(Empleado).filter(Empleado.ID_Empleado == datos.ID_Empleado).first():
-            raise HTTPException(status_code=404, detail="Empleado repartidor no encontrado")
+        if not db.query(Usuario).filter(Usuario.ID_Usuario == datos.ID_Empleado).first():
+            raise HTTPException(status_code=404, detail="Repartidor no encontrado")
 
     # Estado inicial según si viene repartidor o no (IDs de la tabla Estados global)
     ESTADO_PENDIENTE = 3   # Pendiente
@@ -225,8 +225,8 @@ def asignar_repartidor(db: Session, id_domicilio: int, id_empleado: int) -> dict
     if not dom:
         raise HTTPException(status_code=404, detail="Domicilio no encontrado")
 
-    if not db.query(Empleado).filter(Empleado.ID_Empleado == id_empleado).first():
-        raise HTTPException(status_code=404, detail="Empleado repartidor no encontrado")
+    if not db.query(Usuario).filter(Usuario.ID_Usuario == id_empleado).first():
+        raise HTTPException(status_code=404, detail="Repartidor no encontrado")
 
     ESTADO_PENDIENTE = 3   # Pendiente
     ESTADO_ASIGNADO  = 10  # Asignado

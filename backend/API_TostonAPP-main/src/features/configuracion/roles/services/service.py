@@ -3,7 +3,7 @@ from sqlalchemy import func
 from fastapi import HTTPException, status
 
 from src.shared.services.models import (
-    Rol, Permiso, RolXPermiso, Empleado, Usuario, UsuarioXRol
+    Rol, Permiso, RolXPermiso, Usuario
 )
 from .schemas import RolUpdate, ROLES_PROTEGIDOS
 
@@ -18,24 +18,11 @@ def _es_protegido(id_rol: int) -> bool:
 
 
 def _contar_usuarios(db: Session, id_rol: int) -> int:
-    """
-    Suma los usuarios de un rol desde ambas tablas:
-    - Empleados con ID_Rol directo
-    - Usuarios (clientes) via Usuario_x_Rol
-    """
-    empleados = (
-        db.query(func.count(Empleado.ID_Empleado))
-        .filter(Empleado.ID_Rol == id_rol)
+    return (
+        db.query(func.count(Usuario.ID_Usuario))
+        .filter(Usuario.ID_Rol == id_rol)
         .scalar()
     ) or 0
-
-    clientes = (
-        db.query(func.count(UsuarioXRol.ID_Usuario))
-        .filter(UsuarioXRol.ID_Rol == id_rol)
-        .scalar()
-    ) or 0
-
-    return empleados + clientes
 
 
 def _formato_rol(rol, db: Session) -> dict:
@@ -210,22 +197,10 @@ def cambiar_estado(db: Session, id_rol: int, nuevo_estado: int):
 
     rol.Estado = nuevo_estado
 
-    # Propagar estado a empleados con este rol
-    (
-        db.query(Empleado)
-        .filter(Empleado.ID_Rol == id_rol)
-        .update({"Estado": nuevo_estado}, synchronize_session=False)
-    )
-
-    # Propagar estado a usuarios (clientes) vinculados via Usuario_x_Rol
-    ids_usuarios = (
-        db.query(UsuarioXRol.ID_Usuario)
-        .filter(UsuarioXRol.ID_Rol == id_rol)
-        .subquery()
-    )
+    # Propagar estado a todos los usuarios con este rol
     (
         db.query(Usuario)
-        .filter(Usuario.ID_Usuario.in_(ids_usuarios))
+        .filter(Usuario.ID_Rol == id_rol)
         .update({"Estado": nuevo_estado}, synchronize_session=False)
     )
 

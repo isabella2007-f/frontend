@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from datetime import datetime
 
-from src.shared.services.models import Salida, Insumo, Producto, Empleado, Estado, CategoriaInsumo, CategoriaProducto
+from src.shared.services.models import Salida, Insumo, Producto, Usuario, Estado, CategoriaInsumo, CategoriaProducto
 from src.shared.services.notificaciones_utils import notificar_stock_insumo, notificar_stock_producto
 from .schemas import SalidaCreate
 
@@ -45,7 +45,7 @@ def _formato_salida(salida: Salida, db: Session) -> dict:
                if salida.ID_Insumo else None
     producto = db.query(Producto).filter(Producto.ID_Producto == salida.ID_Producto).first() \
                if salida.ID_Producto else None
-    empleado = db.query(Empleado).filter(Empleado.ID_Empleado == salida.ID_Empleado).first() \
+    empleado = db.query(Usuario).filter(Usuario.ID_Usuario == salida.ID_Empleado).first() \
                if salida.ID_Empleado else None
     estado   = db.query(Estado).filter(Estado.ID_Estados == salida.Estado).first()
 

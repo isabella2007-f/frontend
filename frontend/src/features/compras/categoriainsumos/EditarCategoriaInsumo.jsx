@@ -58,12 +58,24 @@ export default function EditarCategoriaInsumo({ cat, onClose, onSave }) {
       <div className="modal-body">
         <div className="form-group">
           <label className="form-label">Ícono</label>
-          <button
-            className={`icon-picker-trigger${pickingIcon ? " open" : ""}`}
-            onClick={() => setPickingIcon(v => !v)}
-          >
-            {form.icon}
-          </button>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button
+              className={`icon-picker-trigger${pickingIcon ? " open" : ""}`}
+              onClick={() => setPickingIcon(v => !v)}
+            >
+              {form.icon}
+            </button>
+            <input
+              className="field-input"
+              style={{ flex: 1 }}
+              value={form.icon}
+              placeholder="Escribe un emoji o pega una URL de imagen…"
+              onChange={e => { if (e.target.value) set("icon", e.target.value); }}
+            />
+          </div>
+          <p style={{ margin: "4px 0 0", fontSize: 11, color: "#757575" }}>
+            Selecciona un emoji de la lista o escríbelo directamente. También puedes pegar una URL de imagen (Cloudinary).
+          </p>
           {pickingIcon && (
             <div className="icon-picker-grid">
               {ICON_OPTIONS.map(ic => (

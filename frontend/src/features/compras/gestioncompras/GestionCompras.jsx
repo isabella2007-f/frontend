@@ -286,6 +286,12 @@ export default function GestionCompras() {
             )}
           </div>
 
+          {(hasFilter || search) && (
+            <button className="btn-limpiar" onClick={() => { setSearch(""); setFilterEstado("todos"); setFilterProv("todos"); }}>
+              ✕ Limpiar
+            </button>
+          )}
+
           <button className="btn-agregar" onClick={() => setModal({ mode: "new" })}>
             Nueva compra <span style={{ fontSize: 18 }}>+</span>
           </button>
@@ -293,12 +299,11 @@ export default function GestionCompras() {
 
         {/* TABLA */}
         <div className="card">
-          <div style={{ overflowX: "auto" }}>
+          <div className="tbl-wrapper">
             <table className="tbl">
               <thead>
                 <tr>
-                  <th style={{ width: 48 }}>Nº</th>
-                  <th>ID Compra</th>
+                  <th style={{ width: 72 }}>ID</th>
                   <th>Proveedor</th>
                   <th>Método</th>
                   <th>Total</th>
@@ -318,7 +323,7 @@ export default function GestionCompras() {
                   ))
                 ) : paginated.length === 0 ? (
                   <tr>
-                    <td colSpan={8}>
+                    <td colSpan={7}>
                       <div className="empty-state">
                         <div className="empty-state__icon">🛒</div>
                         <p className="empty-state__text">
@@ -334,16 +339,12 @@ export default function GestionCompras() {
                   return (
                     <tr key={c.id} className="tbl-row">
 
-                      {/* Nº */}
-                      <td>
-                        <span className="row-num">
-                          {String((safePage - 1) * ITEMS_PER_PAGE + idx + 1).padStart(2, "0")}
-                        </span>
-                      </td>
-
-                      {/* ID */}
+                      {/* ID + Nº */}
                       <td>
                         <span className="compra-id-badge">{c.id}</span>
+                        <div style={{ fontSize: 10, color: "#bdbdbd", fontWeight: 600, marginTop: 2 }}>
+                          #{String((safePage - 1) * ITEMS_PER_PAGE + idx + 1).padStart(2, "0")}
+                        </div>
                       </td>
 
                       {/* Proveedor */}

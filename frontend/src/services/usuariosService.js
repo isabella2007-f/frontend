@@ -37,15 +37,15 @@ export async function crearCliente(data) {
 }
 
 export async function editarUsuario(tipo, id, data) {
-  return apiFetch(`/usuarios/${tipo}/${id}`, { method: "PUT", body: JSON.stringify(data) });
+  return apiFetch(`/usuarios/${id}`, { method: "PUT", body: JSON.stringify(data) });
 }
 
 export async function eliminarUsuario(tipo, id) {
-  return apiFetch(`/usuarios/${tipo}/${id}`, { method: "DELETE" });
+  return apiFetch(`/usuarios/${id}`, { method: "DELETE" });
 }
 
 export async function toggleEstadoUsuario(tipo, id, estadoActual) {
-  return apiFetch(`/usuarios/${tipo}/${id}/estado`, {
+  return apiFetch(`/usuarios/${id}/estado`, {
     method: "PATCH",
     body: JSON.stringify({ Estado: estadoActual ? 2 : 1 }),
   });

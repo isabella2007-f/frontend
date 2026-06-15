@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from datetime import datetime
 
-from src.shared.services.models import Insumo, CategoriaInsumo, UnidadMedida, LoteCompra, OrdenProduccion
+from src.shared.services.models import Insumo, CategoriaInsumo, UnidadMedida, LoteCompra, FichaTecnicaInsumo
 from .schemas import InsumoCreate, InsumoUpdate
 
 
@@ -33,18 +33,23 @@ def _formato_insumo(insumo: Insumo, db: Session) -> dict:
         proximo_venc = proximo_lote.Fecha_Vencimiento.strftime("%Y-%m-%d")
         dias_para_vencer = (proximo_lote.Fecha_Vencimiento - hoy).days
 
+    en_ficha = db.query(FichaTecnicaInsumo).filter(
+        FichaTecnicaInsumo.ID_Insumo == insumo.ID_Insumo
+    ).first() is not None
+
     return {
-        "ID_Insumo":          insumo.ID_Insumo,
-        "Nombre":             insumo.Nombre,
-        "ID_Categoria":       insumo.ID_Categoria,
-        "nombre_categoria":   categoria.Nombre_Categoria if categoria else None,
-        "Unidad_Medida":      insumo.Unidad_Medida,
-        "simbolo_unidad":     unidad.Simbolo if unidad else None,
-        "Stock_Actual":       insumo.Stock_Actual,
-        "Stock_Minimo":       insumo.Stock_Minimo,
-        "Estado":             insumo.Estado,
+        "ID_Insumo":           insumo.ID_Insumo,
+        "Nombre":              insumo.Nombre,
+        "ID_Categoria":        insumo.ID_Categoria,
+        "nombre_categoria":    categoria.Nombre_Categoria if categoria else None,
+        "Unidad_Medida":       insumo.Unidad_Medida,
+        "simbolo_unidad":      unidad.Simbolo if unidad else None,
+        "Stock_Actual":        insumo.Stock_Actual,
+        "Stock_Minimo":        insumo.Stock_Minimo,
+        "Estado":              insumo.Estado,
         "proximo_vencimiento": proximo_venc,
-        "dias_para_vencer":   dias_para_vencer,
+        "dias_para_vencer":    dias_para_vencer,
+        "tiene_ficha_tecnica": en_ficha,
     }
 
 
@@ -171,8 +176,8 @@ def editar_insumo(db: Session, id_insumo: int, datos: InsumoUpdate) -> dict:
 
 
 def _tiene_ficha_tecnica(db: Session, id_insumo: int) -> bool:
-    return db.query(OrdenProduccion).filter(
-        OrdenProduccion.ID_Insumo == id_insumo
+    return db.query(FichaTecnicaInsumo).filter(
+        FichaTecnicaInsumo.ID_Insumo == id_insumo
     ).first() is not None
 
 

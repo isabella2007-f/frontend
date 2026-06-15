@@ -27,10 +27,8 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 
 def _formato_perfil(actual: dict) -> dict:
     registro = actual["registro"]
-    tipo     = actual["tipo"]
-    id_campo = registro.ID_Empleado if tipo == "empleado" else registro.ID_Usuario
     return {
-        "id":             id_campo,
+        "id":             registro.ID_Usuario,
         "Nombre":         registro.Nombre,
         "Apellidos":      registro.Apellidos,
         "Correo":         registro.Correo,
@@ -43,7 +41,7 @@ def _formato_perfil(actual: dict) -> dict:
         "Foto_perfil":    registro.Foto_perfil,
         "Fecha_creacion": registro.Fecha_creacion,
         "Estado":         registro.Estado,
-        "tipo":           tipo,
+        "tipo":           actual["tipo"],
         "rol":            actual.get("rol"),
     }
 
@@ -58,18 +56,8 @@ def login(datos: LoginInput, db: Session = Depends(get_db)):
     if not registro:
         raise HTTPException(status_code=401, detail="Correo o contraseña incorrectos")
 
-    id_campo = registro.ID_Empleado if tipo == "empleado" else registro.ID_Usuario
-    id_rol   = getattr(registro, "ID_Rol", None)
-
-    if tipo == "usuario":
-        from src.shared.services.models import UsuarioXRol, Rol as RolModel
-        uxr        = db.query(UsuarioXRol).filter(UsuarioXRol.ID_Usuario == registro.ID_Usuario).first()
-        nombre_rol = None
-        if uxr:
-            rol_obj    = db.query(RolModel).filter(RolModel.ID_Rol == uxr.ID_Rol).first()
-            nombre_rol = rol_obj.Rol if rol_obj else None
-    else:
-        nombre_rol = obtener_nombre_rol(db, id_rol) if id_rol else None
+    id_campo   = registro.ID_Usuario
+    nombre_rol = obtener_nombre_rol(db, registro.ID_Rol) if registro.ID_Rol else None
 
     token = crear_token({"id": id_campo, "tipo": tipo, "rol": nombre_rol})
 
@@ -152,14 +140,12 @@ def resetear_contrasena_endpoint(datos: ResetearContrasenaInput, db: Session = D
 @router.get("/me")
 def perfil_basico(actual: dict = Depends(obtener_usuario_actual)):
     registro = actual["registro"]
-    tipo     = actual["tipo"]
-    id_campo = registro.ID_Empleado if tipo == "empleado" else registro.ID_Usuario
     return {
-        "id":        id_campo,
+        "id":        registro.ID_Usuario,
         "nombre":    registro.Nombre,
         "apellidos": registro.Apellidos,
         "correo":    registro.Correo,
-        "tipo":      tipo,
+        "tipo":      actual["tipo"],
         "rol":       actual.get("rol"),
     }
 

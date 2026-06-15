@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { GB, getRolStyle, EMPTY_FORM, TIPO_DOC, validatePassword } from "./usuariosUtils.js";
+import { GB, getRolStyle, EMPTY_FORM, TIPO_DOC, validatePassword, validateCedula, validateTelefono } from "./usuariosUtils.js";
 import { Ic } from "./usuariosIcons.jsx";
 import { crearEmpleado, crearCliente, editarUsuario } from "../../../services/usuariosService.js";
 import { getUser } from "../../../services/authService.js";
@@ -278,8 +278,14 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
       if (!form.apellidos.trim()) e.apellidos = "Los apellidos son obligatorios";
       if (!form.correo.trim())    e.correo    = "El correo es obligatorio";
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.correo)) e.correo = "Formato de correo inválido";
-      if (!form.cedula.trim())    e.cedula    = "La cédula es obligatoria";
-      if (!form.telefono.trim())  e.telefono  = "El teléfono es obligatorio";
+      
+      // Validaciones de cédula
+      const cedulaError = validateCedula(form.cedula, form.tipoDocumento);
+      if (cedulaError) e.cedula = cedulaError;
+      
+      // Validaciones de teléfono
+      const telefonoError = validateTelefono(form.telefono);
+      if (telefonoError) e.telefono = telefonoError;
     }
 
     if (s === 2) {
@@ -332,15 +338,16 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
       Direccion:      form.direccion.trim(),
     };
 
-    if (!esCliente && rolObj) payload.ID_Rol = rolObj.id;
-    if (form.contrasena)      payload.Contrasena = form.contrasena;
+    if (form.foto)        payload.Foto       = form.foto;
+    if (rolObj)           payload.ID_Rol     = rolObj.id;
+    if (form.contrasena)  payload.Contrasena = form.contrasena;
 
     try {
       if (isEdit) {
         await editarUsuario(user.tipo, user.id, payload);
         // Si el admin editó al usuario de la sesión actual, refrescar el contexto
         const sesion = getUser();
-        if (sesion && String(sesion.id) === String(user.cedula) && sesion.tipo === user.tipo) {
+        if (sesion && String(sesion.id) === String(user.id)) {
           window.dispatchEvent(new CustomEvent("session-changed"));
         }
       } else if (esCliente) {

@@ -27,7 +27,7 @@ def resumen_domiciliario(
 ):
     """Resumen del día para el domiciliario autenticado: activos, entregados hoy, total hoy."""
     registro    = actual["registro"]
-    id_empleado = getattr(registro, "ID_Empleado", None)
+    id_empleado = getattr(registro, "ID_Usuario", None)
     if not id_empleado:
         return {"activos": 0, "entregados_hoy": 0, "total_hoy": 0}
     return obtener_resumen_dia(db, id_empleado)
@@ -109,7 +109,7 @@ def _verificar_acceso_chat(db: Session, id_domicilio: int, actual: dict):
     dom = db.query(Domicilio).filter(Domicilio.ID_Domicilio == id_domicilio).first()
     if not dom:
         raise HTTPException(status_code=404, detail="Domicilio no encontrado")
-    if actual["tipo"] == "usuario":
+    if actual["tipo"] == "cliente":
         registro = actual["registro"]
         venta = db.query(Venta).filter(Venta.ID_Venta == dom.ID_Venta).first()
         if not venta or venta.ID_Usuario != registro.ID_Usuario:
@@ -139,17 +139,17 @@ def enviar_mensaje_chat(
     registro = actual["registro"]
     tipo = actual["tipo"]
 
-    if tipo == "usuario":
+    if tipo == "cliente":
         tipo_rem    = "cliente"
         id_rem      = registro.ID_Usuario
         nombre_rem  = f"{registro.Nombre} {registro.Apellidos}"
-    elif getattr(registro, "ID_Rol", None) == 1:
+    elif registro.ID_Rol == 1:
         tipo_rem    = "admin"
-        id_rem      = registro.ID_Empleado
+        id_rem      = registro.ID_Usuario
         nombre_rem  = f"{registro.Nombre} {registro.Apellidos}"
     else:
         tipo_rem    = "domiciliario"
-        id_rem      = registro.ID_Empleado
+        id_rem      = registro.ID_Usuario
         nombre_rem  = f"{registro.Nombre} {registro.Apellidos}"
 
     return enviar_mensaje(db, id_domicilio, datos.Contenido, tipo_rem, id_rem, nombre_rem)

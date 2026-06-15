@@ -114,7 +114,7 @@ export default function GestionUsuarios() {
     // Si el admin editó al usuario de la sesión actual, refrescar el contexto de privilegios
     if (modal?.user) {
       const sesion = getUser();
-      if (sesion && String(sesion.id) === String(modal.user.cedula) && sesion.tipo === modal.user.tipo) {
+      if (sesion && String(sesion.id) === String(modal.user.id)) {
         window.dispatchEvent(new CustomEvent("session-changed"));
       }
     }
@@ -207,13 +207,19 @@ export default function GestionUsuarios() {
             )}
           </div>
 
+          {(hasFilter || search) && (
+            <button className="btn-limpiar" onClick={() => { setSearch(""); setFilter("todos"); setFilterRol("todos"); }}>
+              ✕ Limpiar
+            </button>
+          )}
+
           <button className="btn-agregar" onClick={() => setModal({ type: "form", user: null })}>
             Agregar <span style={{ fontSize: 18 }}>+</span>
           </button>
         </div>
 
         <div className="card">
-          <div style={{ overflowX: "auto" }}>
+          <div className="tbl-wrapper">
             <table className="tbl">
               <thead>
                 <tr>

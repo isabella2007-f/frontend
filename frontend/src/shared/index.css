@@ -123,8 +123,8 @@ html, body, #root {
   border-radius: 28px;
   box-shadow: 0 32px 64px rgba(10, 45, 26, 0.15), 0 16px 32px rgba(0, 0, 0, 0.08);
   max-width: 95vw;
-  width: 520px; /* ✅ Un poco más grande para evitar scroll innecesario */
-  max-height: 92vh;
+  width: min(95vw, 560px); /* ✅ Un poco más ancho para evitar scroll innecesario */
+  max-height: 96vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -144,15 +144,15 @@ html, body, #root {
 }
 
 .modal-box--wide {
-  width: 780px; /* ✅ Más amplio para formularios complejos */
+  width: 820px; /* ✅ Más amplio para formularios complejos */
 }
 
 .modal-box--sm {
-  width: 400px; /* Para modales de confirmación pequeños */
+  width: 420px; /* Para modales de confirmación pequeños */
 }
 
 .modal-box--lg {
-  width: 950px; /* Para modales muy grandes como reportes o fichas */
+  width: 980px; /* Para modales muy grandes como reportes o fichas */
 }
 
 .modal-header {
@@ -249,7 +249,7 @@ html, body, #root {
 
 .modal-body {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
   padding: 28px;
   background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
   display: flex;

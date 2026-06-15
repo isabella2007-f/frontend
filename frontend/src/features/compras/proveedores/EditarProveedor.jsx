@@ -116,6 +116,7 @@ export default function EditarProveedor({ proveedor, mode = "edit", onClose, onS
   const validate = () => {
     const e = {};
     if (!form.responsable?.trim()) e.responsable = "Campo obligatorio";
+    if (form.celular?.trim() && form.celular.replace(/\D/g, "").length !== 10) e.celular = "El celular debe tener 10 dígitos";
     if (form.correo?.trim() && !/\S+@\S+\.\S+/.test(form.correo)) e.correo = "Correo inválido";
     return e;
   };

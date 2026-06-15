@@ -19,7 +19,7 @@ export function Toast({ toast }) {
   };
   const c = colors[toast.type] || colors.success;
   return (
-    <div className="toast" style={{ background: c.bg }}>
+    <div className="toast" style={{ background: c.bg, zIndex: 40000 }}>
       <span className="toast-icon">{c.icon}</span>
       {toast.message}
     </div>

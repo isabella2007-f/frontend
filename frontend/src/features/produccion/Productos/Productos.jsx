@@ -1058,6 +1058,12 @@ export default function GestionProductos() {
             )}
           </div>
 
+          {(hasFilter || search) && (
+            <button className="btn-limpiar" onClick={() => { setSearch(""); setFilterCat("Todas"); setFilterEst("Todos"); }}>
+              ✕ Limpiar
+            </button>
+          )}
+
           {puedeCrear && (
             <button className="btn-agregar" onClick={() => setModal({ type: "crear" })}>
               Agregar <span style={{ fontSize: 18 }}>+</span>
@@ -1072,7 +1078,7 @@ export default function GestionProductos() {
               <LoadingSkeleton />
             </div>
           ) : (
-            <div>
+            <div className="tbl-wrapper">
               <table className="tbl">
                 <thead>
                     <tr>

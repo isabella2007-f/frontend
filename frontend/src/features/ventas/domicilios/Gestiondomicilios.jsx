@@ -988,6 +988,12 @@ export default function GestionDomicilios() {
                   </div>
                 )}
               </div>
+
+              {(hasFilter || search) && (
+                <button className="btn-limpiar" onClick={() => { setSearch(""); setFilterEstado("todos"); }}>
+                  ✕ Limpiar
+                </button>
+              )}
             </div>
 
             {/* TABLA */}

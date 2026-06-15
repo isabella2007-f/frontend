@@ -154,6 +154,7 @@ export default function CrearProveedor({ onClose, onSave }) {
     }
     if (s === 2) {
       if (!form.celular.trim())  e.celular  = "El celular es obligatorio";
+      else if (form.celular.replace(/\D/g, "").length !== 10) e.celular = "El celular debe tener 10 dígitos";
       if (!form.correo.trim())   e.correo   = "El correo es obligatorio";
       else if (!/\S+@\S+\.\S+/.test(form.correo)) e.correo = "Formato de correo inválido";
       if (!form.departamento)    e.departamento = "Selecciona un departamento";

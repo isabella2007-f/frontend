@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import os
 
 from src.shared.services.database import get_db
-from src.shared.services.models import Usuario, Empleado, Rol, RolXPermiso, Permiso
+from src.shared.services.models import Usuario, Rol, RolXPermiso, Permiso
 from .schemas import TokenData
 
 load_dotenv()
@@ -39,31 +39,29 @@ def obtener_usuario_actual(
         if payload.get("tipo") == "reset":
             raise credenciales_error
 
-        if id_persona is None or tipo is None:
+        if id_persona is None:
             raise credenciales_error
 
-        token_data = TokenData(cedula=id_persona, tipo=tipo, rol=payload.get("rol"))
+        token_data = TokenData(cedula=id_persona, tipo=tipo or "usuario", rol=payload.get("rol"))
 
     except JWTError:
         raise credenciales_error
 
-    if tipo == "empleado":
-        registro = db.query(Empleado).filter(Empleado.ID_Empleado == id_persona).first()
-    else:
-        registro = db.query(Usuario).filter(Usuario.ID_Usuario == id_persona).first()
+    registro = db.query(Usuario).filter(Usuario.ID_Usuario == id_persona).first()
 
     if registro is None:
         raise credenciales_error
 
-    return {"registro": registro, "tipo": tipo, "rol": token_data.rol}
+    # Deriva tipo desde el rol real del registro (ignora el tipo del token para consistencia)
+    tipo_real = "cliente" if registro.ID_Rol == 3 else "empleado"
+    return {"registro": registro, "tipo": tipo_real, "rol": token_data.rol}
 
 
 def solo_empleados(actual: dict = Depends(obtener_usuario_actual)):
     """
-    Protege endpoints exclusivos de empleados (cualquier rol de empleado).
-    Usar solo donde NO se necesite un permiso específico.
+    Protege endpoints exclusivos de empleados (cualquier rol que no sea Cliente).
     """
-    if actual["tipo"] != "empleado":
+    if actual["tipo"] == "cliente":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No tienes permisos para acceder a este recurso"
@@ -76,33 +74,26 @@ def requiere_permiso(nombre_permiso: str):
     Dependencia factory que verifica si el usuario autenticado
     tiene el permiso requerido según su rol en Rol_x_Permiso.
 
-    Uso en router:
-        _ = Depends(requiere_permiso("ver_insumos"))
-
     Reglas:
-    - Empleados: se verifica su ID_Rol contra Rol_x_Permiso + Permisos
-    - Usuarios (clientes): se verifica su rol en Usuario_x_Rol contra Rol_x_Permiso
-    - Si no tiene el permiso → 403
+    - Clientes (ID_Rol=3): bypass total (no acceden al panel de gestión)
+    - Admin (ID_Rol=1): bypass total
+    - Otros roles: verificar Rol_x_Permiso
     """
     def verificar(
         actual: dict    = Depends(obtener_usuario_actual),
         db:     Session = Depends(get_db)
     ):
         registro = actual["registro"]
-        tipo     = actual["tipo"]
+        id_rol   = registro.ID_Rol
 
-        # Clientes (tipo "usuario") no requieren verificación de permisos —
-        # el sistema de permisos aplica solo al panel de gestión (empleados/admin).
-        if tipo != "empleado":
+        # Clientes no acceden al panel de gestión
+        if id_rol == 3:
             return actual
 
-        id_rol = registro.ID_Rol
-
-        # ── Bypass total para Admin ──
+        # Bypass total para Admin
         if id_rol == 1:
             return actual
 
-        # Verificar si ese rol tiene el permiso requerido
         tiene_permiso = (
             db.query(RolXPermiso)
             .join(Permiso, Permiso.ID_Permiso == RolXPermiso.ID_Permiso)
@@ -116,7 +107,7 @@ def requiere_permiso(nombre_permiso: str):
         if not tiene_permiso:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"No tienes permiso para realizar esta acción"
+                detail="No tienes permiso para realizar esta acción"
             )
 
         return actual

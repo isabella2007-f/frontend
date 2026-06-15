@@ -50,6 +50,59 @@ export function validatePassword(password, confirm) {
   return errors.length ? errors.join(", ") : null;
 }
 
+// ─── Validación de cédula ────────────────────────────
+export function validateCedula(cedula, tipoDocumento) {
+  if (!cedula || !cedula.trim()) {
+    return "La cédula es obligatoria";
+  }
+  
+  const cedulaLimpia = cedula.replace(/\D/g, "");
+  
+  // Validar que solo tenga dígitos
+  if (!cedulaLimpia) {
+    return "La cédula debe contener solo números";
+  }
+  
+  // Validar rango de dígitos según tipo de documento
+  const minDigitos = tipoDocumento === "NIT" ? 9 : 8;
+  const maxDigitos = tipoDocumento === "NIT" ? 11 : 10;
+  
+  if (cedulaLimpia.length < minDigitos || cedulaLimpia.length > maxDigitos) {
+    return `La cédula debe tener entre ${minDigitos} y ${maxDigitos} dígitos`;
+  }
+  
+  return null;
+}
+
+// ─── Validación de teléfono ──────────────────────────
+export function validateTelefono(telefono) {
+  if (!telefono || !telefono.trim()) {
+    return "El teléfono es obligatorio";
+  }
+  
+  const telefonoLimpio = telefono.replace(/\D/g, "");
+  
+  // Validar que solo tenga dígitos
+  if (!telefonoLimpio) {
+    return "El teléfono debe contener solo números";
+  }
+  
+  // Validar rango de dígitos (7-15 caracteres es estándar internacional)
+  if (telefonoLimpio.length < 7 || telefonoLimpio.length > 15) {
+    return "El teléfono debe tener entre 7 y 15 dígitos";
+  }
+  
+  // Para Colombia específicamente, validar que empiece con 3 (móvil) o 1-8 (fijo)
+  if (telefonoLimpio.startsWith("57")) {
+    // Si empieza con +57 o 57
+    if (telefonoLimpio.length < 11) {
+      return "Formato de teléfono Colombia inválido";
+    }
+  }
+  
+  return null;
+}
+
 // ─── INITIAL DATA ─────────────────────────────────────────
 export const INIT_USERS = [
   { id:1, nombre:"Ana",    apellidos:"García",     telefono:"321-555-0001", cedula:"1001234567", correo:"ana@tostones.com",    direccion:"Calle 10 #5-20",      municipio:"Medellín",  departamento:"Cundinamarca", contrasena:"", rol:"Admin",    estado:true,  fechaCreacion:"15/01/2024", foto:null, esAdmin:true  },

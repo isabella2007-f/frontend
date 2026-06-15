@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { getProveedores } from "../../../services/proveedoresService.js";
 import { getInsumos } from "../../../services/insumosService.js";
-import { DEPARTAMENTOS, getCiudades } from "../../../utils/departamentosYCiudades.js";
 import "./compras.css";
 
 const METODOS_PAGO = [
@@ -70,13 +69,11 @@ export default function CrearCompra({ onClose, onSave }) {
   }, []);
 
   const [form, setForm] = useState({
-    idProveedor:  "",
-    fecha:        new Date().toISOString().split("T")[0],
-    estado:       "pendiente",
-    metodoPago:   "",
-    departamento: "",
-    ciudad:       "",
-    notas:        "",
+    idProveedor: "",
+    fecha:       new Date().toISOString().split("T")[0],
+    estado:      "pendiente",
+    metodoPago:  "",
+    notas:       "",
   });
 
   const [comprobante, setComprobante] = useState(null);
@@ -130,11 +127,9 @@ export default function CrearCompra({ onClose, onSave }) {
 
   const validateStep1 = () => {
     const e = {};
-    if (!form.idProveedor)  e.idProveedor  = "Selecciona un proveedor";
-    if (!form.fecha)        e.fecha        = "Ingresa la fecha";
-    if (!form.metodoPago)   e.metodoPago   = "Selecciona el método de pago";
-    if (!form.departamento) e.departamento = "Selecciona un departamento";
-    if (!form.ciudad)       e.ciudad       = "Selecciona una ciudad";
+    if (!form.idProveedor) e.idProveedor = "Selecciona un proveedor";
+    if (!form.fecha)       e.fecha       = "Ingresa la fecha";
+    if (!form.metodoPago)  e.metodoPago  = "Selecciona el método de pago";
     return e;
   };
 
@@ -182,9 +177,7 @@ export default function CrearCompra({ onClose, onSave }) {
       }));
       onSave({
         ...form,
-        departamento: form.departamento,
-        ciudad:       form.ciudad,
-        detalles:     detallesLimpios,
+        detalles: detallesLimpios,
         comprobante:  comprobante || null,
         gastos: {
           transporte: Number(gastos.transporte) || 0,
@@ -287,68 +280,33 @@ export default function CrearCompra({ onClose, onSave }) {
               {form.metodoPago === "transferencia" && (
                 <div className="field-wrap comprobante-wrap">
                   <label className="field-label">Comprobante de transferencia</label>
-                  <label className="comprobante-upload-btn">
-                    <input
-                      type="file"
-                      accept="image/*,application/pdf"
-                      style={{ display: "none" }}
-                      onChange={e => setComprobante(e.target.files?.[0] || null)}
-                    />
-                    <span className="comprobante-upload-icon">📎</span>
-                    {comprobante
-                      ? <span className="comprobante-filename">{comprobante.name}</span>
-                      : <span>Adjuntar comprobante (imagen o PDF)</span>
-                    }
-                  </label>
-                  {comprobante && (
-                    <button type="button" className="comprobante-remove-btn" onClick={() => setComprobante(null)}>
-                      ✕ Quitar archivo
-                    </button>
-                  )}
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <label className="comprobante-upload-btn" style={{ flex: 1 }}>
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        style={{ display: "none" }}
+                        onChange={e => setComprobante(e.target.files?.[0] || null)}
+                      />
+                      <span className="comprobante-upload-icon">📎</span>
+                      {comprobante
+                        ? <span className="comprobante-filename">{comprobante.name}</span>
+                        : <span>Adjuntar comprobante (imagen o PDF)</span>
+                      }
+                    </label>
+                    {comprobante && (
+                      <button
+                        type="button"
+                        onClick={e => { e.preventDefault(); setComprobante(null); }}
+                        style={{ flexShrink: 0, padding: "0 12px", height: 36, borderRadius: 8, border: "1.5px solid #ef5350", background: "#fff", color: "#c62828", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                      >
+                        ✕ Quitar
+                      </button>
+                    )}
+                  </div>
                   <span className="field-hint">Opcional — puedes adjuntarlo ahora o más tarde</span>
                 </div>
               )}
-
-              {/* ── FIX 3: departamento y ciudad — se pasan explícitamente en onSave ── */}
-              <div className="field-grid-2">
-                <div className="field-wrap">
-                  <label className="field-label">Departamento <span className="required">*</span></label>
-                  <div className="select-wrap">
-                    <select
-                      className={`field-select ${errors.departamento ? "error" : ""}`}
-                      value={form.departamento}
-                      onChange={e => {
-                        set("departamento", e.target.value);
-                        set("ciudad", "");
-                      }}
-                    >
-                      <option value="">— Seleccionar —</option>
-                      {DEPARTAMENTOS.map(dept => <option key={dept} value={dept}>{dept}</option>)}
-                    </select>
-                    <span className="select-arrow">▾</span>
-                  </div>
-                  {errors.departamento && <span className="field-error">{errors.departamento}</span>}
-                </div>
-
-                <div className="field-wrap">
-                  <label className="field-label">Ciudad <span className="required">*</span></label>
-                  <div className="select-wrap">
-                    <select
-                      className={`field-select ${errors.ciudad ? "error" : ""}`}
-                      value={form.ciudad}
-                      onChange={e => set("ciudad", e.target.value)}
-                      disabled={!form.departamento}
-                    >
-                      <option value="">— Seleccionar —</option>
-                      {form.departamento && getCiudades(form.departamento).map(city => (
-                        <option key={city} value={city}>{city}</option>
-                      ))}
-                    </select>
-                    <span className="select-arrow">▾</span>
-                  </div>
-                  {errors.ciudad && <span className="field-error">{errors.ciudad}</span>}
-                </div>
-              </div>
 
               <div className="field-wrap">
                 <label className="field-label">Notas</label>
@@ -371,7 +329,9 @@ export default function CrearCompra({ onClose, onSave }) {
                 {errors.detalles && <span className="field-error">{errors.detalles}</span>}
               </div>
 
-              {detalles.map((d, i) => (
+              {detalles.map((d, i) => {
+                const insSelect = insumosActivos.find(ins => String(ins.id) === String(d.idInsumo));
+                return (
                 <div key={d._key} style={{ border: "1px solid #e8e8e8", borderRadius: 10, padding: "10px 12px", marginBottom: 8, background: "#fafafa" }}>
 
                   {/* Línea 1: selector + botón eliminar */}
@@ -394,7 +354,7 @@ export default function CrearCompra({ onClose, onSave }) {
                         {insumosActivos.map(ins => (
                           <option key={ins.id} value={ins.id}
                             disabled={idsSeleccionados.includes(String(ins.id)) && String(ins.id) !== String(d.idInsumo)}>
-                            {ins.nombre}
+                            {ins.nombre}{ins.unidad ? ` (${ins.unidad})` : ""}
                           </option>
                         ))}
                       </select>
@@ -409,7 +369,9 @@ export default function CrearCompra({ onClose, onSave }) {
 
                     {/* Cantidad */}
                     <div>
-                      <label className="field-label" style={{ fontSize: 10 }}>Cantidad</label>
+                      <label className="field-label" style={{ fontSize: 10 }}>
+                        Cantidad{insSelect?.unidad ? ` (${insSelect.unidad})` : ""}
+                      </label>
                       <input
                         type="number"
                         className={`field-input ${errors[`cant_${i}`] ? "error" : ""}`}
@@ -462,7 +424,8 @@ export default function CrearCompra({ onClose, onSave }) {
 
                   </div>
                 </div>
-              ))}
+              );
+              })}
 
               <button className="btn-add-detalle" type="button" onClick={addDetalle} style={{ marginTop: 4 }}>
                 + Agregar insumo

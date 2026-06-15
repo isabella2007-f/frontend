@@ -526,6 +526,12 @@ export default function GestionDevoluciones() {
             )}
           </div>
 
+          {(hasFilter || search) && (
+            <button className="btn-limpiar" onClick={() => { setSearch(""); setFilterEstado("todos"); }}>
+              ✕ Limpiar
+            </button>
+          )}
+
           <button className="btn-agregar" onClick={() => setModal({ type: "crear" })}>
             Nueva devolución <span style={{ fontSize: 18 }}>+</span>
           </button>
@@ -533,7 +539,7 @@ export default function GestionDevoluciones() {
 
         {/* Tabla */}
         <div className="card">
-          <div style={{ overflowX: "auto" }}>
+          <div className="tbl-wrapper">
             <table className="tbl">
               <thead>
                 <tr>

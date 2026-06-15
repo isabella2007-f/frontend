@@ -191,6 +191,12 @@ export default function GestionProveedores() {
             )}
           </div>
 
+          {(filterCiudad !== "todas" || search) && (
+            <button className="btn-limpiar" onClick={() => { setSearch(""); setFilterCiudad("todas"); }}>
+              ✕ Limpiar
+            </button>
+          )}
+
           <button className="btn-agregar" onClick={() => setModal({ mode: "new" })}>
             Agregar <span style={{ fontSize: 18 }}>+</span>
           </button>

@@ -3,19 +3,23 @@ from fastapi import HTTPException
 from datetime import datetime, timedelta
 import uuid
 
-from src.shared.services.models import Empleado, Usuario, Rol, UsuarioXRol, Venta, Domicilio, VerificacionEmail
+from src.shared.services.models import Usuario, Rol, Venta, Domicilio, VerificacionEmail
 from src.features.auth.services.service import (
     hashear_contrasena, _enviar_email_verificacion, RESEND_API_KEY,
 )
-from .schemas import EmpleadoCreate, UsuarioCreate, PersonaUpdate
+from .schemas import EmpleadoCreate, UsuarioCreate, PersonaUpdate, validar_cedula, validar_telefono
 
 
-def _formato_persona(registro, tipo: str, rol_nombre: str = None, id_rol: int = None) -> dict:
-    id_persona = registro.ID_Empleado if tipo == "empleado" else registro.ID_Usuario
+def _tipo_desde_rol(id_rol: int) -> str:
+    return "cliente" if id_rol == 3 else "empleado"
+
+
+def _formato_persona(registro: Usuario, rol_nombre: str = None) -> dict:
+    id_rol = registro.ID_Rol or 0
     return {
-        "id":             id_persona,
+        "id":             registro.ID_Usuario,
         "Cedula":         registro.Cedula,
-        "Tipo_Documento": getattr(registro, "Tipo_Documento", None),
+        "Tipo_Documento": registro.Tipo_Documento,
         "Nombre":         registro.Nombre,
         "Apellidos":      registro.Apellidos,
         "Correo":         registro.Correo,
@@ -23,42 +27,35 @@ def _formato_persona(registro, tipo: str, rol_nombre: str = None, id_rol: int = 
         "Municipio":      registro.Municipio,
         "Departamento":   registro.Departamento,
         "Telefono":       registro.Telefono,
-        "ID_Rol":         id_rol if id_rol is not None else getattr(registro, "ID_Rol", None),
+        "Foto":           registro.Foto_perfil,
+        "ID_Rol":         id_rol,
         "nombre_rol":     rol_nombre,
         "Estado":         registro.Estado,
         "Fecha_creacion": registro.Fecha_creacion,
-        "tipo":           tipo,
+        "tipo":           _tipo_desde_rol(id_rol),
     }
 
 
+def _rol_nombre(db: Session, id_rol: int) -> str | None:
+    if not id_rol:
+        return None
+    rol = db.query(Rol).filter(Rol.ID_Rol == id_rol).first()
+    return rol.Rol if rol else None
+
+
 def obtener_todos(db: Session, pagina: int = 1, por_pagina: int = 10, busqueda: str = None) -> dict:
-    termino = f"%{busqueda}%" if busqueda else None
-
-    q_emp = db.query(Empleado)
-    q_usr = db.query(Usuario)
-
-    if termino:
-        q_emp = q_emp.filter(
-            Empleado.Nombre.ilike(termino) |
-            Empleado.Apellidos.ilike(termino) |
-            Empleado.Correo.ilike(termino) |
-            Empleado.Cedula.ilike(termino)
-        )
-        q_usr = q_usr.filter(
-            Usuario.Nombre.ilike(termino) |
-            Usuario.Apellidos.ilike(termino) |
-            Usuario.Correo.ilike(termino) |
-            Usuario.Cedula.ilike(termino)
+    q = db.query(Usuario)
+    if busqueda:
+        t = f"%{busqueda}%"
+        q = q.filter(
+            Usuario.Nombre.ilike(t) |
+            Usuario.Apellidos.ilike(t) |
+            Usuario.Correo.ilike(t) |
+            Usuario.Cedula.ilike(t)
         )
 
-    resultado = []
-    for emp in q_emp.all():
-        rol = db.query(Rol).filter(Rol.ID_Rol == emp.ID_Rol).first()
-        resultado.append(_formato_persona(emp, "empleado", rol.Rol if rol else None))
-    for cli in q_usr.all():
-        uxr = db.query(UsuarioXRol).filter(UsuarioXRol.ID_Usuario == cli.ID_Usuario).first()
-        rol = db.query(Rol).filter(Rol.ID_Rol == uxr.ID_Rol).first() if uxr else None
-        resultado.append(_formato_persona(cli, "cliente", rol.Rol if rol else None, uxr.ID_Rol if uxr else None))
+    todos = q.all()
+    resultado = [_formato_persona(u, _rol_nombre(db, u.ID_Rol)) for u in todos]
 
     total    = len(resultado)
     offset   = (pagina - 1) * por_pagina
@@ -67,68 +64,31 @@ def obtener_todos(db: Session, pagina: int = 1, por_pagina: int = 10, busqueda: 
     return {"total": total, "pagina": pagina, "por_pagina": por_pagina, "personas": paginado}
 
 
-def obtener_persona(db: Session, id_persona: int, tipo: str) -> dict:
-    if tipo == "empleado":
-        registro = db.query(Empleado).filter(Empleado.ID_Empleado == id_persona).first()
-        rol = db.query(Rol).filter(Rol.ID_Rol == registro.ID_Rol).first() if registro else None
-        return _formato_persona(registro, tipo, rol.Rol if rol else None)
-    else:
-        registro = db.query(Usuario).filter(Usuario.ID_Usuario == id_persona).first()
-        if not registro:
-            raise HTTPException(status_code=404, detail="Persona no encontrada")
-        uxr = db.query(UsuarioXRol).filter(UsuarioXRol.ID_Usuario == id_persona).first()
-        rol = db.query(Rol).filter(Rol.ID_Rol == uxr.ID_Rol).first() if uxr else None
-        return _formato_persona(registro, tipo, rol.Rol if rol else None, uxr.ID_Rol if uxr else None)
+def obtener_persona(db: Session, id_persona: int) -> dict:
+    registro = db.query(Usuario).filter(Usuario.ID_Usuario == id_persona).first()
+    if not registro:
+        raise HTTPException(status_code=404, detail="Persona no encontrada")
+    return _formato_persona(registro, _rol_nombre(db, registro.ID_Rol))
 
 
-def _cedula_en_uso(db: Session, cedula: str, excluir_empleado_id: int = None, excluir_usuario_id: int = None) -> bool:
-    """Verifica si la cédula ya está registrada en Empleados o Usuarios."""
-    q_emp = db.query(Empleado).filter(Empleado.Cedula == cedula)
-    if excluir_empleado_id:
-        q_emp = q_emp.filter(Empleado.ID_Empleado != excluir_empleado_id)
-    if q_emp.first():
-        return True
-
-    q_usr = db.query(Usuario).filter(Usuario.Cedula == cedula)
-    if excluir_usuario_id:
-        q_usr = q_usr.filter(Usuario.ID_Usuario != excluir_usuario_id)
-    return q_usr.first() is not None
+def _cedula_en_uso(db: Session, cedula: str, excluir_id: int = None) -> bool:
+    q = db.query(Usuario).filter(Usuario.Cedula == cedula)
+    if excluir_id:
+        q = q.filter(Usuario.ID_Usuario != excluir_id)
+    return q.first() is not None
 
 
 def crear_empleado(db: Session, datos: EmpleadoCreate) -> dict:
-    if db.query(Empleado).filter(Empleado.Correo == datos.Correo).first():
-        raise HTTPException(status_code=400, detail="Correo ya registrado")
-    if _cedula_en_uso(db, datos.Cedula):
-        raise HTTPException(status_code=400, detail="Cédula ya registrada")
-
-    nuevo = Empleado(
-        Cedula         = datos.Cedula,
-        Tipo_Documento = datos.Tipo_Documento,
-        Nombre         = datos.Nombre,
-        Apellidos      = datos.Apellidos,
-        Correo         = datos.Correo,
-        Direccion      = datos.Direccion,
-        Municipio      = datos.Municipio,
-        Departamento   = datos.Departamento,
-        Telefono       = datos.Telefono,
-        ID_Rol         = datos.ID_Rol,
-        Contrasena     = hashear_contrasena(datos.Contrasena),
-        Fecha_creacion = datetime.now(),
-        Estado         = 1  # admin los crea directamente activos
-    )
-    db.add(nuevo)
-    db.commit()
-    db.refresh(nuevo)
-    return _formato_persona(nuevo, "empleado")
-
-
-def crear_cliente(db: Session, datos: UsuarioCreate) -> dict:
+    error_cedula = validar_cedula(datos.Cedula, datos.Tipo_Documento)
+    if error_cedula:
+        raise HTTPException(status_code=400, detail=error_cedula)
+    error_telefono = validar_telefono(datos.Telefono) if datos.Telefono else None
+    if error_telefono:
+        raise HTTPException(status_code=400, detail=error_telefono)
     if db.query(Usuario).filter(Usuario.Correo == datos.Correo).first():
         raise HTTPException(status_code=400, detail="Correo ya registrado")
     if _cedula_en_uso(db, datos.Cedula):
         raise HTTPException(status_code=400, detail="Cédula ya registrada")
-
-    rol_cliente = db.query(Rol).filter(Rol.Rol == "Cliente").first()
 
     nuevo = Usuario(
         Cedula         = datos.Cedula,
@@ -140,15 +100,51 @@ def crear_cliente(db: Session, datos: UsuarioCreate) -> dict:
         Municipio      = datos.Municipio,
         Departamento   = datos.Departamento,
         Telefono       = datos.Telefono,
+        Foto_perfil    = datos.Foto,
+        ID_Rol         = datos.ID_Rol,
         Contrasena     = hashear_contrasena(datos.Contrasena),
         Fecha_creacion = datetime.now(),
-        Estado         = 2,   # inactivo hasta verificar correo
+        Estado         = 1,
+    )
+    db.add(nuevo)
+    db.commit()
+    db.refresh(nuevo)
+    return _formato_persona(nuevo, _rol_nombre(db, nuevo.ID_Rol))
+
+
+def crear_cliente(db: Session, datos: UsuarioCreate) -> dict:
+    error_cedula = validar_cedula(datos.Cedula, datos.Tipo_Documento)
+    if error_cedula:
+        raise HTTPException(status_code=400, detail=error_cedula)
+    error_telefono = validar_telefono(datos.Telefono) if datos.Telefono else None
+    if error_telefono:
+        raise HTTPException(status_code=400, detail=error_telefono)
+    if db.query(Usuario).filter(Usuario.Correo == datos.Correo).first():
+        raise HTTPException(status_code=400, detail="Correo ya registrado")
+    if _cedula_en_uso(db, datos.Cedula):
+        raise HTTPException(status_code=400, detail="Cédula ya registrada")
+
+    rol_cliente = db.query(Rol).filter(Rol.Rol == "Cliente").first()
+    id_rol      = datos.ID_Rol if datos.ID_Rol else (rol_cliente.ID_Rol if rol_cliente else 3)
+
+    nuevo = Usuario(
+        Cedula         = datos.Cedula,
+        Tipo_Documento = datos.Tipo_Documento,
+        Nombre         = datos.Nombre,
+        Apellidos      = datos.Apellidos,
+        Correo         = datos.Correo,
+        Direccion      = datos.Direccion,
+        Municipio      = datos.Municipio,
+        Departamento   = datos.Departamento,
+        Telefono       = datos.Telefono,
+        Foto_perfil    = datos.Foto,
+        ID_Rol         = id_rol,
+        Contrasena     = hashear_contrasena(datos.Contrasena),
+        Fecha_creacion = datetime.now(),
+        Estado         = 2,
     )
     db.add(nuevo)
     db.flush()
-
-    if rol_cliente:
-        db.add(UsuarioXRol(ID_Rol=rol_cliente.ID_Rol, ID_Usuario=nuevo.ID_Usuario))
 
     token = str(uuid.uuid4())
     db.add(VerificacionEmail(
@@ -162,50 +158,51 @@ def crear_cliente(db: Session, datos: UsuarioCreate) -> dict:
         try:
             _enviar_email_verificacion(datos.Correo, token, datos.Nombre)
         except Exception:
-            pass  # Estado=2 queda; el usuario puede pedir un nuevo enlace
+            pass
     else:
-        nuevo.Estado = 1  # dev local sin RESEND
+        nuevo.Estado = 1
 
     db.commit()
     db.refresh(nuevo)
-    return _formato_persona(nuevo, "cliente")
+    return _formato_persona(nuevo, _rol_nombre(db, nuevo.ID_Rol))
 
 
-def editar_persona(db: Session, id_persona: int, tipo: str, datos: PersonaUpdate) -> dict:
-    if tipo == "empleado":
-        registro = db.query(Empleado).filter(Empleado.ID_Empleado == id_persona).first()
-    else:
-        registro = db.query(Usuario).filter(Usuario.ID_Usuario == id_persona).first()
-
+def editar_persona(db: Session, id_persona: int, datos: PersonaUpdate) -> dict:
+    registro = db.query(Usuario).filter(Usuario.ID_Usuario == id_persona).first()
     if not registro:
         raise HTTPException(status_code=404, detail="Persona no encontrada")
 
     if datos.Cedula and datos.Cedula != registro.Cedula:
-        excluir_emp = id_persona if tipo == "empleado" else None
-        excluir_usr = id_persona if tipo == "cliente" else None
-        if _cedula_en_uso(db, datos.Cedula, excluir_emp, excluir_usr):
+        error_cedula = validar_cedula(datos.Cedula, datos.Tipo_Documento or registro.Tipo_Documento)
+        if error_cedula:
+            raise HTTPException(status_code=400, detail=error_cedula)
+        if _cedula_en_uso(db, datos.Cedula, excluir_id=id_persona):
             raise HTTPException(status_code=400, detail="Cédula ya registrada")
 
+    if datos.Telefono:
+        error_telefono = validar_telefono(datos.Telefono)
+        if error_telefono:
+            raise HTTPException(status_code=400, detail=error_telefono)
+
     for campo, valor in datos.model_dump(exclude_none=True).items():
-        if campo == "ID_Rol" and tipo == "cliente":
-            continue
-        setattr(registro, campo, valor)
+        if campo == "Foto":
+            setattr(registro, "Foto_perfil", valor)
+        elif campo == "Contrasena":
+            registro.Contrasena = hashear_contrasena(valor)
+        else:
+            setattr(registro, campo, valor)
 
     db.commit()
     db.refresh(registro)
-    return _formato_persona(registro, tipo)
+    return _formato_persona(registro, _rol_nombre(db, registro.ID_Rol))
 
 
-def cambiar_estado(db: Session, id_persona: int, tipo: str, nuevo_estado: int) -> dict:
-    if tipo == "empleado":
-        registro = db.query(Empleado).filter(Empleado.ID_Empleado == id_persona).first()
-    else:
-        registro = db.query(Usuario).filter(Usuario.ID_Usuario == id_persona).first()
-
+def cambiar_estado(db: Session, id_persona: int, nuevo_estado: int) -> dict:
+    registro = db.query(Usuario).filter(Usuario.ID_Usuario == id_persona).first()
     if not registro:
         raise HTTPException(status_code=404, detail="Persona no encontrada")
 
-    if tipo == "empleado" and getattr(registro, "ID_Rol", None) == 1:
+    if registro.ID_Rol == 1:
         raise HTTPException(
             status_code=400,
             detail="No se puede desactivar al administrador del sistema.",
@@ -214,19 +211,22 @@ def cambiar_estado(db: Session, id_persona: int, tipo: str, nuevo_estado: int) -
     registro.Estado = nuevo_estado
     db.commit()
     db.refresh(registro)
-    return _formato_persona(registro, tipo)
+    return _formato_persona(registro, _rol_nombre(db, registro.ID_Rol))
 
 
-def eliminar_persona(db: Session, id_persona: int, tipo: str) -> dict:
-    if tipo == "empleado":
-        registro = db.query(Empleado).filter(Empleado.ID_Empleado == id_persona).first()
-        if not registro:
-            raise HTTPException(status_code=404, detail="Persona no encontrada")
-        if getattr(registro, "ID_Rol", None) == 1:
-            raise HTTPException(
-                status_code=400,
-                detail="No se puede eliminar al administrador del sistema.",
-            )
+def eliminar_persona(db: Session, id_persona: int) -> dict:
+    registro = db.query(Usuario).filter(Usuario.ID_Usuario == id_persona).first()
+    if not registro:
+        raise HTTPException(status_code=404, detail="Persona no encontrada")
+
+    if registro.ID_Rol == 1:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede eliminar al administrador del sistema.",
+        )
+
+    # Verificar restricciones según tipo
+    if registro.ID_Rol != 3:
         domicilios = db.query(Domicilio).filter(Domicilio.ID_Empleado == id_persona).count()
         if domicilios > 0:
             raise HTTPException(
@@ -234,9 +234,6 @@ def eliminar_persona(db: Session, id_persona: int, tipo: str) -> dict:
                 detail=f"No se puede eliminar: el empleado tiene {domicilios} domicilio(s) asignado(s).",
             )
     else:
-        registro = db.query(Usuario).filter(Usuario.ID_Usuario == id_persona).first()
-        if not registro:
-            raise HTTPException(status_code=404, detail="Persona no encontrada")
         ventas = db.query(Venta).filter(Venta.ID_Usuario == id_persona).count()
         if ventas > 0:
             raise HTTPException(
@@ -246,4 +243,4 @@ def eliminar_persona(db: Session, id_persona: int, tipo: str) -> dict:
 
     db.delete(registro)
     db.commit()
-    return {"mensaje": f"{tipo.capitalize()} {id_persona} eliminado correctamente"}
+    return {"mensaje": f"Usuario {id_persona} eliminado correctamente"}

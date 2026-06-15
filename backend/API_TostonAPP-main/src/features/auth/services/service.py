@@ -13,14 +13,14 @@ import time
 from collections import defaultdict
 
 from src.shared.services.models import (
-    Usuario, Empleado, Rol, UsuarioXRol, Permiso, RolXPermiso, VerificacionEmail
+    Usuario, Rol, Permiso, RolXPermiso, VerificacionEmail
 )
 
 load_dotenv()
 
 SECRET_KEY   = os.getenv("SECRET_KEY")
 ALGORITHM    = os.getenv("ALGORITHM", "HS256")
-EXPIRE_MIN   = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 480))
+EXPIRE_MIN   = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 1440))
 API_URL      = os.getenv("API_URL", "http://localhost:8000")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
@@ -89,15 +89,11 @@ def validar_reset_token(token: str) -> str:
 # ─────────────────────────────────────────
 
 def buscar_por_correo(db: Session, correo: str):
-    """Busca por correo en Empleados primero, luego en Usuarios."""
-    empleado = db.query(Empleado).filter(Empleado.Correo == correo).first()
-    if empleado:
-        return empleado, "empleado"
-
+    """Busca por correo en la tabla Usuarios (tabla unificada)."""
     usuario = db.query(Usuario).filter(Usuario.Correo == correo).first()
     if usuario:
-        return usuario, "usuario"
-
+        tipo = "cliente" if usuario.ID_Rol == 3 else "empleado"
+        return usuario, tipo
     return None, None
 
 
@@ -130,10 +126,15 @@ def autenticar(db: Session, correo: str, contrasena: str):
         _intentos_login[clave].append(time.time())
         return None, None
 
-    if tipo == "usuario" and getattr(registro, "Estado", None) == 2:
+    if getattr(registro, "Estado", None) == 2:
+        if tipo == "cliente":
+            raise HTTPException(
+                status_code=403,
+                detail="Debes verificar tu correo electrónico antes de iniciar sesión. Revisa tu bandeja de entrada.",
+            )
         raise HTTPException(
             status_code=403,
-            detail="Debes verificar tu correo electrónico antes de iniciar sesión. Revisa tu bandeja de entrada.",
+            detail="Tu cuenta está desactivada. Contacta al administrador.",
         )
 
     # Login exitoso: limpia el historial de intentos
@@ -147,8 +148,8 @@ def autenticar(db: Session, correo: str, contrasena: str):
 
 def registrar_cliente(db: Session, datos) -> None:
     """
-    Crea un nuevo usuario (cliente) con Estado=2 (inactivo hasta verificar correo)
-    y le asigna automáticamente el rol Cliente en Usuario_x_Rol.
+    Crea un nuevo usuario (cliente) con Estado=2 (inactivo hasta verificar correo).
+    Asigna el rol Cliente directamente en la columna ID_Rol.
     Genera un token UUID de verificación y lo envía por email.
     """
     if buscar_por_correo(db, datos.Correo)[0]:
@@ -164,7 +165,8 @@ def registrar_cliente(db: Session, datos) -> None:
         Correo         = datos.Correo,
         Contrasena     = hashear_contrasena(datos.Contrasena),
         Fecha_creacion = datetime.now(),
-        Estado         = 2,  # inactivo hasta verificar email
+        Estado         = 2,
+        ID_Rol         = rol_cliente.ID_Rol,
         Cedula         = None,
         Tipo_Documento = None,
         Direccion      = None,
@@ -174,11 +176,6 @@ def registrar_cliente(db: Session, datos) -> None:
     )
     db.add(nuevo)
     db.flush()
-
-    db.add(UsuarioXRol(
-        ID_Rol     = rol_cliente.ID_Rol,
-        ID_Usuario = nuevo.ID_Usuario,
-    ))
 
     token = str(uuid.uuid4())
     db.add(VerificacionEmail(
@@ -248,18 +245,18 @@ def _enviar_email_verificacion(correo_destino: str, token: str, nombre: str = ""
     _resend_http(correo_destino, "✅ Verifica tu correo — Brom's", html)
 
 
-def crear_token_verificacion_empleado(id_empleado: int) -> str:
-    """Genera un JWT para verificar el email de un empleado (válido 24 h)."""
+def crear_token_verificacion_empleado(id_usuario: int) -> str:
+    """Genera un JWT para verificar el email de un usuario empleado (válido 24 h)."""
     payload = {
-        "id_empleado": id_empleado,
-        "tipo":        "verificar_empleado",
-        "exp":         datetime.utcnow() + timedelta(hours=24),
+        "id_usuario": id_usuario,
+        "tipo":       "verificar_empleado",
+        "exp":        datetime.utcnow() + timedelta(hours=24),
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
 def verificar_token_empleado(db: Session, token: str) -> str:
-    """Valida el JWT y activa al empleado (Estado=1). Retorna URL de redirect."""
+    """Valida el JWT y activa al usuario (Estado=1). Retorna URL de redirect."""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError:
@@ -268,14 +265,14 @@ def verificar_token_empleado(db: Session, token: str) -> str:
     if payload.get("tipo") != "verificar_empleado":
         raise ValueError("Token inválido")
 
-    id_empleado = payload.get("id_empleado")
-    empleado = db.query(Empleado).filter(Empleado.ID_Empleado == id_empleado).first()
-    if not empleado:
-        raise ValueError("Empleado no encontrado")
-    if empleado.Estado == 1:
-        return f"{FRONTEND_URL}/login?verificado=1"  # ya verificado
+    id_usuario = payload.get("id_usuario")
+    usuario = db.query(Usuario).filter(Usuario.ID_Usuario == id_usuario).first()
+    if not usuario:
+        raise ValueError("Usuario no encontrado")
+    if usuario.Estado == 1:
+        return f"{FRONTEND_URL}/login?verificado=1"
 
-    empleado.Estado = 1
+    usuario.Estado = 1
     db.commit()
     return f"{FRONTEND_URL}/login?verificado=1"
 
@@ -486,17 +483,12 @@ def obtener_mis_permisos(db: Session, actual: dict) -> list[str]:
     Admin (ID_Rol=1) recibe todos los permisos existentes sin consultar Rol_x_Permiso.
     """
     registro = actual["registro"]
-    tipo     = actual["tipo"]
+    id_rol   = getattr(registro, "ID_Rol", None)
 
-    if tipo == "empleado":
-        id_rol = registro.ID_Rol
-        if id_rol == 1:
-            return [p.Permiso for p in db.query(Permiso).all()]
-    else:
-        uxr = db.query(UsuarioXRol).filter(UsuarioXRol.ID_Usuario == registro.ID_Usuario).first()
-        if not uxr:
-            return []
-        id_rol = uxr.ID_Rol
+    if not id_rol:
+        return []
+    if id_rol == 1:
+        return [p.Permiso for p in db.query(Permiso).all()]
 
     return [
         p.Permiso

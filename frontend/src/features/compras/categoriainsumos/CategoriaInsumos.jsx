@@ -269,13 +269,19 @@ export default function CategoriaInsumos() {
             )}
           </div>
 
+          {(filter !== "todos" || search) && (
+            <button className="btn-limpiar" onClick={() => { setSearch(""); setFilter("todos"); }}>
+              ✕ Limpiar
+            </button>
+          )}
+
           <button className="btn-agregar" onClick={() => setModal({ type: "crear" })}>
             Agregar <span style={{ fontSize: 18 }}>+</span>
           </button>
         </div>
 
         <div className="card">
-          <div style={{ overflowX: "auto" }}>
+          <div className="tbl-wrapper">
             <table className="tbl">
               <thead>
                 <tr>
@@ -283,7 +289,7 @@ export default function CategoriaInsumos() {
                   <th>Categoría</th>
                   <th>Descripción</th>
                   <th>Estado</th>
-                  <th>Fecha</th>
+                  <th>Fecha de creación</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
@@ -338,6 +344,7 @@ export default function CategoriaInsumos() {
           </div>
 
           <div className="pagination-bar">
+
             <span className="pagination-count">
               {filtered.length} {filtered.length === 1 ? "categoría" : "categorías"} en total
             </span>

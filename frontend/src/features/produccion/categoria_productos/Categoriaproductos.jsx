@@ -394,13 +394,19 @@ export default function CategoriaProductos() {
               </div>
             )}
           </div>
+          {(filter !== "todos" || search) && (
+            <button className="btn-limpiar" onClick={() => { setSearch(""); setFilter("todos"); }}>
+              ✕ Limpiar
+            </button>
+          )}
+
           <button className="btn-agregar" onClick={() => setModal({ type: "crear" })}>
             Agregar <span style={{ fontSize: 18 }}>+</span>
           </button>
         </div>
 
         <div className="card">
-          <div style={{ overflowX: "auto" }}>
+          <div className="tbl-wrapper">
             <table className="tbl">
               <thead>
                 <tr>

@@ -3,10 +3,10 @@ from typing import Optional
 from datetime import datetime
 
 
-# ── Crear empleado ──
+# ── Crear empleado (cualquier rol no-cliente) ──
 class EmpleadoCreate(BaseModel):
-    Cedula:         str             # ya no es PK, es campo normal
-    Tipo_Documento: str             # CC, CE, NIT, etc.
+    Cedula:         str
+    Tipo_Documento: str
     Nombre:         str
     Apellidos:      str
     Correo:         EmailStr
@@ -15,6 +15,7 @@ class EmpleadoCreate(BaseModel):
     Municipio:      Optional[str] = None
     Departamento:   Optional[str] = None
     Telefono:       Optional[str] = None
+    Foto:           Optional[str] = None
     ID_Rol:         int
 
 
@@ -30,9 +31,11 @@ class UsuarioCreate(BaseModel):
     Municipio:      Optional[str] = None
     Departamento:   Optional[str] = None
     Telefono:       Optional[str] = None
+    Foto:           Optional[str] = None
+    ID_Rol:         Optional[int] = None  # por defecto rol Cliente
 
 
-# ── Editar (aplica para ambos) ──
+# ── Editar (aplica para todos) ──
 class PersonaUpdate(BaseModel):
     Cedula:         Optional[str]       = None
     Tipo_Documento: Optional[str]       = None
@@ -43,7 +46,9 @@ class PersonaUpdate(BaseModel):
     Municipio:      Optional[str]       = None
     Departamento:   Optional[str]       = None
     Telefono:       Optional[str]       = None
-    ID_Rol:         Optional[int]       = None  # solo empleados
+    Foto:           Optional[str]       = None
+    Contrasena:     Optional[str]       = None
+    ID_Rol:         Optional[int]       = None
 
 
 # ── Cambiar estado ON/OFF ──
@@ -53,7 +58,7 @@ class PersonaEstado(BaseModel):
 
 # ── Respuesta unificada ──
 class PersonaResponse(BaseModel):
-    id:             int             # ID_Usuario o ID_Empleado
+    id:             int             # ID_Usuario
     Cedula:         Optional[str]   = None
     Tipo_Documento: Optional[str]   = None
     Nombre:         str
@@ -63,6 +68,7 @@ class PersonaResponse(BaseModel):
     Municipio:      Optional[str]   = None
     Departamento:   Optional[str]   = None
     Telefono:       Optional[str]   = None
+    Foto:           Optional[str]   = None
     ID_Rol:         Optional[int]   = None
     nombre_rol:     Optional[str]   = None
     Estado:         Optional[int]   = None

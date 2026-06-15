@@ -7,7 +7,33 @@ import { PrivilegiosProvider } from "./context/PrivilegiosContext.jsx";
 import { getUser } from "./services/authService.js";
 import { getInsumos } from "./services/insumosService.js";
 import { getCompras } from "./services/comprasService.js";
+import { updateActivity, isInactive, clearSession } from "./utils/api.js";
 import "./shared/index.css";
+
+function InactivityGuard({ children }) {
+  useEffect(() => {
+    const update = () => updateActivity();
+    ["click", "keydown", "mousemove", "touchstart", "scroll"].forEach(ev =>
+      document.addEventListener(ev, update, { passive: true })
+    );
+
+    const interval = setInterval(() => {
+      if (localStorage.getItem("token") && isInactive()) {
+        clearSession();
+        window.location.href = "/login";
+      }
+    }, 60_000);
+
+    return () => {
+      ["click", "keydown", "mousemove", "touchstart", "scroll"].forEach(ev =>
+        document.removeEventListener(ev, update)
+      );
+      clearInterval(interval);
+    };
+  }, []);
+
+  return children;
+}
 
 // Carga datos reales de la API para alimentar las notificaciones automáticas.
 // Solo carga si hay sesión de empleado/admin activa.
@@ -85,9 +111,11 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <PrivilegiosProvider>
       <AppProvider>
-        <NotificacionesWrapper>
-          <AppRouter />
-        </NotificacionesWrapper>
+        <InactivityGuard>
+          <NotificacionesWrapper>
+            <AppRouter />
+          </NotificacionesWrapper>
+        </InactivityGuard>
       </AppProvider>
     </PrivilegiosProvider>
   </React.StrictMode>

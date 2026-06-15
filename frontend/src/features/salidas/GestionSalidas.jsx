@@ -494,6 +494,12 @@ function HistorialSalidas({ salidas, loading, onAgregarClick, cargarSalidas }) {
             </div>
           )}
         </div>
+        {(filtroTipo !== "todos" || filtroEntidad !== "todos" || busqueda) && (
+          <button className="btn-limpiar" onClick={() => { setBusqueda(""); setFiltroTipo("todos"); setFiltroEntidad("todos"); }}>
+            ✕ Limpiar
+          </button>
+        )}
+
         <button className="btn-agregar" onClick={onAgregarClick}>
           Registrar Salida <span style={{ fontSize: 18 }}>+</span>
         </button>
