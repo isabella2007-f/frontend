@@ -236,8 +236,6 @@ def asignar_repartidor(db: Session, id_domicilio: int, id_empleado: int) -> dict
     Asigna un repartidor al domicilio.
     Si estaba Pendiente, cambia automáticamente a Asignado.
     """
-    import traceback
-
     dom = db.query(Domicilio).filter(Domicilio.ID_Domicilio == id_domicilio).first()
     if not dom:
         raise HTTPException(status_code=404, detail="Domicilio no encontrado")
@@ -245,13 +243,15 @@ def asignar_repartidor(db: Session, id_domicilio: int, id_empleado: int) -> dict
     if not db.query(Usuario).filter(Usuario.ID_Usuario == id_empleado).first():
         raise HTTPException(status_code=404, detail="Repartidor no encontrado")
 
-    ESTADO_PENDIENTE = 3   # Pendiente
-    ESTADO_ASIGNADO  = 10  # Asignado
+    ESTADO_PENDIENTE = 3
+
+    # Busca el estado 'Asignado' por nombre para no depender de un ID hardcodeado
+    estado_asignado = db.query(Estado).filter(Estado.Estado.ilike("asignado")).first()
 
     try:
         dom.ID_Empleado = id_empleado
-        if dom.Estado == ESTADO_PENDIENTE:
-            dom.Estado = ESTADO_ASIGNADO
+        if dom.Estado == ESTADO_PENDIENTE and estado_asignado:
+            dom.Estado = estado_asignado.ID_Estados
         db.commit()
     except Exception as e:
         db.rollback()
