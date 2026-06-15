@@ -293,22 +293,29 @@ def enviar_mensaje(
 
 
 def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observaciones: str = None) -> dict:
-    # La app móvil envía: 1=Pendiente, 3=EnCamino, 4=Entregado, 5=Cancelado
-    ESTADO_ENTREGADO = 4
-    ESTADOS_PROPAGAR = {3, 4, 5}  # EnCamino, Entregado, Cancelado → sincronizar con la Venta
+    # La app móvil envía su propio numerado: 3=EnCamino, 4=Entregado, 5=Cancelado
+    # La Venta.Estado usa IDs de la tabla global Estados:
+    #   4=Confirmado, 9=EnCamino, 8=Entregado, 5=Cancelado
+    FLUTTER_TO_VENTA = {
+        3: 9,   # Flutter "en camino"  → DB Estado ID 9 "En Camino"
+        4: 8,   # Flutter "entregado"  → DB Estado ID 8 "Entregado"
+        5: 5,   # Flutter "cancelado"  → DB Estado ID 5 "Cancelado"
+    }
+    ESTADO_ENTREGADO_FLUTTER = 4
+    ESTADOS_PROPAGAR = {3, 4, 5}
 
     dom = db.query(Domicilio).filter(Domicilio.ID_Domicilio == id_domicilio).first()
     if not dom:
         raise HTTPException(status_code=404, detail="Domicilio no encontrado")
 
-    if nuevo_estado == ESTADO_ENTREGADO:
+    if nuevo_estado == ESTADO_ENTREGADO_FLUTTER:
         dom.Fecha_entrega = datetime.now()
 
-    # Propagar el estado del domicilio a la venta asociada
+    # Propagar a la Venta usando el ID correcto de la tabla global Estados
     if nuevo_estado in ESTADOS_PROPAGAR and dom.ID_Venta:
         venta = db.query(Venta).filter(Venta.ID_Venta == dom.ID_Venta).first()
         if venta:
-            venta.Estado = nuevo_estado
+            venta.Estado = FLUTTER_TO_VENTA.get(nuevo_estado, nuevo_estado)
 
     dom.Estado = nuevo_estado
 
