@@ -24,7 +24,7 @@ def mis_devoluciones(
     actual:     dict    = Depends(obtener_usuario_actual),
 ):
     """Retorna solo las devoluciones del cliente autenticado."""
-    if actual["tipo"] != "usuario":
+    if actual["tipo"] != "cliente":
         from fastapi import HTTPException
         raise HTTPException(status_code=403, detail="Solo disponible para clientes")
     id_usuario = actual["registro"].ID_Usuario
@@ -65,7 +65,7 @@ def registrar_devolucion(
     - Clientes: solo pueden devolver sus propias ventas.
     - Empleados/Admin con permiso: pueden registrar para cualquier cliente.
     """
-    if actual["tipo"] == "usuario":
+    if actual["tipo"] == "cliente":
         # Validar que el cliente solo devuelva sus propias ventas
         from src.shared.services.models import Venta
         from fastapi import HTTPException as _HTTPException

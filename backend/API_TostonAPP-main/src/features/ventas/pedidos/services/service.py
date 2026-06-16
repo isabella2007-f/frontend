@@ -160,7 +160,7 @@ def cancelar_pedido(db: Session, id_venta: int, actual: dict = None) -> dict:
         )
 
     # Clientes solo pueden cancelar sus propios pedidos
-    if actual and actual.get("tipo") == "usuario":
+    if actual and actual.get("tipo") == "cliente":
         id_usuario = actual["registro"].ID_Usuario
         if pedido.ID_Usuario != id_usuario:
             raise HTTPException(status_code=403, detail="No puedes cancelar pedidos de otros clientes")

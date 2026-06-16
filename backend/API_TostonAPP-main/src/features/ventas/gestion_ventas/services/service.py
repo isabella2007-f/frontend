@@ -233,7 +233,7 @@ def obtener_mis_ventas(
     por_pagina: int = 10,
 ) -> dict:
     """Retorna todas las ventas del cliente autenticado (cualquier estado)."""
-    if actual["tipo"] != "usuario":
+    if actual["tipo"] != "cliente":
         raise HTTPException(status_code=403, detail="Solo disponible para clientes")
 
     id_usuario = actual["registro"].ID_Usuario
@@ -259,7 +259,7 @@ def obtener_venta(db: Session, id_venta: int) -> dict:
 
 def obtener_mi_venta(db: Session, id_venta: int, actual: dict) -> dict:
     """Detalle de una venta propia del cliente autenticado."""
-    if actual["tipo"] != "usuario":
+    if actual["tipo"] != "cliente":
         raise HTTPException(status_code=403, detail="Solo disponible para clientes")
     id_usuario = actual["registro"].ID_Usuario
     venta = db.query(Venta).filter(
@@ -519,7 +519,8 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
 
 def obtener_mi_credito(db: Session, usuario_actual: dict) -> dict:
     """Retorna el saldo de crédito disponible del cliente autenticado."""
-    id_usuario = usuario_actual.get("id") or usuario_actual.get("ID_Usuario")
+    registro   = usuario_actual.get("registro")
+    id_usuario = registro.ID_Usuario if registro else None
     credito = db.query(CreditoCliente).filter(
         CreditoCliente.ID_Usuario == id_usuario
     ).first()
