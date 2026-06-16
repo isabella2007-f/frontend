@@ -11,6 +11,9 @@ from src.shared.services.models import (
 from src.shared.services.notificaciones_utils import notificar, descartar_notificacion, notificar_stock_producto
 from .schemas import VentaCreate, DomicilioVentaInput
 
+# Costo fijo de domicilio (COP)
+COSTO_DOMICILIO = Decimal("5000")
+
 
 def _label_estado(db: Session, id_estado: int) -> str:
     estado = db.query(Estado).filter(Estado.ID_Estados == id_estado).first()
@@ -400,6 +403,10 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
         monto_restante -= descuento_aplicado
 
     nueva_venta.Total = max(monto_restante, Decimal("0"))
+
+    # Costo fijo de domicilio: se suma al total cuando el pedido es a domicilio
+    if datos.domicilio:
+        nueva_venta.Total += COSTO_DOMICILIO
 
     db.add(DetalleVenta(
         ID_Venta    = nueva_venta.ID_Venta,
