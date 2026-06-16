@@ -13,11 +13,12 @@ class DevolucionDetalleInput(BaseModel):
 
 # ── Crear devolución (manual o desde venta) ──
 class DevolucionCreate(BaseModel):
-    ID_Venta:        int
-    ID_Usuario:      int                             # cliente que devuelve
-    ID_DetalleVenta: Optional[int] = None           # nullable
-    Motivo:          str
-    productos:       list[DevolucionDetalleInput]    # productos a devolver
+    ID_Venta:           int
+    ID_Usuario:         int                          # cliente que devuelve
+    ID_DetalleVenta:    Optional[int] = None         # nullable
+    Motivo:             str
+    Comprobante_Imagen: Optional[str] = None         # evidencia fotográfica (base64), opcional
+    productos:          list[DevolucionDetalleInput] # productos a devolver
 
 
 # ── Editar devolución pendiente (admin) ──
@@ -67,6 +68,7 @@ class DevolucionResponse(BaseModel):
     FechaReembolso:  Optional[datetime] = None
     UsuarioAprueba:  Optional[bool]     = None
     Comentario:      Optional[str]      = None
+    Comprobante_Imagen: Optional[str]   = None
     productos:       list[DevolucionDetalleResponse] = []
 
     class Config:

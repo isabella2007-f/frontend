@@ -26,7 +26,9 @@ def _formato_cliente(cliente: Usuario) -> dict:
 
 
 def obtener_clientes(db: Session, pagina: int = 1, por_pagina: int = 10, busqueda: str = None) -> dict:
-    query = db.query(Usuario)
+    # Solo usuarios con rol Cliente (ID_Rol=3). Excluye admins, empleados y domiciliarios.
+    ROL_CLIENTE = 3
+    query = db.query(Usuario).filter(Usuario.ID_Rol == ROL_CLIENTE)
 
     if busqueda:
         termino = f"%{busqueda}%"

@@ -432,6 +432,7 @@ class Devolucion(Base):
     FechaReembolso  = Column(DateTime)
     UsuarioAprueba  = Column(Boolean)
     Comentario      = Column(Text)
+    Comprobante_Imagen = Column(Text)   # evidencia fotográfica (base64), opcional
 
     venta         = relationship("Venta", back_populates="devoluciones")
     usuario       = relationship("Usuario", back_populates="devoluciones")

@@ -58,6 +58,7 @@ def _formato_devolucion(dev: Devolucion, db: Session) -> dict:
         "FechaReembolso":  dev.FechaReembolso,
         "UsuarioAprueba":  dev.UsuarioAprueba,
         "Comentario":      dev.Comentario,
+        "Comprobante_Imagen": dev.Comprobante_Imagen,
         "productos":       productos,
     }
 
@@ -230,13 +231,14 @@ def crear_devolucion(db: Session, datos: DevolucionCreate) -> dict:
     )
 
     nueva = Devolucion(
-        ID_Venta        = datos.ID_Venta,
-        ID_Usuario      = datos.ID_Usuario,
-        ID_DetalleVenta = datos.ID_DetalleVenta,
-        Motivo          = datos.Motivo,
-        Estado          = ESTADO_PENDIENTE,
-        TotalDevuelto   = total,
-        FechaDevolucion = datetime.now(),
+        ID_Venta           = datos.ID_Venta,
+        ID_Usuario         = datos.ID_Usuario,
+        ID_DetalleVenta    = datos.ID_DetalleVenta,
+        Motivo             = datos.Motivo,
+        Comprobante_Imagen = datos.Comprobante_Imagen,
+        Estado             = ESTADO_PENDIENTE,
+        TotalDevuelto      = total,
+        FechaDevolucion    = datetime.now(),
     )
     db.add(nueva)
     db.flush()
