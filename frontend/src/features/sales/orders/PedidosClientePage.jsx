@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getPedidos, getMisVentas } from '../../../services/pedidosService';
 import { fmtFecha } from '../../../utils/dateUtils.js';
 import { getCurrentUser } from '../../client/profile/services/profileService.js';
+import { descargarFacturaPedido } from '../../../utils/facturaGenerator.js';
 import {
   Package, Calendar, MapPin, DollarSign, Leaf, Search,
   ChevronRight, Clock, CheckCircle2, Truck, AlertCircle,
@@ -469,6 +470,13 @@ const PedidosClientePage = () => {
             {/* Footer */}
             <div className="modal-footer">
               <button className="btn-ghost" onClick={() => setSelectedPedido(null)}>Cerrar</button>
+              <button
+                className="btn-cancel"
+                style={{ background: '#f1f8f1', color: '#2e7d32', border: '1.5px solid #c8e6c9' }}
+                onClick={() => descargarFacturaPedido(selectedPedido, user)}
+              >
+                📄 Descargar factura
+              </button>
               {selectedPedido.domicilio && selectedPedido.id_domicilio &&
                !['Entregado', 'Cancelado'].includes(selectedPedido.estado) && (
                 <button

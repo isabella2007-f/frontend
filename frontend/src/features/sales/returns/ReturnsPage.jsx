@@ -66,10 +66,8 @@ const ReturnsPage = () => {
     setShowModal(true);
   };
 
-  // Filtrar pedidos "Entregado" del cliente actual
-  const deliveredOrders = user
-    ? pedidos.filter(p => p.idCliente === user.cedula && p.estado === 'Entregado')
-    : [];
+  // pedidos ya viene filtrado por usuario; solo filtramos por estado
+  const deliveredOrders = pedidos.filter(p => p.estado === 'Entregado');
 
   return (
     <div className="toston-page min-h-screen bg-gray-50/30 pb-20">

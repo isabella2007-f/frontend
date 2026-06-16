@@ -10,18 +10,20 @@ const fmt = (n) =>
 const ESTADO_INFO = {
   "Pendiente":   { color: "#f9a825", bg: "#fff8e1", border: "#ffe082", icon: "⏳" },
   "Asignado":    { color: "#1565c0", bg: "#e3f2fd", border: "#90caf9", icon: "📦" },
+  "Confirmado":  { color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7", icon: "✅" },
   "En proceso":  { color: "#e65100", bg: "#fff3e0", border: "#ffcc80", icon: "🏠" },
   "En camino":   { color: "#8e24aa", bg: "#f3e5f5", border: "#ce93d8", icon: "🛵" },
   "Entregado":   { color: "#009688", bg: "#e0f2f1", border: "#80cbc4", icon: "✅" },
   "Cancelado":   { color: "#c62828", bg: "#ffebee", border: "#ef9a9a", icon: "❌" },
 };
 
-// Flujo: Asignado → En proceso (llegué al local) → En camino → Entregado
+// Flujo: Asignado/Confirmado → En proceso (llegué al local) → En camino → Entregado
 const PROXIMOS_ESTADOS = {
-  "Pendiente":  [{ valor: 13, label: "Llegué al local", icon: "🏠" }],
-  "Asignado":   [{ valor: 13, label: "Llegué al local", icon: "🏠" }],
-  "En proceso": [{ valor: 9,  label: "Iniciar entrega",  icon: "🛵" }],
-  "En camino":  [{ valor: 8,  label: "Entregado",        icon: "✅" }, { valor: 5, label: "Cancelado", icon: "❌" }],
+  "Pendiente":   [{ valor: 13, label: "Llegué al local", icon: "🏠" }],
+  "Asignado":    [{ valor: 13, label: "Llegué al local", icon: "🏠" }],
+  "Confirmado":  [{ valor: 13, label: "Llegué al local", icon: "🏠" }],
+  "En proceso":  [{ valor: 9,  label: "Iniciar entrega",  icon: "🛵" }],
+  "En camino":   [{ valor: 8,  label: "Entregado",        icon: "✅" }, { valor: 5, label: "Cancelado", icon: "❌" }],
 };
 
 function Toast({ toast }) {

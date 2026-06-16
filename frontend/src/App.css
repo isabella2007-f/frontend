@@ -150,7 +150,7 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; }
 .modal-body {
   flex: 1 !important;
   min-height: 0 !important;
-  overflow: hidden !important;
+  overflow-y: auto !important;
   overflow-x: hidden !important;
 }
 
@@ -158,12 +158,15 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; }
   flex-shrink: 0 !important;
 }
 
-/* Eliminado el scroll interno de modales para que el contenido se procese con pasos o diseño más amplio */
 .modal-body::-webkit-scrollbar {
-  width: 0;
+  width: 5px;
+}
+
+.modal-body::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .modal-body::-webkit-scrollbar-thumb {
-  background: transparent;
+  background: #c8e6c9;
   border-radius: 999px;
 }

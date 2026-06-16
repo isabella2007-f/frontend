@@ -37,7 +37,7 @@ const OrdersPage = () => {
         publicado:   !!p.Publicado,
         imagen:      p.Imagen      || p.imagen      || null,
       }));
-      setProductos(lista.filter(p => p.publicado && p.stock > 0));
+      setProductos(lista.filter(p => p.publicado));
     }).catch(() => {});
     getCategorias({ porPagina: 100 }).then(data => {
       const lista = (data.categorias || data || []).map(c => ({

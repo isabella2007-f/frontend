@@ -138,7 +138,7 @@ const AppRouter = () => {
         </Route>
 
         {/* ───────────── CLIENTE ───────────── */}
-        <Route element={<ProtectedRoute allowedRoles={["usuario"]} />}>
+        <Route element={<ProtectedRoute allowedRoles={["cliente"]} />}>
           <Route path="/cliente" element={<MainLayout />}>
 
             <Route index                  element={<LandingPage hideNavbar={true} />} />

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { deliveryService } from './services/deliveryService';
+import { descargarFacturaEntrega } from '../../../utils/facturaGenerator.js';
 import DeliveryStatus   from './components/DeliveryStatus';
 import DeliveryDetails  from './components/DeliveryDetails';
 import DeliveryTimeline from './components/DeliveryTimeline';
@@ -38,27 +39,7 @@ const DeliveryPage = () => {
 
   const handleDownloadReceipt = () => {
     if (!order) return;
-    const content = `
-========================================
-    TOSTÓN APP — COMPROBANTE DE PAGO
-========================================
-Número de Pedido : ${order.id}
-Fecha            : ${order.date}
-Descargado       : ${new Date().toLocaleString()}
-----------------------------------------
-Productos:
-${order.items.map(i => `  - ${i.name} (x${i.quantity}): $${(i.price * i.quantity).toLocaleString()}`).join('\n')}
-----------------------------------------
-TOTAL            : $${order.total.toLocaleString()}
-========================================
-     ¡Gracias por preferir Tostón App!
-========================================`;
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url; a.download = `Comprobante_${order.id}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    descargarFacturaEntrega(order);
   };
 
   if (loading) return (

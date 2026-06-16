@@ -8,6 +8,7 @@ interface ProductCardProps {
     nombre: string;
     descripcion?: string;
     precio: number;
+    stock: number;
     imagenPreview: string | null;
   };
   onAddToCart: (product: any) => void;
@@ -50,10 +51,17 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
 
         {/* Availability Badge */}
         <div className="absolute top-4 left-4">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs font-bold shadow-lg border border-emerald-400/50">
-            <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-            Disponible
-          </div>
+          {product.stock > 0 ? (
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs font-bold shadow-lg border border-emerald-400/50">
+              <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+              Disponible
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-bold shadow-lg border border-amber-400/50">
+              <span className="w-2 h-2 rounded-full bg-white" />
+              Bajo pedido
+            </div>
+          )}
         </div>
       </div>
 

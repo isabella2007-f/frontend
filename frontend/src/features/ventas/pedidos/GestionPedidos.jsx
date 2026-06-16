@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { fmtFecha } from "../../../utils/dateUtils.js";
+import { descargarFacturaPedido } from "../../../utils/facturaGenerator.js";
 import { getPedidos, confirmarPedido, cancelarPedido, crearPedido, editarPedido, eliminarPedido } from "../../../services/pedidosService.js";
 import { getUsuarios } from "../../../services/usuariosService.js";
 import CrearPedido from "./CrearPedido.jsx";
@@ -369,6 +370,13 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit }) {
         {/* Footer */}
         <div className="modal-footer">
           <button className="btn-ghost" onClick={onClose}>Cerrar</button>
+          <button
+            className="btn-cancel"
+            style={{ background: '#f1f8f1', color: '#2e7d32', border: '1.5px solid #c8e6c9' }}
+            onClick={() => descargarFacturaPedido(pedido, pedido.cliente)}
+          >
+            📄 Descargar factura
+          </button>
           {!["Entregado", "Cancelado"].includes(pedido.estado) && (
             <button className="btn-save" onClick={() => { onClose(); onEdit(pedido); }}>✎ Editar Pedido</button>
           )}
