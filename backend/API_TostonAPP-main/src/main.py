@@ -91,6 +91,9 @@ def migrate_db():
             )""",
             "INSERT IGNORE INTO Estados (ID_Estados, Codigo, Estado) VALUES (10, 10, 'Asignado')",
             "ALTER TABLE Devoluciones ADD COLUMN Comprobante_Imagen LONGTEXT NULL",
+            # Columna agregada al modelo Venta; sin esta migración todo SELECT a
+            # Ventas falla con 500 (mis-ventas, crear-venta, etc.)
+            "ALTER TABLE Ventas ADD COLUMN Fecha_entrega_esperada DATETIME NULL",
             # Activa los clientes que quedaron bloqueados en Estado=2 (verificación
             # de correo) antes de eliminar el bloqueo de registro. ID_Rol=3 = Cliente.
             "UPDATE Usuarios SET Estado = 1 WHERE Estado = 2 AND ID_Rol = 3",
