@@ -74,9 +74,19 @@ def login(datos: LoginInput, db: Session = Depends(get_db)):
 
 @router.post("/registro", response_model=RegistroResponse, status_code=201)
 def registro_cliente(datos: RegistroInput, db: Session = Depends(get_db)):
-    registrar_cliente(db, datos)
+    nuevo      = registrar_cliente(db, datos)
+    nombre_rol = obtener_nombre_rol(db, nuevo.ID_Rol) if nuevo.ID_Rol else None
+    token      = crear_token({"id": nuevo.ID_Usuario, "tipo": "cliente", "rol": nombre_rol})
+
     return RegistroResponse(
-        mensaje="Registro exitoso. Revisa tu correo electrónico para verificar tu cuenta antes de iniciar sesión."
+        mensaje="Registro exitoso. Tu cuenta ya está activa.",
+        access_token = token,
+        token_type   = "bearer",
+        tipo         = "cliente",
+        cedula       = nuevo.ID_Usuario,
+        nombre       = nuevo.Nombre,
+        apellidos    = nuevo.Apellidos,
+        rol          = nombre_rol,
     )
 
 

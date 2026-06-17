@@ -91,6 +91,9 @@ def migrate_db():
             )""",
             "INSERT IGNORE INTO Estados (ID_Estados, Codigo, Estado) VALUES (10, 10, 'Asignado')",
             "ALTER TABLE Devoluciones ADD COLUMN Comprobante_Imagen LONGTEXT NULL",
+            # Activa los clientes que quedaron bloqueados en Estado=2 (verificación
+            # de correo) antes de eliminar el bloqueo de registro. ID_Rol=3 = Cliente.
+            "UPDATE Usuarios SET Estado = 1 WHERE Estado = 2 AND ID_Rol = 3",
         ]:
             try:
                 conn.execute(text(stmt))

@@ -118,7 +118,15 @@ class FotoUrlInput(BaseModel):
 
 # ── Registro (respuesta simple — token se da después de verificar email) ──
 class RegistroResponse(BaseModel):
-    mensaje: str
+    mensaje:      str
+    # El registro deja la sesión iniciada: devuelve token + datos del cliente
+    access_token: Optional[str] = None
+    token_type:   str = "bearer"
+    tipo:         Optional[str] = None
+    cedula:       Optional[int] = None
+    nombre:       Optional[str] = None
+    apellidos:    Optional[str] = None
+    rol:          Optional[str] = None
 
 
 # ── Reenviar verificación ──

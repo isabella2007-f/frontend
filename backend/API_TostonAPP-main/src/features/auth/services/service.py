@@ -150,11 +150,14 @@ def autenticar(db: Session, correo: str, contrasena: str):
 # REGISTRO
 # ─────────────────────────────────────────
 
-def registrar_cliente(db: Session, datos) -> None:
+def registrar_cliente(db: Session, datos):
     """
-    Crea un nuevo usuario (cliente) con Estado=2 (inactivo hasta verificar correo).
+    Crea un nuevo usuario (cliente) ACTIVO (Estado=1) para que pueda usar la
+    cuenta de inmediato (crear pedidos, ver su panel) sin esperar la verificación
+    de correo. Igualmente se le envía el email de verificación si hay proveedor
+    configurado, pero ya no bloquea el acceso.
     Asigna el rol Cliente directamente en la columna ID_Rol.
-    Genera un token UUID de verificación y lo envía por email.
+    Devuelve el Usuario creado para que el router pueda iniciar la sesión.
     """
     if buscar_por_correo(db, datos.Correo)[0]:
         raise HTTPException(status_code=400, detail="El correo ya está registrado")
@@ -169,7 +172,7 @@ def registrar_cliente(db: Session, datos) -> None:
         Correo         = datos.Correo,
         Contrasena     = hashear_contrasena(datos.Contrasena),
         Fecha_creacion = datetime.now(),
-        Estado         = 2,
+        Estado         = 1,  # activo de inmediato: el cliente puede usar la cuenta
         ID_Rol         = rol_cliente.ID_Rol,
         Cedula         = None,
         Tipo_Documento = None,
@@ -193,11 +196,11 @@ def registrar_cliente(db: Session, datos) -> None:
         try:
             _enviar_email_verificacion(datos.Correo, token, datos.Nombre)
         except Exception:
-            pass  # Estado=2 queda igual; el usuario puede pedir un nuevo enlace
-    else:
-        nuevo.Estado = 1  # solo en dev local sin proveedor configurado
+            pass  # el correo es informativo; la cuenta ya está activa
 
     db.commit()
+    db.refresh(nuevo)
+    return nuevo
 
 
 # ─────────────────────────────────────────
