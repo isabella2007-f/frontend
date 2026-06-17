@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+﻿import { useRef, useEffect, useState } from "react";
 import {
   getUsuarios,
   crearCliente as crearClienteAPI,
@@ -11,7 +11,7 @@ import { ModalVerCliente, ModalEditarCliente } from "./EditarCliente.jsx";
 import ModalEliminarValidado from "../../../ModalEliminarValidado";
 import "./clientes.css";
 
-const ITEMS_PER_PAGE = 4;
+const ITEMS_PER_PAGE = 8;
 
 function Toggle({ value, onChange }) {
   return (
@@ -29,7 +29,7 @@ function Toast({ toast }) {
   if (!toast) return null;
   return (
     <div className="toast" style={{ background: toast.type === "success" ? "#2e7d32" : "#c62828" }}>
-      <span style={{ fontSize: 15 }}>{toast.type === "success" ? "✓" : "✕"}</span>
+      <span style={{ fontSize: 15 }}>{toast.type === "success" ? "âœ“" : "âœ•"}</span>
       {toast.message}
     </div>
   );
@@ -146,21 +146,21 @@ export default function GestionClientes() {
   return (
     <div className="page-wrapper">
       <div className="page-header">
-        <h1 className="page-header__title">Gestión de Clientes</h1>
+        <h1 className="page-header__title">GestiÃ³n de Clientes</h1>
         <div className="page-header__line" />
       </div>
 
       <div className="page-inner">
         <div className="toolbar">
           <div className="search-wrap">
-            <span className="search-icon">🔍</span>
+            <span className="search-icon">ðŸ”</span>
             <input type="text" className="search-input"
-              placeholder="Buscar por nombre, correo, ciudad o documento…"
+              placeholder="Buscar por nombre, correo, ciudad o documentoâ€¦"
               value={search} onChange={e => setSearch(e.target.value)} />
           </div>
           <div ref={filterRef} style={{ position: "relative" }}>
             <button className={"filter-icon-btn" + (filter !== "todos" ? " has-filter" : "")}
-              onClick={() => setShowFilter(v => !v)}>▼</button>
+              onClick={() => setShowFilter(v => !v)}>â–¼</button>
             {showFilter && (
               <div className="filter-dropdown">
                 {[
@@ -178,7 +178,7 @@ export default function GestionClientes() {
           </div>
           {(filter !== "todos" || search) && (
             <button className="btn-limpiar" onClick={() => { setSearch(""); setFilter("todos"); }}>
-              ✕ Limpiar
+              âœ• Limpiar
             </button>
           )}
 
@@ -192,11 +192,11 @@ export default function GestionClientes() {
             <table className="tbl">
               <thead>
                 <tr>
-                  <th style={{ width: 48 }}>Nº</th>
+                  <th style={{ width: 48 }}>NÂº</th>
                   <th>Cliente</th>
                   <th>Documento</th>
-                  <th>Teléfono</th>
-                  <th>Ubicación</th>
+                  <th>TelÃ©fono</th>
+                  <th>UbicaciÃ³n</th>
                   <th>Estado</th>
                   <th>Registro</th>
                   <th>Acciones</th>
@@ -206,7 +206,7 @@ export default function GestionClientes() {
                 {paginated.length === 0 ? (
                   <tr><td colSpan={8}>
                     <div className="empty-state">
-                      <div className="empty-state__icon">👤</div>
+                      <div className="empty-state__icon">ðŸ‘¤</div>
                       <p className="empty-state__text">
                         {filter !== "todos" || search ? "Sin clientes que coincidan." : "No hay clientes registrados."}
                       </p>
@@ -218,7 +218,7 @@ export default function GestionClientes() {
                     <td>
                       <div className="client-cell">
                         <div className="avatar-wrap">
-                          {c.fotoPreview ? <img src={c.fotoPreview} alt={c.nombre} style={{ width:"100%",height:"100%",objectFit:"cover" }} /> : <span>👤</span>}
+                          {c.fotoPreview ? <img src={c.fotoPreview} alt={c.nombre} style={{ width:"100%",height:"100%",objectFit:"cover" }} /> : <span>ðŸ‘¤</span>}
                         </div>
                         <div>
                           <div className="client-name">{c.nombre} {c.apellidos}</div>
@@ -227,15 +227,15 @@ export default function GestionClientes() {
                       </div>
                     </td>
                     <td><div className="doc-badge"><span className="doc-type">{c.tipoDocumento}</span><span className="doc-num">{c.cedula}</span></div></td>
-                    <td><span className="phone-cell"><span className="phone-icon">📞</span>{c.telefono}</span></td>
+                    <td><span className="phone-cell"><span className="phone-icon">ðŸ“ž</span>{c.telefono}</span></td>
                     <td><div className="location-city">{c.municipio}</div><div className="location-dept">{c.departamento}</div></td>
                     <td><Toggle value={c.estado} onChange={() => handleToggle(c)} /></td>
                     <td><span className="date-badge">{c.fechaCreacion}</span></td>
                     <td>
                       <div className="actions-cell">
-                        <button className="act-btn act-btn--view"   onClick={() => setModal({ mode:"view",   cliente:c })}>👁</button>
-                        <button className="act-btn act-btn--edit"   onClick={() => setModal({ mode:"edit",   cliente:c })}>✎</button>
-                        <button className="act-btn act-btn--delete" onClick={() => handleDeleteClick(c)}>🗑️</button>
+                        <button className="act-btn act-btn--view"   onClick={() => setModal({ mode:"view",   cliente:c })}>ðŸ‘</button>
+                        <button className="act-btn act-btn--edit"   onClick={() => setModal({ mode:"edit",   cliente:c })}>âœŽ</button>
+                        <button className="act-btn act-btn--delete" onClick={() => handleDeleteClick(c)}>ðŸ—‘ï¸</button>
                       </div>
                     </td>
                   </tr>
@@ -246,11 +246,11 @@ export default function GestionClientes() {
           <div className="pagination-bar">
             <span className="pagination-count">{filtered.length} {filtered.length === 1 ? "cliente" : "clientes"} en total</span>
             <div className="pagination-btns">
-              <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
-              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
-              <span className="pg-pill">Página {safePage} de {totalPages}</span>
-              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
-              <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>»</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>Â«</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>â€¹</button>
+              <span className="pg-pill">PÃ¡gina {safePage} de {totalPages}</span>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>â€º</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>Â»</button>
             </div>
           </div>
         </div>
@@ -262,7 +262,7 @@ export default function GestionClientes() {
       {modal?.mode === "delete" && (
         <ModalEliminarValidado
           titulo="Eliminar cliente"
-          descripcion={`¿Está seguro de que desea eliminar permanentemente al cliente "${modal.cliente.nombre} ${modal.cliente.apellidos}"?`}
+          descripcion={`Â¿EstÃ¡ seguro de que desea eliminar permanentemente al cliente "${modal.cliente.nombre} ${modal.cliente.apellidos}"?`}
           validacion={canDeleteCliente()}
           onClose={() => setModal(null)}
           onConfirm={handleDelete}

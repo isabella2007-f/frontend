@@ -141,21 +141,26 @@ export default function Dashboard() {
 
           {/* Flujo de Ventas — Bar Chart */}
           <ChartCard title="Flujo de Ventas" period={periodoCharts} onPeriod={p => { setPeriodoCharts(p); setPeriodo(p); }}>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={barData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#43a047" stopOpacity={1} />
-                    <stop offset="100%" stopColor="#2e7d32" stopOpacity={0.8} />
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="hora" tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} allowDecimals={false}
-                  tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}k` : `$${v}`} />
-                <Tooltip content={<CustomTooltip prefix="$" />} cursor={{ fill: "#f1f8f1" }} />
-                <Bar dataKey="ventas" name="Ventas" fill="url(#barGradient)" radius={[6,6,0,0]} maxBarSize={36} />
-              </BarChart>
-            </ResponsiveContainer>
+            {barData.length === 0 || barData.every(d => d.ventas === 0) ? (
+              <div style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center", color: "#bdbdbd", fontSize: 13 }}>
+                Sin pedidos en este período
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={barData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#43a047" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#2e7d32" stopOpacity={0.8} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="hora" tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: "#f1f8f1" }} />
+                  <Bar dataKey="ventas" name="Pedidos" fill="url(#barGradient)" radius={[6,6,0,0]} maxBarSize={36} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </ChartCard>
 
           {/* Top Productos — Pie Chart */}

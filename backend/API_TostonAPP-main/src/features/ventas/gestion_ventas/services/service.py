@@ -9,6 +9,9 @@ from src.shared.services.models import (
     Descuento, DescuentoXUsuario, DescuentoXVenta, OrdenProduccion, FichaTecnica,
 )
 from src.shared.services.notificaciones_utils import notificar, descartar_notificacion, notificar_stock_producto
+from src.features.ventas.pedidos.services.estados import (
+    EstadoPedido, ESTADOS_STOCK_DESCONTADO_PICKUP, validar_transicion,
+)
 from .schemas import VentaCreate, DomicilioVentaInput
 
 # Costo fijo de domicilio (COP)
@@ -81,10 +84,11 @@ def _formato_venta(venta: Venta, db: Session) -> dict:
         "descuento_aplicado": descuento_aplicado,
         "Estado":             venta.Estado,
         "estado_label":       _label_estado(db, venta.Estado) if venta.Estado else None,
-        "Metodo_Pago":        venta.Metodo_Pago,
-        "Fecha_Venta":        venta.Fecha_Venta,
-        "Fecha_pedido":       venta.Fecha_pedido,
-        "productos":          productos,
+        "Metodo_Pago":            venta.Metodo_Pago,
+        "Fecha_Venta":            venta.Fecha_Venta,
+        "Fecha_pedido":           venta.Fecha_pedido,
+        "Fecha_entrega_esperada": venta.Fecha_entrega_esperada,
+        "productos":              productos,
         "comprobante_pago":             venta.Comprobante_Pago,
         "tiene_domicilio":              domicilio is not None,
         "ID_Domicilio":                 domicilio.ID_Domicilio          if domicilio else None,
@@ -309,13 +313,14 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
     ESTADO_EN_PROCESO = 13
 
     nueva_venta = Venta(
-        ID_Usuario       = datos.ID_Usuario,
-        Total            = subtotal_bruto,
-        Estado           = ESTADO_PENDIENTE,
-        Metodo_Pago      = datos.Metodo_Pago,
-        Fecha_Venta      = datetime.now(),
-        Fecha_pedido     = datetime.now(),
-        Comprobante_Pago = datos.comprobante_pago,
+        ID_Usuario             = datos.ID_Usuario,
+        Total                  = subtotal_bruto,
+        Estado                 = ESTADO_PENDIENTE,
+        Metodo_Pago            = datos.Metodo_Pago,
+        Fecha_Venta            = datetime.now(),
+        Fecha_pedido           = datetime.now(),
+        Fecha_entrega_esperada = datos.Fecha_entrega_esperada,
+        Comprobante_Pago       = datos.comprobante_pago,
     )
     db.add(nueva_venta)
     db.flush()
@@ -419,12 +424,14 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
     if datos.domicilio:
         ESTADO_ASIGNADO = 10
         ESTADO_DOM_PENDIENTE = 3
-        estado_dom      = ESTADO_ASIGNADO if datos.domicilio.ID_Empleado else ESTADO_DOM_PENDIENTE
+        estado_dom = ESTADO_ASIGNADO if datos.domicilio.ID_Empleado else ESTADO_DOM_PENDIENTE
+        # Si el domicilio no trae su propia fecha, usa la fecha_entrega_esperada del pedido
+        fecha_dom = datos.domicilio.Fecha_entrega or datos.Fecha_entrega_esperada
         db.add(Domicilio(
             ID_Venta             = nueva_venta.ID_Venta,
             ID_Empleado          = datos.domicilio.ID_Empleado,
             Fecha_asignacion     = datetime.now(),
-            Fecha_entrega        = datos.domicilio.Fecha_entrega,
+            Fecha_entrega        = fecha_dom,
             Observaciones        = datos.domicilio.Observaciones,
             Estado               = estado_dom,
             Direccion_entrega    = datos.domicilio.Direccion_entrega,
@@ -448,43 +455,39 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
 
-    ESTADOS_CANCELACION = {3, 5}
-    # La app móvil envía 2 al confirmar; confirmar_pedido envía 4. Ambos = "Confirmado".
-    ESTADOS_CONFIRMADO  = {2, 4}
-    ESTADO_ENTREGADO    = 8
-
     tiene_domicilio = db.query(Domicilio).filter(Domicilio.ID_Venta == id_venta).first() is not None
 
-    # Al confirmar un pedido SIN domicilio (recoger en tienda): descontar stock
-    if nuevo_estado in ESTADOS_CONFIRMADO and venta.Estado not in ESTADOS_CANCELACION | ESTADOS_CONFIRMADO:
-        if not tiene_domicilio:
-            items = db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()
-            for item in items:
-                producto = db.query(Producto).filter(Producto.ID_Producto == item.ID_Producto).first()
-                if not producto:
-                    continue
-                producto.Stock = max(0, (producto.Stock or 0) - (item.Cantidad or 0))
-                _actualizar_estado_producto(producto)
-                notificar_stock_producto(db, producto)
+    # Valida que la transición esté permitida por la máquina de estados
+    validar_transicion(venta.Estado, nuevo_estado, tiene_domicilio)
 
-    # Al entregar (8) un pedido CON domicilio: descontar stock
-    if nuevo_estado == ESTADO_ENTREGADO and venta.Estado != ESTADO_ENTREGADO:
-        if tiene_domicilio:
-            items = db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()
-            for item in items:
-                producto = db.query(Producto).filter(Producto.ID_Producto == item.ID_Producto).first()
-                if not producto:
-                    continue
-                producto.Stock = max(0, (producto.Stock or 0) - (item.Cantidad or 0))
-                _actualizar_estado_producto(producto)
-                notificar_stock_producto(db, producto)
+    # Al confirmar un pedido SIN domicilio (recoger en tienda): descontar stock
+    if nuevo_estado == EstadoPedido.CONFIRMADO and not tiene_domicilio:
+        items = db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()
+        for item in items:
+            producto = db.query(Producto).filter(Producto.ID_Producto == item.ID_Producto).first()
+            if not producto:
+                continue
+            producto.Stock = max(0, (producto.Stock or 0) - (item.Cantidad or 0))
+            _actualizar_estado_producto(producto)
+            notificar_stock_producto(db, producto)
+
+    # Al entregar un pedido CON domicilio: descontar stock
+    if nuevo_estado == EstadoPedido.ENTREGADO and tiene_domicilio:
+        items = db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()
+        for item in items:
+            producto = db.query(Producto).filter(Producto.ID_Producto == item.ID_Producto).first()
+            if not producto:
+                continue
+            producto.Stock = max(0, (producto.Stock or 0) - (item.Cantidad or 0))
+            _actualizar_estado_producto(producto)
+            notificar_stock_producto(db, producto)
 
     # Al cancelar: restaurar stock si ya fue descontado
-    # — pickup confirmado (estado 2/4, sin domicilio) o cualquier pedido entregado (estado 8)
-    if nuevo_estado in ESTADOS_CANCELACION:
+    # - pickup: stock se descuenta en CONFIRMADO; se restaura desde confirmado/preparando/listo
+    # - domicilio: stock se descuenta en ENTREGADO; no aplica al cancelar (nunca llegó)
+    if nuevo_estado == EstadoPedido.CANCELADO:
         stock_descontado = (
-            (venta.Estado in ESTADOS_CONFIRMADO and not tiene_domicilio) or
-            venta.Estado == ESTADO_ENTREGADO
+            not tiene_domicilio and venta.Estado in ESTADOS_STOCK_DESCONTADO_PICKUP
         )
         if stock_descontado:
             items = db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()
@@ -495,8 +498,7 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
                     _actualizar_estado_producto(producto)
                     notificar_stock_producto(db, producto)
 
-    # Al cancelar: devolver crédito si se usó (independiente del stock)
-    if nuevo_estado in ESTADOS_CANCELACION and venta.Estado not in ESTADOS_CANCELACION:
+        # Devolver crédito si se usó al crear el pedido
         detalle = db.query(DetalleVenta).filter(DetalleVenta.ID_Venta == id_venta).first()
         if detalle and detalle.Descuento and detalle.Descuento > 0:
             credito = db.query(CreditoCliente).filter(
@@ -514,10 +516,11 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
                     Fecha         = datetime.now(),
                 ))
 
-    if venta.Estado == 1:
+    if venta.Estado == EstadoPedido.PENDIENTE:
         descartar_notificacion(db, "pedido_nuevo", id_venta)
-    if nuevo_estado in ESTADOS_CANCELACION:
+    if nuevo_estado == EstadoPedido.CANCELADO:
         descartar_notificacion(db, "domicilio_pendiente", id_venta)
+
     venta.Estado = nuevo_estado
     db.commit()
     db.refresh(venta)

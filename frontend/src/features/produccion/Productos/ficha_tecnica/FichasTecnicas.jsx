@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import CrearFicha from "./CrearFicha.jsx";
 import EditarFicha from "./EditarFicha.jsx";
 import { getFichas, crearFicha, editarFicha, eliminarFicha, toggleEstadoFicha } from "../../../../services/fichaTecnicaService.js";
 import "./FichasTecnicas.css";
 
-const ITEMS_PER_PAGE = 4;
+const ITEMS_PER_PAGE = 8;
 
 function Toggle({ value, onChange, disabled }) {
   return (
@@ -21,7 +21,7 @@ function Toast({ toast }) {
   if (!toast) return null;
   return (
     <div className="toast" style={{ background: toast.type === "success" ? "#2e7d32" : "#c62828" }}>
-      <span className="toast-icon">{toast.type === "success" ? "✓" : "✕"}</span>
+      <span className="toast-icon">{toast.type === "success" ? "âœ“" : "âœ•"}</span>
       {toast.message}
     </div>
   );
@@ -44,14 +44,14 @@ function EliminarModal({ ficha, onClose, onConfirm }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
         <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
-          <div className="delete-icon-wrap">🗑️</div>
+          <div className="delete-icon-wrap">ðŸ—‘ï¸</div>
           <h3 className="delete-title">Eliminar ficha</h3>
-          <p className="delete-body">¿Eliminar ficha de <strong>"{ficha.producto}"</strong>?</p>
-          <p className="delete-warn">Esta acción no se puede deshacer.</p>
+          <p className="delete-body">Â¿Eliminar ficha de <strong>"{ficha.producto}"</strong>?</p>
+          <p className="delete-warn">Esta acciÃ³n no se puede deshacer.</p>
         </div>
         <div className="modal-footer modal-footer--center">
           <button className="btn-cancel-full" onClick={onClose}>Cancelar</button>
-          <button className="btn-danger" onClick={run} disabled={deleting}>{deleting ? "Eliminando…" : "Eliminar"}</button>
+          <button className="btn-danger" onClick={run} disabled={deleting}>{deleting ? "Eliminandoâ€¦" : "Eliminar"}</button>
         </div>
       </div>
     </div>
@@ -155,22 +155,22 @@ export default function FichaTecnica() {
   return (
     <div className="page-wrapper">
       <div className="page-header">
-        <h1 className="page-header__title">Ficha Técnica 📖</h1>
+        <h1 className="page-header__title">Ficha TÃ©cnica ðŸ“–</h1>
         <div className="page-header__line" />
       </div>
 
       <div className="page-inner">
         <div className="toolbar">
           <div className="search-wrap">
-            <span className="search-icon">🔍</span>
+            <span className="search-icon">ðŸ”</span>
             <input type="text" className="search-input"
-              placeholder="Buscar por producto o categoría…"
+              placeholder="Buscar por producto o categorÃ­aâ€¦"
               value={search} onChange={e => setSearch(e.target.value)} />
           </div>
 
           <div ref={filterRef} style={{ position: "relative" }}>
             <button className={`filter-icon-btn${filterCat !== "Todas" ? " has-filter" : ""}`}
-              onClick={() => setShowFilter(v => !v)} title="Filtrar">▼</button>
+              onClick={() => setShowFilter(v => !v)} title="Filtrar">â–¼</button>
             {showFilter && (
               <div className="filter-dropdown">
                 {CATEGORIAS.map(c => (
@@ -185,7 +185,7 @@ export default function FichaTecnica() {
 
           {(filterCat !== "Todas" || search) && (
             <button className="btn-limpiar" onClick={() => { setSearch(""); setFilterCat("Todas"); }}>
-              ✕ Limpiar
+              âœ• Limpiar
             </button>
           )}
 
@@ -199,11 +199,11 @@ export default function FichaTecnica() {
             <table className="tbl">
               <thead>
                 <tr>
-                  <th>Nº</th>
+                  <th>NÂº</th>
                   <th>Nombre Producto</th>
                   <th>ID del producto</th>
-                  <th>Categoría del producto</th>
-                  <th>Versión</th>
+                  <th>CategorÃ­a del producto</th>
+                  <th>VersiÃ³n</th>
                   <th>Estado</th>
                   <th>Acciones</th>
                 </tr>
@@ -214,9 +214,9 @@ export default function FichaTecnica() {
                 ) : paginated.length === 0 ? (
                   <tr><td colSpan={7}>
                     <div className="empty-state">
-                      <div className="empty-state__icon">📖</div>
+                      <div className="empty-state__icon">ðŸ“–</div>
                       <p className="empty-state__text">
-                        {search || filterCat !== "Todas" ? "Sin fichas que coincidan." : "Sin fichas técnicas registradas."}
+                        {search || filterCat !== "Todas" ? "Sin fichas que coincidan." : "Sin fichas tÃ©cnicas registradas."}
                       </p>
                     </div>
                   </td></tr>
@@ -228,17 +228,17 @@ export default function FichaTecnica() {
                       <div className="cat-cell">
                         {f.fotoPreview
                           ? <img src={f.fotoPreview} alt={f.producto} style={{ width: 34, height: 34, borderRadius: 8, objectFit: "cover", border: "1px solid #c8e6c9", flexShrink: 0 }} />
-                          : <div style={{ width: 34, height: 34, borderRadius: 8, background: "#f1f8f1", border: "1px solid #c8e6c9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>📋</div>
+                          : <div style={{ width: 34, height: 34, borderRadius: 8, background: "#f1f8f1", border: "1px solid #c8e6c9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>ðŸ“‹</div>
                         }
                         <span className="cat-name">{f.producto}</span>
                       </div>
                     </td>
 
-                    <td><span className="cat-num" style={{ fontSize: 13, color: "#424242" }}>{f.productoId || "—"}</span></td>
+                    <td><span className="cat-num" style={{ fontSize: 13, color: "#424242" }}>{f.productoId || "â€”"}</span></td>
 
                     <td>
                       <span style={{ fontSize: 13, color: "#424242", background: "#f1f8f1", padding: "3px 10px", borderRadius: 20, border: "1px solid #c8e6c9", fontWeight: 600 }}>
-                        {f.categoria || "—"}
+                        {f.categoria || "â€”"}
                       </span>
                     </td>
 
@@ -250,9 +250,9 @@ export default function FichaTecnica() {
 
                     <td>
                       <div className="actions-cell">
-                        <button className="act-btn act-btn--view"   onClick={() => setModal({ mode: "view",   ficha: f })}>👁</button>
-                        <button className="act-btn act-btn--edit"   onClick={() => setModal({ mode: "edit",   ficha: f })}>✎</button>
-                        <button className="act-btn act-btn--delete" onClick={() => setModal({ mode: "delete", ficha: f })}>🗑️</button>
+                        <button className="act-btn act-btn--view"   onClick={() => setModal({ mode: "view",   ficha: f })}>ðŸ‘</button>
+                        <button className="act-btn act-btn--edit"   onClick={() => setModal({ mode: "edit",   ficha: f })}>âœŽ</button>
+                        <button className="act-btn act-btn--delete" onClick={() => setModal({ mode: "delete", ficha: f })}>ðŸ—‘ï¸</button>
                       </div>
                     </td>
                   </tr>
@@ -264,11 +264,11 @@ export default function FichaTecnica() {
           <div className="pagination-bar">
             <span className="pagination-count">{filtered.length} {filtered.length === 1 ? "ficha" : "fichas"} en total</span>
             <div className="pagination-btns">
-              <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
-              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
-              <span className="pg-pill">Página {safePage} de {totalPages}</span>
-              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
-              <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>»</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>Â«</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>â€¹</button>
+              <span className="pg-pill">PÃ¡gina {safePage} de {totalPages}</span>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>â€º</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>Â»</button>
             </div>
           </div>
         </div>

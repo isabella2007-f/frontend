@@ -123,7 +123,7 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
           {/* RIGHT — íconos de acción */}
           <div className="nav-right">
             {/* Navegación de página */}
-            {(isLanding || user?.tipo === 'usuario' || user?.tipo === 'empleado') && (
+            {(isLanding || user?.tipo === 'cliente' || user?.tipo === 'empleado') && (
               <div className="nav-links">
                 {isLanding && (
                   <>
@@ -132,7 +132,7 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
                     <button onClick={() => scrollToSection('nosotros')}  className="nav-link">Nosotros</button>
                   </>
                 )}
-                {!isLanding && user?.tipo === 'usuario' && (
+                {!isLanding && user?.tipo === 'cliente' && (
                   <>
                     <button onClick={() => navigate('/cliente/inicio')}  className="nav-link">Página Principal</button>
                     <button onClick={() => navigate('/cliente/pedidos')} className="nav-link">Mis Pedidos</button>
@@ -162,7 +162,7 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
             )}
 
             {/* Carrito */}
-            {(user?.tipo === "usuario" || (!user && isLanding)) && (
+            {(user?.tipo === "cliente" || (!user && isLanding)) && (
               <button className="cart-btn" onClick={() => setIsCartOpen(true)} title="Ver carrito">
                 <ShoppingCart size={22} />
                 {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
@@ -173,7 +173,7 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
             {!isLanding && user && (
               <div
                 className="user-area"
-                onClick={() => navigate(user.tipo === "usuario" ? "/cliente/perfil" : "/admin/perfil")}
+                onClick={() => navigate(user.tipo === "cliente" ? "/cliente/perfil" : "/admin/perfil")}
                 style={{ cursor: 'pointer' }}
               >
                 <div className="avatar">{user.nombre.charAt(0)}</div>

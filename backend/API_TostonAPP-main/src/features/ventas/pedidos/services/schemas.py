@@ -18,8 +18,9 @@ class PedidoResponse(BaseModel):
     Estado:               Optional[int]     = None
     estado_label:         Optional[str]     = None
     Metodo_Pago:          Optional[str]     = None
-    Fecha_pedido:         Optional[datetime]= None
-    productos:            list              = []
+    Fecha_pedido:           Optional[datetime] = None
+    Fecha_entrega_esperada: Optional[datetime] = None
+    productos:              list               = []
     tiene_domicilio:      bool              = False
     ID_Domicilio:         Optional[int]     = None
     direccion_entrega:    Optional[str]     = None

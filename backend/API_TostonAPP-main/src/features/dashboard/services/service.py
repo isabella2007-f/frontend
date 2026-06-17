@@ -39,8 +39,10 @@ def _rango_fechas(periodo: str) -> tuple[datetime, datetime, datetime, datetime]
     return inicio, fin, inicio_ant, fin_ant
 
 
-# Solo ventas confirmadas/entregadas/en camino/completadas cuentan como venta real
+# Solo ventas confirmadas/entregadas/en camino/completadas cuentan como revenue real
 ESTADOS_VENTA = (4, 8, 9, 11)
+# Para el flujo de ventas (gráfica): incluye órdenes nuevas y en producción también
+ESTADOS_FLUJO = (1, 4, 5, 8, 9, 11, 13)
 
 
 def _total_ventas(db: Session, inicio: datetime, fin: datetime) -> Decimal:
@@ -57,6 +59,15 @@ def _total_pedidos(db: Session, inicio: datetime, fin: datetime) -> int:
         Venta.Fecha_Venta >= inicio,
         Venta.Fecha_Venta <= fin,
         Venta.Estado.in_(ESTADOS_VENTA),
+    ).count()
+
+
+def _contar_pedidos_flujo(db: Session, inicio: datetime, fin: datetime) -> int:
+    """Cuenta todos los pedidos (cualquier estado activo) para la gráfica de flujo."""
+    return db.query(Venta).filter(
+        Venta.Fecha_pedido >= inicio,
+        Venta.Fecha_pedido <= fin,
+        Venta.Estado.in_(ESTADOS_FLUJO),
     ).count()
 
 
@@ -85,7 +96,10 @@ def _variacion(actual, anterior) -> tuple[float, bool]:
 
 
 def _grafica_ventas(db: Session, inicio: datetime, fin: datetime, inicio_ant: datetime, fin_ant: datetime, periodo: str) -> list:
-    """Genera los puntos de la gráfica según el período."""
+    """
+    Genera los puntos de la gráfica según el período.
+    Muestra CANTIDAD de pedidos (flujo), no revenue — así aparecen aunque estén Pendientes.
+    """
     puntos = []
 
     if periodo == "hoy":
@@ -96,13 +110,13 @@ def _grafica_ventas(db: Session, inicio: datetime, fin: datetime, inicio_ant: da
             hora_ant_i  = inicio_ant.replace(hour=hora, minute=0)
             hora_ant_f  = inicio_ant.replace(hour=hora, minute=59, second=59)
 
-            actual   = _total_ventas(db, hora_inicio, hora_fin)
-            anterior = _total_ventas(db, hora_ant_i, hora_ant_f)
+            actual   = _contar_pedidos_flujo(db, hora_inicio, hora_fin)
+            anterior = _contar_pedidos_flujo(db, hora_ant_i, hora_ant_f)
             puntos.append({
                 "etiqueta": f"{hora}am" if hora < 12 else f"{hora - 12 if hora > 12 else hora}pm",
-                "actual":   actual,
-                "anterior": anterior,
-                "meta":     actual * Decimal("1.1"),  # meta = 10% más que actual
+                "actual":   Decimal(str(actual)),
+                "anterior": Decimal(str(anterior)),
+                "meta":     Decimal(str(actual + 1)),
             })
 
     elif periodo == "semana":
@@ -114,13 +128,13 @@ def _grafica_ventas(db: Session, inicio: datetime, fin: datetime, inicio_ant: da
             dia_ant_i  = inicio_ant + timedelta(days=i)
             dia_ant_f  = dia_ant_i.replace(hour=23, minute=59, second=59)
 
-            actual   = _total_ventas(db, dia_inicio, dia_fin)
-            anterior = _total_ventas(db, dia_ant_i, dia_ant_f)
+            actual   = _contar_pedidos_flujo(db, dia_inicio, dia_fin)
+            anterior = _contar_pedidos_flujo(db, dia_ant_i, dia_ant_f)
             puntos.append({
                 "etiqueta": dia,
-                "actual":   actual,
-                "anterior": anterior,
-                "meta":     actual * Decimal("1.1"),
+                "actual":   Decimal(str(actual)),
+                "anterior": Decimal(str(anterior)),
+                "meta":     Decimal(str(actual + 1)),
             })
 
     else:
@@ -132,13 +146,13 @@ def _grafica_ventas(db: Session, inicio: datetime, fin: datetime, inicio_ant: da
             semana_ant  = semana_actual.replace(month=semana_actual.month - 1) if semana_actual.month > 1 else semana_actual.replace(year=semana_actual.year - 1, month=12)
             semana_ant_f = semana_ant + timedelta(weeks=1)
 
-            actual   = _total_ventas(db, semana_actual, semana_fin)
-            anterior = _total_ventas(db, semana_ant, semana_ant_f)
+            actual   = _contar_pedidos_flujo(db, semana_actual, semana_fin)
+            anterior = _contar_pedidos_flujo(db, semana_ant, semana_ant_f)
             puntos.append({
                 "etiqueta": f"Sem {semana_num}",
-                "actual":   actual,
-                "anterior": anterior,
-                "meta":     actual * Decimal("1.1"),
+                "actual":   Decimal(str(actual)),
+                "anterior": Decimal(str(anterior)),
+                "meta":     Decimal(str(actual + 1)),
             })
             semana_actual += timedelta(weeks=1)
             semana_num    += 1

@@ -3,17 +3,7 @@ from fastapi import HTTPException
 
 from src.shared.services.models import Venta, Estado, DetalleVenta, Domicilio
 from src.features.ventas.gestion_ventas.services.service import _formato_venta, cambiar_estado as _gv_cambiar_estado
-
-
-# IDs de estado según tabla global Estados
-ESTADO_PENDIENTE   = 1      # pedido en carrito / sin confirmar
-ESTADO_EN_PROCESO  = 13     # esperando órdenes de producción
-ESTADO_CONFIRMADO  = 4      # Confirmado (tabla Estados ID=4)
-ESTADO_EN_CAMINO   = 9      # En camino (domicilio en tránsito)
-ESTADO_CANCELADO   = 5      # Cancelado  (tabla Estados ID=5)
-
-# Incluye "En camino" para que el admin pueda verlos en gestión de pedidos
-ESTADOS_ACTIVOS = (ESTADO_PENDIENTE, ESTADO_EN_PROCESO, ESTADO_CONFIRMADO, ESTADO_EN_CAMINO)
+from src.features.ventas.pedidos.services.estados import EstadoPedido, ESTADOS_ACTIVOS
 
 
 def obtener_pedidos(
@@ -55,7 +45,7 @@ def obtener_pedidos(
 
 
 def obtener_pedido(db: Session, id_venta: int) -> dict:
-    """Retorna un pedido por ID. Solo si está en estado Pendiente."""
+    """Retorna un pedido por ID. Solo si está en estado activo."""
     pedido = db.query(Venta).filter(
         Venta.ID_Venta == id_venta,
         Venta.Estado.in_(ESTADOS_ACTIVOS),
@@ -99,7 +89,7 @@ def editar_pedido(db: Session, id_venta: int, datos: dict) -> dict:
 
     if quiere_domicilio is True:
         if domicilio is None:
-            domicilio = Domicilio(ID_Venta=id_venta, Estado=ESTADO_PENDIENTE)
+            domicilio = Domicilio(ID_Venta=id_venta, Estado=EstadoPedido.PENDIENTE)
             db.add(domicilio)
         if datos.get("Direccion_Entrega") is not None:
             domicilio.Direccion_entrega = datos["Direccion_Entrega"]
@@ -126,7 +116,7 @@ def confirmar_pedido(db: Session, id_venta: int) -> dict:
     """
     pedido = db.query(Venta).filter(
         Venta.ID_Venta == id_venta,
-        Venta.Estado   == ESTADO_PENDIENTE,
+        Venta.Estado   == EstadoPedido.PENDIENTE,
     ).first()
     if not pedido:
         raise HTTPException(
@@ -135,20 +125,17 @@ def confirmar_pedido(db: Session, id_venta: int) -> dict:
                    "Si el pedido está En producción, espera a que se completen las órdenes de producción."
         )
 
-    return _gv_cambiar_estado(db, id_venta, ESTADO_CONFIRMADO)
+    return _gv_cambiar_estado(db, id_venta, EstadoPedido.CONFIRMADO)
 
 
 def cancelar_pedido(db: Session, id_venta: int, actual: dict = None) -> dict:
     """
-    Cancela el pedido → cambia estado a Cancelado.
-    - Stock NO se restaura: los pedidos Pendientes nunca decrementaron stock
-      (el descuento de stock ocurre al pasar a Confirmado/estado 4).
-    - Si se usó crédito, sí se devuelve porque fue deducido al crear el pedido.
-    - Si actual es un cliente, solo puede cancelar su propio pedido.
+    Cancela el pedido. Delega en cambiar_estado() que:
+    - Valida la transición con la máquina de estados
+    - Restaura stock si el pedido pickup ya lo tenía descontado (desde CONFIRMADO en adelante)
+    - Devuelve crédito si se usó al crear el pedido
+    Si actual es un cliente, solo puede cancelar su propio pedido.
     """
-    from src.shared.services.models import CreditoCliente, MovimientoCredito, DetalleVenta
-    from datetime import datetime
-
     pedido = db.query(Venta).filter(
         Venta.ID_Venta == id_venta,
         Venta.Estado.in_(ESTADOS_ACTIVOS),
@@ -159,36 +146,9 @@ def cancelar_pedido(db: Session, id_venta: int, actual: dict = None) -> dict:
             detail="Pedido no encontrado o ya fue procesado"
         )
 
-    # Clientes solo pueden cancelar sus propios pedidos
     if actual and actual.get("tipo") == "cliente":
         id_usuario = actual["registro"].ID_Usuario
         if pedido.ID_Usuario != id_usuario:
             raise HTTPException(status_code=403, detail="No puedes cancelar pedidos de otros clientes")
 
-    # Los pedidos en estado Pendiente nunca tuvieron stock descontado,
-    # por lo tanto no se restaura stock aquí.
-
-    # Devuelve crédito si se usó (sí fue deducido al crear el pedido)
-    detalle = db.query(DetalleVenta).filter(
-        DetalleVenta.ID_Venta == id_venta
-    ).first()
-    if detalle and detalle.Descuento and detalle.Descuento > 0:
-        credito = db.query(CreditoCliente).filter(
-            CreditoCliente.ID_Usuario == pedido.ID_Usuario
-        ).first()
-        if credito:
-            credito.Saldo        += detalle.Descuento
-            credito.Fecha_Update  = datetime.now()
-            db.add(MovimientoCredito(
-                ID_Credito    = credito.ID_Credito,
-                ID_Devolucion = None,
-                ID_Venta      = id_venta,
-                Tipo          = "recarga",
-                Monto         = detalle.Descuento,
-                Fecha         = datetime.now(),
-            ))
-
-    pedido.Estado = ESTADO_CANCELADO
-    db.commit()
-    db.refresh(pedido)
-    return _formato_venta(pedido, db)
+    return _gv_cambiar_estado(db, id_venta, EstadoPedido.CANCELADO)
