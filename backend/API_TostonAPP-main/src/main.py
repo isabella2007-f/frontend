@@ -150,6 +150,40 @@ def migrate_db():
         except Exception:
             pass
 
+    # ── Permisos del rol "Empleado" ───────────────────────────────────────────
+    # El empleado puede CREAR y VER pedidos (con selección de cliente) y VER
+    # devoluciones, pero NO confirmar/cancelar pedidos ni aprobar/rechazar
+    # devoluciones (esas acciones requieren editar_ventas / editar_devoluciones).
+    with engine.connect() as conn:
+        # Otorgar permisos necesarios (idempotente)
+        try:
+            conn.execute(text("""
+                INSERT IGNORE INTO Rol_x_Permiso (ID_Rol, ID_Permiso)
+                SELECT r.ID_Rol, p.ID_Permiso
+                FROM Roles r
+                JOIN Permisos p
+                  ON p.Permiso IN (
+                       'ver_pedidos', 'ver_ventas', 'crear_ventas',
+                       'ver_usuarios', 'ver_devoluciones'
+                     )
+                WHERE LOWER(TRIM(r.Rol)) = 'empleado'
+            """))
+            conn.commit()
+        except Exception:
+            pass
+        # Revocar acciones que el empleado NO debe tener
+        try:
+            conn.execute(text("""
+                DELETE rxp FROM Rol_x_Permiso rxp
+                JOIN Roles r     ON r.ID_Rol     = rxp.ID_Rol
+                JOIN Permisos p  ON p.ID_Permiso = rxp.ID_Permiso
+                WHERE LOWER(TRIM(r.Rol)) = 'empleado'
+                  AND p.Permiso IN ('editar_ventas', 'editar_devoluciones')
+            """))
+            conn.commit()
+        except Exception:
+            pass
+
 # ── CORS ──
 app.add_middleware(
     CORSMiddleware,
