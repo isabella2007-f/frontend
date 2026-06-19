@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { fmtFecha } from "../../../utils/dateUtils.js";
 import { Toast, ModalOverlay } from "./ui.jsx";
 import CrearCategoria from "./CrearCategoria.jsx";
@@ -20,7 +20,7 @@ function adaptCat(c) {
     id: c.ID_Categoria,
     nombre: c.Nombre_Categoria,
     descripcion: c.Descripcion ?? "",
-    icon: c.Icono ?? "ðŸ“¦",
+    icon: c.Icono ?? "📦",
     estado: c.Estado === 1,
     fecha: fmtFecha(c.Fecha_creacion || c.Fecha_Creacion),
     totalProductos: c.total_productos ?? 0,
@@ -72,10 +72,10 @@ function VerCategoria({ category, onClose }) {
     <ModalOverlay onClose={onClose}>
       <div className="modal-header">
         <div>
-          <p className="modal-header__eyebrow">CategorÃ­as de Producto</p>
-          <h2 className="modal-header__title">Detalle de CategorÃ­a</h2>
+          <p className="modal-header__eyebrow">Categorías de Producto</p>
+          <h2 className="modal-header__title">Detalle de Categoría</h2>
         </div>
-        <button className="modal-close-btn" onClick={onClose}>âœ•</button>
+        <button className="modal-close-btn" onClick={onClose}>✕</button>
       </div>
       <div className="modal-body">
         <div
@@ -87,7 +87,7 @@ function VerCategoria({ category, onClose }) {
           }}
         >
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Ãcono</label>
+            <label className="form-label">Ícono</label>
             <div
               style={{
                 width: "100%",
@@ -111,12 +111,12 @@ function VerCategoria({ category, onClose }) {
         </div>
 
         <div className="form-group">
-          <label className="form-label">DescripciÃ³n</label>
+          <label className="form-label">Descripción</label>
           <div
             className="field-input field-input--disabled"
             style={{ minHeight: 60, lineHeight: 1.4, fontSize: 13 }}
           >
-            {category.descripcion || "Sin descripciÃ³n registrada."}
+            {category.descripcion || "Sin descripción registrada."}
           </div>
         </div>
 
@@ -134,7 +134,7 @@ function VerCategoria({ category, onClose }) {
           </div>
           {category.fecha && (
             <div style={{ textAlign: "right", fontSize: 11, color: "#9e9e9e" }}>
-              <p style={{ margin: 0 }}>Fecha de creaciÃ³n</p>
+              <p style={{ margin: 0 }}>Fecha de creación</p>
               <strong style={{ color: "#616161" }}>{category.fecha}</strong>
             </div>
           )}
@@ -161,22 +161,22 @@ function ModalDesactivarCategoria({ cat, count, onClose, onConfirm }) {
   return (
     <ModalOverlay onClose={onClose}>
       <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
-        <div className="delete-icon-wrap" style={{ background: "#fff8e1", border: "1px solid #ffe082", color: "#e65100", fontSize: 24 }}>âš ï¸</div>
-        <h3 className="delete-title">Desactivar categorÃ­a</h3>
+        <div className="delete-icon-wrap" style={{ background: "#fff8e1", border: "1px solid #ffe082", color: "#e65100", fontSize: 24 }}>⚠️</div>
+        <h3 className="delete-title">Desactivar categoría</h3>
         <p className="delete-body">
-          La categorÃ­a <strong>"{cat.nombre}"</strong> tiene {count} producto{count > 1 ? "s" : ""} asociado{count > 1 ? "s" : ""}.
+          La categoría <strong>"{cat.nombre}"</strong> tiene {count} producto{count > 1 ? "s" : ""} asociado{count > 1 ? "s" : ""}.
         </p>
 
         <div style={{ textAlign: "left", margin: "12px 0", background: "#fff8e1", borderRadius: 10, padding: "12px 16px", border: "1px solid #ffe082" }}>
           <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-            <span style={{ fontSize: 14, marginTop: 1 }}>â€¢</span>
+            <span style={{ fontSize: 14, marginTop: 1 }}>•</span>
             <span style={{ fontSize: 13, color: "#6d4c00", lineHeight: 1.4 }}>
-              Todos los productos vinculados a esta categorÃ­a serÃ¡n <strong>desactivados</strong> automÃ¡ticamente.
+              Todos los productos vinculados a esta categoría serán <strong>desactivados</strong> automáticamente.
             </span>
           </div>
         </div>
 
-        <p className="delete-warn">Â¿Desea continuar de todas formas?</p>
+        <p className="delete-warn">¿Desea continuar de todas formas?</p>
       </div>
       <div className="modal-footer" style={{ justifyContent: "center", gap: 12 }}>
         <button className="btn-cancel-full" onClick={onClose}>Cancelar</button>
@@ -186,7 +186,7 @@ function ModalDesactivarCategoria({ cat, count, onClose, onConfirm }) {
           onClick={handleConfirm}
           disabled={done}
         >
-          {done ? "Desactivandoâ€¦" : "SÃ­, desactivar"}
+          {done ? "Desactivando…" : "Sí, desactivar"}
         </button>
       </div>
     </ModalOverlay>
@@ -239,7 +239,7 @@ export default function CategoriaProductos() {
       const res = await getCategorias();
       setCategorias((res.categorias ?? []).map(adaptCat));
     } catch (e) {
-      showToast("Error cargando categorÃ­as: " + e.message, "error");
+      showToast("Error cargando categorías: " + e.message, "error");
     } finally {
       setLoading(false);
     }
@@ -274,7 +274,7 @@ export default function CategoriaProductos() {
   );
   useEffect(() => setPage(1), [search, filter]);
 
-  /* â”€â”€ Toggle â”€â”€ */
+  /* ── Toggle ── */
   const handleToggle = async (cat) => {
     if (cat.estado && cat.totalProductos > 0) {
       setModal({ type: "desactivar", category: cat });
@@ -294,18 +294,18 @@ export default function CategoriaProductos() {
   const handleToggleConfirm = async (catId) => {
     try {
       await toggleEstadoCategoria(catId, true);
-      showToast("CategorÃ­a y productos asociados desactivados");
+      showToast("Categoría y productos asociados desactivados");
       await cargarDatos();
     } catch (e) {
       showToast("Error al desactivar: " + e.message, "error");
     }
   };
 
-  /* â”€â”€ CRUD â”€â”€ */
+  /* ── CRUD ── */
   const handleCreate = async (apiData) => {
     try {
       await crearCategoria(apiData);
-      showToast("CategorÃ­a creada");
+      showToast("Categoría creada");
       setModal(null);
       await cargarDatos();
     } catch (e) {
@@ -331,7 +331,7 @@ export default function CategoriaProductos() {
     setModal(null);
     try {
       await eliminarCategoria(catId);
-      showToast("CategorÃ­a eliminada", "error");
+      showToast("Categoría eliminada", "error");
       await cargarDatos();
     } catch (e) {
       showToast("Error al eliminar: " + e.message, "error");
@@ -343,7 +343,7 @@ export default function CategoriaProductos() {
     if (cat.totalProductos > 0)
       return {
         ok: false,
-        razon: `Esta categorÃ­a tiene ${cat.totalProductos} producto${cat.totalProductos > 1 ? "s" : ""} vinculado${cat.totalProductos > 1 ? "s" : ""}. ReasÃ­gnalos o elimÃ­nalos antes de continuar.`,
+        razon: `Esta categoría tiene ${cat.totalProductos} producto${cat.totalProductos > 1 ? "s" : ""} vinculado${cat.totalProductos > 1 ? "s" : ""}. Reasígnalos o elimínalos antes de continuar.`,
       };
     return { ok: true };
   };
@@ -357,17 +357,17 @@ export default function CategoriaProductos() {
   return (
     <div className="page-wrapper">
       <div className="page-header">
-        <h1 className="page-header__title">GestiÃ³n de CategorÃ­as de Productos</h1>
+        <h1 className="page-header__title">Gestión de Categorías de Productos</h1>
         <div className="page-header__line" />
       </div>
       <div className="page-inner">
         <div className="toolbar">
           <div className="search-wrap">
-            <span className="search-icon">ðŸ”</span>
+            <span className="search-icon">🔍</span>
             <input
               type="text"
               className="search-input"
-              placeholder="Buscar por nombre o descripciÃ³nâ€¦"
+              placeholder="Buscar por nombre o descripción…"
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -377,7 +377,7 @@ export default function CategoriaProductos() {
               className={`filter-icon-btn${filter !== "todos" ? " has-filter" : ""}`}
               onClick={() => setShowFilter(v => !v)}
               title="Filtrar"
-            >â–¼</button>
+            >▼</button>
             {showFilter && (
               <div className="filter-dropdown">
                 {filterOptions.map(f => (
@@ -395,7 +395,7 @@ export default function CategoriaProductos() {
           </div>
           {(filter !== "todos" || search) && (
             <button className="btn-limpiar" onClick={() => { setSearch(""); setFilter("todos"); }}>
-              âœ• Limpiar
+              ✕ Limpiar
             </button>
           )}
 
@@ -409,9 +409,9 @@ export default function CategoriaProductos() {
             <table className="tbl">
               <thead>
                 <tr>
-                  <th>NÂº</th>
+                  <th>Nº</th>
                   <th>Nombre</th>
-                  <th>DescripciÃ³n</th>
+                  <th>Descripción</th>
                   <th>Estado</th>
                   <th>Fecha</th>
                   <th>Acciones</th>
@@ -424,7 +424,7 @@ export default function CategoriaProductos() {
                   <tr>
                     <td colSpan={6}>
                       <div className="empty-state">
-                        <div className="empty-state__icon">ðŸŒ</div>
+                        <div className="empty-state__icon">🍌</div>
                         <p className="empty-state__text">Sin resultados</p>
                       </div>
                     </td>
@@ -454,15 +454,15 @@ export default function CategoriaProductos() {
                         <button
                           className="act-btn act-btn--view"
                           onClick={() => setModal({ type: "ver", category: cat })}
-                        >ðŸ‘</button>
+                        >👁</button>
                         <button
                           className="act-btn act-btn--edit"
                           onClick={() => setModal({ type: "editar", category: cat })}
-                        >âœŽ</button>
+                        >✎</button>
                         <button
                           className="act-btn act-btn--delete"
                           onClick={() => setModal({ type: "eliminar", category: cat })}
-                        >ðŸ—‘ï¸</button>
+                        >🗑️</button>
                       </div>
                     </td>
                   </tr>
@@ -472,22 +472,22 @@ export default function CategoriaProductos() {
           </div>
           <div className="pagination-bar">
             <span className="pagination-count">
-              {loading ? "Cargandoâ€¦" : `${filtered.length} ${filtered.length === 1 ? "categorÃ­a" : "categorÃ­as"} en total`}
+              {loading ? "Cargando…" : `${filtered.length} ${filtered.length === 1 ? "categoría" : "categorías"} en total`}
             </span>
             <div className="pagination-btns">
-              <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>Â«</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
               <button
                 className="pg-btn-arrow"
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={safePage === 1}
-              >â€¹</button>
-              <span className="pg-pill">PÃ¡gina {safePage} de {totalPages}</span>
+              >‹</button>
+              <span className="pg-pill">Página {safePage} de {totalPages}</span>
               <button
                 className="pg-btn-arrow"
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={safePage === totalPages}
-              >â€º</button>
-              <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>Â»</button>
+              >›</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>»</button>
             </div>
           </div>
         </div>
@@ -498,8 +498,8 @@ export default function CategoriaProductos() {
       {modal?.type === "ver"      && <VerCategoria category={modal.category} onClose={() => setModal(null)} />}
       {modal?.type === "eliminar" && (
         <ModalEliminarValidado
-          titulo="Eliminar categorÃ­a"
-          descripcion={`Â¿EstÃ¡ seguro de que desea eliminar la categorÃ­a "${modal.category.nombre}"?`}
+          titulo="Eliminar categoría"
+          descripcion={`¿Está seguro de que desea eliminar la categoría "${modal.category.nombre}"?`}
           validacion={canDelete(modal.category)}
           onClose={() => setModal(null)}
           onConfirm={handleDelete}

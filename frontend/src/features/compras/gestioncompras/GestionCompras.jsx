@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { getCompras, crearCompra as apiCrearCompra, editarCompra, completarCompra, anularCompra } from "../../../services/comprasService.js";
 import { getProveedores } from "../../../services/proveedoresService.js";
 import CrearCompra from "./CrearCompra.jsx";
@@ -11,24 +11,24 @@ const COP = (n) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(n);
 
 const METODOS_LABEL = {
-  efectivo:      { label: "Efectivo",      icon: "ðŸ’µ", bg: "#e8f5e9", color: "#2e7d32", border: "#c8e6c9" },
-  transferencia: { label: "Transferencia", icon: "ðŸ¦", bg: "#e3f2fd", color: "#1565c0", border: "#90caf9" },
-  crÃ©dito:       { label: "CrÃ©dito",       icon: "ðŸ’³", bg: "#f3e5f5", color: "#6a1b9a", border: "#ce93d8" },
-  cheque:        { label: "Cheque",        icon: "ðŸ“„", bg: "#fff8e1", color: "#f57f17", border: "#ffe082" },
+  efectivo:      { label: "Efectivo",      icon: "💵", bg: "#e8f5e9", color: "#2e7d32", border: "#c8e6c9" },
+  transferencia: { label: "Transferencia", icon: "🏦", bg: "#e3f2fd", color: "#1565c0", border: "#90caf9" },
+  crédito:       { label: "Crédito",       icon: "💳", bg: "#f3e5f5", color: "#6a1b9a", border: "#ce93d8" },
+  cheque:        { label: "Cheque",        icon: "📄", bg: "#fff8e1", color: "#f57f17", border: "#ffe082" },
 };
 
-/* â”€â”€ Toast â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Toast ────────────────────────────────────────────────── */
 function Toast({ toast }) {
   if (!toast) return null;
   return (
     <div className="toast" style={{ background: toast.type === "success" ? "#2e7d32" : "#c62828" }}>
-      <span style={{ fontSize: 15 }}>{toast.type === "success" ? "âœ“" : "âœ•"}</span>
+      <span style={{ fontSize: 15 }}>{toast.type === "success" ? "✓" : "✕"}</span>
       {toast.message}
     </div>
   );
 }
 
-/* â”€â”€ Mini-modal: Registrar fecha de llegada â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Mini-modal: Registrar fecha de llegada ───────────────── */
 function ModalRegistrarLlegada({ compra, onClose, onConfirm }) {
   const hoy = new Date().toISOString().split('T')[0];
   const [fecha, setFecha] = useState(compra.fecha_llegada || hoy);
@@ -48,7 +48,7 @@ function ModalRegistrarLlegada({ compra, onClose, onConfirm }) {
           </h3>
           <p style={{ margin: "0 0 18px", fontSize: 13, color: "#616161" }}>
             Compra <strong>{compra.id}</strong>
-            {!compra.stockAplicado && " â€” se marcarÃ¡ como recibida y se aplicarÃ¡ el stock"}
+            {!compra.stockAplicado && " — se marcará como recibida y se aplicará el stock"}
           </p>
           <div className="field-wrap">
             <label className="field-label">Fecha de llegada</label>
@@ -71,7 +71,7 @@ function ModalRegistrarLlegada({ compra, onClose, onConfirm }) {
   );
 }
 
-/* â”€â”€ PÃ¡gina principal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Página principal ─────────────────────────────────────── */
 export default function GestionCompras() {
   const [compras,      setCompras]      = useState([]);
   const [proveedores,  setProveedores]  = useState([]);
@@ -119,7 +119,7 @@ export default function GestionCompras() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  /* â”€â”€ Filtrado â”€â”€ */
+  /* ── Filtrado ── */
   const filtered = compras.filter(c => {
     const q = search.toLowerCase();
     const matchQ = (
@@ -141,7 +141,7 @@ export default function GestionCompras() {
 
   const hasFilter = filterEstado !== "todos" || filterProv !== "todos";
 
-  /* â”€â”€ CRUD handlers â”€â”€ */
+  /* ── CRUD handlers ── */
   const handleCreate = async (form) => {
     try {
       await apiCrearCompra(form);
@@ -165,7 +165,7 @@ export default function GestionCompras() {
   };
 
   const handleAnular = async (id) => {
-    setModal(null);  // cerrar modal antes de mostrar toast para evitar que quede detrÃ¡s
+    setModal(null);  // cerrar modal antes de mostrar toast para evitar que quede detrás
     try {
       await anularCompra(id);
       await cargarDatos();
@@ -197,7 +197,7 @@ export default function GestionCompras() {
 
       {/* ENCABEZADO */}
       <div className="page-header">
-        <h1 className="page-header__title">GestiÃ³n de Compras</h1>
+        <h1 className="page-header__title">Gestión de Compras</h1>
         <div className="page-header__line" />
       </div>
 
@@ -206,11 +206,11 @@ export default function GestionCompras() {
         {/* TOOLBAR */}
         <div className="toolbar">
           <div className="search-wrap">
-            <span className="search-icon">ðŸ”</span>
+            <span className="search-icon">🔍</span>
             <input
               type="text"
               className="search-input"
-              placeholder="Buscar por ID, proveedor, mÃ©todo de pagoâ€¦"
+              placeholder="Buscar por ID, proveedor, método de pago…"
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
             />
@@ -222,7 +222,7 @@ export default function GestionCompras() {
               className={"filter-icon-btn" + (hasFilter ? " has-filter" : "")}
               onClick={() => setShowFilter(v => !v)}
             >
-              â–¼
+              ▼
             </button>
 
             {showFilter && (
@@ -288,7 +288,7 @@ export default function GestionCompras() {
 
           {(hasFilter || search) && (
             <button className="btn-limpiar" onClick={() => { setSearch(""); setFilterEstado("todos"); setFilterProv("todos"); }}>
-              âœ• Limpiar
+              ✕ Limpiar
             </button>
           )}
 
@@ -305,7 +305,7 @@ export default function GestionCompras() {
                 <tr>
                   <th style={{ width: 72 }}>ID</th>
                   <th>Proveedor</th>
-                  <th>MÃ©todo</th>
+                  <th>Método</th>
                   <th>Total</th>
                   <th>Estado</th>
                   <th>Llegada</th>
@@ -325,7 +325,7 @@ export default function GestionCompras() {
                   <tr>
                     <td colSpan={7}>
                       <div className="empty-state">
-                        <div className="empty-state__icon">ðŸ›’</div>
+                        <div className="empty-state__icon">🛒</div>
                         <p className="empty-state__text">
                           {hasFilter || search ? "Sin compras que coincidan." : "Sin compras registradas"}
                         </p>
@@ -339,7 +339,7 @@ export default function GestionCompras() {
                   return (
                     <tr key={c.id} className="tbl-row">
 
-                      {/* ID + NÂº */}
+                      {/* ID + Nº */}
                       <td>
                         <span className="compra-id-badge">{c.id}</span>
                         <div style={{ fontSize: 10, color: "#bdbdbd", fontWeight: 600, marginTop: 2 }}>
@@ -350,15 +350,15 @@ export default function GestionCompras() {
                       {/* Proveedor */}
                       <td>
                         <div className="prov-cell">
-                          <div className="prov-avatar">ðŸ­</div>
+                          <div className="prov-avatar">🏭</div>
                           <div>
-                            <div className="prov-name">{c.proveedor || prov?.Responsable || prov?.responsable || "â€”"}</div>
+                            <div className="prov-name">{c.proveedor || prov?.Responsable || prov?.responsable || "—"}</div>
                             <div className="prov-id">{prov?.Ciudad || prov?.ciudad || ""}</div>
                           </div>
                         </div>
                       </td>
 
-                      {/* MÃ©todo */}
+                      {/* Método */}
                       <td>
                         <span style={{
                           display: "inline-flex", alignItems: "center", gap: 5,
@@ -380,16 +380,16 @@ export default function GestionCompras() {
                       {/* Estado */}
                       <td>
                         <span className={`estado-chip estado-chip--${c.estado}`}>
-                          {c.estado === "pendiente"  && "â³ Pendiente"}
-                          {c.estado === "completada" && "âœ… Completada"}
-                          {c.estado === "anulada"    && "ðŸš« Anulada"}
+                          {c.estado === "pendiente"  && "⏳ Pendiente"}
+                          {c.estado === "completada" && "✅ Completada"}
+                          {c.estado === "anulada"    && "🚫 Anulada"}
                         </span>
                       </td>
 
                       {/* Fecha llegada */}
                       <td>
                         {c.fecha_llegada
-                          ? <span className="date-badge">ðŸ“¦ {c.fecha_llegada}</span>
+                          ? <span className="date-badge">📦 {c.fecha_llegada}</span>
                           : <span style={{ fontSize: 11, color: "#bdbdbd", fontWeight: 600 }}>Pendiente</span>
                         }
                       </td>
@@ -401,27 +401,27 @@ export default function GestionCompras() {
                             className="act-btn act-btn--view"
                             title="Ver detalle"
                             onClick={() => setModal({ mode: "view", compra: c })}
-                          >ðŸ‘</button>
+                          >👁</button>
 
                           {c.estado === "pendiente" && (
                             <button
                               className="act-btn act-btn--success"
                               title="Registrar llegada"
                               onClick={() => handleCompletarRapido(c.id)}
-                            >âœ…</button>
+                            >✅</button>
                           )}
                           <button
                             className="act-btn act-btn--edit"
                             title="Editar"
                             onClick={() => setModal({ mode: "edit", compra: c })}
-                          >âœŽ</button>
+                          >✎</button>
 
                           {c.estado !== "anulada" && (
                             <button
                               className="act-btn act-btn--delete"
                               title="Anular"
                               onClick={() => setModal({ mode: "anular", compra: c })}
-                            >ðŸš«</button>
+                            >🚫</button>
                           )}
                         </div>
                       </td>
@@ -433,7 +433,7 @@ export default function GestionCompras() {
             </table>
           </div>
 
-          {/* PAGINACIÃ“N */}
+          {/* PAGINACIÓN */}
           <div className="pagination-bar">
             <span className="pagination-count">
               {filtered.length} {filtered.length === 1 ? "compra" : "compras"} en total
@@ -441,17 +441,17 @@ export default function GestionCompras() {
             <div className="pagination-btns">
               <button className="pg-btn-arrow"
                 onClick={() => setPage(1)}
-                disabled={safePage === 1}>Â«</button>
+                disabled={safePage === 1}>«</button>
               <button className="pg-btn-arrow"
                 onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={safePage === 1}>â€¹</button>
-              <span className="pg-pill">PÃ¡gina {safePage} de {totalPages}</span>
+                disabled={safePage === 1}>‹</button>
+              <span className="pg-pill">Página {safePage} de {totalPages}</span>
               <button className="pg-btn-arrow"
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={safePage === totalPages}>â€º</button>
+                disabled={safePage === totalPages}>›</button>
               <button className="pg-btn-arrow"
                 onClick={() => setPage(totalPages)}
-                disabled={safePage === totalPages}>Â»</button>
+                disabled={safePage === totalPages}>»</button>
             </div>
           </div>
         </div>

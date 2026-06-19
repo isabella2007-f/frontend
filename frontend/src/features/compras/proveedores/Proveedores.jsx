@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import "./Proveedores.css";
 import CrearProveedor  from "./CrearProveedor";
 import EditarProveedor from "./EditarProveedor";
@@ -27,7 +27,7 @@ function Toast({ toast }) {
   if (!toast) return null;
   return (
     <div className="toast" style={{ background: toast.type === "success" ? "#2e7d32" : "#c62828" }}>
-      <span style={{ fontSize: 15 }}>{toast.type === "success" ? "âœ“" : "âœ•"}</span>
+      <span style={{ fontSize: 15 }}>{toast.type === "success" ? "✓" : "✕"}</span>
       {toast.message}
     </div>
   );
@@ -104,7 +104,7 @@ export default function GestionProveedores() {
 
   const hasFilter = filterCiudad !== "todas";
 
-  /* â”€â”€ CRUD â”€â”€ */
+  /* ── CRUD ── */
   const handleCreate = async (payload) => {
     try {
       await crearProveedor(payload);
@@ -143,7 +143,7 @@ export default function GestionProveedores() {
     <div className="page-wrapper">
 
       <div className="page-header">
-        <h1 className="page-header__title">GestiÃ³n de Proveedores</h1>
+        <h1 className="page-header__title">Gestión de Proveedores</h1>
         <div className="page-header__line" />
       </div>
 
@@ -151,11 +151,11 @@ export default function GestionProveedores() {
 
         <div className="toolbar">
           <div className="search-wrap">
-            <span className="search-icon">ðŸ”</span>
+            <span className="search-icon">🔍</span>
             <input
               type="text"
               className="search-input"
-              placeholder="Buscar por responsable, correo o celularâ€¦"
+              placeholder="Buscar por responsable, correo o celular…"
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
             />
@@ -165,7 +165,7 @@ export default function GestionProveedores() {
             <button
               className={"filter-icon-btn" + (hasFilter ? " has-filter" : "")}
               onClick={() => setShowFilter(v => !v)}
-            >â–¼</button>
+            >▼</button>
 
             {showFilter && (
               <div className="filter-dropdown" style={{ minWidth: 200 }}>
@@ -193,7 +193,7 @@ export default function GestionProveedores() {
 
           {(filterCiudad !== "todas" || search) && (
             <button className="btn-limpiar" onClick={() => { setSearch(""); setFilterCiudad("todas"); }}>
-              âœ• Limpiar
+              ✕ Limpiar
             </button>
           )}
 
@@ -207,9 +207,9 @@ export default function GestionProveedores() {
             <table className="tbl">
               <thead>
                 <tr>
-                  <th style={{ width: 48 }}>NÂº</th>
+                  <th style={{ width: 48 }}>Nº</th>
                   <th>Responsable</th>
-                  <th>DirecciÃ³n / Ciudad</th>
+                  <th>Dirección / Ciudad</th>
                   <th>Contacto</th>
                   <th>Acciones</th>
                 </tr>
@@ -221,7 +221,7 @@ export default function GestionProveedores() {
                   <tr>
                     <td colSpan={5}>
                       <div className="empty-state">
-                        <div className="empty-state__icon">ðŸ­</div>
+                        <div className="empty-state__icon">🏭</div>
                         <p className="empty-state__text">
                           {hasFilter || search ? "Sin proveedores que coincidan." : "Sin proveedores registrados"}
                         </p>
@@ -239,7 +239,7 @@ export default function GestionProveedores() {
 
                     <td>
                       <div className="prov-cell">
-                        <div className="prov-avatar">ðŸ­</div>
+                        <div className="prov-avatar">🏭</div>
                         <div>
                           <div className="prov-name">{p.responsable}</div>
                           <div className="prov-id">ID: {p.id}</div>
@@ -249,7 +249,7 @@ export default function GestionProveedores() {
 
                     <td>
                       <div style={{ display: "flex", flexDirection: "column" }}>
-                        <span style={{ fontSize: 13, color: "#424242" }}>{p.direccion || "â€”"}</span>
+                        <span style={{ fontSize: 13, color: "#424242" }}>{p.direccion || "—"}</span>
                         <span style={{ fontSize: 11, color: "#9e9e9e", fontWeight: 600 }}>{p.ciudad || ""}</span>
                       </div>
                     </td>
@@ -257,11 +257,11 @@ export default function GestionProveedores() {
                     <td>
                       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                         <span className="phone-cell" style={{ fontSize: 12 }}>
-                          <span className="phone-icon">ðŸ“ž</span>
-                          {p.celular || "â€”"}
+                          <span className="phone-icon">📞</span>
+                          {p.celular || "—"}
                         </span>
                         <span className="client-email" style={{ fontSize: 12 }}>
-                          {p.correo || "â€”"}
+                          {p.correo || "—"}
                         </span>
                       </div>
                     </td>
@@ -269,11 +269,11 @@ export default function GestionProveedores() {
                     <td>
                       <div className="actions-cell">
                         <button className="act-btn act-btn--view"
-                          onClick={() => setModal({ mode: "view", proveedor: p })}>ðŸ‘</button>
+                          onClick={() => setModal({ mode: "view", proveedor: p })}>👁</button>
                         <button className="act-btn act-btn--edit"
-                          onClick={() => setModal({ mode: "edit", proveedor: p })}>âœŽ</button>
+                          onClick={() => setModal({ mode: "edit", proveedor: p })}>✎</button>
                         <button className="act-btn act-btn--delete"
-                          onClick={() => setModal({ mode: "delete", proveedor: p })}>ðŸ—‘ï¸</button>
+                          onClick={() => setModal({ mode: "delete", proveedor: p })}>🗑️</button>
                       </div>
                     </td>
 
@@ -288,11 +288,11 @@ export default function GestionProveedores() {
               {filtered.length} {filtered.length === 1 ? "proveedor" : "proveedores"} en total
             </span>
             <div className="pagination-btns">
-              <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>Â«</button>
-              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>â€¹</button>
-              <span className="pg-pill">PÃ¡gina {safePage} de {totalPages}</span>
-              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>â€º</button>
-              <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>Â»</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
+              <span className="pg-pill">Página {safePage} de {totalPages}</span>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>»</button>
             </div>
           </div>
         </div>
@@ -320,7 +320,7 @@ export default function GestionProveedores() {
       {modal?.mode === "delete" && (
         <ModalEliminarValidado
           titulo="Eliminar proveedor"
-          descripcion={`Â¿EstÃ¡ seguro de que desea eliminar al proveedor "${modal.proveedor.responsable}"?`}
+          descripcion={`¿Está seguro de que desea eliminar al proveedor "${modal.proveedor.responsable}"?`}
           validacion={
             modal.proveedor.totalCompras > 0
               ? { ok: false, razon: `Este proveedor tiene ${modal.proveedor.totalCompras} compra(s) registrada(s) y no puede eliminarse.` }

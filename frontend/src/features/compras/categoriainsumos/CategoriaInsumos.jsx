@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { fmtFecha } from "../../../utils/dateUtils.js";
 import { Toast, ModalOverlay } from "./ui.jsx";
 import CrearCategoriaInsumo from "./CrearCategoriaInsumo.jsx";
@@ -19,7 +19,7 @@ const ADAPT = raw => ({
   id:           raw.ID_Categoria,
   nombre:       raw.Nombre_Categoria,
   descripcion:  raw.Descripcion ?? "",
-  icon:         raw.Icono ?? "ðŸ§º",
+  icon:         raw.Icono ?? "🧺",
   estado:       raw.Estado === 1,
   fecha:        fmtFecha(raw.Fecha_creacion),
   totalInsumos: raw.total_insumos ?? 0,
@@ -67,15 +67,15 @@ function VerCategoria({ cat, onClose }) {
     <ModalOverlay onClose={onClose}>
       <div className="modal-header">
         <div>
-          <p className="modal-header__eyebrow">CategorÃ­as de Insumo</p>
-          <h2 className="modal-header__title">Detalle de CategorÃ­a</h2>
+          <p className="modal-header__eyebrow">Categorías de Insumo</p>
+          <h2 className="modal-header__title">Detalle de Categoría</h2>
         </div>
-        <button className="modal-close-btn" onClick={onClose}>âœ•</button>
+        <button className="modal-close-btn" onClick={onClose}>✕</button>
       </div>
       <div className="modal-body">
         <div style={{ display: "grid", gridTemplateColumns: "80px 1fr", gap: 20, marginBottom: 16 }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Ãcono</label>
+            <label className="form-label">Ícono</label>
             <div style={{ width: "100%", height: 46, borderRadius: 10, background: "#f1f8f1", border: "1px solid #c8e6c9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>
               {cat.icon}
             </div>
@@ -87,9 +87,9 @@ function VerCategoria({ cat, onClose }) {
         </div>
 
         <div className="form-group">
-          <label className="form-label">DescripciÃ³n</label>
+          <label className="form-label">Descripción</label>
           <div className="field-input field-input--disabled" style={{ minHeight: 60, lineHeight: 1.4, fontSize: 13 }}>
-            {cat.descripcion || "Sin descripciÃ³n registrada."}
+            {cat.descripcion || "Sin descripción registrada."}
           </div>
         </div>
 
@@ -100,7 +100,7 @@ function VerCategoria({ cat, onClose }) {
           </div>
           {cat.fecha && (
             <div style={{ textAlign: "right", fontSize: 11, color: "#9e9e9e" }}>
-              <p style={{ margin: 0 }}>Fecha de creaciÃ³n</p>
+              <p style={{ margin: 0 }}>Fecha de creación</p>
               <strong style={{ color: "#616161" }}>{cat.fecha}</strong>
             </div>
           )}
@@ -157,7 +157,7 @@ export default function CategoriaInsumos() {
       const data = await getCategorias();
       setCategorias((data.categorias ?? []).map(ADAPT));
     } catch (e) {
-      showToast(e.message || "Error cargando categorÃ­as", "error");
+      showToast(e.message || "Error cargando categorías", "error");
     } finally {
       setLoading(false);
     }
@@ -165,7 +165,7 @@ export default function CategoriaInsumos() {
 
   useEffect(() => { cargarDatos(); }, []);
 
-  /* â”€â”€ Filtrado â”€â”€ */
+  /* ── Filtrado ── */
   const filtered = categorias.filter(c => {
     const q      = search.toLowerCase();
     const matchQ = c.nombre.toLowerCase().includes(q) || c.descripcion.toLowerCase().includes(q);
@@ -178,7 +178,7 @@ export default function CategoriaInsumos() {
   const paginated  = filtered.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
   useEffect(() => setPage(1), [search, filter]);
 
-  /* â”€â”€ Toggle optimista â”€â”€ */
+  /* ── Toggle optimista ── */
   const handleToggle = async (cat) => {
     setCategorias(prev => prev.map(c => c.id === cat.id ? { ...c, estado: !c.estado } : c));
     try {
@@ -189,15 +189,15 @@ export default function CategoriaInsumos() {
     }
   };
 
-  /* â”€â”€ CRUD â”€â”€ */
+  /* ── CRUD ── */
   const handleCreate = async (payload) => {
     try {
       await crearCategoria(payload);
-      showToast("CategorÃ­a creada");
+      showToast("Categoría creada");
       setModal(null);
       cargarDatos();
     } catch (e) {
-      showToast(e.message || "Error al crear la categorÃ­a", "error");
+      showToast(e.message || "Error al crear la categoría", "error");
     }
   };
 
@@ -215,11 +215,11 @@ export default function CategoriaInsumos() {
   const handleDelete = async () => {
     try {
       await eliminarCategoria(modal.cat.id);
-      showToast("CategorÃ­a eliminada", "error");
+      showToast("Categoría eliminada", "error");
       setModal(null);
       cargarDatos();
     } catch (e) {
-      showToast(e.message || "Error al eliminar la categorÃ­a", "error");
+      showToast(e.message || "Error al eliminar la categoría", "error");
     }
   };
 
@@ -232,18 +232,18 @@ export default function CategoriaInsumos() {
   return (
     <div className="page-wrapper">
       <div className="page-header">
-        <h1 className="page-header__title">CategorÃ­as de Insumos</h1>
+        <h1 className="page-header__title">Categorías de Insumos</h1>
         <div className="page-header__line" />
       </div>
 
       <div className="page-inner">
         <div className="toolbar">
           <div className="search-wrap">
-            <span className="search-icon">ðŸ”</span>
+            <span className="search-icon">🔍</span>
             <input
               type="text"
               className="search-input"
-              placeholder="Buscar por nombre o descripciÃ³nâ€¦"
+              placeholder="Buscar por nombre o descripción…"
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -253,7 +253,7 @@ export default function CategoriaInsumos() {
             <button
               className={`filter-icon-btn${filter !== "todos" ? " has-filter" : ""}`}
               onClick={() => setShowFilter(v => !v)}
-            >â–¼</button>
+            >▼</button>
             {showFilter && (
               <div className="filter-dropdown">
                 {filterOptions.map(f => (
@@ -272,7 +272,7 @@ export default function CategoriaInsumos() {
 
           {(filter !== "todos" || search) && (
             <button className="btn-limpiar" onClick={() => { setSearch(""); setFilter("todos"); }}>
-              âœ• Limpiar
+              ✕ Limpiar
             </button>
           )}
 
@@ -286,11 +286,11 @@ export default function CategoriaInsumos() {
             <table className="tbl">
               <thead>
                 <tr>
-                  <th>NÂº</th>
-                  <th>CategorÃ­a</th>
-                  <th>DescripciÃ³n</th>
+                  <th>Nº</th>
+                  <th>Categoría</th>
+                  <th>Descripción</th>
                   <th>Estado</th>
-                  <th>Fecha de creaciÃ³n</th>
+                  <th>Fecha de creación</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
@@ -301,7 +301,7 @@ export default function CategoriaInsumos() {
                   <tr>
                     <td colSpan={6}>
                       <div className="empty-state">
-                        <div className="empty-state__icon">ðŸ§º</div>
+                        <div className="empty-state__icon">🧺</div>
                         <p className="empty-state__text">Sin resultados</p>
                       </div>
                     </td>
@@ -331,11 +331,11 @@ export default function CategoriaInsumos() {
                     <td>
                       <div className="actions-cell">
                         <button className="act-btn act-btn--view"
-                          onClick={() => setModal({ type: "ver", cat })}>ðŸ‘</button>
+                          onClick={() => setModal({ type: "ver", cat })}>👁</button>
                         <button className="act-btn act-btn--edit"
-                          onClick={() => setModal({ type: "editar", cat })}>âœŽ</button>
+                          onClick={() => setModal({ type: "editar", cat })}>✎</button>
                         <button className="act-btn act-btn--delete"
-                          onClick={() => setModal({ type: "eliminar", cat })}>ðŸ—‘ï¸</button>
+                          onClick={() => setModal({ type: "eliminar", cat })}>🗑️</button>
                       </div>
                     </td>
                   </tr>
@@ -347,14 +347,14 @@ export default function CategoriaInsumos() {
           <div className="pagination-bar">
 
             <span className="pagination-count">
-              {filtered.length} {filtered.length === 1 ? "categorÃ­a" : "categorÃ­as"} en total
+              {filtered.length} {filtered.length === 1 ? "categoría" : "categorías"} en total
             </span>
             <div className="pagination-btns">
-              <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>Â«</button>
-              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>â€¹</button>
-              <span className="pg-pill">PÃ¡gina {safePage} de {totalPages}</span>
-              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>â€º</button>
-              <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>Â»</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
+              <span className="pg-pill">Página {safePage} de {totalPages}</span>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>»</button>
             </div>
           </div>
         </div>
@@ -368,20 +368,20 @@ export default function CategoriaInsumos() {
           <ModalOverlay onClose={() => setModal(null)}>
             <div className="modal-header">
               <div>
-                <p className="modal-header__eyebrow">CategorÃ­as de Insumo</p>
+                <p className="modal-header__eyebrow">Categorías de Insumo</p>
                 <h2 className="modal-header__title">No se puede eliminar</h2>
               </div>
-              <button className="modal-close-btn" onClick={() => setModal(null)}>âœ•</button>
+              <button className="modal-close-btn" onClick={() => setModal(null)}>✕</button>
             </div>
             <div className="modal-body" style={{ padding: "20px 24px 24px" }}>
               <div style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: "16px", borderRadius: 10, background: "#fff3e0", border: "1px solid #ffcc80" }}>
-                <span style={{ fontSize: 28, lineHeight: 1 }}>âš ï¸</span>
+                <span style={{ fontSize: 28, lineHeight: 1 }}>⚠️</span>
                 <div>
                   <p style={{ margin: 0, fontWeight: 700, color: "#e65100", fontSize: 14 }}>
-                    La categorÃ­a tiene {modal.cat.totalInsumos} insumo{modal.cat.totalInsumos !== 1 ? "s" : ""} asociado{modal.cat.totalInsumos !== 1 ? "s" : ""}
+                    La categoría tiene {modal.cat.totalInsumos} insumo{modal.cat.totalInsumos !== 1 ? "s" : ""} asociado{modal.cat.totalInsumos !== 1 ? "s" : ""}
                   </p>
                   <p style={{ margin: "6px 0 0", fontSize: 13, color: "#424242" }}>
-                    Debes reasignar o eliminar los insumos antes de poder eliminar la categorÃ­a <strong>"{modal.cat.nombre}"</strong>.
+                    Debes reasignar o eliminar los insumos antes de poder eliminar la categoría <strong>"{modal.cat.nombre}"</strong>.
                   </p>
                 </div>
               </div>
@@ -392,8 +392,8 @@ export default function CategoriaInsumos() {
           </ModalOverlay>
         ) : (
           <ModalEliminarValidado
-            titulo="Eliminar categorÃ­a"
-            descripcion={`Â¿EstÃ¡ seguro de que desea eliminar la categorÃ­a "${modal.cat.nombre}"?`}
+            titulo="Eliminar categoría"
+            descripcion={`¿Está seguro de que desea eliminar la categoría "${modal.cat.nombre}"?`}
             validacion={{ ok: true }}
             onClose={() => setModal(null)}
             onConfirm={handleDelete}

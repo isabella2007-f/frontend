@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { usePrivilegio } from "../../../context/PrivilegiosContext";
 import { registrarSalida } from "../../../services/salidasService";
 import CrearInsumo from "./CrearInsumo.jsx";
@@ -40,7 +40,7 @@ const ADAPT_CAT = raw => ({
   id:          raw.ID_Categoria,
   nombre:      raw.Nombre_Categoria,
   descripcion: raw.Descripcion ?? "",
-  icon:        raw.Icono ?? "ðŸ§º",
+  icon:        raw.Icono ?? "🧺",
   estado:      raw.Estado === 1,
 });
 
@@ -79,13 +79,13 @@ function StockBar({ actual, minimo }) {
         <div className="stock-bar" style={{ width: est === "agotado" ? "100%" : pct + "%", background: color }} />
       </div>
       <span className="stock-nums" style={est === "agotado" ? { color: "#c62828" } : undefined}>
-        <strong>{actual}</strong> / mÃ­n {minimo}
+        <strong>{actual}</strong> / mín {minimo}
       </span>
       {hovered && (
         <div className="stock-tooltip" style={{ background: tip.bg, border: `1px solid ${tip.border}`, color: tip.text }}>
           <span className="stock-tooltip__dot" style={{ background: color }} />
           {tip.label}
-          {est === "bajo" && <span style={{ fontWeight: 400, opacity: 0.8 }}> Â· faltan {minimo - actual}</span>}
+          {est === "bajo" && <span style={{ fontWeight: 400, opacity: 0.8 }}> · faltan {minimo - actual}</span>}
         </div>
       )}
     </div>
@@ -98,11 +98,11 @@ function CatCell({ cat }) {
     <span style={{ position: "relative", display: "inline-flex" }}
       onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
       <span style={{ width: 34, height: 34, borderRadius: 8, background: "#f1f8f1", border: "1px solid #c8e6c9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17, cursor: "default" }}>
-        {cat?.icon || "ðŸ§º"}
+        {cat?.icon || "🧺"}
       </span>
       {show && (
         <span style={{ position: "absolute", bottom: "calc(100% + 6px)", left: "50%", transform: "translateX(-50%)", background: "#1a1a1a", color: "#fff", fontSize: 11, fontWeight: 600, padding: "4px 10px", borderRadius: 7, whiteSpace: "nowrap", zIndex: 999, pointerEvents: "none" }}>
-          {cat?.nombre || "â€”"}
+          {cat?.nombre || "—"}
           <span style={{ position: "absolute", top: "100%", left: "50%", transform: "translateX(-50%)", width: 0, height: 0, borderLeft: "5px solid transparent", borderRight: "5px solid transparent", borderTop: "5px solid #1a1a1a" }} />
         </span>
       )}
@@ -111,24 +111,24 @@ function CatCell({ cat }) {
 }
 
 function VencCell({ fecha, dias }) {
-  if (!fecha) return <span style={{ fontSize: 13, color: "#bdbdbd", fontWeight: 500 }}>â€”</span>;
+  if (!fecha) return <span style={{ fontSize: 13, color: "#bdbdbd", fontWeight: 500 }}>—</span>;
 
   const [y, m, d] = fecha.split("-");
   const label = `${d}/${m}/${y}`;
 
   if (dias <= 0) return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#c62828", background: "#ffebee", border: "1px solid #ef9a9a", borderRadius: 6, padding: "3px 8px" }}>
-      âš ï¸ Vencido
+      ⚠️ Vencido
     </span>
   );
   if (dias <= 7) return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#e65100", background: "#fff3e0", border: "1px solid #ffcc80", borderRadius: 6, padding: "3px 8px" }}>
-      ðŸ”´ {label} <span style={{ fontWeight: 400, opacity: 0.8 }}>({dias}d)</span>
+      🔴 {label} <span style={{ fontWeight: 400, opacity: 0.8 }}>({dias}d)</span>
     </span>
   );
   if (dias <= 30) return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#f57f17", background: "#fff8e1", border: "1px solid #ffe082", borderRadius: 6, padding: "3px 8px" }}>
-      ðŸŸ¡ {label} <span style={{ fontWeight: 400, opacity: 0.8 }}>({dias}d)</span>
+      🟡 {label} <span style={{ fontWeight: 400, opacity: 0.8 }}>({dias}d)</span>
     </span>
   );
   return (
@@ -194,10 +194,10 @@ export default function GestionInsumos() {
 
   useEffect(() => { cargarDatos(); }, []);
 
-  const getCatInsumo = (idCat) => categorias.find(c => c.id === idCat) ?? { icon: "ðŸ§º", nombre: "â€”" };
+  const getCatInsumo = (idCat) => categorias.find(c => c.id === idCat) ?? { icon: "🧺", nombre: "—" };
   const getUnidad    = (idU)   => UNIDADES.find(u => u.id === idU) ?? { simbolo: "uds.", nombre: "Unidad" };
 
-  /* â”€â”€ Filtrado â”€â”€ */
+  /* ── Filtrado ── */
   const filtered = insumos.filter(ins => {
     const q        = search.toLowerCase();
     const cat      = getCatInsumo(ins.idCategoria);
@@ -217,7 +217,7 @@ export default function GestionInsumos() {
 
   const hasFilter = filterCat !== "todas" || filterEst !== "todos";
 
-  /* â”€â”€ Toggle optimista â”€â”€ */
+  /* ── Toggle optimista ── */
   const handleToggle = async (ins) => {
     setInsumos(prev => prev.map(i => i.id === ins.id ? { ...i, estado: !i.estado } : i));
     try {
@@ -228,7 +228,7 @@ export default function GestionInsumos() {
     }
   };
 
-  /* â”€â”€ CRUD â”€â”€ */
+  /* ── CRUD ── */
   const handleCreate = async (payload) => {
     try {
       await crearInsumo(payload);
@@ -292,26 +292,26 @@ export default function GestionInsumos() {
   return (
     <div className="page-wrapper">
       <div className="page-header">
-        <h1 className="page-header__title">GestiÃ³n de Insumos</h1>
+        <h1 className="page-header__title">Gestión de Insumos</h1>
         <div className="page-header__line" />
       </div>
 
       <div className="page-inner">
         <div className="toolbar">
           <div className="search-wrap">
-            <span className="search-icon">ðŸ”</span>
+            <span className="search-icon">🔍</span>
             <input type="text" className="search-input"
-              placeholder="Buscar por nombre o categorÃ­aâ€¦"
+              placeholder="Buscar por nombre o categoría…"
               value={search} onChange={e => setSearch(e.target.value)} />
           </div>
 
           <div ref={filterRef} style={{ position: "relative" }}>
             <button className={`filter-icon-btn${hasFilter ? " has-filter" : ""}`}
-              onClick={() => setShowFilter(v => !v)}>â–¼</button>
+              onClick={() => setShowFilter(v => !v)}>▼</button>
             {showFilter && (
               <div className="filter-dropdown filter-dropdown--wide">
                 <div className="filter-dropdown__section">
-                  <p className="filter-section-title">CategorÃ­a</p>
+                  <p className="filter-section-title">Categoría</p>
                   <div className="filter-grid">
                     <button className={`filter-option${filterCat === "todas" ? " active" : ""}`}
                       onClick={() => { setFilterCat("todas"); setShowFilter(false); }}>
@@ -344,7 +344,7 @@ export default function GestionInsumos() {
 
           {(hasFilter || search) && (
             <button className="btn-limpiar" onClick={() => { setSearch(""); setFilterCat("todas"); setFilterEst("todos"); }}>
-              âœ• Limpiar
+              ✕ Limpiar
             </button>
           )}
 
@@ -360,12 +360,12 @@ export default function GestionInsumos() {
             <table className="tbl">
               <thead>
                 <tr>
-                  <th>NÂº</th>
+                  <th>Nº</th>
                   <th>Insumo</th>
-                  <th>CategorÃ­a</th>
+                  <th>Categoría</th>
                   <th>Lote</th>
                   <th>Stock</th>
-                  <th>PrÃ³x. Venc.</th>
+                  <th>Próx. Venc.</th>
                   <th>Activo</th>
                   <th>Acciones</th>
                 </tr>
@@ -377,7 +377,7 @@ export default function GestionInsumos() {
                   <tr>
                     <td colSpan={8}>
                       <div className="empty-state">
-                        <div className="empty-state__icon">ðŸ§º</div>
+                        <div className="empty-state__icon">🧺</div>
                         <p className="empty-state__text">
                           {hasFilter || search ? "Sin insumos que coincidan." : "Sin insumos registrados"}
                         </p>
@@ -404,7 +404,7 @@ export default function GestionInsumos() {
                       <td>
                         {ins.loteId
                           ? <span style={{ fontSize: 11, fontWeight: 700, color: "#1565c0", background: "#e3f2fd", border: "1px solid #90caf9", borderRadius: 6, padding: "3px 8px" }}>#{String(ins.loteId).padStart(4, "0")}</span>
-                          : <span style={{ fontSize: 13, color: "#bdbdbd", fontWeight: 500 }}>â€”</span>
+                          : <span style={{ fontSize: 13, color: "#bdbdbd", fontWeight: 500 }}>—</span>
                         }
                       </td>
                       <td><StockBar actual={ins.stockActual} minimo={ins.stockMinimo} /></td>
@@ -412,10 +412,10 @@ export default function GestionInsumos() {
                       <td><Toggle value={ins.estado} onChange={() => handleToggle(ins)} /></td>
                       <td>
                         <div className="actions-cell">
-                          <button className="act-btn act-btn--view"   title="Ver detalle"      onClick={() => setModal({ type: "ver",      ins })}>ðŸ‘</button>
-                          {puedeEditar   && <button className="act-btn act-btn--edit"   title="Editar"           onClick={() => setModal({ type: "editar",   ins })}>âœŽ</button>}
-                          <button className="act-btn act-btn--salida" title="Registrar salida" onClick={() => setModal({ type: "salida",   ins })}>ðŸšš</button>
-                          {puedeEliminar && <button className="act-btn act-btn--delete" title="Eliminar"         onClick={() => setModal({ type: "eliminar", ins })}>ðŸ—‘ï¸</button>}
+                          <button className="act-btn act-btn--view"   title="Ver detalle"      onClick={() => setModal({ type: "ver",      ins })}>👁</button>
+                          {puedeEditar   && <button className="act-btn act-btn--edit"   title="Editar"           onClick={() => setModal({ type: "editar",   ins })}>✎</button>}
+                          <button className="act-btn act-btn--salida" title="Registrar salida" onClick={() => setModal({ type: "salida",   ins })}>🚚</button>
+                          {puedeEliminar && <button className="act-btn act-btn--delete" title="Eliminar"         onClick={() => setModal({ type: "eliminar", ins })}>🗑️</button>}
                         </div>
                       </td>
                     </tr>
@@ -430,11 +430,11 @@ export default function GestionInsumos() {
               {filtered.length} {filtered.length === 1 ? "insumo" : "insumos"} en total
             </span>
             <div className="pagination-btns">
-              <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>Â«</button>
-              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>â€¹</button>
-              <span className="pg-pill">PÃ¡gina {safePage} de {totalPages}</span>
-              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>â€º</button>
-              <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>Â»</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
+              <span className="pg-pill">Página {safePage} de {totalPages}</span>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>»</button>
             </div>
           </div>
         </div>
@@ -467,21 +467,21 @@ export default function GestionInsumos() {
             <div className="modal-box" onClick={e => e.stopPropagation()}>
               <div className="modal-header">
                 <div>
-                  <p className="modal-header__eyebrow">GestiÃ³n de Insumos</p>
+                  <p className="modal-header__eyebrow">Gestión de Insumos</p>
                   <h2 className="modal-header__title">No se puede eliminar</h2>
                 </div>
-                <button className="modal-close-btn" onClick={() => setModal(null)}>âœ•</button>
+                <button className="modal-close-btn" onClick={() => setModal(null)}>✕</button>
               </div>
               <div className="modal-body" style={{ padding: "20px 24px 24px" }}>
                 <div style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: 16, borderRadius: 10, background: "#fff3e0", border: "1px solid #ffcc80" }}>
-                  <span style={{ fontSize: 28, lineHeight: 1 }}>âš ï¸</span>
+                  <span style={{ fontSize: 28, lineHeight: 1 }}>⚠️</span>
                   <div>
                     <p style={{ margin: 0, fontWeight: 700, color: "#e65100", fontSize: 14 }}>
-                      El insumo estÃ¡ asociado a una ficha tÃ©cnica de producciÃ³n
+                      El insumo está asociado a una ficha técnica de producción
                     </p>
                     <p style={{ margin: "6px 0 0", fontSize: 13, color: "#424242" }}>
-                      El insumo <strong>"{modal.ins.nombre}"</strong> forma parte de la receta de uno o mÃ¡s productos.
-                      Debes retirarlo de todas las fichas tÃ©cnicas antes de poder eliminarlo.
+                      El insumo <strong>"{modal.ins.nombre}"</strong> forma parte de la receta de uno o más productos.
+                      Debes retirarlo de todas las fichas técnicas antes de poder eliminarlo.
                     </p>
                   </div>
                 </div>
@@ -494,7 +494,7 @@ export default function GestionInsumos() {
         ) : (
           <ModalEliminarValidado
             titulo="Eliminar insumo"
-            descripcion={`Â¿EstÃ¡ seguro de que desea eliminar el insumo "${modal.ins.nombre}"?`}
+            descripcion={`¿Está seguro de que desea eliminar el insumo "${modal.ins.nombre}"?`}
             validacion={{ ok: true }}
             onClose={() => setModal(null)}
             onConfirm={handleDelete}
@@ -504,7 +504,7 @@ export default function GestionInsumos() {
 
       {toast && (
         <div className="toast" style={{ background: toast.type === "error" ? "#c62828" : "#2e7d32" }}>
-          <span className="toast-icon">{toast.type === "error" ? "ðŸ—‘ï¸" : "âœ…"}</span>
+          <span className="toast-icon">{toast.type === "error" ? "🗑️" : "✅"}</span>
           {toast.msg}
         </div>
       )}

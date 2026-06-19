@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { usePrivilegio } from "../../../context/PrivilegiosContext";
 import { getRoles, eliminarRol, toggleEstadoRol } from "../../../services/rolesService.js";
 import CrearRol from "./CrearRol.jsx";
@@ -33,7 +33,7 @@ function Toast({ toast }) {
   if (!toast) return null;
   return (
     <div className="toast" style={{ background: toast.type === "error" ? "#c62828" : "#2e7d32" }}>
-      <span className="toast-icon">{toast.type === "error" ? "âœ•" : "âœ“"}</span>
+      <span className="toast-icon">{toast.type === "error" ? "✕" : "✓"}</span>
       {toast.message}
     </div>
   );
@@ -138,18 +138,18 @@ export default function GestionRoles() {
   return (
     <div className="page-wrapper">
       <div className="page-header">
-        <h1 className="page-header__title">GestiÃ³n de Roles</h1>
+        <h1 className="page-header__title">Gestión de Roles</h1>
         <div className="page-header__line" />
       </div>
 
       <div className="page-inner">
         <div className="toolbar">
           <div className="search-wrap">
-            <span className="search-icon">ðŸ”</span>
+            <span className="search-icon">🔍</span>
             <input
               type="text"
               className="search-input"
-              placeholder="Buscar rolâ€¦"
+              placeholder="Buscar rol…"
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -159,7 +159,7 @@ export default function GestionRoles() {
             <button
               className={"filter-icon-btn" + (filter !== "todos" ? " has-filter" : "")}
               onClick={() => setShowFilter(v => !v)}
-            >â–¼</button>
+            >▼</button>
             {showFilter && (
               <div className="filter-dropdown">
                 {[
@@ -182,7 +182,7 @@ export default function GestionRoles() {
 
           {(filter !== "todos" || search) && (
             <button className="btn-limpiar" onClick={() => { setSearch(""); setFilter("todos"); }}>
-              âœ• Limpiar
+              ✕ Limpiar
             </button>
           )}
 
@@ -198,8 +198,8 @@ export default function GestionRoles() {
             <table className="tbl">
               <thead>
                 <tr>
-                  <th style={{ width: 48 }}>NÂº</th>
-                  <th>Ãcono</th>
+                  <th style={{ width: 48 }}>Nº</th>
+                  <th>Ícono</th>
                   <th>Rol</th>
                   <th>Usuarios</th>
                   <th>Estado</th>
@@ -213,7 +213,7 @@ export default function GestionRoles() {
                   <tr>
                     <td colSpan={6}>
                       <div className="empty-state">
-                        <div className="empty-state__icon">ðŸ›¡ï¸</div>
+                        <div className="empty-state__icon">🛡️</div>
                         <p className="empty-state__text">Sin resultados</p>
                       </div>
                     </td>
@@ -261,20 +261,20 @@ export default function GestionRoles() {
                         <button
                           className="act-btn act-btn--view"
                           onClick={() => setModal({ mode: "view", rol })}
-                        >ðŸ‘</button>
+                        >👁</button>
                         {!rol.esAdmin && (
                           <>
                             {puedeEditar && (
                               <button
                                 className="act-btn act-btn--edit"
                                 onClick={() => setModal({ mode: "edit", rol })}
-                              >âœŽ</button>
+                              >✎</button>
                             )}
                             {puedeEliminar && (
                               <button
                                 className="act-btn act-btn--delete"
                                 onClick={() => setModal({ mode: "delete", rol })}
-                              >ðŸ—‘ï¸</button>
+                              >🗑️</button>
                             )}
                           </>
                         )}
@@ -291,11 +291,11 @@ export default function GestionRoles() {
               {filtered.length} {filtered.length === 1 ? "rol" : "roles"} en total
             </span>
             <div className="pagination-btns">
-              <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>Â«</button>
-              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>â€¹</button>
-              <span className="pg-pill">PÃ¡gina {safePage} de {totalPages}</span>
-              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>â€º</button>
-              <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>Â»</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
+              <span className="pg-pill">Página {safePage} de {totalPages}</span>
+              <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>»</button>
             </div>
           </div>
         </div>
@@ -307,7 +307,7 @@ export default function GestionRoles() {
       {modal?.mode === "delete" && (
         <ModalEliminarValidado
           titulo="Eliminar rol"
-          descripcion={`Â¿EstÃ¡ seguro de que desea eliminar el rol "${modal.rol.nombre}"?`}
+          descripcion={`¿Está seguro de que desea eliminar el rol "${modal.rol.nombre}"?`}
           validacion={
             (modal.rol.totalUsuarios ?? 0) > 0
               ? { ok: false, razon: `No se puede eliminar: el rol tiene ${modal.rol.totalUsuarios} usuario(s) asignado(s). Reasigna o elimina esos usuarios primero.` }

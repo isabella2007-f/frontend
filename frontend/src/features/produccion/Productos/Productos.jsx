@@ -1,11 +1,11 @@
-﻿// src/features/produccion/Productos/GestionProductos.jsx
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// MÃ³dulo de GestiÃ³n de Productos conectado a la API real.
-// Ya NO depende de AppContext para productos ni categorÃ­as.
+// src/features/produccion/Productos/GestionProductos.jsx
+// ─────────────────────────────────────────────────────────────────────────────
+// Módulo de Gestión de Productos conectado a la API real.
+// Ya NO depende de AppContext para productos ni categorías.
 // Mantiene AppContext solo para: canDeleteProducto, registrarSalidaProducto,
 // guardarFicha, calcularCostoProduccion, sugerirPrecioConGanancia
-// (funciones que aÃºn pueden vivir en contexto local mientras se migran).
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// (funciones que aún pueden vivir en contexto local mientras se migran).
+// ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { fmtFecha } from "../../../utils/dateUtils.js";
@@ -33,16 +33,16 @@ import "./Productos.css";
 
 const ITEMS_PER_PAGE = 10;
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ══════════════════════════════════════════════════════════
    HELPERS
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+══════════════════════════════════════════════════════════ */
 function calcEstado(stock, minimo) {
   return stock > 0 && stock >= minimo ? "Disponible" : "No disponible";
 }
 function calcTooltip(stock, minimo) {
   if (stock === 0)    return "Sin unidades en stock";
-  if (stock < minimo) return `Stock por debajo del mÃ­nimo (${minimo} uds.)`;
-  return `Stock suficiente (mÃ­n. ${minimo} uds.)`;
+  if (stock < minimo) return `Stock por debajo del mínimo (${minimo} uds.)`;
+  return `Stock suficiente (mín. ${minimo} uds.)`;
 }
 const ESTADO_STYLES = {
   "Disponible":    { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7" },
@@ -63,16 +63,16 @@ function diasParaVencer(fechaVenc) {
   );
 }
 const TIPO_COLORS = {
-  vencido:    { color: "#e65100", bg: "#fff3e0", border: "#ffcc80", icon: "ðŸ•’" },
-  daÃ±ado:     { color: "#c62828", bg: "#ffebee", border: "#ef9a9a", icon: "ðŸ’¥" },
-  ajuste:     { color: "#1565c0", bg: "#e3f2fd", border: "#90caf9", icon: "âš–ï¸" },
-  consumo:    { color: "#4a148c", bg: "#f3e5f5", border: "#ce93d8", icon: "ðŸ½ï¸" },
-  devolucion: { color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7", icon: "â†©ï¸" },
+  vencido:    { color: "#e65100", bg: "#fff3e0", border: "#ffcc80", icon: "🕒" },
+  dañado:     { color: "#c62828", bg: "#ffebee", border: "#ef9a9a", icon: "💥" },
+  ajuste:     { color: "#1565c0", bg: "#e3f2fd", border: "#90caf9", icon: "⚖️" },
+  consumo:    { color: "#4a148c", bg: "#f3e5f5", border: "#ce93d8", icon: "🍽️" },
+  devolucion: { color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7", icon: "↩️" },
 };
 
 /**
  * Convierte un ProductoResponse de la API al shape interno que usa la UI.
- * Centralizado aquÃ­ para que todos los componentes hijos reciban el mismo shape.
+ * Centralizado aquí para que todos los componentes hijos reciban el mismo shape.
  */
 function adaptarProducto(p) {
   const ft = p.ficha_tecnica;
@@ -114,9 +114,9 @@ function adaptarProducto(p) {
   };
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ══════════════════════════════════════════════════════════
    SUB-COMPONENTES
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+══════════════════════════════════════════════════════════ */
 
 function Toggle({ value, onChange, disabled = false, title }) {
   return (
@@ -175,7 +175,7 @@ function StockBar({ actual, minimo }) {
       </div>
       <span style={{ fontSize: 12, fontWeight: 600, color: "#424242" }}>
         <strong style={{ color }}>{actual}</strong>
-        <span style={{ color: "#bdbdbd" }}> / mÃ­n {minimo}</span>
+        <span style={{ color: "#bdbdbd" }}> / mín {minimo}</span>
       </span>
       {hovered && (
         <div
@@ -198,7 +198,7 @@ function StockBar({ actual, minimo }) {
           {tip.label}
           {est === "bajo" && (
             <span style={{ fontWeight: 400, opacity: 0.8 }}>
-              {" "}Â· faltan {minimo - actual}
+              {" "}· faltan {minimo - actual}
             </span>
           )}
         </div>
@@ -223,7 +223,7 @@ function CatCell({ cat }) {
           fontSize: 17, cursor: "default",
         }}
       >
-        {cat?.icon || "ðŸ“¦"}
+        {cat?.icon || "📦"}
       </span>
       {show && (
         <span
@@ -234,7 +234,7 @@ function CatCell({ cat }) {
             whiteSpace: "nowrap", zIndex: 999, pointerEvents: "none",
           }}
         >
-          {cat?.nombre || "â€”"}
+          {cat?.nombre || "—"}
           <span
             style={{
               position: "absolute", top: "100%", left: "50%",
@@ -270,14 +270,14 @@ function ProductImg({ previews, nombre }) {
         fontSize: 17,
       }}
     >
-      ðŸŒ
+      🍌
     </div>
   );
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   LOTES PANEL â€” Solo lectura
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ══════════════════════════════════════════════════════════
+   LOTES PANEL — Solo lectura
+══════════════════════════════════════════════════════════ */
 function LotesProductoPanel({ idProducto, tipo = "lotes" }) {
   const [lotes,   setLotes]   = useState([]);
   const [loading, setLoading] = useState(true);
@@ -291,7 +291,7 @@ function LotesProductoPanel({ idProducto, tipo = "lotes" }) {
   }, [idProducto]);
 
   if (loading) return (
-    <div style={{ textAlign: "center", padding: "28px 0", color: "#9e9e9e", fontSize: 13 }}>Cargando lotesâ€¦</div>
+    <div style={{ textAlign: "center", padding: "28px 0", color: "#9e9e9e", fontSize: 13 }}>Cargando lotes…</div>
   );
 
   const activos  = lotes.filter(l => !l.vencido);
@@ -300,13 +300,13 @@ function LotesProductoPanel({ idProducto, tipo = "lotes" }) {
 
   if (!mostrar.length) return (
     <div className="empty-state" style={{ padding: "28px 20px" }}>
-      <div className="empty-state__icon">ðŸ“¦</div>
+      <div className="empty-state__icon">📦</div>
       <p className="empty-state__text">
         {tipo === "historial" ? "Sin lotes vencidos registrados." : "Sin lotes activos registrados."}
       </p>
       {tipo === "lotes" && (
         <p style={{ fontSize: 11, color: "#9e9e9e", marginTop: 6 }}>
-          Los lotes se generan al completar una Orden de ProducciÃ³n.
+          Los lotes se generan al completar una Orden de Producción.
         </p>
       )}
     </div>
@@ -332,7 +332,7 @@ function LotesProductoPanel({ idProducto, tipo = "lotes" }) {
                 )}
                 {urgente && (
                   <span style={{ fontSize: 11, fontWeight: 700, color: "#e65100", background: "#fff3e0", padding: "2px 8px", borderRadius: 20, border: "1px solid #ffcc80" }}>
-                    âš ï¸ Vence en {dias}d
+                    ⚠️ Vence en {dias}d
                   </span>
                 )}
                 {fv && <span style={{ fontWeight: 600, fontSize: 12 }}>Vence: {fv}</span>}
@@ -340,7 +340,7 @@ function LotesProductoPanel({ idProducto, tipo = "lotes" }) {
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 8, fontSize: 13 }}>
               <div><strong>Cantidad:</strong> {l.cantidad} uds.</div>
-              {l.fecha_produccion && <div><strong>ProducciÃ³n:</strong> {l.fecha_produccion}</div>}
+              {l.fecha_produccion && <div><strong>Producción:</strong> {l.fecha_produccion}</div>}
             </div>
           </div>
         );
@@ -349,9 +349,9 @@ function LotesProductoPanel({ idProducto, tipo = "lotes" }) {
   );
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ══════════════════════════════════════════════════════════
    VER PRODUCTO
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+══════════════════════════════════════════════════════════ */
 function VerProducto({ product, catObj, onClose, onOpenFicha }) {
   const [tab, setTab]    = useState("info");
   const [imgIdx, setImgIdx] = useState(0);
@@ -384,15 +384,15 @@ function VerProducto({ product, catObj, onClose, onOpenFicha }) {
               <h2 className="modal-header__title">{product.nombre}</h2>
             </div>
           </div>
-          <button className="modal-close-btn" onClick={onClose}>âœ•</button>
+          <button className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
 
         <div className="ver-ins-tabs">
           {[
-            { key: "info",     label: "ðŸ“‹ InformaciÃ³n" },
-            { key: "lotes",    label: "ðŸ“¦ Lotes" },
-            { key: "historial",label: "ðŸ•’ Historial" },
-            { key: "ficha",    label: "ðŸ“– Ficha tÃ©cnica" },
+            { key: "info",     label: "📋 Información" },
+            { key: "lotes",    label: "📦 Lotes" },
+            { key: "historial",label: "🕒 Historial" },
+            { key: "ficha",    label: "📖 Ficha técnica" },
           ].map((t) => (
             <button
               key={t.key}
@@ -405,7 +405,7 @@ function VerProducto({ product, catObj, onClose, onOpenFicha }) {
         </div>
 
         <div className="modal-body" style={{ flex: 1, overflowY: "auto" }}>
-          {/* â”€â”€ Tab Info â”€â”€ */}
+          {/* ── Tab Info ── */}
           {tab === "info" && (
             <>
               {previews.length > 0 && (
@@ -459,13 +459,13 @@ function VerProducto({ product, catObj, onClose, onOpenFicha }) {
                   <span style={{ fontWeight: 600, fontSize: 14 }}>{product.nombre}</span>
                 </div>
                 <div className="ver-ins-field">
-                  <span className="ver-ins-field__label">CategorÃ­a</span>
+                  <span className="ver-ins-field__label">Categoría</span>
                   <span style={{ fontWeight: 600, fontSize: 14 }}>
-                    {catObj?.icon} {catObj?.nombre || "â€”"}
+                    {catObj?.icon} {catObj?.nombre || "—"}
                   </span>
                 </div>
                 <div className="ver-ins-field">
-                  <span className="ver-ins-field__label">Fecha creaciÃ³n</span>
+                  <span className="ver-ins-field__label">Fecha creación</span>
                   <span style={{ fontWeight: 600, fontSize: 14 }}>{fmtFecha(product.fechaCreacion)}</span>
                 </div>
                 <div className="ver-ins-field">
@@ -521,7 +521,7 @@ function VerProducto({ product, catObj, onClose, onOpenFicha }) {
                 </div>
                 <div className="ver-ins-stock-card ver-ins-stock-card--minimo">
                   <span className="ver-ins-stock-card__num">{minimo}</span>
-                  <span className="ver-ins-stock-card__label">Stock mÃ­nimo</span>
+                  <span className="ver-ins-stock-card__label">Stock mínimo</span>
                   <span className="ver-ins-stock-card__uni">uds.</span>
                 </div>
               </div>
@@ -531,21 +531,21 @@ function VerProducto({ product, catObj, onClose, onOpenFicha }) {
             </>
           )}
 
-          {/* â”€â”€ Tab Lotes â”€â”€ */}
+          {/* ── Tab Lotes ── */}
           {tab === "lotes" && <LotesProductoPanel idProducto={product.id} tipo="lotes" />}
 
-          {/* â”€â”€ Tab Historial â”€â”€ */}
+          {/* ── Tab Historial ── */}
           {tab === "historial" && <LotesProductoPanel idProducto={product.id} tipo="historial" />}
 
-          {/* â”€â”€ Tab Ficha tÃ©cnica â”€â”€ */}
+          {/* ── Tab Ficha técnica ── */}
           {tab === "ficha" && (
             product.ficha ? (
               <div>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: "#2e7d32" }}>VersiÃ³n {product.ficha.version || "1.0"}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: "#2e7d32" }}>Versión {product.ficha.version || "1.0"}</span>
                   <button onClick={() => { onClose(); onOpenFicha?.(product); }}
                     style={{ fontSize: 12, fontWeight: 700, color: "#1565c0", background: "#e3f2fd", border: "1px solid #90caf9", borderRadius: 8, padding: "5px 12px", cursor: "pointer" }}>
-                    âœŽ Editar ficha
+                    ✎ Editar ficha
                   </button>
                 </div>
                 {(product.ficha.insumos || []).length > 0 && (
@@ -584,11 +584,11 @@ function VerProducto({ product, catObj, onClose, onOpenFicha }) {
               </div>
             ) : (
               <div style={{ textAlign: "center", padding: "28px 0" }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>ðŸ“‹</div>
-                <p style={{ margin: "0 0 12px", fontSize: 13, color: "#9e9e9e" }}>Este producto no tiene ficha tÃ©cnica.</p>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
+                <p style={{ margin: "0 0 12px", fontSize: 13, color: "#9e9e9e" }}>Este producto no tiene ficha técnica.</p>
                 <button onClick={() => { onClose(); onOpenFicha?.(product); }}
                   style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#2e7d32", border: "none", borderRadius: 8, padding: "8px 18px", cursor: "pointer" }}>
-                  + Crear ficha tÃ©cnica
+                  + Crear ficha técnica
                 </button>
               </div>
             )
@@ -604,7 +604,7 @@ function VerProducto({ product, catObj, onClose, onOpenFicha }) {
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
                     {Object.entries(resumenSalidas).map(([tipo, total]) => {
                       const tc = TIPO_COLORS[tipo] || {
-                        color: "#757575", bg: "#f5f5f5", border: "#e0e0e0", icon: "ðŸ“‹",
+                        color: "#757575", bg: "#f5f5f5", border: "#e0e0e0", icon: "📋",
                       };
                       return (
                         <div
@@ -640,7 +640,7 @@ function VerProducto({ product, catObj, onClose, onOpenFicha }) {
                       <div className="lote-item__head">
                         <span className="lote-item__id">{lote.id}</span>
                         <span style={{ fontWeight: 600, fontSize: 12 }}>
-                          VenciÃ³: {fmtFecha(lote.fechaVencimiento)}
+                          Venció: {fmtFecha(lote.fechaVencimiento)}
                         </span>
                       </div>
                       <div
@@ -662,13 +662,13 @@ function VerProducto({ product, catObj, onClose, onOpenFicha }) {
               </p>
               {salidas.length === 0 ? (
                 <div className="empty-state" style={{ padding: "14px 20px" }}>
-                  <p className="empty-state__text">AÃºn no hay salidas registradas.</p>
+                  <p className="empty-state__text">Aún no hay salidas registradas.</p>
                 </div>
               ) : (
                 <div className="historial-list">
                   {salidas.map((salida) => {
                     const tc = TIPO_COLORS[salida.tipo] || {
-                      color: "#757575", bg: "#f5f5f5", icon: "ðŸ“‹",
+                      color: "#757575", bg: "#f5f5f5", icon: "📋",
                     };
                     return (
                       <div
@@ -715,9 +715,9 @@ function VerProducto({ product, catObj, onClose, onOpenFicha }) {
   );
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+/* ══════════════════════════════════════════════════════════
    LOADING SKELETON
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+══════════════════════════════════════════════════════════ */
 function LoadingSkeleton() {
   return (
     <div style={{ padding: "20px 0" }}>
@@ -735,9 +735,9 @@ function LoadingSkeleton() {
   );
 }
 
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   PÃGINA PRINCIPAL
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* ══════════════════════════════════════════════════════════
+   PÁGINA PRINCIPAL
+══════════════════════════════════════════════════════════ */
 export default function GestionProductos() {
   const canDeleteProducto = null;
 
@@ -746,7 +746,7 @@ export default function GestionProductos() {
   const puedeEditar  = usePrivilegio("GestionProductos_editar");
   const puedeEliminar = usePrivilegio("GestionProductos_eliminar");
 
-  /* â”€â”€ Estado â”€â”€ */
+  /* ── Estado ── */
   const [productosRaw, setProductosRaw] = useState([]); // datos crudos de la API
   const [categorias,   setCategorias]   = useState([]);
   const [loading,      setLoading]      = useState(true);
@@ -759,24 +759,24 @@ export default function GestionProductos() {
   const [toast,        setToast]        = useState(null);
   const filterRef = useRef();
 
-  /* â”€â”€ Helpers de categorÃ­a â”€â”€ */
+  /* ── Helpers de categoría ── */
   const getCat = useCallback(
     (idCategoria) => {
       const cat = categorias.find((c) => c.ID_Categoria === idCategoria);
       return cat
-        ? { id: cat.ID_Categoria, nombre: cat.Nombre_Categoria, icon: cat.Icono ?? "ðŸ“¦" }
-        : { id: null, nombre: "Sin categorÃ­a", icon: "ðŸ“¦" };
+        ? { id: cat.ID_Categoria, nombre: cat.Nombre_Categoria, icon: cat.Icono ?? "📦" }
+        : { id: null, nombre: "Sin categoría", icon: "📦" };
     },
     [categorias]
   );
 
-  /* â”€â”€ Productos adaptados (API â†’ UI shape) â”€â”€ */
+  /* ── Productos adaptados (API → UI shape) ── */
   const productos = useMemo(
     () => productosRaw.map(adaptarProducto),
     [productosRaw]
   );
 
-  /* â”€â”€ Carga de datos â”€â”€ */
+  /* ── Carga de datos ── */
   const cargarDatos = useCallback(async () => {
     setLoading(true);
     try {
@@ -795,7 +795,7 @@ export default function GestionProductos() {
 
   useEffect(() => { cargarDatos(); }, [cargarDatos]);
 
-  /* â”€â”€ Deep link: abrir ficha tÃ©cnica desde otra vista â”€â”€ */
+  /* ── Deep link: abrir ficha técnica desde otra vista ── */
   useEffect(() => {
     if (location.state?.openFicha && productos.length > 0) {
       const p = productos.find((prod) => prod.id === Number(location.state.openFicha));
@@ -806,7 +806,7 @@ export default function GestionProductos() {
     }
   }, [location.state, productos]);
 
-  /* â”€â”€ Cierre del dropdown de filtros al click fuera â”€â”€ */
+  /* ── Cierre del dropdown de filtros al click fuera ── */
   useEffect(() => {
     const h = (e) => {
       if (filterRef.current && !filterRef.current.contains(e.target))
@@ -816,13 +816,13 @@ export default function GestionProductos() {
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  /* â”€â”€ Toast â”€â”€ */
+  /* ── Toast ── */
   const showToast = (msg, type = "success") => {
     setToast({ message: msg, type });
     setTimeout(() => setToast(null), 3000);
   };
 
-  /* â”€â”€ Filtrado y paginaciÃ³n â”€â”€ */
+  /* ── Filtrado y paginación ── */
   const ESTADOS_FILTER = ["Todos", "Disponible", "No disponible"];
   const ESTADO_DOT     = { "Disponible": "#43a047", "No disponible": "#ef5350" };
 
@@ -855,9 +855,9 @@ export default function GestionProductos() {
     [productos, getCat]
   );
 
-  /* â”€â”€ Handlers â”€â”€ */
+  /* ── Handlers ── */
   const handleCreate = async () => {
-    // CrearProducto ya llamÃ³ a la API; solo recargamos
+    // CrearProducto ya llamó a la API; solo recargamos
     await cargarDatos();
     showToast("Producto creado");
     setModal(null);
@@ -933,7 +933,7 @@ export default function GestionProductos() {
       return;
     }
     await cargarDatos();
-    showToast("Ficha tÃ©cnica guardada");
+    showToast("Ficha técnica guardada");
     setModal(null);
   };
 
@@ -953,25 +953,25 @@ export default function GestionProductos() {
     setModal(null);
   };
 
-  /* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  /* ══════════════════════════════════════════════════════
      RENDER
-  â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+  ══════════════════════════════════════════════════════ */
   return (
     <div className="page-wrapper">
       <div className="page-header">
-        <h1 className="page-header__title">GestiÃ³n de Productos</h1>
+        <h1 className="page-header__title">Gestión de Productos</h1>
         <div className="page-header__line" />
       </div>
 
       <div className="page-inner">
-        {/* â”€â”€ Toolbar â”€â”€ */}
+        {/* ── Toolbar ── */}
         <div className="toolbar">
           <div className="search-wrap">
-            <span className="search-icon">ðŸ”</span>
+            <span className="search-icon">🔍</span>
             <input
               type="text"
               className="search-input"
-              placeholder="Buscar por nombre o categorÃ­aâ€¦"
+              placeholder="Buscar por nombre o categoría…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -983,7 +983,7 @@ export default function GestionProductos() {
               className={`filter-icon-btn${hasFilter ? " has-filter" : ""}`}
               onClick={() => setShowFilter((v) => !v)}
             >
-              â–¼
+              ▼
             </button>
             {showFilter && (
               <div className="filter-dropdown" style={{ minWidth: 200 }}>
@@ -993,7 +993,7 @@ export default function GestionProductos() {
                     fontWeight: 700, color: "#9e9e9e", letterSpacing: 1.5,
                   }}
                 >
-                  CategorÃ­a
+                  Categoría
                 </div>
                 {catsEnUso.map((c) => (
                   <button
@@ -1055,7 +1055,7 @@ export default function GestionProductos() {
 
           {(hasFilter || search) && (
             <button className="btn-limpiar" onClick={() => { setSearch(""); setFilterCat("Todas"); setFilterEst("Todos"); }}>
-              âœ• Limpiar
+              ✕ Limpiar
             </button>
           )}
 
@@ -1066,7 +1066,7 @@ export default function GestionProductos() {
           )}
         </div>
 
-        {/* â”€â”€ Tabla â”€â”€ */}
+        {/* ── Tabla ── */}
         <div className="card">
           {loading ? (
             <div style={{ padding: "0 20px" }}>
@@ -1077,9 +1077,9 @@ export default function GestionProductos() {
               <table className="tbl">
                 <thead>
                     <tr>
-                    <th>NÂº</th>
+                    <th>Nº</th>
                     <th>Producto</th>
-                    <th>CategorÃ­a</th>
+                    <th>Categoría</th>
                     <th>Precio</th>
                     <th>Stock</th>
                     <th>Activo</th>
@@ -1092,7 +1092,7 @@ export default function GestionProductos() {
                     <tr>
                       <td colSpan={8}>
                         <div className="empty-state">
-                          <div className="empty-state__icon">ðŸŒ</div>
+                          <div className="empty-state__icon">🍌</div>
                           <p className="empty-state__text">Sin resultados</p>
                         </div>
                       </td>
@@ -1146,30 +1146,30 @@ export default function GestionProductos() {
                                 className="act-btn act-btn--view"
                                 title="Ver detalle"
                                 onClick={() => setModal({ type: "ver", product: p })}
-                              >ðŸ‘</button>
+                              >👁</button>
                               {puedeEditar && (
                                 <button
                                   className="act-btn act-btn--edit"
                                   title="Editar"
                                   onClick={() => setModal({ type: "editar", product: p })}
-                                >âœŽ</button>
+                                >✎</button>
                               )}
                               <button
                                 className="act-btn act-btn--ficha"
-                                title="Ficha tÃ©cnica"
+                                title="Ficha técnica"
                                 onClick={() => setModal({ type: "ficha", product: p })}
-                              >ðŸ“‹</button>
+                              >📋</button>
                               <button
                                 className="act-btn act-btn--salida"
                                 title="Registrar salida"
                                 onClick={() => setModal({ type: "salida", product: p })}
-                              >ðŸšš</button>
+                              >🚚</button>
                               {puedeEliminar && (
                                 <button
                                   className="act-btn act-btn--delete"
                                   title="Eliminar"
                                   onClick={() => handleOpenDelete(p)}
-                                >ðŸ—‘ï¸</button>
+                                >🗑️</button>
                               )}
                             </div>
                           </td>
@@ -1182,23 +1182,23 @@ export default function GestionProductos() {
             </div>
           )}
 
-          {/* PaginaciÃ³n */}
+          {/* Paginación */}
           <div className="pagination-bar">
             <span className="pagination-count">
               {filtered.length} {filtered.length === 1 ? "producto" : "productos"} en total
             </span>
             <div className="pagination-btns">
-              <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>Â«</button>
-              <button className="pg-btn-arrow" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}>â€¹</button>
-              <span className="pg-pill">PÃ¡gina {safePage} de {totalPages}</span>
-              <button className="pg-btn-arrow" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>â€º</button>
-              <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>Â»</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
+              <button className="pg-btn-arrow" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
+              <span className="pg-pill">Página {safePage} de {totalPages}</span>
+              <button className="pg-btn-arrow" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>›</button>
+              <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage === totalPages}>»</button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* â•â• Modales â•â• */}
+      {/* ══ Modales ══ */}
       {modal?.type === "crear" && (
         <CrearProducto
           categorias={categorias}
@@ -1235,7 +1235,7 @@ export default function GestionProductos() {
       {modal?.type === "eliminar" && (
         <ModalEliminarValidado
           titulo="Eliminar producto"
-          descripcion={`Â¿EstÃ¡ seguro de que desea eliminar el producto "${modal.product.nombre}"?`}
+          descripcion={`¿Está seguro de que desea eliminar el producto "${modal.product.nombre}"?`}
           validacion={modal.validation ?? { ok: true }}
           onClose={() => setModal(null)}
           onConfirm={handleDelete}
