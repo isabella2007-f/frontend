@@ -2,6 +2,13 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from datetime import datetime
 from decimal import Decimal
+from zoneinfo import ZoneInfo
+
+_BOGOTA = ZoneInfo("America/Bogota")
+
+
+def _now():
+    return datetime.now(_BOGOTA).replace(tzinfo=None)
 
 from src.shared.services.models import (
     Venta, VentaXProducto, DetalleVenta, Producto, Usuario,
@@ -110,7 +117,7 @@ def _aplicar_credito(db: Session, id_usuario: int, monto_restante: Decimal, id_v
 
     credito_usado        = min(credito.Saldo, monto_restante)
     credito.Saldo       -= credito_usado
-    credito.Fecha_Update = datetime.now()
+    credito.Fecha_Update = _now()
 
     db.add(MovimientoCredito(
         ID_Credito    = credito.ID_Credito,
@@ -118,7 +125,7 @@ def _aplicar_credito(db: Session, id_usuario: int, monto_restante: Decimal, id_v
         ID_Venta      = id_venta,
         Tipo          = "uso",
         Monto         = credito_usado,
-        Fecha         = datetime.now(),
+        Fecha         = _now(),
     ))
     return credito_usado
 
@@ -138,7 +145,7 @@ def _aplicar_descuento(
             Descuento.Estado == 1,
         ).first()
         if descuento:
-            if descuento.Fecha_Fin and descuento.Fecha_Fin < datetime.now():
+            if descuento.Fecha_Fin and descuento.Fecha_Fin < _now():
                 raise HTTPException(status_code=400, detail="El cupón ha vencido")
             if descuento.Usos_Max and descuento.Usos_Actuales >= descuento.Usos_Max:
                 raise HTTPException(status_code=400, detail="El cupón ha alcanzado su límite de usos")
@@ -157,7 +164,7 @@ def _aplicar_descuento(
     if not descuento:
         usuario = db.query(Usuario).filter(Usuario.ID_Usuario == id_usuario).first()
         if usuario and usuario.Fecha_creacion:
-            meses     = (datetime.now() - usuario.Fecha_creacion).days // 30
+            meses     = (_now() - usuario.Fecha_creacion).days // 30
             descuento = (
                 db.query(Descuento)
                 .filter(
@@ -317,8 +324,8 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
         Total                  = subtotal_bruto,
         Estado                 = ESTADO_PENDIENTE,
         Metodo_Pago            = datos.Metodo_Pago,
-        Fecha_Venta            = datetime.now(),
-        Fecha_pedido           = datetime.now(),
+        Fecha_Venta            = _now(),
+        Fecha_pedido           = _now(),
         Fecha_entrega_esperada = datos.Fecha_entrega_esperada,
         Comprobante_Pago       = datos.comprobante_pago,
     )
@@ -376,7 +383,7 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
                     ID_Insumo    = id_insumo,
                     ID_Ficha     = id_ficha,
                     Cantidad     = shortfall,
-                    Fecha_inicio = datetime.now(),
+                    Fecha_inicio = _now(),
                     Estado       = ESTADO_PENDIENTE,
                     Costo        = Decimal("0"),
                 ))
@@ -430,7 +437,7 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
         db.add(Domicilio(
             ID_Venta             = nueva_venta.ID_Venta,
             ID_Empleado          = datos.domicilio.ID_Empleado,
-            Fecha_asignacion     = datetime.now(),
+            Fecha_asignacion     = _now(),
             Fecha_entrega        = fecha_dom,
             Observaciones        = datos.domicilio.Observaciones,
             Estado               = estado_dom,
@@ -506,14 +513,14 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
             ).first()
             if credito:
                 credito.Saldo        += detalle.Descuento
-                credito.Fecha_Update  = datetime.now()
+                credito.Fecha_Update  = _now()
                 db.add(MovimientoCredito(
                     ID_Credito    = credito.ID_Credito,
                     ID_Devolucion = None,
                     ID_Venta      = id_venta,
                     Tipo          = "recarga",
                     Monto         = detalle.Descuento,
-                    Fecha         = datetime.now(),
+                    Fecha         = _now(),
                 ))
 
     if venta.Estado == EstadoPedido.PENDIENTE:

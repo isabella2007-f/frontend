@@ -342,12 +342,21 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit }) {
                   </div>
 
                   {pedido.comprobante ? (
-                    <div className="info-box info-box--success">
-                      <span className="info-box__icon">✅</span>
-                      <span className="info-box__text">El cliente adjuntó comprobante de pago.</span>
-                      <a href={pedido.comprobante} target="_blank" rel="noopener noreferrer"
-                        style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: "#2e7d32", flexShrink: 0 }}>
-                        Ver comprobante →
+                    <div>
+                      <div className="info-box info-box--success" style={{ marginBottom: 10 }}>
+                        <span className="info-box__icon">✅</span>
+                        <span className="info-box__text">Comprobante de pago adjuntado.</span>
+                        <a href={pedido.comprobante} target="_blank" rel="noopener noreferrer"
+                          style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: "#2e7d32", flexShrink: 0 }}>
+                          Abrir →
+                        </a>
+                      </div>
+                      <a href={pedido.comprobante} target="_blank" rel="noopener noreferrer">
+                        <img
+                          src={pedido.comprobante}
+                          alt="Comprobante de pago"
+                          style={{ width: "100%", maxHeight: 320, objectFit: "contain", borderRadius: 10, border: "1.5px solid #c8e6c9", background: "#f9fdf9", cursor: "zoom-in" }}
+                        />
                       </a>
                     </div>
                   ) : (

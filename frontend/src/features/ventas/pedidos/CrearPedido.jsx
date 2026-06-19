@@ -225,9 +225,11 @@ export default function CrearPedido({ onClose, onSave }) {
   };
 
   /* ─── Cálculos ─── */
-  const subtotal  = form.productosItems.reduce((a, p) => a + p.precio * p.cantidad, 0);
-  const descuento = Number(form.descuento) || 0;
-  const total     = Math.max(0, subtotal - descuento);
+  const COSTO_DOMICILIO = 5000;
+  const subtotal   = form.productosItems.reduce((a, p) => a + p.precio * p.cantidad, 0);
+  const descuento  = Number(form.descuento) || 0;
+  const costoEnvio = form.domicilio ? COSTO_DOMICILIO : 0;
+  const total      = Math.max(0, subtotal - descuento + costoEnvio);
   const hayProductosSinStock = form.productosItems.some(
     p => !p.stockOk || p.cantidad > p.stockActual
   );
@@ -472,6 +474,12 @@ export default function CrearPedido({ onClose, onSave }) {
                   <span>Subtotal del pedido</span>
                   <span style={{ fontWeight: 600, color: "#333" }}>{fmt(subtotal)}</span>
                 </div>
+                {costoEnvio > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "#666", marginBottom: 6 }}>
+                    <span>🛵 Costo de domicilio</span>
+                    <span style={{ fontWeight: 600, color: "#333" }}>{fmt(costoEnvio)}</span>
+                  </div>
+                )}
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 18, fontWeight: 800, color: "#2e7d32", paddingTop: 10, borderTop: "1px dashed #c8e6c9" }}>
                   <span>Total estimado</span>
                   <span>{fmt(total)}</span>
@@ -720,6 +728,12 @@ export default function CrearPedido({ onClose, onSave }) {
                     <span>Descuento aplicado</span>
                     <span>-{fmt(descuento)}</span>
                   </div>
+                  {costoEnvio > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, opacity: 0.9, marginTop: 4 }}>
+                      <span>🛵 Domicilio</span>
+                      <span>+{fmt(costoEnvio)}</span>
+                    </div>
+                  )}
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 22, fontWeight: 900, marginTop: 12, paddingTop: 12, borderTop: "1px dashed rgba(255,255,255,0.3)" }}>
                     <span>TOTAL FINAL</span>
                     <span>{fmt(total)}</span>

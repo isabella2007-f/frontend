@@ -1,10 +1,16 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
-from src.shared.services.models import Salida, Insumo, Producto, Usuario, Estado, CategoriaInsumo, CategoriaProducto
+from src.shared.services.models import Salida, Insumo, Producto, Usuario, Estado, CategoriaInsumo, CategoriaProducto, LoteCompra, LoteProducto
 from src.shared.services.notificaciones_utils import notificar_stock_insumo, notificar_stock_producto
 from .schemas import SalidaCreate
+
+_BOGOTA = ZoneInfo("America/Bogota")
+
+def _now():
+    return datetime.now(_BOGOTA).replace(tzinfo=None)
 
 ESTADO_ACTIVO  = 1
 ESTADO_ANULADA = 12
@@ -228,3 +234,104 @@ def anular_salida(db: Session, id_salida: int) -> dict:
             notificar_stock_producto(db, producto)
 
     return _formato_salida(salida, db)
+
+
+def procesar_lotes_vencidos(db: Session) -> dict:
+    """
+    Detecta lotes de insumos y productos vencidos, registra una salida por vencimiento
+    y descuenta el stock correspondiente. Marca los lotes como Anulados (Estado=12)
+    para que no se reprocesen en llamadas futuras.
+    """
+    ahora = _now()
+    salidas_creadas = []
+    insumos_afectados = set()
+    productos_afectados = set()
+
+    # ── Insumos ──────────────────────────────────────────────
+    lotes_insumo = (
+        db.query(LoteCompra)
+        .filter(
+            LoteCompra.Fecha_Vencimiento != None,
+            LoteCompra.Fecha_Vencimiento < ahora,
+            LoteCompra.Estado == ESTADO_ACTIVO,
+        )
+        .order_by(LoteCompra.Fecha_Vencimiento.asc())
+        .all()
+    )
+
+    for lote in lotes_insumo:
+        insumo = db.query(Insumo).filter(Insumo.ID_Insumo == lote.ID_Insumo).first()
+        if not insumo:
+            lote.Estado = ESTADO_ANULADA
+            continue
+
+        cantidad = min(lote.Cantidad_Inicial or 0, insumo.Stock_Actual or 0)
+        lote.Estado = ESTADO_ANULADA
+
+        if cantidad > 0:
+            insumo.Stock_Actual -= cantidad
+            _actualizar_estado_insumo(insumo)
+            db.add(Salida(
+                Tipo        = "vencimiento",
+                ID_Insumo   = insumo.ID_Insumo,
+                ID_Producto = None,
+                Cantidad    = cantidad,
+                Motivo      = f"Lote #{lote.ID_Lote_Compra} vencido el {lote.Fecha_Vencimiento.strftime('%Y-%m-%d')}",
+                ID_Empleado = None,
+                Fecha       = ahora,
+                Estado      = ESTADO_ACTIVO,
+            ))
+            salidas_creadas.append({"tipo": "insumo", "nombre": insumo.Nombre, "cantidad": cantidad})
+            insumos_afectados.add(insumo.ID_Insumo)
+
+    # ── Productos ─────────────────────────────────────────────
+    lotes_producto = (
+        db.query(LoteProducto)
+        .filter(
+            LoteProducto.Fecha_Vencimiento != None,
+            LoteProducto.Fecha_Vencimiento < ahora,
+            LoteProducto.Estado == ESTADO_ACTIVO,
+            LoteProducto.Cantidad > 0,
+        )
+        .order_by(LoteProducto.Fecha_Vencimiento.asc())
+        .all()
+    )
+
+    for lote in lotes_producto:
+        producto = db.query(Producto).filter(Producto.ID_Producto == lote.ID_Producto).first()
+        if not producto:
+            lote.Estado = ESTADO_ANULADA
+            lote.Cantidad = 0
+            continue
+
+        cantidad = lote.Cantidad
+        lote.Cantidad = 0
+        lote.Estado = ESTADO_ANULADA
+        producto.Stock = max(0, (producto.Stock or 0) - cantidad)
+        _actualizar_estado_producto(producto)
+        db.add(Salida(
+            Tipo        = "vencimiento",
+            ID_Insumo   = None,
+            ID_Producto = producto.ID_Producto,
+            Cantidad    = cantidad,
+            Motivo      = f"Lote #{lote.ID_Lote_Producto} vencido el {lote.Fecha_Vencimiento.strftime('%Y-%m-%d')}",
+            ID_Empleado = None,
+            Fecha       = ahora,
+            Estado      = ESTADO_ACTIVO,
+        ))
+        salidas_creadas.append({"tipo": "producto", "nombre": producto.nombre, "cantidad": cantidad})
+        productos_afectados.add(producto.ID_Producto)
+
+    db.commit()
+
+    # Notificaciones fuera del commit principal
+    for id_ins in insumos_afectados:
+        ins = db.query(Insumo).filter(Insumo.ID_Insumo == id_ins).first()
+        if ins:
+            notificar_stock_insumo(db, ins)
+    for id_prod in productos_afectados:
+        prod = db.query(Producto).filter(Producto.ID_Producto == id_prod).first()
+        if prod:
+            notificar_stock_producto(db, prod)
+
+    return {"procesados": len(salidas_creadas), "salidas": salidas_creadas}

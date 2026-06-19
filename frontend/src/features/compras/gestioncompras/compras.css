@@ -704,9 +704,9 @@
    WIZARD — BARRA DE PASOS (legacy)
 ═══════════════════════════════════════════════════════════ */
 
-.wizard-steps-bar { display: flex; align-items: center; margin-bottom: 4px; }
-.wizard-step-item { display: flex; align-items: center; gap: 8px; flex: 1; }
-.wizard-step-item:last-child { flex: none; }
+.wizard-steps-bar { display: flex; align-items: center; margin-bottom: 4px; overflow-x: auto; padding-bottom: 4px; }
+.wizard-step-item { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.wizard-step-item:last-child { flex-shrink: 0; }
 
 .wizard-step-circle {
   width: 28px; height: 28px; border-radius: 50%;
@@ -722,7 +722,7 @@
 .wizard-step-label.active { color: #2e7d32; font-weight: 700; }
 .wizard-step-label.done   { color: #9e9e9e; }
 
-.wizard-step-line      { flex: 1; height: 1.5px; background: #e0e0e0; margin: 0 8px; transition: background 0.2s; }
+.wizard-step-line      { width: 32px; flex-shrink: 0; height: 1.5px; background: #e0e0e0; margin: 0 6px; transition: background 0.2s; }
 .wizard-step-line.done { background: #2e7d32; }
 
 /* ═══════════════════════════════════════════════════════════

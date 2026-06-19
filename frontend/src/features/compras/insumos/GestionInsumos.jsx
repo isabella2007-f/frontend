@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { usePrivilegio } from "../../../context/PrivilegiosContext";
-import { registrarSalida } from "../../../services/salidasService";
+import { registrarSalida, procesarVencidos } from "../../../services/salidasService";
 import CrearInsumo from "./CrearInsumo.jsx";
 import EditarInsumo from "./EditarInsumo.jsx";
 import VerInsumo from "./VerInsumo.jsx";
@@ -192,7 +192,12 @@ export default function GestionInsumos() {
     }
   };
 
-  useEffect(() => { cargarDatos(); }, []);
+  useEffect(() => {
+    procesarVencidos()
+      .then(res => { if (res?.procesados > 0) cargarDatos(); })
+      .catch(() => {});
+    cargarDatos();
+  }, []);
 
   const getCatInsumo = (idCat) => categorias.find(c => c.id === idCat) ?? { icon: "🧺", nombre: "—" };
   const getUnidad    = (idU)   => UNIDADES.find(u => u.id === idU) ?? { simbolo: "uds.", nombre: "Unidad" };

@@ -6,7 +6,7 @@ from datetime import datetime
 from src.shared.services.database import get_db
 from src.features.auth.services.dependencies import requiere_permiso
 from .schemas import SalidaCreate, SalidaResponse, SalidaListResponse
-from .service import obtener_salidas, obtener_salida, crear_salida, anular_salida
+from .service import obtener_salidas, obtener_salida, crear_salida, anular_salida, procesar_lotes_vencidos
 
 router = APIRouter(prefix="/salidas", tags=["Salidas"])
 
@@ -48,6 +48,14 @@ def registrar_salida(
     _:     dict    = Depends(requiere_permiso("crear_salidas")),
 ):
     return crear_salida(db, datos)
+
+
+@router.post("/procesar-vencidos")
+def procesar_vencidos(
+    db: Session = Depends(get_db),
+    _:  dict    = Depends(requiere_permiso("crear_salidas")),
+):
+    return procesar_lotes_vencidos(db)
 
 
 @router.patch("/{id_salida}/anular", response_model=SalidaResponse)

@@ -52,6 +52,13 @@ def obtener_usuario_actual(
     if registro is None:
         raise credenciales_error
 
+    if getattr(registro, "Estado", None) == 2:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Esta cuenta ha sido desactivada",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     # Deriva tipo desde el rol real del registro (ignora el tipo del token para consistencia)
     tipo_real = "cliente" if registro.ID_Rol == 3 else "empleado"
     return {"registro": registro, "tipo": tipo_real, "rol": token_data.rol}

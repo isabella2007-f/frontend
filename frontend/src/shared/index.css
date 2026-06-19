@@ -54,16 +54,17 @@ html, body, #root {
   z-index: 100; /* Suficiente para estar por encima de la tabla y sus headers */
 }
 
-/* ── Estilos de consistencia para tablas ── */
+/* ── Card ── */
 .card {
   background: #fff;
-  border-radius: 14px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 2px 15px rgba(0,0,0,0.03);
+  border-radius: 16px;
+  border: 1px solid #e8eef3;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.03);
   overflow: hidden;
   width: 100%;
 }
 
+/* ── Tabla global ── */
 .tbl-container {
   width: 100%;
 }
@@ -74,21 +75,29 @@ html, body, #root {
 }
 
 .tbl th {
-  background: #f8fafc;
-  color: #64748b;
+  background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%);
+  color: #fff;
   font-weight: 700;
   text-align: left;
-  padding: 12px 16px; /* Padding reducido */
-  font-size: 13px;
-  border-bottom: 1px solid #e2e8f0;
+  padding: 13px 16px;
+  font-size: 12px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
+.tbl th:first-child { border-radius: 0; }
+
 .tbl td {
-  padding: 12px 16px; /* Padding reducido */
+  padding: 13px 16px;
   border-bottom: 1px solid #f1f5f9;
   vertical-align: middle;
   font-size: 13.5px;
+  color: #1a1a1a;
 }
+
+.tbl-row:last-child td { border-bottom: none; }
+.tbl-row:hover td { background: #f9fdf9; }
 
 /* ── Estilos de consistencia para modales ── */
 .modal-overlay {
@@ -274,45 +283,87 @@ html, body, #root {
 
 /* ── Form Elements in Modals ── */
 .modal-body .form-group {
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
-.modal-body label {
+.modal-body .form-group:last-child {
+  margin-bottom: 0;
+}
+
+.modal-body label, .form-label {
   display: block;
-  font-size: 0.8rem;
+  font-size: 11px;
   font-weight: 800;
-  color: #374151;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 8px;
+  color: #4b5563;
+  text-transform: uppercase !important;
+  letter-spacing: 0.06em;
+  margin-bottom: 7px;
+  font-family: var(--font-body);
 }
 
 .modal-body input,
 .modal-body select,
 .modal-body textarea {
   width: 100%;
-  padding: 12px 16px;
-  border: 2px solid #e5e7eb;
-  border-radius: 12px;
+  padding: 11px 15px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
   font-size: 14px;
   font-weight: 500;
-  transition: all 0.3s ease;
+  font-family: var(--font-body);
+  transition: border-color 0.18s, box-shadow 0.18s;
   background: white;
   outline: none;
+  color: #111827;
 }
 
 .modal-body input:focus,
 .modal-body select:focus,
 .modal-body textarea:focus {
   border-color: var(--green-500);
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
-  transform: translateY(-1px);
+  box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.1);
 }
 
 .modal-body input::placeholder,
 .modal-body textarea::placeholder {
   color: #9ca3af;
   font-weight: 400;
+}
+
+/* ── Form sections (grupos dentro de modales) ── */
+.form-section {
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  margin-bottom: 16px;
+}
+
+.form-section-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--green-600);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin: 0 0 14px;
+  font-family: var(--font-body);
+}
+
+/* Fila de 2 columnas en formularios */
+.form-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.form-row-3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 500px) {
+  .form-row-2, .form-row-3 { grid-template-columns: 1fr; }
 }
 
 /* ── Modal Buttons ── */
@@ -409,15 +460,100 @@ html, body, #root {
 }
 
 .act-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: all 0.15s;
   flex-shrink: 0;
-  font-size: 16px;
+  font-size: 15px;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  background: #f5f5f5;
+  color: #424242;
+}
+
+.act-btn:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(0,0,0,0.1); }
+.act-btn--view   { background: #e3f2fd; border-color: #90caf9; color: #1565c0; }
+.act-btn--view:hover { background: #bbdefb; }
+.act-btn--edit   { background: #fff8e1; border-color: #ffe082; color: #f57f17; }
+.act-btn--edit:hover { background: #ffecb3; }
+.act-btn--delete { background: #ffebee; border-color: #ef9a9a; color: #c62828; }
+.act-btn--delete:hover { background: #ffcdd2; }
+.act-btn--salida { background: #f3e5f5; border-color: #ce93d8; color: #6a1b9a; }
+.act-btn--salida:hover { background: #e1bee7; }
+
+/* ── Stat cards globales ── */
+.stat-card {
+  background: #fff;
+  border-radius: 14px;
+  border: 1.5px solid #e8f5e9;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 2px 10px rgba(46,125,50,0.05);
+  transition: box-shadow .2s, transform .2s;
+}
+.stat-card:hover {
+  box-shadow: 0 6px 20px rgba(46,125,50,0.10);
+  transform: translateY(-2px);
+}
+
+/* ── Pagination ── */
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-top: 1px solid #f1f5f9;
+  background: #fafafa;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.pagination-count {
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 500;
+  font-family: var(--font-body);
+}
+
+.pagination-btns {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pg-btn-arrow {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1.5px solid #e5e7eb;
+  background: #fff;
+  color: #374151;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .15s;
+}
+.pg-btn-arrow:hover:not(:disabled) { border-color: #4caf50; color: #2e7d32; background: #f1f8f1; }
+.pg-btn-arrow:disabled { opacity: .4; cursor: default; }
+
+.pg-pill {
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  padding: 5px 14px;
+  background: #f3f4f6;
+  border-radius: 99px;
+  border: 1.5px solid #e5e7eb;
+  white-space: nowrap;
+  font-family: var(--font-body);
 }
 
 /* ── Reset de textos ── */

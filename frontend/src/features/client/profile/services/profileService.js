@@ -26,3 +26,7 @@ export const updateUser = async (updatedData) => {
 export const validateEmail = (email) => {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 };
+
+export const eliminarCuenta = async () => {
+  return apiFetch('/auth/mi-cuenta', { method: 'DELETE' });
+};

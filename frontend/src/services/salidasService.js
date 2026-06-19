@@ -24,3 +24,7 @@ export async function getSalidas({ pagina = 1, porPagina = 100, tipo, idInsumo, 
 export async function anularSalida(id) {
   return apiFetch(`/salidas/${id}/anular`, { method: "PATCH" });
 }
+
+export async function procesarVencidos() {
+  return apiFetch("/salidas/procesar-vencidos", { method: "POST" });
+}

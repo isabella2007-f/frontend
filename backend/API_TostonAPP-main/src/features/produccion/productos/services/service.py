@@ -37,6 +37,24 @@ def _formato_producto(producto: Producto, db: Session) -> dict:
     stock_minimo = getattr(producto, "Stock_Minimo", 0) or 0
     estado_id, estado_label = _calcular_estado(stock, stock_minimo)
 
+    hoy = datetime.utcnow()
+    proximo_lote_prod = (
+        db.query(LoteProducto)
+        .filter(
+            LoteProducto.ID_Producto == producto.ID_Producto,
+            LoteProducto.Fecha_Vencimiento != None,
+            LoteProducto.Estado == 1,
+            LoteProducto.Cantidad > 0,
+        )
+        .order_by(LoteProducto.Fecha_Vencimiento.asc())
+        .first()
+    )
+    proximo_venc_prod = None
+    dias_para_vencer_prod = None
+    if proximo_lote_prod and proximo_lote_prod.Fecha_Vencimiento:
+        proximo_venc_prod = proximo_lote_prod.Fecha_Vencimiento.strftime("%Y-%m-%d")
+        dias_para_vencer_prod = (proximo_lote_prod.Fecha_Vencimiento - hoy).days
+
     return {
         "ID_Producto":      producto.ID_Producto,
         "nombre":           producto.nombre,
@@ -52,6 +70,8 @@ def _formato_producto(producto: Producto, db: Session) -> dict:
         "Descripcion_Corta": getattr(producto, "Descripcion_Corta", None),
         "Descripcion_Larga": getattr(producto, "Descripcion_Larga", None),
         "Fecha_Creacion":    getattr(producto, "Fecha_Creacion", None),
+        "proximo_vencimiento": proximo_venc_prod,
+        "dias_para_vencer":    dias_para_vencer_prod,
         "imagenes": [
             {"ID_Producto_Img": img.ID_Producto_Img, "url": img.imagen}
             for img in imagenes

@@ -27,7 +27,7 @@ import {
   editarProducto as apiEditarProducto,
   validarEliminarProducto,
 } from "../../../services/productosService";
-import { registrarSalida } from "../../../services/salidasService";
+import { registrarSalida, procesarVencidos } from "../../../services/salidasService";
 import { usePrivilegio } from "../../../context/PrivilegiosContext";
 import "./Productos.css";
 
@@ -89,6 +89,8 @@ function adaptarProducto(p) {
     descripcion_corta: p.Descripcion_Corta ?? "",
     descripcion_larga: p.Descripcion_Larga ?? "",
     estado:            p.estado_label ?? null,
+    proxVencimiento:   p.proximo_vencimiento ?? null,
+    diasParaVencer:    p.dias_para_vencer ?? null,
     imagenesApi:       p.imagenes ?? [],
     imagenesPreview:   (p.imagenes ?? []).map((img) => img.url).filter(Boolean),
     ficha: ft ? {
@@ -205,6 +207,28 @@ function StockBar({ actual, minimo }) {
       )}
     </div>
   );
+}
+
+function VencCellProd({ fecha, dias }) {
+  if (!fecha) return <span style={{ fontSize: 13, color: "#bdbdbd", fontWeight: 500 }}>—</span>;
+  const [y, m, d] = fecha.split("-");
+  const label = `${d}/${m}/${y}`;
+  if (dias <= 0) return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#c62828", background: "#ffebee", border: "1px solid #ef9a9a", borderRadius: 6, padding: "3px 8px" }}>
+      ⚠️ Vencido
+    </span>
+  );
+  if (dias <= 7) return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#e65100", background: "#fff3e0", border: "1px solid #ffcc80", borderRadius: 6, padding: "3px 8px" }}>
+      🔴 {label} <span style={{ fontWeight: 400, opacity: 0.8 }}>({dias}d)</span>
+    </span>
+  );
+  if (dias <= 30) return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#f57f17", background: "#fff8e1", border: "1px solid #ffe082", borderRadius: 6, padding: "3px 8px" }}>
+      🟡 {label} <span style={{ fontWeight: 400, opacity: 0.8 }}>({dias}d)</span>
+    </span>
+  );
+  return <span style={{ fontSize: 12, fontWeight: 600, color: "#616161" }}>{label}</span>;
 }
 
 function CatCell({ cat }) {
@@ -793,7 +817,12 @@ export default function GestionProductos() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { cargarDatos(); }, [cargarDatos]);
+  useEffect(() => {
+    procesarVencidos()
+      .then(res => { if (res?.procesados > 0) cargarDatos(); })
+      .catch(() => {});
+    cargarDatos();
+  }, [cargarDatos]);
 
   /* ── Deep link: abrir ficha técnica desde otra vista ── */
   useEffect(() => {
@@ -1082,6 +1111,7 @@ export default function GestionProductos() {
                     <th>Categoría</th>
                     <th>Precio</th>
                     <th>Stock</th>
+                    <th>Próx. Venc.</th>
                     <th>Activo</th>
                     <th>Tienda</th>
                     <th>Acciones</th>
@@ -1090,7 +1120,7 @@ export default function GestionProductos() {
                 <tbody>
                   {paginated.length === 0 ? (
                     <tr>
-                      <td colSpan={8}>
+                      <td colSpan={9}>
                         <div className="empty-state">
                           <div className="empty-state__icon">🍌</div>
                           <p className="empty-state__text">Sin resultados</p>
@@ -1122,6 +1152,7 @@ export default function GestionProductos() {
                           <td>
                             <StockBar actual={p.stock} minimo={p.stockMinimo} />
                           </td>
+                          <td><VencCellProd fecha={p.proxVencimiento} dias={p.diasParaVencer} /></td>
                           <td>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <Toggle

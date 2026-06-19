@@ -231,3 +231,19 @@ def mis_permisos(
     actual: dict    = Depends(obtener_usuario_actual),
 ):
     return {"permisos": obtener_mis_permisos(db, actual)}
+
+
+@router.delete("/mi-cuenta")
+def eliminar_mi_cuenta(
+    db:     Session = Depends(get_db),
+    actual: dict    = Depends(obtener_usuario_actual),
+):
+    registro = actual["registro"]
+    if registro.ID_Rol != 3:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo los clientes pueden eliminar su propia cuenta desde aquí",
+        )
+    registro.Estado = 2
+    db.commit()
+    return {"mensaje": "Tu cuenta ha sido desactivada correctamente"}
