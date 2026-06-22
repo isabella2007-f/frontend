@@ -97,6 +97,9 @@ def migrate_db():
             # Activa los clientes que quedaron bloqueados en Estado=2 (verificación
             # de correo) antes de eliminar el bloqueo de registro. ID_Rol=3 = Cliente.
             "UPDATE Usuarios SET Estado = 1 WHERE Estado = 2 AND ID_Rol = 3",
+            # Indicaciones de entrega del cliente (referencia/punto de entrega),
+            # opcional. Se muestra y edita en "Mis datos".
+            "ALTER TABLE Usuarios ADD COLUMN Indicaciones VARCHAR(255) NULL",
         ]:
             try:
                 conn.execute(text(stmt))

@@ -108,6 +108,7 @@ class PerfilUpdate(BaseModel):
     Direccion:      Optional[str] = None
     Municipio:      Optional[str] = None
     Departamento:   Optional[str] = None
+    Indicaciones:   Optional[str] = None
     Cedula:         Optional[str] = None   # Solo se acepta si aún no está establecida
     Tipo_Documento: Optional[str] = None   # Solo se acepta si aún no está establecida
 

@@ -67,6 +67,7 @@ class Usuario(Base):
     Direccion      = Column(String(50))
     Municipio      = Column(String(25))
     Departamento   = Column(String(60))
+    Indicaciones   = Column(String(255), nullable=True)
     Telefono       = Column(String(20))
     Foto_perfil    = Column(String(500), nullable=True)
     Fecha_creacion = Column(DateTime)

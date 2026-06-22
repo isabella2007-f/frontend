@@ -65,6 +65,7 @@ class PersonaUpdate(BaseModel):
     Direccion:      Optional[str]       = None
     Municipio:      Optional[str]       = None
     Departamento:   Optional[str]       = None
+    Indicaciones:   Optional[str]       = None
     Telefono:       Optional[str]       = None
     Foto:           Optional[str]       = None
     Contrasena:     Optional[str]       = None
@@ -87,6 +88,7 @@ class PersonaResponse(BaseModel):
     Direccion:      Optional[str]   = None
     Municipio:      Optional[str]   = None
     Departamento:   Optional[str]   = None
+    Indicaciones:   Optional[str]   = None
     Telefono:       Optional[str]   = None
     Foto:           Optional[str]   = None
     ID_Rol:         Optional[int]   = None

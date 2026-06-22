@@ -26,6 +26,7 @@ def _formato_persona(registro: Usuario, rol_nombre: str = None) -> dict:
         "Direccion":      registro.Direccion,
         "Municipio":      registro.Municipio,
         "Departamento":   registro.Departamento,
+        "Indicaciones":   getattr(registro, "Indicaciones", None),
         "Telefono":       registro.Telefono,
         "Foto":           registro.Foto_perfil,
         "ID_Rol":         id_rol,

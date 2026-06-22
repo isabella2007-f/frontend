@@ -38,6 +38,7 @@ def _formato_perfil(actual: dict) -> dict:
         "Direccion":      registro.Direccion,
         "Municipio":      registro.Municipio,
         "Departamento":   registro.Departamento,
+        "Indicaciones":   getattr(registro, "Indicaciones", None),
         "Foto_perfil":    registro.Foto_perfil,
         "Fecha_creacion": registro.Fecha_creacion,
         "Estado":         registro.Estado,
