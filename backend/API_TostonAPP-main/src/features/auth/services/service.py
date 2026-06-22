@@ -23,7 +23,9 @@ load_dotenv()
 
 SECRET_KEY   = os.getenv("SECRET_KEY")
 ALGORITHM    = os.getenv("ALGORITHM", "HS256")
-EXPIRE_MIN   = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 1440))
+# 30 días por defecto: la app móvil mantiene la sesión iniciada hasta que el
+# usuario presione "cerrar sesión" (se puede ajustar con la variable de entorno).
+EXPIRE_MIN   = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 43200))
 API_URL      = os.getenv("API_URL", "http://localhost:8000")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
@@ -131,14 +133,21 @@ def autenticar(db: Session, correo: str, contrasena: str):
         _intentos_login[clave].append(time.time())
         return None, None
 
-    # La verificación de correo ya NO bloquea el inicio de sesión: el usuario puede
-    # entrar y usar la app aunque no haya verificado (eso solo bloquea recuperar/
-    # cambiar contraseña). Solo se bloquea si la cuenta fue desactivada (Estado=2)
-    # o eliminada por el propio usuario (Estado=0).
+    # Cuenta desactivada por admin (Estado=2) o eliminada por el usuario (Estado=0).
     if getattr(registro, "Estado", 1) in (0, 2):
         raise HTTPException(
             status_code=403,
             detail="Tu cuenta no está activa. Contacta al administrador.",
+        )
+
+    # Los CLIENTES deben verificar su correo antes de poder iniciar sesión. Los
+    # clientes que ya existían fueron marcados como verificados en la migración,
+    # así que esto solo afecta a los registros nuevos (Correo_Verificado=0).
+    if tipo == "cliente" and getattr(registro, "Correo_Verificado", 1) != 1:
+        raise HTTPException(
+            status_code=403,
+            detail="Debes verificar tu correo electrónico antes de iniciar sesión. "
+                   "Revisa tu bandeja de entrada (y la carpeta de spam).",
         )
 
     # Login exitoso: limpia el historial de intentos
