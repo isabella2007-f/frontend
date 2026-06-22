@@ -25,6 +25,7 @@ class TokenResponse(BaseModel):
     nombre:       str
     apellidos:    str
     rol:          Optional[str] = None
+    correo_verificado: Optional[int] = None
 
 
 # ── Registro nuevo cliente ──
@@ -127,6 +128,7 @@ class RegistroResponse(BaseModel):
     nombre:       Optional[str] = None
     apellidos:    Optional[str] = None
     rol:          Optional[str] = None
+    correo_verificado: Optional[int] = None
 
 
 # ── Reenviar verificación ──

@@ -141,7 +141,8 @@ def crear_cliente(db: Session, datos: UsuarioCreate) -> dict:
         ID_Rol         = id_rol,
         Contrasena     = hashear_contrasena(datos.Contrasena),
         Fecha_creacion = datetime.now(),
-        Estado         = 2,
+        Estado         = 1,  # activo de inmediato (puede iniciar sesión)
+        Correo_Verificado = 0,  # debe verificar el correo para recuperar contraseña
     )
     db.add(nuevo)
     db.flush()
@@ -159,8 +160,6 @@ def crear_cliente(db: Session, datos: UsuarioCreate) -> dict:
             _enviar_email_verificacion(datos.Correo, token, datos.Nombre)
         except Exception:
             pass
-    else:
-        nuevo.Estado = 1
 
     db.commit()
     db.refresh(nuevo)

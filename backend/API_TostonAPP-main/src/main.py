@@ -121,6 +121,21 @@ def migrate_db():
         except Exception:
             pass
 
+    # Correo_Verificado: columna separada de Estado para distinguir "verificó su
+    # correo" de "cuenta activa". Se agrega con default 0; los usuarios que YA
+    # existían (creados antes de esta función) se marcan como verificados=1 para
+    # no bloquearles la recuperación de contraseña. Solo se hace el backfill la
+    # primera vez (cuando el ALTER tiene éxito); en arranques posteriores el ALTER
+    # falla porque la columna ya existe y se omite el UPDATE.
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE Usuarios ADD COLUMN Correo_Verificado TINYINT NOT NULL DEFAULT 0"))
+            conn.commit()
+            conn.execute(text("UPDATE Usuarios SET Correo_Verificado = 1"))
+            conn.commit()
+        except Exception:
+            pass  # la columna ya existe; no re-hacer el backfill
+
     # Comprobante_Pago: LONGTEXT para soportar imágenes en base64
     with engine.connect() as conn:
         try:

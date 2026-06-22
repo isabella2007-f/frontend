@@ -72,6 +72,9 @@ class Usuario(Base):
     Fecha_creacion = Column(DateTime)
     Contrasena     = Column(String(255))
     Estado         = Column(Integer, ForeignKey("Estados.ID_Estados"))
+    # 1 = el correo fue verificado mediante el enlace; 0 = pendiente de verificar.
+    # Es independiente de Estado (que indica si la cuenta está activa/desactivada).
+    Correo_Verificado = Column(Integer, default=0)
 
     rol          = relationship("Rol", foreign_keys=[ID_Rol])
     ventas       = relationship("Venta", back_populates="usuario")

@@ -19,7 +19,7 @@ from .service import (
     verificar_codigo_recuperacion, resetear_contrasena,
     cambiar_contrasena, actualizar_foto_perfil, eliminar_foto_perfil,
     obtener_mis_permisos, verificar_email_token, reenviar_verificacion,
-    verificar_token_empleado,
+    verificar_token_empleado, eliminar_mi_cuenta,
 )
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -41,6 +41,7 @@ def _formato_perfil(actual: dict) -> dict:
         "Foto_perfil":    registro.Foto_perfil,
         "Fecha_creacion": registro.Fecha_creacion,
         "Estado":         registro.Estado,
+        "Correo_Verificado": getattr(registro, "Correo_Verificado", 1),
         "tipo":           actual["tipo"],
         "rol":            actual.get("rol"),
     }
@@ -69,6 +70,7 @@ def login(datos: LoginInput, db: Session = Depends(get_db)):
         nombre       = registro.Nombre,
         apellidos    = registro.Apellidos,
         rol          = nombre_rol,
+        correo_verificado = getattr(registro, "Correo_Verificado", 1),
     )
 
 
@@ -87,6 +89,7 @@ def registro_cliente(datos: RegistroInput, db: Session = Depends(get_db)):
         nombre       = nuevo.Nombre,
         apellidos    = nuevo.Apellidos,
         rol          = nombre_rol,
+        correo_verificado = getattr(nuevo, "Correo_Verificado", 0),
     )
 
 
@@ -155,6 +158,7 @@ def perfil_basico(actual: dict = Depends(obtener_usuario_actual)):
         "nombre":    registro.Nombre,
         "apellidos": registro.Apellidos,
         "correo":    registro.Correo,
+        "correo_verificado": getattr(registro, "Correo_Verificado", 1),
         "tipo":      actual["tipo"],
         "rol":       actual.get("rol"),
     }
@@ -200,6 +204,15 @@ def cambiar_password(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"mensaje": "Contraseña actualizada correctamente"}
+
+
+@router.delete("/mi-cuenta")
+def eliminar_cuenta_propia(
+    db:     Session = Depends(get_db),
+    actual: dict    = Depends(obtener_usuario_actual),
+):
+    """Elimina la cuenta del usuario autenticado (cualquier rol excepto admin)."""
+    return eliminar_mi_cuenta(db, actual)
 
 
 @router.post("/foto-perfil")

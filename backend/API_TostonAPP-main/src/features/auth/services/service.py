@@ -15,7 +15,8 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
 from src.shared.services.models import (
-    Usuario, Rol, Permiso, RolXPermiso, VerificacionEmail, CodigoReset
+    Usuario, Rol, Permiso, RolXPermiso, VerificacionEmail, CodigoReset,
+    Venta, Devolucion, Domicilio
 )
 
 load_dotenv()
@@ -130,15 +131,14 @@ def autenticar(db: Session, correo: str, contrasena: str):
         _intentos_login[clave].append(time.time())
         return None, None
 
-    if getattr(registro, "Estado", None) == 2:
-        if tipo == "cliente":
-            raise HTTPException(
-                status_code=403,
-                detail="Debes verificar tu correo electrónico antes de iniciar sesión. Revisa tu bandeja de entrada.",
-            )
+    # La verificación de correo ya NO bloquea el inicio de sesión: el usuario puede
+    # entrar y usar la app aunque no haya verificado (eso solo bloquea recuperar/
+    # cambiar contraseña). Solo se bloquea si la cuenta fue desactivada (Estado=2)
+    # o eliminada por el propio usuario (Estado=0).
+    if getattr(registro, "Estado", 1) in (0, 2):
         raise HTTPException(
             status_code=403,
-            detail="Tu cuenta está desactivada. Contacta al administrador.",
+            detail="Tu cuenta no está activa. Contacta al administrador.",
         )
 
     # Login exitoso: limpia el historial de intentos
@@ -172,7 +172,8 @@ def registrar_cliente(db: Session, datos):
         Correo         = datos.Correo,
         Contrasena     = hashear_contrasena(datos.Contrasena),
         Fecha_creacion = datetime.now(),
-        Estado         = 1,  # activo de inmediato: el cliente puede usar la cuenta
+        Estado            = 1,  # activo de inmediato: el cliente puede usar la cuenta
+        Correo_Verificado = 0,  # debe verificar el correo para recuperar contraseña
         ID_Rol         = rol_cliente.ID_Rol,
         Cedula         = None,
         Tipo_Documento = None,
@@ -327,10 +328,8 @@ def verificar_token_empleado(db: Session, token: str) -> str:
     usuario = db.query(Usuario).filter(Usuario.ID_Usuario == id_usuario).first()
     if not usuario:
         raise ValueError("Usuario no encontrado")
-    if usuario.Estado == 1:
-        return f"{FRONTEND_URL}/login?verificado=1"
-
-    usuario.Estado = 1
+    usuario.Estado            = 1
+    usuario.Correo_Verificado = 1
     db.commit()
     return f"{FRONTEND_URL}/login?verificado=1"
 
@@ -356,8 +355,9 @@ def verificar_email_token(db: Session, token: str) -> str:
     if not usuario:
         raise ValueError("El usuario asociado al token no existe.")
 
-    usuario.Estado       = 1
-    verificacion.Usado   = True
+    usuario.Estado            = 1
+    usuario.Correo_Verificado = 1
+    verificacion.Usado        = True
     db.commit()
 
     return f"{FRONTEND_URL}/login?verificado=1"
@@ -369,8 +369,8 @@ def reenviar_verificacion(db: Session, correo: str) -> None:
     No revela si el correo existe o no para evitar enumeración.
     """
     usuario = db.query(Usuario).filter(Usuario.Correo == correo).first()
-    if not usuario or usuario.Estado != 2:
-        return  # no revelar
+    if not usuario or getattr(usuario, "Correo_Verificado", 0) == 1:
+        return  # no existe o ya está verificado
 
     # Invalidar tokens previos
     db.query(VerificacionEmail).filter(
@@ -429,6 +429,14 @@ def solicitar_recuperacion(db: Session, correo: str) -> None:
     registro, _ = buscar_por_correo(db, correo)
     if not registro:
         return  # no revelar
+
+    # No permitir recuperar contraseña si el correo no fue verificado.
+    if getattr(registro, "Correo_Verificado", 1) != 1:
+        raise HTTPException(
+            status_code=403,
+            detail="Debes verificar tu correo electrónico antes de recuperar la contraseña. "
+                   "Revisa tu bandeja de entrada o solicita un nuevo enlace de verificación.",
+        )
 
     # Invalidar códigos anteriores del mismo correo
     db.query(CodigoReset).filter(
@@ -500,6 +508,71 @@ def resetear_contrasena(db: Session, token: str, nueva_contrasena: str) -> None:
 # CAMBIO DE CONTRASEÑA AUTENTICADO
 # ─────────────────────────────────────────
 
+def eliminar_mi_cuenta(db: Session, actual: dict) -> dict:
+    """
+    Permite a cualquier usuario eliminar su propia cuenta, EXCEPTO el administrador.
+    Intenta un borrado físico; si hay registros dependientes (ventas, devoluciones,
+    domicilios) que lo impiden, hace un "borrado lógico": libera el correo y
+    desactiva la cuenta (Estado=0) para que no se pueda volver a iniciar sesión.
+    Siempre tiene éxito (salvo para el admin).
+    """
+    registro = actual["registro"]
+
+    if getattr(registro, "ID_Rol", None) == 1:
+        raise HTTPException(
+            status_code=403,
+            detail="El administrador no puede eliminar su propia cuenta.",
+        )
+
+    id_u   = registro.ID_Usuario
+    correo = registro.Correo
+
+    # 1) Limpia tokens asociados (no son registros de negocio)
+    try:
+        db.query(VerificacionEmail).filter(VerificacionEmail.ID_Usuario == id_u).delete()
+        if correo:
+            db.query(CodigoReset).filter(CodigoReset.Correo == correo.lower()).delete()
+        db.commit()
+    except Exception:
+        db.rollback()
+
+    # 2) ¿Tiene registros de negocio que impidan el borrado físico?
+    tiene_dependencias = False
+    try:
+        if db.query(Venta).filter(Venta.ID_Usuario == id_u).count() > 0:
+            tiene_dependencias = True
+        elif db.query(Devolucion).filter(Devolucion.ID_Usuario == id_u).count() > 0:
+            tiene_dependencias = True
+        elif db.query(Domicilio).filter(Domicilio.ID_Empleado == id_u).count() > 0:
+            tiene_dependencias = True
+    except Exception:
+        db.rollback()
+        tiene_dependencias = True  # ante la duda, no intentar borrado físico
+
+    # 3) Sin dependencias → borrado físico real (libera el correo de la BD)
+    if not tiene_dependencias:
+        try:
+            obj = db.query(Usuario).filter(Usuario.ID_Usuario == id_u).first()
+            if obj:
+                db.delete(obj)
+                db.commit()
+            return {"mensaje": "Tu cuenta fue eliminada correctamente."}
+        except Exception:
+            db.rollback()
+
+    # 4) Con dependencias → borrado lógico: anonimiza, libera el correo y desactiva.
+    #    El correo original queda libre para volver a registrarse y el login con ese
+    #    correo dará "credenciales incorrectas" (ya no existe esa cuenta).
+    obj = db.query(Usuario).filter(Usuario.ID_Usuario == id_u).first()
+    if obj:
+        obj.Correo            = f"eliminado+{id_u}@cuenta.local"
+        obj.Estado            = 0
+        obj.Correo_Verificado = 0
+        obj.Contrasena        = hashear_contrasena(uuid.uuid4().hex)
+        db.commit()
+    return {"mensaje": "Tu cuenta fue eliminada correctamente."}
+
+
 def cambiar_contrasena(db: Session, actual: dict, contrasena_actual: str, nueva_contrasena: str) -> None:
     """
     Cambia la contraseña de un usuario o empleado autenticado.
@@ -507,6 +580,11 @@ def cambiar_contrasena(db: Session, actual: dict, contrasena_actual: str, nueva_
     Funciona para tipo 'usuario' y tipo 'empleado'.
     """
     registro = actual["registro"]
+
+    if getattr(registro, "Correo_Verificado", 1) != 1:
+        raise ValueError(
+            "Debes verificar tu correo electrónico antes de cambiar la contraseña."
+        )
 
     if not verificar_contrasena(contrasena_actual, registro.Contrasena):
         raise ValueError("La contraseña actual es incorrecta")
