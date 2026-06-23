@@ -454,6 +454,23 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
 
     db.commit()
     db.refresh(nueva_venta)
+
+    # Push FCM a admins — sin bloqueo si Firebase no está configurado
+    try:
+        from src.shared.services.fcm_service import notificar_nuevo_pedido_push
+        admin_ids = [
+            row.ID_Usuario
+            for row in db.query(Usuario.ID_Usuario).filter(Usuario.ID_Rol == 1).all()
+        ]
+        notificar_nuevo_pedido_push(
+            id_venta       = nueva_venta.ID_Venta,
+            nombre_cliente = f"{usuario.Nombre} {usuario.Apellidos}",
+            total          = float(nueva_venta.Total or 0),
+            admin_ids      = admin_ids,
+        )
+    except Exception:
+        pass
+
     return _formato_venta(nueva_venta, db)
 
 
