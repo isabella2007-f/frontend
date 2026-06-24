@@ -261,3 +261,25 @@ def eliminar_mi_cuenta(
     registro.Estado = 2
     db.commit()
     return {"mensaje": "Tu cuenta ha sido desactivada correctamente"}
+
+
+# ─────────────────────────────────────────
+# PUSH NOTIFICATIONS — FCM token
+# ─────────────────────────────────────────
+
+from pydantic import BaseModel as _BaseModel
+
+
+class _FCMTokenInput(_BaseModel):
+    token: str
+
+
+@router.post("/fcm-token")
+def registrar_token_fcm(
+    datos:  _FCMTokenInput,
+    actual: dict = Depends(obtener_usuario_actual),
+):
+    """Guarda el FCM device token del usuario para enviar push notifications."""
+    from src.shared.services.fcm_service import guardar_token_fcm
+    guardar_token_fcm(actual["registro"].ID_Usuario, datos.token)
+    return {"ok": True}
