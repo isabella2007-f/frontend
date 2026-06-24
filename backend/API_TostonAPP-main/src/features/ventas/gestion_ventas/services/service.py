@@ -434,6 +434,7 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
         estado_dom = ESTADO_ASIGNADO if datos.domicilio.ID_Empleado else ESTADO_DOM_PENDIENTE
         # Si el domicilio no trae su propia fecha, usa la fecha_entrega_esperada del pedido
         fecha_dom = datos.domicilio.Fecha_entrega or datos.Fecha_entrega_esperada
+        import secrets as _secrets
         db.add(Domicilio(
             ID_Venta             = nueva_venta.ID_Venta,
             ID_Empleado          = datos.domicilio.ID_Empleado,
@@ -444,6 +445,7 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
             Direccion_entrega    = datos.domicilio.Direccion_entrega,
             Municipio_entrega    = datos.domicilio.Municipio_entrega,
             Departamento_entrega = datos.domicilio.Departamento_entrega,
+            OTP                  = str(100000 + _secrets.randbelow(900000)),
         ))
         if not datos.domicilio.ID_Empleado:
             notificar(
@@ -467,6 +469,7 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
             nombre_cliente = f"{usuario.Nombre} {usuario.Apellidos}",
             total          = float(nueva_venta.Total or 0),
             admin_ids      = admin_ids,
+            db             = db,
         )
     except Exception:
         pass
@@ -554,6 +557,7 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
             id_usuario_cliente=venta.ID_Usuario,
             id_venta=id_venta,
             nuevo_estado=nuevo_estado,
+            db=db,
         )
     except Exception:
         pass

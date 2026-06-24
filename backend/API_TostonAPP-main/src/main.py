@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -100,6 +101,22 @@ def migrate_db():
             # Indicaciones de entrega del cliente (referencia/punto de entrega),
             # opcional. Se muestra y edita en "Mis datos".
             "ALTER TABLE Usuarios ADD COLUMN Indicaciones VARCHAR(255) NULL",
+            # FCM tokens persistidos en BD para sobrevivir reinicios de Render
+            "ALTER TABLE Usuarios ADD COLUMN FCM_Token VARCHAR(300) NULL",
+            # OTP seguro para confirmar entrega de domicilios (reemplaza hash predecible)
+            "ALTER TABLE Domicilios ADD COLUMN OTP VARCHAR(10) NULL",
+            "ALTER TABLE Domicilios ADD COLUMN OTP_Expira DATETIME NULL",
+            # Chat de domicilios persistido en BD (antes se perdía en cada reinicio)
+            """CREATE TABLE IF NOT EXISTS MensajesChat (
+                ID_Mensaje       INT AUTO_INCREMENT PRIMARY KEY,
+                ID_Domicilio     INT NOT NULL,
+                Tipo_Remitente   VARCHAR(20),
+                ID_Remitente     INT,
+                Nombre_Remitente VARCHAR(100),
+                Contenido        TEXT,
+                Fecha            DATETIME,
+                FOREIGN KEY (ID_Domicilio) REFERENCES Domicilios(ID_Domicilio)
+            )""",
         ]:
             try:
                 conn.execute(text(stmt))
@@ -202,14 +219,21 @@ def migrate_db():
         except Exception:
             pass
 
-# ── CORS ──
+# ── CORS — origins desde variable de entorno para no hardcodear URLs ──
+_CORS_ORIGINS = [
+    o.strip()
+    for o in os.getenv(
+        "CORS_ORIGINS",
+        "https://frontend-ten-xi-31.vercel.app,"
+        "https://frontend-git-main-isabela-s-projects1.vercel.app,"
+        "http://localhost:5173",
+    ).split(",")
+    if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://frontend-ten-xi-31.vercel.app",
-        "https://frontend-git-main-isabela-s-projects1.vercel.app",
-        "http://localhost:5173",
-    ],
+    allow_origins=_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

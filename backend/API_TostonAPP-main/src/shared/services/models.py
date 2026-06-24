@@ -76,6 +76,8 @@ class Usuario(Base):
     # 1 = el correo fue verificado mediante el enlace; 0 = pendiente de verificar.
     # Es independiente de Estado (que indica si la cuenta está activa/desactivada).
     Correo_Verificado = Column(Integer, default=0)
+    # Token FCM para push notifications. Se persiste en BD para sobrevivir reinicios del servidor.
+    FCM_Token      = Column(String(300), nullable=True)
 
     rol          = relationship("Rol", foreign_keys=[ID_Rol])
     ventas       = relationship("Venta", back_populates="usuario")
@@ -417,6 +419,10 @@ class Domicilio(Base):
     Direccion_entrega    = Column(String(50))
     Municipio_entrega    = Column(String(25))
     Departamento_entrega = Column(String(60))
+    # OTP de confirmación de entrega generado con secrets, almacenado en BD para
+    # sobrevivir reinicios del servidor (reemplaza el hash matemático predecible).
+    OTP        = Column(String(10), nullable=True)
+    OTP_Expira = Column(DateTime, nullable=True)
 
     venta    = relationship("Venta", back_populates="domicilios")
     empleado = relationship("Usuario", foreign_keys=[ID_Empleado])
@@ -457,6 +463,18 @@ class DevolucionDetalle(Base):
 
     devolucion = relationship("Devolucion", back_populates="detalles")
     producto   = relationship("Producto", back_populates="devoluciones")
+
+
+class MensajeChat(Base):
+    __tablename__ = "MensajesChat"
+
+    ID_Mensaje       = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    ID_Domicilio     = Column(Integer, ForeignKey("Domicilios.ID_Domicilio"))
+    Tipo_Remitente   = Column(String(20))
+    ID_Remitente     = Column(Integer)
+    Nombre_Remitente = Column(String(100), nullable=True)
+    Contenido        = Column(Text)
+    Fecha            = Column(DateTime)
 
 
 # ─────────────────────────────────────────

@@ -25,7 +25,7 @@ SECRET_KEY   = os.getenv("SECRET_KEY")
 ALGORITHM    = os.getenv("ALGORITHM", "HS256")
 # 30 días por defecto: la app móvil mantiene la sesión iniciada hasta que el
 # usuario presione "cerrar sesión" (se puede ajustar con la variable de entorno).
-EXPIRE_MIN   = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 43200))
+EXPIRE_MIN   = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 10080))  # 7 días
 API_URL      = os.getenv("API_URL", "http://localhost:8000")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 

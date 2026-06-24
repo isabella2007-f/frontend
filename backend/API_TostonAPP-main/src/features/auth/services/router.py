@@ -277,9 +277,10 @@ class _FCMTokenInput(_BaseModel):
 @router.post("/fcm-token")
 def registrar_token_fcm(
     datos:  _FCMTokenInput,
-    actual: dict = Depends(obtener_usuario_actual),
+    db:     Session = Depends(get_db),
+    actual: dict    = Depends(obtener_usuario_actual),
 ):
-    """Guarda el FCM device token del usuario para enviar push notifications."""
+    """Guarda el FCM device token del usuario en BD para enviar push notifications."""
     from src.shared.services.fcm_service import guardar_token_fcm
-    guardar_token_fcm(actual["registro"].ID_Usuario, datos.token)
+    guardar_token_fcm(actual["registro"].ID_Usuario, datos.token, db=db)
     return {"ok": True}

@@ -1,18 +1,47 @@
 import os
 import json
+import logging
 
-# In-memory FCM token store: maps id_usuario → token.
-# Tokens survive the process lifetime but are lost on server restart.
-# A DB column (Usuario.FCM_Token) would make them persistent — add when ready.
+logger = logging.getLogger(__name__)
+
+# In-memory fallback: usada cuando la DB no está disponible o en tests.
+# La fuente de verdad es la columna Usuarios.FCM_Token en BD.
 _fcm_tokens: dict = {}
 
 
-def guardar_token_fcm(id_usuario: int, token: str) -> None:
+def guardar_token_fcm(id_usuario: int, token: str, db=None) -> None:
+    """Guarda el FCM token en BD (fuente de verdad) y en memoria (fallback).
+    Silencioso ante cualquier error para no bloquear el login."""
     _fcm_tokens[id_usuario] = token
+    if db is None:
+        return
+    try:
+        from src.shared.services.models import Usuario
+        u = db.query(Usuario).filter(Usuario.ID_Usuario == id_usuario).first()
+        if u:
+            u.FCM_Token = token
+            db.commit()
+    except Exception as e:
+        logger.error(f"FCM: no se pudo guardar token en BD para usuario {id_usuario}: {e}")
+
+
+def _token_usuario(id_usuario: int, db=None) -> str | None:
+    """Lee el FCM token desde BD (prioridad) o del dict en memoria (fallback)."""
+    if db is not None:
+        try:
+            from src.shared.services.models import Usuario
+            u = db.query(Usuario).filter(Usuario.ID_Usuario == id_usuario).first()
+            tok = getattr(u, "FCM_Token", None)
+            if tok:
+                _fcm_tokens[id_usuario] = tok  # sincronizar cache en memoria
+                return tok
+        except Exception as e:
+            logger.error(f"FCM: no se pudo leer token de BD para usuario {id_usuario}: {e}")
+    return _fcm_tokens.get(id_usuario)
 
 
 def _firebase_app():
-    """Initializes Firebase Admin SDK on first call; returns None if not configured."""
+    """Inicializa Firebase Admin SDK en el primer llamado; retorna None si no está configurado."""
     try:
         import firebase_admin
         from firebase_admin import credentials
@@ -26,7 +55,8 @@ def _firebase_app():
 
         cred = credentials.Certificate(json.loads(cred_json))
         return firebase_admin.initialize_app(cred)
-    except Exception:
+    except Exception as e:
+        logger.error(f"FCM: no se pudo inicializar Firebase Admin SDK: {e}")
         return None
 
 
@@ -35,15 +65,10 @@ def notificar_nuevo_pedido_push(
     nombre_cliente: str,
     total: float,
     admin_ids: list,
+    db=None,
 ) -> None:
-    """Sends FCM push to all admins registered in _fcm_tokens.
-
-    Silent no-op if:
-      - firebase-admin is not installed (ImportError)
-      - FIREBASE_CREDENTIALS_JSON env var is not set
-      - No admin device tokens are registered
-    Never raises — must not block order creation.
-    """
+    """Push a todos los admins registrados cuando llega un nuevo pedido.
+    No-op silencioso si firebase-admin no está instalado o no hay tokens."""
     try:
         from firebase_admin import messaging
 
@@ -51,7 +76,7 @@ def notificar_nuevo_pedido_push(
         if app is None:
             return
 
-        tokens = [_fcm_tokens[uid] for uid in admin_ids if uid in _fcm_tokens]
+        tokens = [t for uid in admin_ids if (t := _token_usuario(uid, db))]
         if not tokens:
             return
 
@@ -78,15 +103,15 @@ def notificar_nuevo_pedido_push(
         messaging.send_each_for_multicast(msg, app=app)
 
     except ImportError:
-        pass  # firebase-admin not installed — notifications disabled
-    except Exception:
-        pass  # Never propagate FCM errors to the caller
+        pass  # firebase-admin no instalado
+    except Exception as e:
+        logger.error(f"FCM: error enviando push de nuevo pedido #{id_venta}: {e}")
 
 
 _LABELS_ESTADO_CLIENTE = {
     4:  ("Tu pedido fue confirmado ✅",         "Confirmado ✅"),
     5:  ("Tu pedido fue cancelado ❌",          "Cancelado ❌"),
-    8:  ("Tu pedido fue entregado \U0001f4e6",       "Entregado \U0001f4e6"),
+    8:  ("Tu pedido fue entregado \U0001f4e6",      "Entregado \U0001f4e6"),
     9:  ("Tu domicilio está en camino \U0001f6f5", "En camino \U0001f6f5"),
 }
 
@@ -95,10 +120,11 @@ def notificar_cambio_pedido_push(
     id_usuario_cliente: int,
     id_venta: int,
     nuevo_estado: int,
+    db=None,
 ) -> None:
     """Push al cliente cuando su pedido cambia de estado.
-    Silent no-op si firebase-admin no está instalado, el token no existe,
-    o el estado no tiene etiqueta definida. Nunca propaga excepciones."""
+    No-op silencioso si firebase-admin no está instalado, el token no existe
+    o el estado no tiene etiqueta definida."""
     try:
         from firebase_admin import messaging
 
@@ -106,7 +132,7 @@ def notificar_cambio_pedido_push(
         if app is None:
             return
 
-        token = _fcm_tokens.get(id_usuario_cliente)
+        token = _token_usuario(id_usuario_cliente, db)
         if not token:
             return
 
@@ -145,6 +171,6 @@ def notificar_cambio_pedido_push(
         messaging.send(msg, app=app)
 
     except ImportError:
-        pass
-    except Exception:
-        pass
+        pass  # firebase-admin no instalado
+    except Exception as e:
+        logger.error(f"FCM: error enviando push cambio estado pedido #{id_venta}: {e}")

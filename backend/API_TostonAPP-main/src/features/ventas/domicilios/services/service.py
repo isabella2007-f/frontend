@@ -1,16 +1,20 @@
+import secrets
+import logging
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from datetime import datetime, timedelta
 
-from collections import defaultdict
-from src.shared.services.models import Domicilio, Venta, Usuario, Estado, Producto, VentaXProducto, Rol
+from src.shared.services.models import Domicilio, Venta, Usuario, Estado, Producto, VentaXProducto, Rol, MensajeChat
 from src.shared.services.notificaciones_utils import notificar_stock_producto
 from src.features.ventas.gestion_ventas.services.service import _actualizar_estado_producto
-
-# Chat en memoria — temporal (se pierde al reiniciar el servidor)
-_chat: dict = defaultdict(list)
-_chat_counter: dict = defaultdict(int)
 from .schemas import DomicilioCreate, DomicilioUpdate
+
+logger = logging.getLogger(__name__)
+
+
+def _otp_nuevo() -> str:
+    """Genera un código OTP de 6 dígitos criptográficamente seguro."""
+    return str(100000 + secrets.randbelow(900000))
 
 
 def _label_estado(db: Session, id_estado: int) -> str:
@@ -70,6 +74,7 @@ def _formato_domicilio(dom: Domicilio, db: Session) -> dict:
         "metodo_pago":          metodo_pago,
         "productos":            productos,
         "telefono_cliente":     cliente.Telefono if cliente else "",
+        "otp":                  getattr(dom, "OTP", None),
     }
 
 
@@ -213,6 +218,7 @@ def crear_domicilio(db: Session, datos: DomicilioCreate) -> dict:
         Direccion_entrega    = datos.Direccion_entrega,
         Municipio_entrega    = datos.Municipio_entrega,
         Departamento_entrega = datos.Departamento_entrega,
+        OTP                  = _otp_nuevo(),
     )
     db.add(nuevo)
     db.commit()
@@ -257,25 +263,48 @@ def asignar_repartidor(db: Session, id_domicilio: int, id_empleado: int) -> dict
         db.commit()
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"COMMIT_ERROR | {type(e).__name__}: {e}")
+        logger.error(f"Error asignando repartidor a domicilio {id_domicilio}: {e}")
+        raise HTTPException(status_code=500, detail="Error al asignar el repartidor")
 
     try:
         db.refresh(dom)
         return _formato_domicilio(dom, db)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"FORMAT_ERROR | {type(e).__name__}: {e}")
+        logger.error(f"Error formateando domicilio {id_domicilio} tras asignación: {e}")
+        raise HTTPException(status_code=500, detail="Error al procesar la respuesta")
 
 
-def generar_otp(id_domicilio: int) -> str:
-    return str((id_domicilio * 7331 + 4729) % 9000 + 1000)
-
-
-def verificar_otp(id_domicilio: int, codigo: str) -> bool:
-    return codigo.strip() == generar_otp(id_domicilio)
+def verificar_otp(db: Session, id_domicilio: int, codigo: str) -> bool:
+    """Verifica el OTP contra el valor almacenado en BD. Sin expiración fija."""
+    dom = db.query(Domicilio).filter(Domicilio.ID_Domicilio == id_domicilio).first()
+    if not dom:
+        return False
+    otp_db = getattr(dom, "OTP", None)
+    if not otp_db:
+        return False
+    return codigo.strip() == otp_db
 
 
 def obtener_mensajes(db: Session, id_domicilio: int) -> list:
-    return list(_chat[id_domicilio])
+    """Lee el historial de chat desde BD."""
+    msgs = (
+        db.query(MensajeChat)
+        .filter(MensajeChat.ID_Domicilio == id_domicilio)
+        .order_by(MensajeChat.Fecha)
+        .all()
+    )
+    return [
+        {
+            "ID_Mensaje":       m.ID_Mensaje,
+            "ID_Domicilio":     m.ID_Domicilio,
+            "Tipo_Remitente":   m.Tipo_Remitente,
+            "ID_Remitente":     m.ID_Remitente,
+            "Nombre_Remitente": m.Nombre_Remitente,
+            "Contenido":        m.Contenido,
+            "Fecha":            m.Fecha,
+        }
+        for m in msgs
+    ]
 
 
 def enviar_mensaje(
@@ -289,18 +318,26 @@ def enviar_mensaje(
     if not db.query(Domicilio).filter(Domicilio.ID_Domicilio == id_domicilio).first():
         raise HTTPException(status_code=404, detail="Domicilio no encontrado")
 
-    _chat_counter[id_domicilio] += 1
-    msg = {
-        "ID_Mensaje":       _chat_counter[id_domicilio],
-        "ID_Domicilio":     id_domicilio,
-        "Tipo_Remitente":   tipo_remitente,
-        "ID_Remitente":     id_remitente,
-        "Nombre_Remitente": nombre_remitente,
-        "Contenido":        contenido.strip(),
-        "Fecha":            datetime.now(),
+    nuevo = MensajeChat(
+        ID_Domicilio     = id_domicilio,
+        Tipo_Remitente   = tipo_remitente,
+        ID_Remitente     = id_remitente,
+        Nombre_Remitente = nombre_remitente,
+        Contenido        = contenido.strip(),
+        Fecha            = datetime.now(),
+    )
+    db.add(nuevo)
+    db.commit()
+    db.refresh(nuevo)
+    return {
+        "ID_Mensaje":       nuevo.ID_Mensaje,
+        "ID_Domicilio":     nuevo.ID_Domicilio,
+        "Tipo_Remitente":   nuevo.Tipo_Remitente,
+        "ID_Remitente":     nuevo.ID_Remitente,
+        "Nombre_Remitente": nuevo.Nombre_Remitente,
+        "Contenido":        nuevo.Contenido,
+        "Fecha":            nuevo.Fecha,
     }
-    _chat[id_domicilio].append(msg)
-    return msg
 
 
 def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observaciones: str = None) -> dict:
@@ -359,6 +396,7 @@ def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observacio
                     id_usuario_cliente=venta_dom.ID_Usuario,
                     id_venta=dom.ID_Venta,
                     nuevo_estado=db_estado,
+                    db=db,
                 )
     except Exception:
         pass
