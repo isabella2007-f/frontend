@@ -349,4 +349,17 @@ def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observacio
 
     db.commit()
     db.refresh(dom)
+    try:
+        from src.shared.services.fcm_service import notificar_cambio_pedido_push
+        if dom.ID_Venta:
+            venta_dom = db.query(Venta).filter(Venta.ID_Venta == dom.ID_Venta).first()
+            if venta_dom:
+                db_estado = FLUTTER_TO_VENTA.get(nuevo_estado, nuevo_estado)
+                notificar_cambio_pedido_push(
+                    id_usuario_cliente=venta_dom.ID_Usuario,
+                    id_venta=dom.ID_Venta,
+                    nuevo_estado=db_estado,
+                )
+    except Exception:
+        pass
     return _formato_domicilio(dom, db)

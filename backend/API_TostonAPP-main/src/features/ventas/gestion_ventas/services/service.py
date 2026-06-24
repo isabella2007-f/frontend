@@ -548,6 +548,15 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
     venta.Estado = nuevo_estado
     db.commit()
     db.refresh(venta)
+    try:
+        from src.shared.services.fcm_service import notificar_cambio_pedido_push
+        notificar_cambio_pedido_push(
+            id_usuario_cliente=venta.ID_Usuario,
+            id_venta=id_venta,
+            nuevo_estado=nuevo_estado,
+        )
+    except Exception:
+        pass
     return _formato_venta(venta, db)
 
 
