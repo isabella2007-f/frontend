@@ -375,6 +375,31 @@ const LandingPage = ({ hideNavbar = false }) => {
         </div>
       </section>
 
+      {/* ─── CATEGORÍAS ─── */}
+      {Object.keys(categoriasMap).length > 0 && (
+        <section id="categorias" className="py-20 bg-[#f7faf8]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center space-y-3 mb-14">
+              <h2 className="text-[#4caf50] font-black tracking-[0.3em] uppercase text-sm">Explora</h2>
+              <h3 className="text-4xl lg:text-5xl font-black text-[#1b5e20]">Nuestras Categorías</h3>
+              <div className="w-16 h-2 bg-[#1b5e20] mx-auto rounded-full" />
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
+              {Object.values(categoriasMap).map((cat) => (
+                <button
+                  key={cat.nombre}
+                  onClick={() => { setActiveTab(cat.nombre); scrollToSection('productos'); }}
+                  className="group flex flex-col items-center gap-4 p-8 bg-white rounded-[28px] border border-[#f1f8f1] hover:border-[#c8e6c9] hover:shadow-[0_20px_50px_rgba(27,94,32,0.1)] transition-all duration-500 hover:-translate-y-1 text-center"
+                >
+                  <span className="text-5xl group-hover:scale-110 transition-transform duration-500">{cat.icon || '📦'}</span>
+                  <span className="font-black text-[#1b5e20] text-base leading-tight">{cat.nombre}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ─── PRODUCTOS ─── */}
       <section id="productos" className="py-32 bg-white relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

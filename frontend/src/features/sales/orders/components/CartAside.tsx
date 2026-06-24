@@ -3,7 +3,7 @@ import { X, MapPin, Calendar, Trash2, Plus, Minus, ShoppingBag, LogIn, Sparkles,
 import { CartItem, removeFromCart, updateQuantity, clearCart, getCart } from '../services/cartService';
 import { isAuthenticated } from '../../../../services/authService';
 import { apiFetch } from '../../../../utils/api';
-import { DEPARTAMENTOS, getCiudades } from '../../../../utils/departamentosYCiudades';
+import { MUNICIPIOS_VALLE_ABURRA } from '../../../../utils/departamentosYCiudades';
 
 const COSTO_DOMICILIO = 5000;
 
@@ -23,7 +23,7 @@ const hoyISO = () => new Date().toISOString().split('T')[0];
 const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLoginRequired }) => {
   const [cart, setCart]               = useState<CartItem[]>(() => getCart());
   const [address, setAddress]         = useState('');
-  const [departamento, setDepartamento] = useState('');
+  const [departamento] = useState('Antioquia');
   const [municipio, setMunicipio]     = useState('');
   const [date, setDate]               = useState('');
   const [tieneDomicilio,    setTieneDomicilio]    = useState(false);
@@ -82,7 +82,6 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
     if (cart.length === 0) return alert('El carrito está vacío');
     if (tieneDomicilio) {
       if (!address)      { setShowDeliveryInfo(true); return alert('Ingresa una dirección de entrega'); }
-      if (!departamento) { setShowDeliveryInfo(true); return alert('Selecciona un departamento'); }
       if (!municipio)    { setShowDeliveryInfo(true); return alert('Selecciona un municipio'); }
       if (!date)         { setShowDeliveryInfo(true); return alert('Selecciona una fecha de entrega'); }
       if (date < hoyISO()) { setShowDeliveryInfo(true); return alert('La fecha de entrega no puede ser en el pasado'); }
@@ -93,7 +92,6 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
 
   if (!isOpen) return null;
   const loggedIn = isAuthenticated();
-  const ciudadesDisponibles = departamento ? getCiudades(departamento) : [];
 
   return (
     <div className="fixed inset-0 z-[9000] overflow-hidden">
@@ -193,26 +191,14 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
                     />
                   </div>
 
-                  <div className="relative group">
+                  <div className="col-span-2 relative group">
                     <select
                       className="w-full bg-white/5 border border-white/10 rounded-xl py-2 px-3 text-xs appearance-none focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all font-medium text-white"
-                      value={departamento}
-                      onChange={(e) => { setDepartamento(e.target.value); setMunicipio(''); }}
-                    >
-                      <option value="" className="text-gray-900">Depto.</option>
-                      {DEPARTAMENTOS.map(d => <option key={d} value={d} className="text-gray-900">{d}</option>)}
-                    </select>
-                  </div>
-
-                  <div className="relative group">
-                    <select
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-2 px-3 text-xs appearance-none focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all font-medium text-white disabled:opacity-50"
                       value={municipio}
                       onChange={(e) => setMunicipio(e.target.value)}
-                      disabled={!departamento}
                     >
-                      <option value="" className="text-gray-900">Municipio</option>
-                      {ciudadesDisponibles.map(c => <option key={c} value={c} className="text-gray-900">{c}</option>)}
+                      <option value="" className="text-gray-900">— Municipio (Valle de Aburrá) —</option>
+                      {MUNICIPIOS_VALLE_ABURRA.map(m => <option key={m} value={m} className="text-gray-900">{m}</option>)}
                     </select>
                   </div>
 

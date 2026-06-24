@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
+import { MUNICIPIOS_VALLE_ABURRA } from '../../../../utils/departamentosYCiudades';
 import { Mail, Phone, MapPin, Camera, Save, X, CreditCard, Lock } from 'lucide-react';
 import { apiFetch } from '../../../../utils/api';
 
@@ -46,62 +47,18 @@ const Field = ({ label, icon: Icon, error, children, locked }) => (
   </div>
 );
 
-const LocationSelects = ({ departamento, municipio, onDepto, onMunicipio }) => {
-  const [deptos,     setDeptos]     = useState([]);
-  const [municipios, setMunicipios] = useState([]);
-  const [loadingD,   setLoadingD]   = useState(false);
-  const [loadingM,   setLoadingM]   = useState(false);
-
-  useEffect(() => {
-    setLoadingD(true);
-    fetch('https://api-colombia.com/api/v1/Department')
-      .then(r => r.json())
-      .then(data => setDeptos(data.sort((a, b) => a.name.localeCompare(b.name))))
-      .catch(() => {})
-      .finally(() => setLoadingD(false));
-  }, []);
-
-  useEffect(() => {
-    if (!departamento) { setMunicipios([]); return; }
-    const found = deptos.find(d => d.name === departamento);
-    if (!found) return;
-    setLoadingM(true);
-    fetch(`https://api-colombia.com/api/v1/Department/${found.id}/cities`)
-      .then(r => r.json())
-      .then(data => setMunicipios(data.sort((a, b) => a.name.localeCompare(b.name))))
-      .catch(() => {})
-      .finally(() => setLoadingM(false));
-  }, [departamento, deptos]);
-
+const LocationSelects = ({ municipio, onMunicipio }) => {
   const selStyle = { ...inputBase, cursor: 'pointer' };
-
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-      <Field label="Departamento" icon={MapPin}>
-        <select
-          value={departamento || ''} onChange={e => onDepto(e.target.value)}
-          disabled={loadingD} style={{ ...selStyle, opacity: loadingD ? .6 : 1 }}
-          onFocus={focusOn} onBlur={focusOff}
-        >
-          <option value="">{loadingD ? 'Cargando…' : '— Seleccionar —'}</option>
-          {deptos.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
-        </select>
-      </Field>
-
-      <Field label="Municipio" icon={MapPin}>
-        <select
-          value={municipio || ''} onChange={e => onMunicipio(e.target.value)}
-          disabled={!departamento || loadingM}
-          style={{ ...selStyle, opacity: (!departamento || loadingM) ? .5 : 1 }}
-          onFocus={focusOn} onBlur={focusOff}
-        >
-          <option value="">
-            {!departamento ? 'Selecciona depto…' : loadingM ? 'Cargando…' : '— Seleccionar —'}
-          </option>
-          {municipios.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-        </select>
-      </Field>
-    </div>
+    <Field label="Municipio (Valle de Aburrá)" icon={MapPin}>
+      <select
+        value={municipio || ''} onChange={e => onMunicipio(e.target.value)}
+        style={selStyle} onFocus={focusOn} onBlur={focusOff}
+      >
+        <option value="">— Seleccionar —</option>
+        {MUNICIPIOS_VALLE_ABURRA.map(m => <option key={m} value={m}>{m}</option>)}
+      </select>
+    </Field>
   );
 };
 
@@ -319,10 +276,8 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
       </Field>
 
       <LocationSelects
-        departamento={form.departamento}
         municipio={form.municipio}
-        onDepto={v  => { setVal('departamento', v); setVal('municipio', ''); }}
-        onMunicipio={v => setVal('municipio', v)}
+        onMunicipio={v => { setVal('municipio', v); setVal('departamento', 'Antioquia'); }}
       />
 
       {/* Botones */}

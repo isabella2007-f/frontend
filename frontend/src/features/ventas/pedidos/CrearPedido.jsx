@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { DEPARTAMENTOS, getCiudades } from "../../../utils/departamentosYCiudades.js";
+import { MUNICIPIOS_VALLE_ABURRA } from "../../../utils/departamentosYCiudades.js";
 import { getUsuarios } from "../../../services/usuariosService.js";
 import { getProductos } from "../../../services/productosService.js";
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
@@ -536,34 +536,18 @@ export default function CrearPedido({ onClose, onSave }) {
 
                   <div className="form-grid-2" style={{ marginTop: 15 }}>
                     <div className="field-wrap">
-                      <label className="field-label">Departamento <span className="required">*</span></label>
-                      <div className="select-wrap">
-                        <select
-                          className={`field-select${errors.departamento ? " error" : ""}`}
-                          value={form.departamento}
-                          onChange={e => {
-                            setForm(f => ({ ...f, departamento: e.target.value, municipio: "" }));
-                            setErrors(err => ({ ...err, departamento: "" }));
-                          }}
-                        >
-                          <option value="">Seleccione…</option>
-                          {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
-                        </select>
-                        <SelectArrow />
-                      </div>
-                    </div>
-
-                    <div className="field-wrap">
                       <label className="field-label">Municipio <span className="required">*</span></label>
                       <div className="select-wrap">
                         <select
                           className={`field-select${errors.municipio ? " error" : ""}`}
                           value={form.municipio}
-                          onChange={e => set("municipio", e.target.value)}
-                          disabled={!form.departamento}
+                          onChange={e => {
+                            setForm(f => ({ ...f, municipio: e.target.value, departamento: "Antioquia" }));
+                            setErrors(err => ({ ...err, municipio: "" }));
+                          }}
                         >
-                          <option value="">Seleccione…</option>
-                          {getCiudades(form.departamento).map(m => <option key={m} value={m}>{m}</option>)}
+                          <option value="">— Valle de Aburrá —</option>
+                          {MUNICIPIOS_VALLE_ABURRA.map(m => <option key={m} value={m}>{m}</option>)}
                         </select>
                         <SelectArrow />
                       </div>

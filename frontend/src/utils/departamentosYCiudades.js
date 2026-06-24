@@ -36,3 +36,8 @@ export const DEPARTAMENTOS = Object.keys(DEPARTAMENTOS_CIUDADES).sort();
 export const getCiudades = (departamento) => {
   return DEPARTAMENTOS_CIUDADES[departamento] || [];
 };
+
+export const MUNICIPIOS_VALLE_ABURRA = [
+  "Barbosa", "Bello", "Caldas", "Copacabana", "Envigado",
+  "Girardota", "Itagüí", "La Estrella", "Medellín", "Sabaneta",
+];

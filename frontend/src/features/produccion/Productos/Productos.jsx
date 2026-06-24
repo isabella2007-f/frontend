@@ -1287,6 +1287,7 @@ export default function GestionProductos() {
           : (
             <CrearFicha
               productoNombre={modal.product.nombre}
+              productoId={modal.product.id}
               productoCategoria={getCat(modal.product.idCategoria)?.nombre}
               onClose={() => setModal(null)}
               onSave={handleSaveFicha}

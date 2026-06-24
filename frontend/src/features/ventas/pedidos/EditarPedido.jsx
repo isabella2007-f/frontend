@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { getUsuarios, editarUsuario } from "../../../services/usuariosService.js";
 import { getProductos } from "../../../services/productosService.js";
-import { DEPARTAMENTOS, getCiudades } from "../../../utils/departamentosYCiudades.js";
+import { MUNICIPIOS_VALLE_ABURRA } from "../../../utils/departamentosYCiudades.js";
 import "./Pedidos.css";
 
 /* ─── Helpers ────────────────────────────────────────────── */
@@ -556,30 +556,15 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
                       <input className="field-input" value={datosCliente.telefono || ""} onChange={e => setDato("telefono", e.target.value)} placeholder="300 000 0000" />
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                      <label className="form-label">Departamento</label>
-                      <div className="select-wrap">
-                        <select
-                          className="field-select"
-                          value={datosCliente.departamento || ""}
-                          onChange={e => setDato("departamento", e.target.value)}
-                        >
-                          <option value="">Seleccione…</option>
-                          {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
-                        </select>
-                        <SelectArrow />
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                       <label className="form-label">Municipio</label>
                       <div className="select-wrap">
                         <select
                           className="field-select"
                           value={datosCliente.municipio || ""}
-                          onChange={e => setDato("municipio", e.target.value)}
-                          disabled={!datosCliente.departamento}
+                          onChange={e => { setDato("municipio", e.target.value); setDato("departamento", "Antioquia"); }}
                         >
-                          <option value="">Seleccione…</option>
-                          {getCiudades(datosCliente.departamento).map(m => <option key={m} value={m}>{m}</option>)}
+                          <option value="">— Valle de Aburrá —</option>
+                          {MUNICIPIOS_VALLE_ABURRA.map(m => <option key={m} value={m}>{m}</option>)}
                         </select>
                         <SelectArrow />
                       </div>
@@ -758,35 +743,18 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
 
                 <div className="form-grid-2" style={{ marginTop: 12 }}>
                   <div className="field-wrap">
-                    <label className="field-label">Departamento <span className="required">*</span></label>
-                    <div className="select-wrap">
-                      <select
-                        className={`field-select${errors.departamento ? " error" : ""}`}
-                        value={form.departamento}
-                        onChange={e => {
-                          setForm(f => ({ ...f, departamento: e.target.value, municipio: "" }));
-                          setErrors(err => ({ ...err, departamento: "" }));
-                        }}
-                      >
-                        <option value="">Seleccione…</option>
-                        {DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
-                      </select>
-                      <SelectArrow />
-                    </div>
-                    {errors.departamento && <span className="field-error">{errors.departamento}</span>}
-                  </div>
-
-                  <div className="field-wrap">
                     <label className="field-label">Municipio <span className="required">*</span></label>
                     <div className="select-wrap">
                       <select
                         className={`field-select${errors.municipio ? " error" : ""}`}
                         value={form.municipio}
-                        onChange={e => set("municipio", e.target.value)}
-                        disabled={!form.departamento}
+                        onChange={e => {
+                          setForm(f => ({ ...f, municipio: e.target.value, departamento: "Antioquia" }));
+                          setErrors(err => ({ ...err, municipio: "" }));
+                        }}
                       >
-                        <option value="">Seleccione…</option>
-                        {getCiudades(form.departamento).map(m => <option key={m} value={m}>{m}</option>)}
+                        <option value="">— Valle de Aburrá —</option>
+                        {MUNICIPIOS_VALLE_ABURRA.map(m => <option key={m} value={m}>{m}</option>)}
                       </select>
                       <SelectArrow />
                     </div>

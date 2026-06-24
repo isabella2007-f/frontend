@@ -12,7 +12,7 @@ const UNITS_FAMILIES = [
   ["taza","cucharada","cucharadita"],
 ];
 
-export default function CrearFicha({ onClose, onSave, productoNombre = "" }) {
+export default function CrearFicha({ onClose, onSave, productoNombre = "", productoId: productoIdProp = null }) {
   const [categoriasInsumosActivas, setCategoriasInsumosActivas] = useState([]);
   const [insumosPorCategoriaId,    setInsumosPorCategoriaId]    = useState({});
   const [productosDisponibles,     setProductosDisponibles]     = useState([]);
@@ -56,7 +56,7 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "" }) {
 
   const [form, setForm] = useState({
     producto:   productoNombre,
-    productoId: "",
+    productoId: productoIdProp ? String(productoIdProp) : "",
     fecha: new Date().toISOString().slice(0, 10),
     fotoPreview: null,
     insumos: [{ id: 1, idCategoria: "", idInsumo: "", nombre: "", cantidad: "", unidad: "" }],
@@ -178,21 +178,29 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "" }) {
           <div className="ficha-modal__info-grid">
             <div className="form-group">
               <label className="form-label">Producto</label>
-              <select
-                className={`field-input${errors.producto ? " field-input--error" : ""}`}
-                value={form.productoId}
-                onChange={e => {
-                  const id = e.target.value;
-                  const found = productosDisponibles.find(p => String(p.id) === String(id));
-                  set("productoId", id);
-                  set("producto", found?.nombre || "");
-                }}>
-                <option value="">— Selecciona un producto —</option>
-                {productosDisponibles.map(p => (
-                  <option key={p.id} value={p.id}>{p.nombre}</option>
-                ))}
-              </select>
-              {errors.producto && <p className="field-error">{errors.producto}</p>}
+              {productoIdProp ? (
+                <div className="field-input field-input--disabled" style={{ background: "#f5f5f5", color: "#424242", cursor: "default" }}>
+                  {productoNombre}
+                </div>
+              ) : (
+                <>
+                  <select
+                    className={`field-input${errors.producto ? " field-input--error" : ""}`}
+                    value={form.productoId}
+                    onChange={e => {
+                      const id = e.target.value;
+                      const found = productosDisponibles.find(p => String(p.id) === String(id));
+                      set("productoId", id);
+                      set("producto", found?.nombre || "");
+                    }}>
+                    <option value="">— Selecciona un producto —</option>
+                    {productosDisponibles.map(p => (
+                      <option key={p.id} value={p.id}>{p.nombre}</option>
+                    ))}
+                  </select>
+                  {errors.producto && <p className="field-error">{errors.producto}</p>}
+                </>
+              )}
             </div>
             <div className="form-group">
               <label className="form-label">Fecha</label>
