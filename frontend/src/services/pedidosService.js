@@ -82,6 +82,13 @@ export const eliminarPedido = async (id) => {
   return apiFetch(`/pedidos/${id}`, { method: "DELETE" });
 };
 
+export const cambiarEstadoVenta = async (id, estadoId) => {
+  return apiFetch(`/ventas/${id}/estado`, {
+    method: "PATCH",
+    body: JSON.stringify({ Estado: estadoId }),
+  });
+};
+
 export const getMiCredito = async () => {
   return apiFetch("/ventas/mi-credito");
 };

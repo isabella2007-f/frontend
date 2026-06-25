@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { fmtFecha } from "../../../utils/dateUtils.js";
 import { descargarFacturaPedido } from "../../../utils/facturaGenerator.js";
-import { getPedidos, confirmarPedido, cancelarPedido, crearPedido, editarPedido, eliminarPedido } from "../../../services/pedidosService.js";
+import { getPedidos, confirmarPedido, cancelarPedido, crearPedido, editarPedido, eliminarPedido, cambiarEstadoVenta } from "../../../services/pedidosService.js";
 import { getUsuarios } from "../../../services/usuariosService.js";
 import CrearPedido from "./CrearPedido.jsx";
 import EditarPedido from "./EditarPedido.jsx";
@@ -665,13 +665,16 @@ export default function GestionPedidos() {
     try {
       if (nuevoEstado === "Cancelado") {
         await cancelarPedido(id);
+      } else if (nuevoEstado === "Entregado") {
+        await cambiarEstadoVenta(id, 8);
       } else {
         await confirmarPedido(id);
       }
       await cargarDatos();
-      showToast(nuevoEstado === "Cancelado"
-        ? `Pedido ${ped.numero} cancelado`
-        : `Pedido ${ped.numero} confirmado exitosamente`
+      showToast(
+        nuevoEstado === "Cancelado"  ? `Pedido ${ped.numero} cancelado` :
+        nuevoEstado === "Entregado"  ? `Pedido ${ped.numero} marcado como entregado` :
+        `Pedido ${ped.numero} confirmado exitosamente`
       );
       setModal(null);
     } catch (err) {
@@ -680,6 +683,10 @@ export default function GestionPedidos() {
     } finally {
       setActionSaving(false);
     }
+  };
+
+  const handleEntregarPedido = (ped) => {
+    setModal({ type: "confirmarEstado", pedido: ped, nuevoEstado: "Entregado" });
   };
 
   const handleCrearPedido = async (formData) => {
@@ -843,8 +850,9 @@ export default function GestionPedidos() {
                 ) : paged.map((ped, idx) => {
                   const emp = empleados.find(e => e.id === ped.idEmpleado);
                   // Solo Pendiente puede confirmarse; En producción espera que las órdenes terminen
-                  const canAdvance = ped.estado === "Pendiente";
-                  const canCancel  = ["Pendiente", "En producción", "Confirmado"].includes(ped.estado);
+                  const canAdvance   = ped.estado === "Pendiente";
+                  const canEntregar = ped.estado === "Confirmado";
+                  const canCancel   = ["Pendiente", "En producción", "Confirmado"].includes(ped.estado);
                   return (
                     <tr key={ped.id} className="tbl-row group hover:bg-green-50/30 transition-colors">
                       <td><span className="row-num">{String((safePage - 1) * PER_PAGE + idx + 1).padStart(2, "0")}</span></td>
@@ -889,8 +897,9 @@ export default function GestionPedidos() {
                         <div className="actions-cell flex items-center gap-1">
                           <button className="act-btn act-btn--view bg-green-50 text-green-600 hover:bg-green-600 hover:text-white transition-all p-1.5 rounded-lg border border-green-100" onClick={() => setModal({ type: "ver", pedido: ped })}>👁</button>
                           {!["Confirmado","Cancelado"].includes(ped.estado) && <button className="act-btn act-btn--edit bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white transition-all p-1.5 rounded-lg border border-amber-100" onClick={() => setModal({ type: "editar", pedido: ped })}>✎</button>}
-                          {canAdvance && <button className="act-btn act-btn--success bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all p-1.5 rounded-lg border border-blue-100" disabled={actionSaving} onClick={() => handleCambiarEstadoDirecto(ped)} title="Confirmar pedido">✔</button>}
-                          {canCancel && <button className="act-btn act-btn--delete bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-all p-1.5 rounded-lg border border-red-100" disabled={actionSaving} onClick={() => handleCancelarPedido(ped)} title="Cancelar pedido">✕</button>}
+                          {canAdvance   && <button className="act-btn act-btn--success bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all p-1.5 rounded-lg border border-blue-100" disabled={actionSaving} onClick={() => handleCambiarEstadoDirecto(ped)} title="Confirmar pedido">✔</button>}
+                          {canEntregar  && <button className="act-btn bg-teal-50 text-teal-600 hover:bg-teal-600 hover:text-white transition-all p-1.5 rounded-lg border border-teal-100" disabled={actionSaving} onClick={() => handleEntregarPedido(ped)} title="Marcar como entregado">✅</button>}
+                          {canCancel    && <button className="act-btn act-btn--delete bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-all p-1.5 rounded-lg border border-red-100" disabled={actionSaving} onClick={() => handleCancelarPedido(ped)} title="Cancelar pedido">✕</button>}
                         </div>
                       </td>
                     </tr>
