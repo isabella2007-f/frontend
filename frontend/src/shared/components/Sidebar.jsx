@@ -201,7 +201,7 @@ export default function Sidebar({ isOpen, onToggle }) {
           <div className="sidebar-footer">
             <div
               className="avatar"
-              onClick={() => navigate(user.tipo === "usuario" ? "/cliente/perfil" : "/admin/perfil")}
+              onClick={() => navigate(user.tipo === "cliente" ? "/cliente/perfil" : "/admin/perfil")}
             >
               {user?.nombre?.charAt(0) || "U"}
             </div>
