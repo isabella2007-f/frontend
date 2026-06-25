@@ -1,5 +1,4 @@
 {
-  "model": "claude-sonnet-4-6",
   "permissions": {
     "allow": [
       "Bash(curl -s -X POST \"https://api-tostonapp.onrender.com/api/auth/recuperar-contrasena\" -H \"Content-Type: application/json\" -d \"{\\\\\"correo\\\\\":\\\\\"TostonApp@gmail.com\\\\\"}\")",
@@ -7,7 +6,10 @@
       "Bash(python -c \"import sys; print\\(sys.version\\); print\\(sys.executable\\)\")",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\asus\\\\OneDrive\\\\Desktop\\\\Evidencias SENA\\\\tostonapp\" -Directory)",
       "Bash(Select-Object Name)",
-      "PowerShell(Get-ChildItem \"c:\\\\Users\\\\asus\\\\OneDrive\\\\Desktop\\\\Evidencias SENA\\\\tostonapp\\\\backend\" -Recurse | Where-Object {$_.PSIsContainer} | Select-Object FullName)"
+      "PowerShell(Get-ChildItem \"c:\\\\Users\\\\asus\\\\OneDrive\\\\Desktop\\\\Evidencias SENA\\\\tostonapp\\\\backend\" -Recurse | Where-Object {$_.PSIsContainer} | Select-Object FullName)",
+      "PowerShell(Receive-Job -Id 1)",
+      "PowerShell(Get-Job -Id 1)"
     ]
-  }
+  },
+  "model": "claude-sonnet-4-6"
 }

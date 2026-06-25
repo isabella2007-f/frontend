@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { MUNICIPIOS_VALLE_ABURRA } from '../../../../utils/departamentosYCiudades';
 import { Mail, Phone, MapPin, Camera, Save, X, CreditCard, Lock } from 'lucide-react';
 import { apiFetch } from '../../../../utils/api';
