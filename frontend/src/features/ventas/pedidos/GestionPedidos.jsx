@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { fmtFecha } from "../../../utils/dateUtils.js";
 import { descargarFacturaPedido } from "../../../utils/facturaGenerator.js";
 import { getPedidos, confirmarPedido, cancelarPedido, crearPedido, editarPedido, eliminarPedido, cambiarEstadoVenta } from "../../../services/pedidosService.js";
+import { asignarRepartidor } from "../../../services/domiciliosService.js";
+import { registrarSalida } from "../../../services/salidasService.js";
 import { getUsuarios } from "../../../services/usuariosService.js";
 import CrearPedido from "./CrearPedido.jsx";
 import EditarPedido from "./EditarPedido.jsx";
@@ -39,9 +41,11 @@ const ESTADO_CONFIG = {
   "Pendiente":      { bg: "bg-amber-50",   color: "text-amber-700",  border: "border-amber-200",  dot: "#f9a825" },
   "En producción":  { bg: "bg-blue-50",    color: "text-blue-700",   border: "border-blue-200",   dot: "#1976d2" },
   "Confirmado":     { bg: "bg-green-50",   color: "text-green-700",  border: "border-green-200",  dot: "#43a047" },
+  "Listo":          { bg: "bg-indigo-50",  color: "text-indigo-700", border: "border-indigo-200", dot: "#3949ab" },
+  "Asignado":       { bg: "bg-orange-50",  color: "text-orange-700", border: "border-orange-200", dot: "#e65100" },
+  "En camino":      { bg: "bg-purple-50",  color: "text-purple-700", border: "border-purple-200", dot: "#8e24aa" },
   "Cancelado":      { bg: "bg-red-50",     color: "text-red-700",    border: "border-red-200",    dot: "#e53935" },
   "Entregado":      { bg: "bg-teal-50",    color: "text-teal-700",   border: "border-teal-200",   dot: "#009688" },
-  "En camino":      { bg: "bg-purple-50",  color: "text-purple-700", border: "border-purple-200", dot: "#8e24aa" },
 };
 
 /* ─── EstadoBadge ────────────────────────────────────────── */
@@ -562,6 +566,87 @@ function ModalAsignarDomiciliario({ pedido, empleados, onClose, onConfirm }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   MODAL — CANCELAR PEDIDO (con motivo obligatorio)
+   ═══════════════════════════════════════════════════════════ */
+function ModalCancelarPedido({ pedido, saving, onClose, onConfirm }) {
+  const [motivo, setMotivo] = useState("");
+  const [error,  setError]  = useState("");
+  const desdeListo = pedido.estado === "Listo";
+
+  const handleSubmit = () => {
+    if (!motivo.trim()) {
+      setError("El motivo es obligatorio para cancelar un pedido");
+      return;
+    }
+    onConfirm(pedido.id, motivo.trim());
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-box relative bg-white shadow-2xl overflow-hidden flex flex-col border-none" style={{ borderRadius: "28px", maxWidth: "440px" }}>
+        <div className="modal-header shrink-0" style={{ background: "linear-gradient(135deg, #b71c1c 0%, #e53935 100%)", padding: "20px 24px" }}>
+          <div>
+            <h2 className="text-lg font-black text-white leading-none">Cancelar Pedido</h2>
+            <p className="text-white/60 text-[9px] font-bold uppercase tracking-widest mt-1">Pedido #{pedido.numero}</p>
+          </div>
+          <button onClick={onClose} className="text-white/70 hover:text-white"><X size={18} /></button>
+        </div>
+
+        <div className="modal-body p-6 space-y-4">
+          {desdeListo && (
+            <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-start gap-3">
+              <AlertCircle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-black text-amber-800">El pedido ya está Listo</p>
+                <p className="text-[11px] text-amber-700 mt-1 font-medium leading-snug">
+                  Al cancelar se registrará una salida de inventario por los productos de este pedido.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+              Motivo de cancelación <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              className={`w-full bg-gray-50 border-2 rounded-2xl p-4 text-sm font-medium text-gray-700 outline-none transition-all resize-none h-24 ${
+                error ? "border-red-400 bg-red-50" : "border-transparent focus:border-red-400 focus:bg-white"
+              }`}
+              placeholder="Describe el motivo de cancelación…"
+              value={motivo}
+              onChange={e => { setMotivo(e.target.value); setError(""); }}
+            />
+            {error && (
+              <p className="text-[10px] font-bold text-red-500 flex items-center gap-1">
+                <AlertCircle size={10} /> {error}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2 pt-2">
+            <button
+              disabled={saving}
+              onClick={handleSubmit}
+              className="w-full py-4 text-xs font-black uppercase tracking-widest rounded-2xl text-white shadow-lg"
+              style={{ background: "linear-gradient(135deg, #b71c1c, #e53935)" }}
+            >
+              {saving ? "Cancelando…" : "Confirmar Cancelación"}
+            </button>
+            <button
+              onClick={onClose}
+              className="w-full py-3 text-[10px] font-black text-gray-400 hover:text-gray-600 uppercase tracking-widest transition-colors"
+            >
+              Volver
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
    SKELETON
    ═══════════════════════════════════════════════════════════ */
 function SkeletonRows({ cols = 8, rows = 5 }) {
@@ -649,13 +734,19 @@ export default function GestionPedidos() {
   const hasFilter = filterEstado !== "todos" || filterTipo !== "todos";
 
   const handleCambiarEstadoDirecto = (ped) => {
-    // La única acción de avance en este módulo es confirmar el pedido.
-    // Después de confirmar, el pedido pasa a Gestión de Ventas (Estado=4).
     setModal({ type: "confirmarEstado", pedido: ped, nuevoEstado: "Confirmado" });
   };
 
+  const handleMarcarListo = (ped) => {
+    setModal({ type: "confirmarEstado", pedido: ped, nuevoEstado: "Listo" });
+  };
+
+  const handleEntregarPedido = (ped) => {
+    setModal({ type: "confirmarEstado", pedido: ped, nuevoEstado: "Entregado" });
+  };
+
   const handleCancelarPedido = (ped) => {
-    setModal({ type: "confirmarEstado", pedido: ped, nuevoEstado: "Cancelado" });
+    setModal({ type: "cancelar", pedido: ped });
   };
 
   const handleConfirmarCambioEstado = async (id, nuevoEstado) => {
@@ -663,8 +754,8 @@ export default function GestionPedidos() {
     if (!ped) return;
     setActionSaving(true);
     try {
-      if (nuevoEstado === "Cancelado") {
-        await cancelarPedido(id);
+      if (nuevoEstado === "Listo") {
+        await cambiarEstadoVenta(id, 11);
       } else if (nuevoEstado === "Entregado") {
         await cambiarEstadoVenta(id, 8);
       } else {
@@ -672,8 +763,8 @@ export default function GestionPedidos() {
       }
       await cargarDatos();
       showToast(
-        nuevoEstado === "Cancelado"  ? `Pedido ${ped.numero} cancelado` :
-        nuevoEstado === "Entregado"  ? `Pedido ${ped.numero} marcado como entregado` :
+        nuevoEstado === "Listo"     ? `Pedido ${ped.numero} marcado como listo` :
+        nuevoEstado === "Entregado" ? `Pedido ${ped.numero} marcado como entregado` :
         `Pedido ${ped.numero} confirmado exitosamente`
       );
       setModal(null);
@@ -685,8 +776,51 @@ export default function GestionPedidos() {
     }
   };
 
-  const handleEntregarPedido = (ped) => {
-    setModal({ type: "confirmarEstado", pedido: ped, nuevoEstado: "Entregado" });
+  const handleConfirmarCancelacion = async (id, motivo) => {
+    const ped = pedidos.find(p => p.id === id);
+    if (!ped) return;
+    setActionSaving(true);
+    try {
+      if (ped.estado === "Listo") {
+        for (const prod of ped.productosItems) {
+          await registrarSalida({
+            tipo: "Producto",
+            idProducto: prod.idProducto,
+            cantidad: prod.cantidad,
+            motivo: `Pedido ${ped.numero} cancelado: ${motivo}`,
+          });
+        }
+      }
+      await cancelarPedido(id, motivo);
+      await cargarDatos();
+      showToast(`Pedido ${ped.numero} cancelado`);
+      setModal(null);
+    } catch (err) {
+      const errorMsg = err.message || "No se pudo cancelar el pedido.";
+      setModal({ type: "errorEstado", mensaje: errorMsg });
+    } finally {
+      setActionSaving(false);
+    }
+  };
+
+  const handleAsignarDomiciliario = async (pedidoId, empId) => {
+    const ped = pedidos.find(p => p.id === pedidoId);
+    if (!ped) return;
+    setActionSaving(true);
+    try {
+      if (ped.id_domicilio) {
+        await asignarRepartidor(ped.id_domicilio, empId);
+      }
+      await cambiarEstadoVenta(pedidoId, 10);
+      await cargarDatos();
+      showToast(`Domiciliario asignado para ${ped.numero}`);
+      setModal(null);
+    } catch (err) {
+      const errorMsg = err.message || "No se pudo asignar el domiciliario.";
+      setModal({ type: "errorEstado", mensaje: errorMsg });
+    } finally {
+      setActionSaving(false);
+    }
   };
 
   const handleCrearPedido = async (formData) => {
@@ -783,6 +917,10 @@ export default function GestionPedidos() {
                         { val: "Pendiente",     label: "Pendiente",      dot: ESTADO_CONFIG["Pendiente"]?.dot },
                         { val: "En producción", label: "En producción",  dot: ESTADO_CONFIG["En producción"]?.dot },
                         { val: "Confirmado",    label: "Confirmado",     dot: ESTADO_CONFIG["Confirmado"]?.dot },
+                        { val: "Listo",         label: "Listo",          dot: ESTADO_CONFIG["Listo"]?.dot },
+                        { val: "Asignado",      label: "Asignado",       dot: ESTADO_CONFIG["Asignado"]?.dot },
+                        { val: "En camino",     label: "En camino",      dot: ESTADO_CONFIG["En camino"]?.dot },
+                        { val: "Entregado",     label: "Entregado",      dot: ESTADO_CONFIG["Entregado"]?.dot },
                         { val: "Cancelado",     label: "Cancelado",      dot: ESTADO_CONFIG["Cancelado"]?.dot },
                       ].map(f => (
                         <button key={f.val} className={`filter-option${filterEstado === f.val ? " active" : ""}`} onClick={() => setFilterEstado(f.val)}>
@@ -849,10 +987,11 @@ export default function GestionPedidos() {
                   <tr><td colSpan={8}><div className="empty-state"><div className="empty-state__icon">📦</div><p className="empty-state__text">Sin pedidos.</p></div></td></tr>
                 ) : paged.map((ped, idx) => {
                   const emp = empleados.find(e => e.id === ped.idEmpleado);
-                  // Solo Pendiente puede confirmarse; En producción espera que las órdenes terminen
-                  const canAdvance   = ped.estado === "Pendiente";
-                  const canEntregar = ped.estado === "Confirmado";
-                  const canCancel   = ["Pendiente", "En producción", "Confirmado"].includes(ped.estado);
+                  const canAdvance          = ped.estado === "Pendiente";
+                  const canMarcarListo      = ped.estado === "Confirmado";
+                  const canEntregarTienda   = ped.estado === "Listo" && !ped.domicilio;
+                  const canAsignarDomicilio = ped.estado === "Listo" && ped.domicilio;
+                  const canCancel           = !["Entregado", "Cancelado"].includes(ped.estado);
                   return (
                     <tr key={ped.id} className="tbl-row group hover:bg-green-50/30 transition-colors">
                       <td><span className="row-num">{String((safePage - 1) * PER_PAGE + idx + 1).padStart(2, "0")}</span></td>
@@ -896,10 +1035,14 @@ export default function GestionPedidos() {
                       <td>
                         <div className="actions-cell flex items-center gap-1">
                           <button className="act-btn act-btn--view bg-green-50 text-green-600 hover:bg-green-600 hover:text-white transition-all p-1.5 rounded-lg border border-green-100" onClick={() => setModal({ type: "ver", pedido: ped })}>👁</button>
-                          {!["Confirmado","Cancelado"].includes(ped.estado) && <button className="act-btn act-btn--edit bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white transition-all p-1.5 rounded-lg border border-amber-100" onClick={() => setModal({ type: "editar", pedido: ped })}>✎</button>}
-                          {canAdvance   && <button className="act-btn act-btn--success bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all p-1.5 rounded-lg border border-blue-100" disabled={actionSaving} onClick={() => handleCambiarEstadoDirecto(ped)} title="Confirmar pedido">✔</button>}
-                          {canEntregar  && <button className="act-btn bg-teal-50 text-teal-600 hover:bg-teal-600 hover:text-white transition-all p-1.5 rounded-lg border border-teal-100" disabled={actionSaving} onClick={() => handleEntregarPedido(ped)} title="Marcar como entregado">✅</button>}
-                          {canCancel    && <button className="act-btn act-btn--delete bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-all p-1.5 rounded-lg border border-red-100" disabled={actionSaving} onClick={() => handleCancelarPedido(ped)} title="Cancelar pedido">✕</button>}
+                          {!["Confirmado","Listo","Asignado","En camino","Entregado","Cancelado"].includes(ped.estado) && (
+                            <button className="act-btn act-btn--edit bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white transition-all p-1.5 rounded-lg border border-amber-100" onClick={() => setModal({ type: "editar", pedido: ped })}>✎</button>
+                          )}
+                          {canAdvance          && <button className="act-btn act-btn--success bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all p-1.5 rounded-lg border border-blue-100" disabled={actionSaving} onClick={() => handleCambiarEstadoDirecto(ped)} title="Confirmar pedido">✔</button>}
+                          {canMarcarListo      && <button className="act-btn bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all p-1.5 rounded-lg border border-indigo-100" disabled={actionSaving} onClick={() => handleMarcarListo(ped)} title="Marcar como listo">📦</button>}
+                          {canEntregarTienda   && <button className="act-btn bg-teal-50 text-teal-600 hover:bg-teal-600 hover:text-white transition-all p-1.5 rounded-lg border border-teal-100" disabled={actionSaving} onClick={() => handleEntregarPedido(ped)} title="Marcar como entregado (recogida en tienda)">🏪</button>}
+                          {canAsignarDomicilio && <button className="act-btn bg-purple-50 text-purple-600 hover:bg-purple-600 hover:text-white transition-all p-1.5 rounded-lg border border-purple-100" disabled={actionSaving} onClick={() => setModal({ type: "asignarDomiciliario", pedido: ped })} title="Asignar domiciliario">🛵</button>}
+                          {canCancel           && <button className="act-btn act-btn--delete bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-all p-1.5 rounded-lg border border-red-100" disabled={actionSaving} onClick={() => handleCancelarPedido(ped)} title="Cancelar pedido">✕</button>}
                         </div>
                       </td>
                     </tr>
@@ -924,6 +1067,8 @@ export default function GestionPedidos() {
 
       {modal?.type === "ver" && <ModalVerPedido pedido={modal.pedido} empleados={empleados} onClose={() => setModal(null)} onEdit={(ped) => setModal({ type: "editar", pedido: ped })} />}
       {modal?.type === "confirmarEstado" && <ModalConfirmarEstado pedido={modal.pedido} nuevoEstado={modal.nuevoEstado} onClose={() => setModal(null)} onConfirm={handleConfirmarCambioEstado} />}
+      {modal?.type === "cancelar" && <ModalCancelarPedido pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleConfirmarCancelacion} />}
+      {modal?.type === "asignarDomiciliario" && <ModalAsignarDomiciliario pedido={modal.pedido} empleados={empleados} onClose={() => setModal(null)} onConfirm={handleAsignarDomiciliario} />}
       {modal?.type === "crear" && <CrearPedido onClose={() => setModal(null)} onSave={handleCrearPedido} />}
       {modal?.type === "editar" && <EditarPedido pedido={modal.pedido} onClose={() => setModal(null)} onSave={handleEditarPedido} />}
       {modal?.type === "eliminar" && <ModalEliminarPedido pedido={modal.pedido} onClose={() => setModal(null)} onConfirm={handleEliminarPedido} />}

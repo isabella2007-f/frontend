@@ -2,12 +2,14 @@ import { apiFetch } from "../utils/api";
 
 const ESTADO_PEDIDO_MAP = {
   1:  "Pendiente",
-  2:  "Confirmado",   // registros legacy (antes Estado=2 se usaba para confirmar)
-  4:  "Confirmado",   // Estado correcto: ID=4 = Confirmado en tabla Estados
-  5:  "Cancelado",    // Estado correcto: ID=5 = Cancelado en tabla Estados
-  3:  "Cancelado",    // registros legacy
+  2:  "Confirmado",
+  4:  "Confirmado",
+  5:  "Cancelado",
+  3:  "Cancelado",
   8:  "Entregado",
   9:  "En camino",
+  10: "Asignado",
+  11: "Listo",
   13: "En producción",
 };
 
@@ -66,8 +68,10 @@ export const confirmarPedido = async (id) => {
   return apiFetch(`/pedidos/${id}/confirmar`, { method: "PATCH" });
 };
 
-export const cancelarPedido = async (id) => {
-  return apiFetch(`/pedidos/${id}/cancelar`, { method: "PATCH" });
+export const cancelarPedido = async (id, motivo = null) => {
+  const options = { method: "PATCH" };
+  if (motivo) options.body = JSON.stringify({ Motivo: motivo });
+  return apiFetch(`/pedidos/${id}/cancelar`, options);
 };
 
 export const crearPedido = async (data) => {
