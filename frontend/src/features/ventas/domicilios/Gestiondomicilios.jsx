@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { getDomicilios, asignarRepartidor, actualizarDomicilio } from "../../../services/domiciliosService.js";
+import { getDomicilios, asignarRepartidor, actualizarDomicilio, cambiarEstadoDomicilio } from "../../../services/domiciliosService.js";
 import { getUsuarios, toggleEstadoUsuario, crearEmpleado, editarUsuario } from "../../../services/usuariosService.js";
 import { fmtFecha } from "../../../utils/dateUtils.js";
 import "./Domicilios.css";
@@ -33,12 +33,12 @@ const ESTADO_CONFIG = {
 };
 
 const ESTADO_TRANSITIONS = {
-  3:  [{ id: 4, label: "Confirmado" }, { id: 5, label: "Cancelado" }],
-  4:  [{ id: 13, label: "En preparación" }, { id: 5, label: "Cancelado" }],
-  13: [{ id: 11, label: "Listo" }, { id: 5, label: "Cancelado" }],
-  11: [{ id: 10, label: "Asignado" }, { id: 5, label: "Cancelado" }],
-  10: [{ id: 9, label: "En camino" }, { id: 5, label: "Cancelado" }],
-  9:  [{ id: 8, label: "Entregado" }, { id: 5, label: "Cancelado" }],
+  3:  [{ id: 4,  label: "Confirmado" },     { id: 5, label: "Cancelado" }],
+  4:  [{ id: 13, label: "En preparación" }, { id: 8, label: "Entregado" }, { id: 5, label: "Cancelado" }],
+  13: [{ id: 11, label: "Listo" },          { id: 5, label: "Cancelado" }],
+  11: [{ id: 10, label: "Asignado" },       { id: 5, label: "Cancelado" }],
+  10: [{ id: 9,  label: "En camino" },      { id: 5, label: "Cancelado" }],
+  9:  [{ id: 8,  label: "Entregado" },      { id: 5, label: "Cancelado" }],
 };
 
 const FILTER_OPTIONS = [
@@ -235,6 +235,81 @@ function ModalConfirmarDesactivar({ usuario, pedidosActivos, onConfirm, onClose 
             onClick={onConfirm}
           >
             Desactivar de todas formas
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MODAL CAMBIAR ESTADO
+   ═══════════════════════════════════════════════════════════ */
+function ModalCambiarEstado({ pedido, onClose, onSave }) {
+  const opciones = ESTADO_TRANSITIONS[pedido.estadoId] || [];
+  const [seleccion, setSeleccion] = useState(opciones[0]?.id ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!seleccion) return;
+    setSaving(true);
+    try {
+      await onSave(pedido.id, seleccion);
+      onClose();
+    } catch {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <p className="modal-header__eyebrow">Domicilio</p>
+            <h2 className="modal-header__title">Cambiar estado</h2>
+          </div>
+          <button className="modal-close-btn" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          <p style={{ margin: "0 0 14px", fontSize: 13, color: "#616161" }}>
+            Pedido: <strong>{pedido.numero}</strong> — Estado actual: <strong>{ESTADO_CONFIG[pedido.estadoId]?.label || pedido.estado}</strong>
+          </p>
+          {opciones.length === 0 ? (
+            <p style={{ color: "#9e9e9e", fontSize: 13 }}>No hay transiciones disponibles para este estado.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {opciones.map(op => {
+                const cfg = ESTADO_CONFIG[op.id] || {};
+                return (
+                  <button
+                    key={op.id}
+                    onClick={() => setSeleccion(op.id)}
+                    style={{
+                      padding: "12px 16px", borderRadius: 10, cursor: "pointer",
+                      border: seleccion === op.id ? `2px solid ${cfg.dot || "#4caf50"}` : "1.5px solid #e0e0e0",
+                      background: seleccion === op.id ? (cfg.bg || "#e8f5e9") : "#fafafa",
+                      color: seleccion === op.id ? (cfg.dot || "#2e7d32") : "#616161",
+                      fontWeight: 700, fontSize: 13, textAlign: "left",
+                      display: "flex", alignItems: "center", gap: 8,
+                    }}
+                  >
+                    <span style={{ width: 10, height: 10, borderRadius: "50%", background: cfg.dot || "#bdbdbd", flexShrink: 0 }} />
+                    {op.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn-cancel" onClick={onClose}>Cancelar</button>
+          <button
+            className="btn-save"
+            onClick={handleSave}
+            disabled={saving || !seleccion || opciones.length === 0}
+          >
+            {saving ? "Guardando…" : "Confirmar"}
           </button>
         </div>
       </div>
@@ -841,6 +916,19 @@ export default function GestionDomicilios() {
     }
   };
 
+  const handleCambiarEstado = async (domicilioId, nuevoEstadoId) => {
+    setActionSaving(true);
+    try {
+      await cambiarEstadoDomicilio(domicilioId, nuevoEstadoId);
+      await cargarDatos();
+      showToast("Estado actualizado correctamente");
+    } catch (err) {
+      showToast(err.message || "Error al cambiar el estado", "error");
+    } finally {
+      setActionSaving(false);
+    }
+  };
+
   const abrirReasignar = (ped) => {
     if (["Entregado", "Cancelado"].includes(ped.estado)) {
       showToast("No se puede reasignar un domicilio ya finalizado", "warn"); return;
@@ -1093,6 +1181,14 @@ export default function GestionDomicilios() {
                                 title="Abrir dirección en Google Maps"
                                 onClick={() => window.open(mapToGoogleMaps(ped.direccion_entrega), "_blank", "noopener")}
                               >🌍</button>
+                              {ESTADO_TRANSITIONS[ped.estadoId] && (
+                                <button
+                                  className="act-btn"
+                                  title="Cambiar estado"
+                                  onClick={() => setModal({ type: "cambiarEstado", pedido: ped })}
+                                  style={{ background: "#e8f5e9", color: "#2e7d32" }}
+                                >⚡</button>
+                              )}
                               <button
                                 className="act-btn act-btn--reasignar"
                                 title="Reasignar domiciliario"
@@ -1182,6 +1278,13 @@ export default function GestionDomicilios() {
           pedidosActivos={modal.pedidosActivos}
           onClose={() => setModal(null)}
           onConfirm={handleConfirmarDesactivar}
+        />
+      )}
+      {modal?.type === "cambiarEstado" && (
+        <ModalCambiarEstado
+          pedido={modal.pedido}
+          onClose={() => setModal(null)}
+          onSave={handleCambiarEstado}
         />
       )}
 
