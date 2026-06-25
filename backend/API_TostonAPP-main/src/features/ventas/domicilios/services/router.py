@@ -109,7 +109,7 @@ def verificar_otp_domicilio(
     _:            dict    = Depends(requiere_permiso("cambiar_estado_domicilios"))
 ):
     """Verifica el código OTP para confirmar entrega sin necesidad de columna adicional en BD."""
-    if not verificar_otp(id_domicilio, datos.codigo):
+    if not verificar_otp(db, id_domicilio, datos.codigo):
         raise HTTPException(status_code=400, detail="Código incorrecto")
     return {"valido": True}
 

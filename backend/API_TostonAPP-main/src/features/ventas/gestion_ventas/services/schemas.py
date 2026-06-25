@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 from decimal import Decimal
@@ -6,8 +6,8 @@ from decimal import Decimal
 
 # ── Producto dentro de una venta ──
 class ProductoVentaInput(BaseModel):
-    ID_Producto: int
-    Cantidad:    int
+    ID_Producto: int = Field(..., gt=0)
+    Cantidad:    int = Field(..., gt=0)
 
 
 # ── Domicilio opcional al crear venta ──
