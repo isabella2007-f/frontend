@@ -647,6 +647,95 @@ function ModalCancelarPedido({ pedido, saving, onClose, onConfirm }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   MENÚ DE ACCIONES POR FILA
+   ═══════════════════════════════════════════════════════════ */
+function AccionesMenu({ ped, saving, onVer, onEditar, onConfirmar, onMarcarListo, onEntregar, onAsignarDomicilio, onCancelar }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef();
+
+  useEffect(() => {
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    if (open) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const canAdvance          = ped.estado === "Pendiente";
+  const canMarcarListo      = ped.estado === "Confirmado";
+  const canEntregarTienda   = ped.estado === "Listo" && !ped.domicilio;
+  const canAsignarDomicilio = ped.estado === "Listo" && ped.domicilio;
+  const canCancel           = !["Entregado", "Cancelado"].includes(ped.estado);
+  const canEdit             = !["Confirmado","Listo","Asignado","En camino","Entregado","Cancelado"].includes(ped.estado);
+  const hasMenu             = canEdit || canAdvance || canMarcarListo || canEntregarTienda || canAsignarDomicilio || canCancel;
+
+  return (
+    <div className="flex items-center gap-1" ref={ref}>
+      <button
+        className="act-btn act-btn--view bg-green-50 text-green-600 hover:bg-green-600 hover:text-white transition-all p-1.5 rounded-lg border border-green-100"
+        onClick={() => onVer(ped)}
+        title="Ver detalle"
+      >👁</button>
+
+      {hasMenu && (
+        <div className="relative">
+          <button
+            className="act-btn bg-gray-100 text-gray-500 hover:bg-gray-700 hover:text-white transition-all p-1.5 rounded-lg border border-gray-200 text-xs font-black leading-none"
+            onClick={() => setOpen(v => !v)}
+            disabled={saving}
+            title="Acciones"
+          >⋮</button>
+
+          {open && (
+            <div className="absolute right-0 top-full mt-1 bg-white shadow-2xl rounded-2xl z-[9999] py-2 min-w-[200px] border border-gray-100 overflow-hidden">
+              {canEdit && (
+                <button className="w-full text-left px-4 py-2.5 text-xs font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-3 transition-colors"
+                  onClick={() => { onEditar(ped); setOpen(false); }}>
+                  <span className="text-amber-500 text-sm">✎</span> Editar pedido
+                </button>
+              )}
+              {canAdvance && (
+                <button className="w-full text-left px-4 py-2.5 text-xs font-bold text-blue-700 hover:bg-blue-50 flex items-center gap-3 transition-colors"
+                  onClick={() => { onConfirmar(ped); setOpen(false); }}>
+                  <span className="text-sm">✔</span> Confirmar pedido
+                </button>
+              )}
+              {canMarcarListo && (
+                <button className="w-full text-left px-4 py-2.5 text-xs font-bold text-indigo-700 hover:bg-indigo-50 flex items-center gap-3 transition-colors"
+                  onClick={() => { onMarcarListo(ped); setOpen(false); }}>
+                  <span className="text-sm">📦</span> Marcar como listo
+                </button>
+              )}
+              {canEntregarTienda && (
+                <button className="w-full text-left px-4 py-2.5 text-xs font-bold text-teal-700 hover:bg-teal-50 flex items-center gap-3 transition-colors"
+                  onClick={() => { onEntregar(ped); setOpen(false); }}>
+                  <span className="text-sm">🏪</span> Entregar en tienda
+                </button>
+              )}
+              {canAsignarDomicilio && (
+                <button className="w-full text-left px-4 py-2.5 text-xs font-bold text-purple-700 hover:bg-purple-50 flex items-center gap-3 transition-colors"
+                  onClick={() => { onAsignarDomicilio(ped); setOpen(false); }}>
+                  <span className="text-sm">🛵</span> Asignar domiciliario
+                </button>
+              )}
+              {canCancel && (
+                <>
+                  {(canEdit || canAdvance || canMarcarListo || canEntregarTienda || canAsignarDomicilio) && (
+                    <div className="border-t border-gray-100 my-1" />
+                  )}
+                  <button className="w-full text-left px-4 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors"
+                    onClick={() => { onCancelar(ped); setOpen(false); }}>
+                    <span className="text-sm">✕</span> Cancelar pedido
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
    SKELETON
    ═══════════════════════════════════════════════════════════ */
 function SkeletonRows({ cols = 8, rows = 5 }) {
@@ -761,7 +850,7 @@ export default function GestionPedidos() {
       } else {
         await confirmarPedido(id);
       }
-      await cargarDatos();
+      setPedidos(prev => prev.map(p => p.id === id ? { ...p, estado: nuevoEstado } : p));
       showToast(
         nuevoEstado === "Listo"     ? `Pedido ${ped.numero} marcado como listo` :
         nuevoEstado === "Entregado" ? `Pedido ${ped.numero} marcado como entregado` :
@@ -792,7 +881,7 @@ export default function GestionPedidos() {
         }
       }
       await cancelarPedido(id, motivo);
-      await cargarDatos();
+      setPedidos(prev => prev.map(p => p.id === id ? { ...p, estado: "Cancelado" } : p));
       showToast(`Pedido ${ped.numero} cancelado`);
       setModal(null);
     } catch (err) {
@@ -812,7 +901,7 @@ export default function GestionPedidos() {
         await asignarRepartidor(ped.id_domicilio, empId);
       }
       await cambiarEstadoVenta(pedidoId, 10);
-      await cargarDatos();
+      setPedidos(prev => prev.map(p => p.id === pedidoId ? { ...p, estado: "Asignado", idEmpleado: empId } : p));
       showToast(`Domiciliario asignado para ${ped.numero}`);
       setModal(null);
     } catch (err) {
@@ -987,11 +1076,6 @@ export default function GestionPedidos() {
                   <tr><td colSpan={8}><div className="empty-state"><div className="empty-state__icon">📦</div><p className="empty-state__text">Sin pedidos.</p></div></td></tr>
                 ) : paged.map((ped, idx) => {
                   const emp = empleados.find(e => e.id === ped.idEmpleado);
-                  const canAdvance          = ped.estado === "Pendiente";
-                  const canMarcarListo      = ped.estado === "Confirmado";
-                  const canEntregarTienda   = ped.estado === "Listo" && !ped.domicilio;
-                  const canAsignarDomicilio = ped.estado === "Listo" && ped.domicilio;
-                  const canCancel           = !["Entregado", "Cancelado"].includes(ped.estado);
                   return (
                     <tr key={ped.id} className="tbl-row group hover:bg-green-50/30 transition-colors">
                       <td><span className="row-num">{String((safePage - 1) * PER_PAGE + idx + 1).padStart(2, "0")}</span></td>
@@ -1033,17 +1117,17 @@ export default function GestionPedidos() {
                         </div>
                       </td>
                       <td>
-                        <div className="actions-cell flex items-center gap-1">
-                          <button className="act-btn act-btn--view bg-green-50 text-green-600 hover:bg-green-600 hover:text-white transition-all p-1.5 rounded-lg border border-green-100" onClick={() => setModal({ type: "ver", pedido: ped })}>👁</button>
-                          {!["Confirmado","Listo","Asignado","En camino","Entregado","Cancelado"].includes(ped.estado) && (
-                            <button className="act-btn act-btn--edit bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white transition-all p-1.5 rounded-lg border border-amber-100" onClick={() => setModal({ type: "editar", pedido: ped })}>✎</button>
-                          )}
-                          {canAdvance          && <button className="act-btn act-btn--success bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white transition-all p-1.5 rounded-lg border border-blue-100" disabled={actionSaving} onClick={() => handleCambiarEstadoDirecto(ped)} title="Confirmar pedido">✔</button>}
-                          {canMarcarListo      && <button className="act-btn bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all p-1.5 rounded-lg border border-indigo-100" disabled={actionSaving} onClick={() => handleMarcarListo(ped)} title="Marcar como listo">📦</button>}
-                          {canEntregarTienda   && <button className="act-btn bg-teal-50 text-teal-600 hover:bg-teal-600 hover:text-white transition-all p-1.5 rounded-lg border border-teal-100" disabled={actionSaving} onClick={() => handleEntregarPedido(ped)} title="Marcar como entregado (recogida en tienda)">🏪</button>}
-                          {canAsignarDomicilio && <button className="act-btn bg-purple-50 text-purple-600 hover:bg-purple-600 hover:text-white transition-all p-1.5 rounded-lg border border-purple-100" disabled={actionSaving} onClick={() => setModal({ type: "asignarDomiciliario", pedido: ped })} title="Asignar domiciliario">🛵</button>}
-                          {canCancel           && <button className="act-btn act-btn--delete bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition-all p-1.5 rounded-lg border border-red-100" disabled={actionSaving} onClick={() => handleCancelarPedido(ped)} title="Cancelar pedido">✕</button>}
-                        </div>
+                        <AccionesMenu
+                          ped={ped}
+                          saving={actionSaving}
+                          onVer={ped => setModal({ type: "ver", pedido: ped })}
+                          onEditar={ped => setModal({ type: "editar", pedido: ped })}
+                          onConfirmar={handleCambiarEstadoDirecto}
+                          onMarcarListo={handleMarcarListo}
+                          onEntregar={handleEntregarPedido}
+                          onAsignarDomicilio={ped => setModal({ type: "asignarDomiciliario", pedido: ped })}
+                          onCancelar={handleCancelarPedido}
+                        />
                       </td>
                     </tr>
                   );
