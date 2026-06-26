@@ -21,3 +21,18 @@ class NotificacionesResponse(BaseModel):
     total:           int
     total_no_leidas: int
     notificaciones:  list[NotificacionResponse]
+
+
+# ── Notificaciones derivadas para clientes ──────────────────
+class NotificacionClienteItem(BaseModel):
+    id_ref:  str
+    tipo:    str
+    titulo:  str
+    mensaje: Optional[str]  = None
+    ruta:    Optional[str]  = None
+    fecha:   Optional[datetime] = None
+
+
+class NotificacionesClienteResponse(BaseModel):
+    total:          int
+    notificaciones: list[NotificacionClienteItem]

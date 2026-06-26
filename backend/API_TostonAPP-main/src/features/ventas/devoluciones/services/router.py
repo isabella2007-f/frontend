@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from typing import Optional
 
 from src.shared.services.database import get_db
+from src.shared.services.models import Venta
 from src.features.auth.services.dependencies import requiere_permiso, obtener_usuario_actual
 from .schemas import (
     DevolucionCreate, DevolucionResolucion, DevolucionUpdate,
@@ -62,19 +63,24 @@ def registrar_devolucion(
 ):
     """
     Registra una devolución.
-    - Clientes: solo pueden devolver sus propias ventas.
-    - Empleados/Admin con permiso: pueden registrar para cualquier cliente.
+    - Clientes: ID_Usuario se fuerza desde el token; solo pueden devolver sus propias ventas.
+    - Empleados/Admin: ID_Usuario se deriva de la venta si no se envía.
     """
+    registro = actual["registro"]
+
     if actual["tipo"] == "cliente":
-        # Validar que el cliente solo devuelva sus propias ventas
-        from src.shared.services.models import Venta
-        from fastapi import HTTPException as _HTTPException
         venta = db.query(Venta).filter(Venta.ID_Venta == datos.ID_Venta).first()
-        if not venta or venta.ID_Usuario != actual["registro"].ID_Usuario:
-            raise _HTTPException(
-                status_code=403,
-                detail="Solo puedes devolver tus propias ventas"
-            )
+        if not venta or venta.ID_Usuario != registro.ID_Usuario:
+            raise HTTPException(status_code=403, detail="Solo puedes devolver tus propias ventas")
+        datos = datos.model_copy(update={"ID_Usuario": registro.ID_Usuario})
+    else:
+        # Admin/empleado: si no envió ID_Usuario, lo derivamos de la venta
+        if datos.ID_Usuario is None:
+            venta = db.query(Venta).filter(Venta.ID_Venta == datos.ID_Venta).first()
+            if not venta:
+                raise HTTPException(status_code=404, detail="Venta no encontrada")
+            datos = datos.model_copy(update={"ID_Usuario": venta.ID_Usuario})
+
     return crear_devolucion(db, datos)
 
 

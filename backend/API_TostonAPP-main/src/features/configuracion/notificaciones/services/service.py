@@ -1,7 +1,8 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
+from datetime import datetime
 
-from src.shared.services.models import Notificacion
+from src.shared.services.models import Notificacion, Venta, Devolucion
 
 
 def obtener_notificaciones(db: Session) -> dict:
@@ -45,3 +46,67 @@ def limpiar_leidas(db: Session) -> dict:
     eliminadas = db.query(Notificacion).filter(Notificacion.Leida == True).delete()
     db.commit()
     return {"mensaje": f"{eliminadas} notificaciones eliminadas"}
+
+
+# ── Estado de venta → (tipo_notif, titulo, mensaje) ──────────
+_VENTA_NOTIF = {
+    4: ("pedido_confirmado", "Pedido confirmado",
+        "Tu pedido fue confirmado y está siendo preparado."),
+    5: ("pedido_cancelado",  "Pedido cancelado",
+        "Tu pedido fue cancelado. Contáctanos si tienes dudas."),
+    8: ("pedido_entregado",  "Pedido entregado",
+        "Tu pedido fue entregado exitosamente. ¡Gracias por tu compra!"),
+}
+
+_DEVOLUCION_NOTIF = {
+    6: ("devolucion_aprobada",  "Devolución aprobada",
+        "Tu solicitud de devolución fue aprobada. El crédito fue acreditado a tu cuenta."),
+    7: ("devolucion_rechazada", "Devolución rechazada",
+        "Tu solicitud de devolución fue rechazada. Revisa los detalles en tu historial."),
+}
+
+
+def obtener_notificaciones_cliente(db: Session, id_usuario: int) -> dict:
+    """Genera notificaciones derivadas para un cliente basándose en sus ventas y devoluciones."""
+    notifs = []
+
+    ventas = (
+        db.query(Venta)
+        .filter(Venta.ID_Usuario == id_usuario, Venta.Estado.in_([4, 5, 8]))
+        .order_by(Venta.Fecha_Venta.desc())
+        .limit(15)
+        .all()
+    )
+    for v in ventas:
+        if v.Estado in _VENTA_NOTIF:
+            tipo, titulo, mensaje = _VENTA_NOTIF[v.Estado]
+            notifs.append({
+                "id_ref":  f"venta_{v.ID_Venta}_{v.Estado}",
+                "tipo":    tipo,
+                "titulo":  f"{titulo} — Pedido #{v.ID_Venta}",
+                "mensaje": mensaje,
+                "ruta":    "/cliente/pedidos",
+                "fecha":   v.Fecha_Venta,
+            })
+
+    devs = (
+        db.query(Devolucion)
+        .filter(Devolucion.ID_Usuario == id_usuario, Devolucion.Estado.in_([6, 7]))
+        .order_by(Devolucion.FechaAprobacion.desc())
+        .limit(5)
+        .all()
+    )
+    for d in devs:
+        if d.Estado in _DEVOLUCION_NOTIF:
+            tipo, titulo, mensaje = _DEVOLUCION_NOTIF[d.Estado]
+            notifs.append({
+                "id_ref":  f"dev_{d.ID_Devolucion}_{d.Estado}",
+                "tipo":    tipo,
+                "titulo":  titulo,
+                "mensaje": mensaje,
+                "ruta":    "/cliente/devoluciones",
+                "fecha":   d.FechaAprobacion or d.FechaDevolucion,
+            })
+
+    notifs.sort(key=lambda x: x["fecha"] or datetime.min, reverse=True)
+    return {"total": len(notifs), "notificaciones": notifs}

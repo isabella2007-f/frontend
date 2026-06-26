@@ -1,10 +1,11 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
+from datetime import datetime
 
 
 # ── Crear proveedor ──
 class ProveedorCreate(BaseModel):
-    Sujeto_Derecho: int             # ID de la tabla Sujeto_Derecho
+    Sujeto_Derecho: int
     Responsable:    str
     Direccion:      Optional[str] = None
     Municipio:      Optional[str] = None
@@ -26,15 +27,19 @@ class ProveedorUpdate(BaseModel):
 
 # ── Respuesta de un proveedor ──
 class ProveedorResponse(BaseModel):
-    ID_Proveedor:       int
-    Sujeto_Derecho:     Optional[int] = None
-    nombre_sujeto:      Optional[str] = None    # nombre legible del sujeto de derecho
-    Responsable:        str
-    Direccion:          Optional[str] = None
-    Municipio:          Optional[str] = None
-    Departamento:       Optional[str] = None
-    Telefono:           Optional[str] = None
-    Correo:             Optional[str] = None
+    ID_Proveedor:          int
+    Sujeto_Derecho:        Optional[int] = None
+    nombre_sujeto:         Optional[str] = None
+    Responsable:           str
+    Direccion:             Optional[str] = None
+    Municipio:             Optional[str] = None
+    Departamento:          Optional[str] = None
+    Telefono:              Optional[str] = None
+    Correo:                Optional[str] = None
+    total_compras:         int = 0
+    ultima_compra_fecha:   Optional[datetime] = None
+    ultima_compra_estado:  Optional[str] = None
+    insumos_provistos:     List[str] = []
 
     class Config:
         from_attributes = True

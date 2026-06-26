@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
@@ -44,9 +44,13 @@ def listar_domicilios(
     fecha_inicio: Optional[datetime]   = Query(None),
     fecha_fin:    Optional[datetime]   = Query(None),
     db:           Session              = Depends(get_db),
-    _:            dict                 = Depends(requiere_permiso("ver_domicilios"))
+    actual:       dict                 = Depends(requiere_permiso("ver_domicilios"))
 ):
     """Lista paginada. Filtra por empleado, estado y rango de fechas (fecha_inicio / fecha_fin ISO)."""
+    registro = actual["registro"]
+    # Domiciliario solo puede ver sus propios domicilios — forzar filtro sin importar el parámetro
+    if getattr(registro, "ID_Rol", None) == 4:
+        id_empleado = registro.ID_Usuario
     return obtener_domicilios(db, pagina, por_pagina, busqueda, estado, id_empleado, fecha_inicio, fecha_fin)
 
 
@@ -63,10 +67,14 @@ def listar_repartidores(
 def ver_domicilio(
     id_domicilio: int,
     db:           Session = Depends(get_db),
-    _:            dict    = Depends(requiere_permiso("ver_domicilios"))
+    actual:       dict    = Depends(requiere_permiso("ver_domicilios"))
 ):
     """Retorna el detalle de un domicilio."""
-    return obtener_domicilio(db, id_domicilio)
+    registro = actual["registro"]
+    dom = obtener_domicilio(db, id_domicilio)
+    if getattr(registro, "ID_Rol", None) == 4 and dom.get("ID_Empleado") != registro.ID_Usuario:
+        raise HTTPException(status_code=403, detail="Sin acceso a este domicilio")
+    return dom
 
 
 @router.post("/", response_model=DomicilioResponse, status_code=201)
@@ -106,9 +114,14 @@ def verificar_otp_domicilio(
     id_domicilio: int,
     datos:        OTPVerify,
     db:           Session = Depends(get_db),
-    _:            dict    = Depends(requiere_permiso("cambiar_estado_domicilios"))
+    actual:       dict    = Depends(requiere_permiso("cambiar_estado_domicilios"))
 ):
     """Verifica el código OTP para confirmar entrega sin necesidad de columna adicional en BD."""
+    registro = actual["registro"]
+    if getattr(registro, "ID_Rol", None) == 4:
+        dom = db.query(Domicilio).filter(Domicilio.ID_Domicilio == id_domicilio).first()
+        if not dom or dom.ID_Empleado != registro.ID_Usuario:
+            raise HTTPException(status_code=403, detail="Sin acceso a este domicilio")
     if not verificar_otp(db, id_domicilio, datos.codigo):
         raise HTTPException(status_code=400, detail="Código incorrecto")
     return {"valido": True}
@@ -170,7 +183,12 @@ def actualizar_estado(
     id_domicilio: int,
     datos:        DomicilioEstado,
     db:           Session = Depends(get_db),
-    _:            dict    = Depends(requiere_permiso("cambiar_estado_domicilios"))
+    actual:       dict    = Depends(requiere_permiso("cambiar_estado_domicilios"))
 ):
     """Cambia el estado. Si es Entregado → registra Fecha_entrega automáticamente. Acepta Observaciones opcional."""
+    registro = actual["registro"]
+    if getattr(registro, "ID_Rol", None) == 4:
+        dom = db.query(Domicilio).filter(Domicilio.ID_Domicilio == id_domicilio).first()
+        if not dom or dom.ID_Empleado != registro.ID_Usuario:
+            raise HTTPException(status_code=403, detail="Sin acceso a este domicilio")
     return cambiar_estado(db, id_domicilio, datos.Estado, datos.Observaciones)

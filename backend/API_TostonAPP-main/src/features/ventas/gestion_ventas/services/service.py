@@ -547,6 +547,13 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
         descartar_notificacion(db, "pedido_nuevo", id_venta)
     if nuevo_estado == EstadoPedido.CANCELADO:
         descartar_notificacion(db, "domicilio_pendiente", id_venta)
+        # Cerrar el domicilio pendiente si la venta se cancela
+        domicilio_abierto = db.query(Domicilio).filter(
+            Domicilio.ID_Venta == id_venta,
+            Domicilio.Estado.notin_([8, 5]),  # 8=Entregado, 5=Cancelado (ya finales)
+        ).first()
+        if domicilio_abierto:
+            domicilio_abierto.Estado = 5  # Cancelado
 
     venta.Estado = nuevo_estado
     db.commit()

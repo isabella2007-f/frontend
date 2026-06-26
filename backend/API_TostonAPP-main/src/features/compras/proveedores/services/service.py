@@ -1,12 +1,12 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import distinct
 from fastapi import HTTPException
 
-from src.shared.services.models import Proveedor, SujetoDerecho, Compra
+from src.shared.services.models import Proveedor, SujetoDerecho, Compra, DetalleCompra, Insumo, Estado
 from .schemas import ProveedorCreate, ProveedorUpdate
 
 
 def _formato_proveedor(proveedor: Proveedor, db: Session) -> dict:
-    """Construye el dict de respuesta con el nombre del sujeto de derecho."""
     sujeto = db.query(SujetoDerecho).filter(
         SujetoDerecho.ID_Sujeto_Derecho == proveedor.Sujeto_Derecho
     ).first()
@@ -15,17 +15,47 @@ def _formato_proveedor(proveedor: Proveedor, db: Session) -> dict:
         Compra.ID_Proveedor == proveedor.ID_Proveedor
     ).count()
 
+    ultima = (
+        db.query(Compra)
+        .filter(Compra.ID_Proveedor == proveedor.ID_Proveedor)
+        .order_by(Compra.Fecha_Compra.desc())
+        .first()
+    )
+    ultima_fecha  = ultima.Fecha_Compra if ultima else None
+    ultima_estado = None
+    if ultima:
+        estado_obj    = db.query(Estado).filter(Estado.ID_Estados == ultima.Estado).first()
+        ultima_estado = estado_obj.Estado if estado_obj else None
+
+    insumo_ids = (
+        db.query(distinct(DetalleCompra.ID_Insumo))
+        .join(Compra, Compra.ID_Compra == DetalleCompra.ID_Compra)
+        .filter(
+            Compra.ID_Proveedor == proveedor.ID_Proveedor,
+            DetalleCompra.ID_Insumo != None,
+        )
+        .all()
+    )
+    insumos_provistos = []
+    for (id_ins,) in insumo_ids:
+        ins = db.query(Insumo).filter(Insumo.ID_Insumo == id_ins).first()
+        if ins:
+            insumos_provistos.append(ins.Nombre)
+
     return {
-        "ID_Proveedor":   proveedor.ID_Proveedor,
-        "Sujeto_Derecho": proveedor.Sujeto_Derecho,
-        "nombre_sujeto":  sujeto.Sujeto_Derecho if sujeto else None,
-        "Responsable":    proveedor.Responsable,
-        "Direccion":      proveedor.Direccion,
-        "Municipio":      proveedor.Municipio,
-        "Departamento":   proveedor.Departamento,
-        "Telefono":       proveedor.Telefono,
-        "Correo":         proveedor.Correo,
-        "total_compras":  total_compras,
+        "ID_Proveedor":         proveedor.ID_Proveedor,
+        "Sujeto_Derecho":       proveedor.Sujeto_Derecho,
+        "nombre_sujeto":        sujeto.Sujeto_Derecho if sujeto else None,
+        "Responsable":          proveedor.Responsable,
+        "Direccion":            proveedor.Direccion,
+        "Municipio":            proveedor.Municipio,
+        "Departamento":         proveedor.Departamento,
+        "Telefono":             proveedor.Telefono,
+        "Correo":               proveedor.Correo,
+        "total_compras":        total_compras,
+        "ultima_compra_fecha":  ultima_fecha,
+        "ultima_compra_estado": ultima_estado,
+        "insumos_provistos":    insumos_provistos,
     }
 
 
@@ -35,7 +65,6 @@ def obtener_proveedores(
     por_pagina: int = 10,
     busqueda: str = None
 ) -> dict:
-    """Lista paginada. Busca por nombre del responsable, correo o teléfono."""
     query = db.query(Proveedor)
 
     if busqueda:
@@ -46,8 +75,8 @@ def obtener_proveedores(
             Proveedor.Telefono.ilike(termino)
         )
 
-    total      = query.count()
-    offset     = (pagina - 1) * por_pagina
+    total       = query.count()
+    offset      = (pagina - 1) * por_pagina
     proveedores = query.offset(offset).limit(por_pagina).all()
 
     return {
@@ -59,7 +88,6 @@ def obtener_proveedores(
 
 
 def obtener_proveedor(db: Session, id_proveedor: int) -> dict:
-    """Retorna un proveedor por ID o lanza 404."""
     proveedor = db.query(Proveedor).filter(
         Proveedor.ID_Proveedor == id_proveedor
     ).first()
@@ -69,8 +97,6 @@ def obtener_proveedor(db: Session, id_proveedor: int) -> dict:
 
 
 def crear_proveedor(db: Session, datos: ProveedorCreate) -> dict:
-    """Crea un nuevo proveedor."""
-    # Verifica que el correo no esté duplicado
     if datos.Correo and db.query(Proveedor).filter(
         Proveedor.Correo == datos.Correo
     ).first():
@@ -92,7 +118,6 @@ def crear_proveedor(db: Session, datos: ProveedorCreate) -> dict:
 
 
 def editar_proveedor(db: Session, id_proveedor: int, datos: ProveedorUpdate) -> dict:
-    """Edita solo los campos enviados."""
     proveedor = db.query(Proveedor).filter(
         Proveedor.ID_Proveedor == id_proveedor
     ).first()
@@ -108,7 +133,6 @@ def editar_proveedor(db: Session, id_proveedor: int, datos: ProveedorUpdate) -> 
 
 
 def eliminar_proveedor(db: Session, id_proveedor: int) -> dict:
-    """Elimina un proveedor. Bloquea si tiene compras registradas."""
     proveedor = db.query(Proveedor).filter(
         Proveedor.ID_Proveedor == id_proveedor
     ).first()

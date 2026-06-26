@@ -2,7 +2,8 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from datetime import datetime
 
-from src.shared.services.models import Insumo, CategoriaInsumo, UnidadMedida, LoteCompra, FichaTecnicaInsumo
+from sqlalchemy import or_
+from src.shared.services.models import Insumo, CategoriaInsumo, UnidadMedida, LoteCompra, FichaTecnicaInsumo, OrdenProduccion
 from .schemas import InsumoCreate, InsumoUpdate
 
 
@@ -38,20 +39,35 @@ def _formato_insumo(insumo: Insumo, db: Session) -> dict:
         FichaTecnicaInsumo.ID_Insumo == insumo.ID_Insumo
     ).first() is not None
 
+    # Insumo en orden activa (directa o via ficha)
+    fichas_con_insumo = (
+        db.query(FichaTecnicaInsumo.ID_Ficha)
+        .filter(FichaTecnicaInsumo.ID_Insumo == insumo.ID_Insumo)
+        .subquery()
+    )
+    en_orden = db.query(OrdenProduccion).filter(
+        or_(
+            OrdenProduccion.ID_Insumo == insumo.ID_Insumo,
+            OrdenProduccion.ID_Ficha.in_(fichas_con_insumo),
+        ),
+        OrdenProduccion.Estado.in_([1, 13]),  # Pendiente o En proceso
+    ).first() is not None
+
     return {
-        "ID_Insumo":           insumo.ID_Insumo,
-        "Nombre":              insumo.Nombre,
-        "ID_Categoria":        insumo.ID_Categoria,
-        "nombre_categoria":    categoria.Nombre_Categoria if categoria else None,
-        "Unidad_Medida":       insumo.Unidad_Medida,
-        "simbolo_unidad":      unidad.Simbolo if unidad else None,
-        "Stock_Actual":        insumo.Stock_Actual,
-        "Stock_Minimo":        insumo.Stock_Minimo,
-        "Estado":              insumo.Estado,
-        "proximo_vencimiento": proximo_venc,
-        "dias_para_vencer":    dias_para_vencer,
-        "lote_id":             proximo_lote.ID_Lote_Compra if proximo_lote else None,
-        "tiene_ficha_tecnica": en_ficha,
+        "ID_Insumo":                insumo.ID_Insumo,
+        "Nombre":                   insumo.Nombre,
+        "ID_Categoria":             insumo.ID_Categoria,
+        "nombre_categoria":         categoria.Nombre_Categoria if categoria else None,
+        "Unidad_Medida":            insumo.Unidad_Medida,
+        "simbolo_unidad":           unidad.Simbolo if unidad else None,
+        "Stock_Actual":             float(insumo.Stock_Actual or 0),
+        "Stock_Minimo":             insumo.Stock_Minimo,
+        "Estado":                   insumo.Estado,
+        "proximo_vencimiento":      proximo_venc,
+        "dias_para_vencer":         dias_para_vencer,
+        "lote_id":                  proximo_lote.ID_Lote_Compra if proximo_lote else None,
+        "tiene_ficha_tecnica":      en_ficha,
+        "tiene_orden_produccion":   en_orden,
     }
 
 
@@ -143,6 +159,7 @@ def crear_insumo(db: Session, datos: InsumoCreate) -> dict:
             ID_Insumo         = nuevo.ID_Insumo,
             Fecha_Vencimiento = datos.Lote_Compra.Fecha_Vencimiento,
             Cantidad_Inicial  = datos.Lote_Compra.Cantidad_Inicial,
+            Cantidad_Actual   = datos.Lote_Compra.Cantidad_Inicial,
             Estado            = 1,
         )
         db.add(nuevo_lote)
@@ -217,20 +234,37 @@ def obtener_lotes_insumo(db: Session, id_insumo: int) -> dict:
         dias = None
         if fv:
             dias = (fv - hoy).days
+        cantidad_actual = l.Cantidad_Actual if l.Cantidad_Actual is not None else l.Cantidad_Inicial
         resultado.append({
             "id":               l.ID_Lote_Compra,
-            "cantidad_inicial": l.Cantidad_Inicial,
+            "cantidad_inicial": float(l.Cantidad_Inicial or 0),
+            "cantidad":         float(cantidad_actual or 0),
             "fecha_vencimiento": fv.strftime("%Y-%m-%d") if fv else None,
             "vencido":          vencido,
             "dias_para_vencer": dias,
             "estado":           l.Estado,
-            "pendiente":        l.Estado == 3,  # True = compra registrada pero no recibida
+            "pendiente":        l.Estado == 3,
         })
     return {"lotes": resultado, "total": len(resultado)}
 
 
+def _tiene_orden_activa(db: Session, id_insumo: int) -> bool:
+    fichas = (
+        db.query(FichaTecnicaInsumo.ID_Ficha)
+        .filter(FichaTecnicaInsumo.ID_Insumo == id_insumo)
+        .subquery()
+    )
+    return db.query(OrdenProduccion).filter(
+        or_(
+            OrdenProduccion.ID_Insumo == id_insumo,
+            OrdenProduccion.ID_Ficha.in_(fichas),
+        ),
+        OrdenProduccion.Estado.in_([1, 13]),
+    ).first() is not None
+
+
 def eliminar_insumo(db: Session, id_insumo: int) -> dict:
-    """Elimina un insumo y su lote asociado si existe."""
+    """Elimina un insumo y sus lotes asociados si no está en uso."""
     insumo = db.query(Insumo).filter(Insumo.ID_Insumo == id_insumo).first()
     if not insumo:
         raise HTTPException(status_code=404, detail="Insumo no encontrado")
@@ -241,13 +275,14 @@ def eliminar_insumo(db: Session, id_insumo: int) -> dict:
             detail="No se puede eliminar un insumo asociado a una ficha técnica de producción"
         )
 
-    # Elimina el lote asociado si existe
-    if insumo.ID_Lote_Compra:
-        lote = db.query(LoteCompra).filter(
-            LoteCompra.ID_Lote_Compra == insumo.ID_Lote_Compra
-        ).first()
-        if lote:
-            db.delete(lote)
+    if _tiene_orden_activa(db, id_insumo):
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede eliminar un insumo que está en una orden de producción activa"
+        )
+
+    # Elimina todos los lotes asociados al insumo
+    db.query(LoteCompra).filter(LoteCompra.ID_Insumo == id_insumo).delete()
 
     db.delete(insumo)
     db.commit()

@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from src.shared.services.models import (
     Devolucion, DevolucionDetalle, Venta, VentaXProducto, Usuario,
-    Producto, CreditoCliente, MovimientoCredito
+    Producto, CreditoCliente, MovimientoCredito, Domicilio
 )
 from src.shared.services.notificaciones_utils import notificar, descartar_notificacion
 from .schemas import DevolucionCreate, DevolucionResolucion, DevolucionUpdate
@@ -23,6 +23,9 @@ _ESTADO_LABELS = {
 
 # Estado de venta que permite devolución
 VENTA_ENTREGADA = 8
+
+# Plazo máximo para solicitar devolución (días desde el pedido/entrega)
+DIAS_LIMITE_DEVOLUCION = 7
 
 
 def _formato_devolucion(dev: Devolucion, db: Session) -> dict:
@@ -181,6 +184,24 @@ def crear_devolucion(db: Session, datos: DevolucionCreate) -> dict:
             detail="Solo puedes solicitar una devolución para pedidos ya entregados"
         )
 
+    # 1b. Verificar plazo de devolución
+    domicilio = db.query(Domicilio).filter(
+        Domicilio.ID_Venta == datos.ID_Venta,
+        Domicilio.Estado.in_([8, 4])  # 8=Entregado web, 4=Entregado Flutter
+    ).first()
+    fecha_ref = (
+        domicilio.Fecha_entrega
+        if domicilio and domicilio.Fecha_entrega
+        else venta.Fecha_Venta
+    )
+    if fecha_ref:
+        dias = (datetime.now() - fecha_ref).days
+        if dias > DIAS_LIMITE_DEVOLUCION:
+            raise HTTPException(
+                status_code=400,
+                detail=f"El plazo para solicitar devoluciones es de {DIAS_LIMITE_DEVOLUCION} días desde la entrega. Han pasado {dias} días."
+            )
+
     # 2. No duplicar devoluciones activas para la misma venta
     existente = db.query(Devolucion).filter(
         Devolucion.ID_Venta == datos.ID_Venta,
@@ -329,6 +350,7 @@ def resolver_devolucion(db: Session, id_devolucion: int, datos: DevolucionResolu
             monto         = Decimal(str(dev.TotalDevuelto)),
             id_devolucion = dev.ID_Devolucion,
         )
+        dev.FechaReembolso = datetime.now()
 
     descartar_notificacion(db, "devolucion_pendiente", id_devolucion)
     db.commit()

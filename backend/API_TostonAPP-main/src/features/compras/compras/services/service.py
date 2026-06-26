@@ -167,6 +167,7 @@ def crear_compra(db: Session, datos: CompraCreate) -> dict:
             ID_Insumo         = item.ID_Insumo,
             Fecha_Vencimiento = item.Fecha_Vencimiento,
             Cantidad_Inicial  = item.Cantidad,
+            Cantidad_Actual   = item.Cantidad,  # FEFO: se actualiza al descontar
             Estado            = 3,  # Pendiente — se activa al confirmar llegada
         )
         db.add(lote)
@@ -250,6 +251,8 @@ def completar_compra(db: Session, id_compra: int, fecha_llegada=None) -> dict:
             ).first()
             if lote:
                 lote.Estado = 1  # Activo — la mercancía llegó
+                if lote.Cantidad_Actual is None:
+                    lote.Cantidad_Actual = lote.Cantidad_Inicial
 
     compra.Estado = ESTADO_COMPLETADA
     if fecha_llegada:

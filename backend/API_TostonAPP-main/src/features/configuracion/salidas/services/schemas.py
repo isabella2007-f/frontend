@@ -26,19 +26,23 @@ class SalidaCreate(BaseModel):
 
 
 class SalidaResponse(BaseModel):
-    ID_Salida:       int
-    Tipo:            str
-    ID_Insumo:       Optional[int] = None
-    nombre_insumo:   Optional[str] = None
-    ID_Producto:     Optional[int] = None
-    nombre_producto: Optional[str] = None
-    Cantidad:        int
-    Motivo:          Optional[str] = None
-    ID_Empleado:     Optional[int] = None
-    nombre_empleado: Optional[str] = None
-    Fecha:           datetime
-    Estado:          int
-    estado_label:    Optional[str] = None
+    ID_Salida:         int
+    Tipo:              str
+    ID_Insumo:         Optional[int] = None
+    nombre_insumo:     Optional[str] = None
+    ID_Producto:       Optional[int] = None
+    nombre_producto:   Optional[str] = None
+    nombre_categoria:  Optional[str] = None
+    Cantidad:          int
+    Motivo:            Optional[str] = None
+    ID_Empleado:       Optional[int] = None
+    nombre_empleado:   Optional[str] = None
+    Fecha:             datetime
+    Estado:            int
+    estado_label:      Optional[str] = None
+    ID_Anulado_Por:    Optional[int] = None
+    nombre_anulado_por: Optional[str] = None
+    Fecha_Anulacion:   Optional[datetime] = None
 
     class Config:
         from_attributes = True

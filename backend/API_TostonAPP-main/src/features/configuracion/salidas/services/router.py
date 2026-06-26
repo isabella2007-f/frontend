@@ -43,10 +43,11 @@ def ver_salida(
 
 @router.post("/", response_model=SalidaResponse, status_code=201)
 def registrar_salida(
-    datos: SalidaCreate,
-    db:    Session = Depends(get_db),
-    _:     dict    = Depends(requiere_permiso("crear_salidas")),
+    datos:  SalidaCreate,
+    db:     Session = Depends(get_db),
+    actual: dict    = Depends(requiere_permiso("crear_salidas")),
 ):
+    datos = datos.model_copy(update={"ID_Empleado": actual["registro"].ID_Usuario})
     return crear_salida(db, datos)
 
 
@@ -62,6 +63,6 @@ def procesar_vencidos(
 def anular(
     id_salida: int,
     db:        Session = Depends(get_db),
-    _:         dict    = Depends(requiere_permiso("eliminar_salidas")),
+    actual:    dict    = Depends(requiere_permiso("eliminar_salidas")),
 ):
-    return anular_salida(db, id_salida)
+    return anular_salida(db, id_salida, id_anulado_por=actual["registro"].ID_Usuario)

@@ -149,7 +149,7 @@ class Insumo(Base):
     ID_Lote_Compra = Column(Integer, ForeignKey("Lote_Compra.ID_Lote_Compra"))
     Nombre         = Column(String(100))
     Unidad_Medida  = Column(Integer, ForeignKey("Unidad_Medida.ID_Unidad_Medida"))
-    Stock_Actual   = Column(Integer)
+    Stock_Actual   = Column(Numeric(10, 4))
     Stock_Minimo   = Column(Integer)
     Estado         = Column(Integer, ForeignKey("Estados.ID_Estados"))
 
@@ -174,7 +174,8 @@ class LoteCompra(Base):
     ID_Lote_Compra    = Column(Integer, primary_key=True, index=True)
     ID_Insumo         = Column(Integer, ForeignKey("Insumos.ID_Insumo"))
     Fecha_Vencimiento = Column(DateTime)
-    Cantidad_Inicial  = Column(Integer)
+    Cantidad_Inicial  = Column(Numeric(10, 4))
+    Cantidad_Actual   = Column(Numeric(10, 4), nullable=True)
     Estado            = Column(Integer, ForeignKey("Estados.ID_Estados"))
 
     insumo          = relationship("Insumo", back_populates="lotes_compra", foreign_keys="[LoteCompra.ID_Insumo]")
@@ -514,19 +515,22 @@ class MovimientoCredito(Base):
 class Salida(Base):
     __tablename__ = "Salidas"
 
-    ID_Salida   = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    Tipo        = Column(String(20))          # 'vencimiento','daño','ajuste','consumo','devolución'
-    ID_Insumo   = Column(Integer, ForeignKey("Insumos.ID_Insumo"),    nullable=True)
-    ID_Producto = Column(Integer, ForeignKey("Productos.ID_Producto"), nullable=True)
-    Cantidad    = Column(Integer)
-    Motivo      = Column(Text, nullable=True)
-    ID_Empleado = Column(Integer, ForeignKey("Usuarios.ID_Usuario"), nullable=True)
-    Fecha       = Column(DateTime)
-    Estado      = Column(Integer, ForeignKey("Estados.ID_Estados"))
+    ID_Salida      = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    Tipo           = Column(String(20))          # 'vencimiento','daño','ajuste','consumo','devolución'
+    ID_Insumo      = Column(Integer, ForeignKey("Insumos.ID_Insumo"),    nullable=True)
+    ID_Producto    = Column(Integer, ForeignKey("Productos.ID_Producto"), nullable=True)
+    Cantidad       = Column(Integer)
+    Motivo         = Column(Text, nullable=True)
+    ID_Empleado    = Column(Integer, ForeignKey("Usuarios.ID_Usuario"), nullable=True)
+    Fecha          = Column(DateTime)
+    Estado         = Column(Integer, ForeignKey("Estados.ID_Estados"))
+    ID_Anulado_Por = Column(Integer, ForeignKey("Usuarios.ID_Usuario"), nullable=True)
+    Fecha_Anulacion = Column(DateTime, nullable=True)
 
-    insumo   = relationship("Insumo",   foreign_keys=[ID_Insumo])
-    producto = relationship("Producto", foreign_keys=[ID_Producto])
-    empleado = relationship("Usuario",  foreign_keys=[ID_Empleado])
+    insumo      = relationship("Insumo",   foreign_keys=[ID_Insumo])
+    producto    = relationship("Producto", foreign_keys=[ID_Producto])
+    empleado    = relationship("Usuario",  foreign_keys=[ID_Empleado])
+    anulado_por = relationship("Usuario",  foreign_keys=[ID_Anulado_Por])
 
 
 # ─────────────────────────────────────────

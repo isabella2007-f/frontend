@@ -51,9 +51,11 @@ def _formato_salida(salida: Salida, db: Session) -> dict:
                if salida.ID_Insumo else None
     producto = db.query(Producto).filter(Producto.ID_Producto == salida.ID_Producto).first() \
                if salida.ID_Producto else None
-    empleado = db.query(Usuario).filter(Usuario.ID_Usuario == salida.ID_Empleado).first() \
-               if salida.ID_Empleado else None
-    estado   = db.query(Estado).filter(Estado.ID_Estados == salida.Estado).first()
+    empleado    = db.query(Usuario).filter(Usuario.ID_Usuario == salida.ID_Empleado).first() \
+                  if salida.ID_Empleado else None
+    anulado_por = db.query(Usuario).filter(Usuario.ID_Usuario == salida.ID_Anulado_Por).first() \
+                  if getattr(salida, "ID_Anulado_Por", None) else None
+    estado      = db.query(Estado).filter(Estado.ID_Estados == salida.Estado).first()
 
     cat_nombre = None
     if insumo and insumo.ID_Categoria:
@@ -64,20 +66,23 @@ def _formato_salida(salida: Salida, db: Session) -> dict:
         cat_nombre = cat.Nombre_Categoria if cat else None
 
     return {
-        "ID_Salida":        salida.ID_Salida,
-        "Tipo":             salida.Tipo,
-        "ID_Insumo":        salida.ID_Insumo,
-        "nombre_insumo":    insumo.Nombre if insumo else None,
-        "ID_Producto":      salida.ID_Producto,
-        "nombre_producto":  producto.nombre if producto else None,
-        "nombre_categoria": cat_nombre,
-        "Cantidad":         salida.Cantidad,
-        "Motivo":           salida.Motivo,
-        "ID_Empleado":      salida.ID_Empleado,
-        "nombre_empleado":  f"{empleado.Nombre} {empleado.Apellidos}" if empleado else None,
-        "Fecha":            salida.Fecha,
-        "Estado":           salida.Estado,
-        "estado_label":     estado.Estado if estado else None,
+        "ID_Salida":          salida.ID_Salida,
+        "Tipo":               salida.Tipo,
+        "ID_Insumo":          salida.ID_Insumo,
+        "nombre_insumo":      insumo.Nombre if insumo else None,
+        "ID_Producto":        salida.ID_Producto,
+        "nombre_producto":    producto.nombre if producto else None,
+        "nombre_categoria":   cat_nombre,
+        "Cantidad":           salida.Cantidad,
+        "Motivo":             salida.Motivo,
+        "ID_Empleado":        salida.ID_Empleado,
+        "nombre_empleado":    f"{empleado.Nombre} {empleado.Apellidos}" if empleado else None,
+        "Fecha":              salida.Fecha,
+        "Estado":             salida.Estado,
+        "estado_label":       estado.Estado if estado else None,
+        "ID_Anulado_Por":     getattr(salida, "ID_Anulado_Por", None),
+        "nombre_anulado_por": f"{anulado_por.Nombre} {anulado_por.Apellidos}" if anulado_por else None,
+        "Fecha_Anulacion":    getattr(salida, "Fecha_Anulacion", None),
     }
 
 
@@ -197,7 +202,7 @@ def crear_salida(db: Session, datos: SalidaCreate) -> dict:
     return _formato_salida(nueva, db)
 
 
-def anular_salida(db: Session, id_salida: int) -> dict:
+def anular_salida(db: Session, id_salida: int, id_anulado_por: int = None) -> dict:
     """
     Anula la salida (Estado=12) y restaura el stock descontado.
     Recalcula el estado de stock del ítem afectado.
@@ -220,6 +225,9 @@ def anular_salida(db: Session, id_salida: int) -> dict:
             _actualizar_estado_producto(producto)
 
     salida.Estado = ESTADO_ANULADA
+    if id_anulado_por:
+        salida.ID_Anulado_Por  = id_anulado_por
+        salida.Fecha_Anulacion = _now()
     db.commit()
     db.refresh(salida)
 

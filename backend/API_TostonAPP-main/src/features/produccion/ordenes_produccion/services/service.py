@@ -2,9 +2,82 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from decimal import Decimal
 
-from src.shared.services.models import OrdenProduccion, Producto, Insumo, FichaTecnica, FichaTecnicaInsumo, Estado, Venta, LoteProducto
+from src.shared.services.models import OrdenProduccion, Producto, Insumo, FichaTecnica, FichaTecnicaInsumo, Estado, Venta, LoteProducto, LoteCompra, UnidadMedida
 from src.shared.services.notificaciones_utils import notificar_stock_insumo, notificar_stock_producto
 from .schemas import OrdenCreate, OrdenUpdate
+
+
+# ── Conversión de unidades ────────────────────────────────────
+_CONV = {
+    ("ml", "L"):   1 / 1000,
+    ("L",  "ml"):  1000,
+    ("g",  "kg"):  1 / 1000,
+    ("kg", "g"):   1000,
+    ("lb", "kg"):  0.453592,
+    ("kg", "lb"):  2.20462,
+    ("lb", "g"):   453.592,
+    ("g",  "lb"):  1 / 453.592,
+}
+
+def _convertir(cantidad: float, desde: str, hasta: str) -> float:
+    """Convierte cantidad entre unidades compatibles. Lanza HTTPException si son incompatibles."""
+    desde = (desde or "").strip()
+    hasta = (hasta or "").strip()
+    if desde == hasta or not desde or not hasta:
+        return cantidad
+    factor = _CONV.get((desde, hasta))
+    if factor is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se puede convertir de '{desde}' a '{hasta}'. Revisa las unidades en la ficha técnica."
+        )
+    return cantidad * factor
+
+
+# ── FEFO: descontar lotes del que vence primero al último ────
+def _descontar_fefo(db: Session, id_insumo: int, cantidad: float) -> None:
+    """Descuenta `cantidad` del insumo consumiendo los lotes en orden FEFO."""
+    lotes = (
+        db.query(LoteCompra)
+        .filter(
+            LoteCompra.ID_Insumo == id_insumo,
+            LoteCompra.Cantidad_Actual > 0,
+            LoteCompra.Estado == 1,
+        )
+        .order_by(LoteCompra.Fecha_Vencimiento.asc().nullslast())
+        .all()
+    )
+    restante = float(cantidad)
+    for lote in lotes:
+        if restante <= 0:
+            break
+        disponible = float(lote.Cantidad_Actual or 0)
+        tomar = min(disponible, restante)
+        lote.Cantidad_Actual = round(disponible - tomar, 4)
+        restante -= tomar
+
+
+def _restaurar_fefo(db: Session, id_insumo: int, cantidad: float) -> None:
+    """Devuelve `cantidad` al insumo en orden FEFO inverso (del último al primero en vencer)."""
+    lotes = (
+        db.query(LoteCompra)
+        .filter(
+            LoteCompra.ID_Insumo == id_insumo,
+            LoteCompra.Estado == 1,
+        )
+        .order_by(LoteCompra.Fecha_Vencimiento.desc().nullsfirst())
+        .all()
+    )
+    restante = float(cantidad)
+    for lote in lotes:
+        if restante <= 0:
+            break
+        inicial   = float(lote.Cantidad_Inicial or 0)
+        actual    = float(lote.Cantidad_Actual  or 0)
+        espacio   = max(0.0, inicial - actual)
+        devolver  = min(espacio, restante)
+        lote.Cantidad_Actual = round(actual + devolver, 4)
+        restante -= devolver
 
 
 ESTADO_PENDIENTE  = 1
@@ -242,22 +315,40 @@ def cambiar_estado(db: Session, id_orden: int, datos) -> dict:
                 status_code=400,
                 detail="La ficha técnica no tiene insumos registrados. Agrégalos antes de iniciar producción."
             )
-        # Validar que todos los insumos tienen stock suficiente
+        # Validar stock con conversión de unidades
         for fi in insumos_ficha:
             insumo = db.query(Insumo).filter(Insumo.ID_Insumo == fi.ID_Insumo).first()
             if not insumo:
                 raise HTTPException(status_code=404, detail=f"Insumo ID {fi.ID_Insumo} no encontrado")
-            necesario = float(fi.Cantidad or 0) * orden.Cantidad
-            if (insumo.Stock_Actual or 0) < necesario:
+            unidad_ins = db.query(UnidadMedida).filter(
+                UnidadMedida.ID_Unidad_Medida == insumo.Unidad_Medida
+            ).first()
+            simbolo_ins = unidad_ins.Simbolo if unidad_ins else None
+            necesario = _convertir(
+                float(fi.Cantidad or 0) * orden.Cantidad,
+                fi.Unidad or simbolo_ins,
+                simbolo_ins,
+            )
+            if float(insumo.Stock_Actual or 0) < necesario:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Stock insuficiente de '{insumo.Nombre}': necesario {necesario:.0f}, disponible {insumo.Stock_Actual or 0}"
+                    detail=f"Stock insuficiente de '{insumo.Nombre}': necesario {necesario:.4g} {simbolo_ins}, disponible {float(insumo.Stock_Actual or 0):.4g} {simbolo_ins}"
                 )
-        # Descontar todos los insumos
+
+        # Descontar usando FEFO lote a lote
         for fi in insumos_ficha:
             insumo = db.query(Insumo).filter(Insumo.ID_Insumo == fi.ID_Insumo).first()
-            necesario = float(fi.Cantidad or 0) * orden.Cantidad
-            insumo.Stock_Actual = max(0, (insumo.Stock_Actual or 0) - int(necesario))
+            unidad_ins = db.query(UnidadMedida).filter(
+                UnidadMedida.ID_Unidad_Medida == insumo.Unidad_Medida
+            ).first()
+            simbolo_ins = unidad_ins.Simbolo if unidad_ins else None
+            necesario = _convertir(
+                float(fi.Cantidad or 0) * orden.Cantidad,
+                fi.Unidad or simbolo_ins,
+                simbolo_ins,
+            )
+            _descontar_fefo(db, insumo.ID_Insumo, necesario)
+            insumo.Stock_Actual = round(max(0.0, float(insumo.Stock_Actual or 0) - necesario), 4)
             _actualizar_estado_insumo(insumo)
             notificar_stock_insumo(db, insumo)
 
@@ -316,14 +407,25 @@ def cambiar_estado(db: Session, id_orden: int, datos) -> dict:
             for fi in insumos_ficha:
                 insumo = db.query(Insumo).filter(Insumo.ID_Insumo == fi.ID_Insumo).first()
                 if insumo:
-                    devolver = int(float(fi.Cantidad or 0) * orden.Cantidad)
-                    insumo.Stock_Actual = (insumo.Stock_Actual or 0) + devolver
+                    unidad_ins = db.query(UnidadMedida).filter(
+                        UnidadMedida.ID_Unidad_Medida == insumo.Unidad_Medida
+                    ).first()
+                    simbolo_ins = unidad_ins.Simbolo if unidad_ins else None
+                    devolver = _convertir(
+                        float(fi.Cantidad or 0) * orden.Cantidad,
+                        fi.Unidad or simbolo_ins,
+                        simbolo_ins,
+                    )
+                    _restaurar_fefo(db, insumo.ID_Insumo, devolver)
+                    insumo.Stock_Actual = round(float(insumo.Stock_Actual or 0) + devolver, 4)
                     _actualizar_estado_insumo(insumo)
                     notificar_stock_insumo(db, insumo)
         elif orden.ID_Insumo:
             insumo = db.query(Insumo).filter(Insumo.ID_Insumo == orden.ID_Insumo).first()
             if insumo:
-                insumo.Stock_Actual = (insumo.Stock_Actual or 0) + orden.Cantidad
+                devolver = float(orden.Cantidad)
+                _restaurar_fefo(db, insumo.ID_Insumo, devolver)
+                insumo.Stock_Actual = round(float(insumo.Stock_Actual or 0) + devolver, 4)
                 _actualizar_estado_insumo(insumo)
                 notificar_stock_insumo(db, insumo)
 

@@ -67,6 +67,7 @@ def _formato_domicilio(dom: Domicilio, db: Session) -> dict:
         "Observaciones":        dom.Observaciones,
         "Estado":               dom.Estado,
         "estado_label":         _label_estado(db, dom.Estado) if dom.Estado else None,
+        "venta_estado":         venta.Estado if venta else None,
         "Direccion_entrega":    dom.Direccion_entrega,
         "Municipio_entrega":    dom.Municipio_entrega,
         "Departamento_entrega": dom.Departamento_entrega,
@@ -169,7 +170,7 @@ def obtener_domicilios(
 
     total      = query.count()
     offset     = (pagina - 1) * por_pagina
-    domicilios = query.offset(offset).limit(por_pagina).all()
+    domicilios = query.order_by(Domicilio.Fecha_asignacion.desc()).offset(offset).limit(por_pagina).all()
 
     return {
         "total":      total,
