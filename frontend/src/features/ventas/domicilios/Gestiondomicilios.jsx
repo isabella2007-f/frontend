@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import { getDomicilios, asignarRepartidor, actualizarDomicilio, cambiarEstadoDomicilio } from "../../../services/domiciliosService.js";
 import { getUsuarios, toggleEstadoUsuario, crearEmpleado, editarUsuario } from "../../../services/usuariosService.js";
+import { getUser } from "../../../services/authService.js";
 import { fmtFecha } from "../../../utils/dateUtils.js";
 import "./Domicilios.css";
 
-function SkeletonRows({ cols = 8, rows = 5 }) {
+function SkeletonRows({ cols = 9, rows = 5 }) {
   return Array.from({ length: rows }).map((_, i) => (
     <tr key={i}>
       {Array.from({ length: cols }).map((__, j) => (
@@ -21,15 +22,29 @@ const fmt = (n) =>
 
 const PER_PAGE = 5;
 
+// Estado del domicilio (entrega)
 const ESTADO_CONFIG = {
-  3:  { dot: "#f9a825", label: "Pendiente",      desc: "Pedido pendiente de salida",                bg: "#fff8e1" },
-  4:  { dot: "#1976d2", label: "Confirmado",     desc: "Pedido confirmado y listo para preparar",    bg: "#e3f2fd" },
-  13: { dot: "#fb8c00", label: "En preparación", desc: "Cocinando y preparando el pedido",            bg: "#fff3e0" },
-  11: { dot: "#43a047", label: "Listo",          desc: "Pedido preparado y listo para salir",       bg: "#e8f5e9" },
-  10: { dot: "#8e24aa", label: "Asignado",       desc: "Domiciliario asignado al pedido",            bg: "#f3e5f5" },
-  9:  { dot: "#6a1b9a", label: "En camino",      desc: "Domiciliario en ruta de entrega",            bg: "#f3e5f5" },
-  8:  { dot: "#009688", label: "Entregado",      desc: "Pedido completado y entregado al cliente",    bg: "#e0f2f1" },
-  5:  { dot: "#c62828", label: "Cancelado",      desc: "Pedido cancelado",                           bg: "#ffebee" },
+  3:  { dot: "#f9a825", label: "Pendiente",      desc: "Pendiente de salida",                       bg: "#fff8e1" },
+  4:  { dot: "#43a047", label: "Confirmado",     desc: "Confirmado y listo para preparar",           bg: "#e8f5e9" },
+  13: { dot: "#1976d2", label: "En preparación", desc: "Cocinando y preparando",                     bg: "#e3f2fd" },
+  11: { dot: "#43a047", label: "Listo",          desc: "Preparado y listo para salir",              bg: "#e8f5e9" },
+  10: { dot: "#43a047", label: "Asignado",       desc: "Domiciliario asignado",                      bg: "#e8f5e9" },
+  9:  { dot: "#6a1b9a", label: "En camino",      desc: "En ruta de entrega",                        bg: "#f3e5f5" },
+  8:  { dot: "#43a047", label: "Entregado",      desc: "Entregado al cliente",                       bg: "#e8f5e9" },
+  5:  { dot: "#c62828", label: "Cancelado",      desc: "Cancelado",                                  bg: "#ffebee" },
+};
+
+// Estado del pedido (venta)
+const VENTA_ESTADO_CONFIG = {
+  1:  { dot: "#43a047", label: "Activo",         bg: "#e8f5e9" },
+  3:  { dot: "#f9a825", label: "Pendiente",      bg: "#fff8e1" },
+  4:  { dot: "#43a047", label: "Confirmado",     bg: "#e8f5e9" },
+  5:  { dot: "#c62828", label: "Cancelado",      bg: "#ffebee" },
+  8:  { dot: "#43a047", label: "Entregado",      bg: "#e8f5e9" },
+  9:  { dot: "#6a1b9a", label: "En camino",      bg: "#f3e5f5" },
+  10: { dot: "#43a047", label: "Asignado",       bg: "#e8f5e9" },
+  11: { dot: "#43a047", label: "Listo",          bg: "#e8f5e9" },
+  13: { dot: "#1976d2", label: "En preparación", bg: "#e3f2fd" },
 };
 
 const ESTADO_TRANSITIONS = {
@@ -45,12 +60,12 @@ const FILTER_OPTIONS = [
   { val: "todos",       label: "Todos",       dot: "#bdbdbd" },
   { val: "activos",     label: "Activos",     dot: "#43a047" },
   { val: 3,               label: "Pendiente",   dot: "#f9a825" },
-  { val: 4,               label: "Confirmado",  dot: "#1976d2" },
-  { val: 13,              label: "En preparación", dot: "#fb8c00" },
+  { val: 4,               label: "Confirmado",  dot: "#43a047" },
+  { val: 13,              label: "En preparación", dot: "#1976d2" },
   { val: 11,              label: "Listo",       dot: "#43a047" },
-  { val: 10,              label: "Asignado",    dot: "#8e24aa" },
+  { val: 10,              label: "Asignado",    dot: "#43a047" },
   { val: 9,               label: "En camino",   dot: "#6a1b9a" },
-  { val: 8,               label: "Entregado",   dot: "#009688" },
+  { val: 8,               label: "Entregado",   dot: "#43a047" },
   { val: 5,               label: "Cancelado",   dot: "#c62828" },
   { val: "sin-asignar", label: "Sin asignar", dot: "#e53935" },
 ];
@@ -64,6 +79,20 @@ function EstadoBadge({ estado, estadoId }) {
     <span className={cls} title={cfg.desc}>
       <span className="estado-badge__dot" />
       {label}
+    </span>
+  );
+}
+
+function VentaEstadoBadge({ estadoId }) {
+  const cfg = VENTA_ESTADO_CONFIG[estadoId] || { dot: "#bdbdbd", label: `Estado ${estadoId}`, bg: "#f5f5f5" };
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      padding: "2px 7px", borderRadius: 4, fontSize: 11, fontWeight: 700,
+      background: cfg.bg, color: cfg.dot, border: `1px solid ${cfg.dot}44`,
+    }}>
+      <span style={{ width: 7, height: 7, borderRadius: "50%", background: cfg.dot, flexShrink: 0 }} />
+      {cfg.label}
     </span>
   );
 }
@@ -88,7 +117,7 @@ function AlertaEstado({ pedido, empleados }) {
     return (
       <div style={{
         display: "flex", alignItems: "center", gap: 6,
-        background: "#e0f2f1", color: "#00695c", fontSize: 12,
+        background: "#e8f5e9", color: "#2e7d32", fontSize: 12,
         fontWeight: 600, padding: "3px 6px", borderRadius: 4,
         whiteSpace: "nowrap"
       }}>
@@ -516,7 +545,7 @@ function ModalVerDomicilio({ pedido, emp, domicilios, onClose, onReasignar, onOb
                         { label: "Asignados",  val: pedidosAsignados.length, bg: "#fff8e1", border: "#ffe082", color: "#6d4c41" },
                         { label: "Pendientes", val: pendientes,              bg: "#e3f2fd", border: "#90caf9", color: "#1565c0" },
                         { label: "En camino",  val: enCamino,               bg: "#f3e5f5", border: "#ce93d8", color: "#6a1b9a" },
-                        { label: "Entregados", val: entregados,             bg: "#e0f2f1", border: "#80cbc4", color: "#00695c" },
+                        { label: "Entregados", val: entregados,             bg: "#e8f5e9", border: "#a5d6a7", color: "#2e7d32" },
                       ].map(s => (
                         <div key={s.label} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, padding: 12 }}>
                           <div style={{ fontSize: 12, color: s.color, marginBottom: 4 }}>{s.label}</div>
@@ -545,7 +574,7 @@ function ModalVerDomicilio({ pedido, emp, domicilios, onClose, onReasignar, onOb
                   </div>
                   <div>
                     <label className="form-label">Fecha de entrega real</label>
-                    <div className="field-input--disabled" style={{ color: pedido.fecha_entrega_real ? "#00695c" : "#bdbdbd" }}>
+                    <div className="field-input--disabled" style={{ color: pedido.fecha_entrega_real ? "#2e7d32" : "#bdbdbd" }}>
                       {pedido.fecha_entrega_real ? fmtFecha(pedido.fecha_entrega_real) : "Pendiente"}
                     </div>
                   </div>
@@ -972,6 +1001,11 @@ export default function GestionDomicilios() {
   const conAsignar = domicilios.filter(p => p.idEmpleado).length;
   const sinAsignar = domicilios.filter(p => !p.idEmpleado && !["Entregado", "Cancelado"].includes(p.estado)).length;
 
+  // Domiciliarios solo pueden ver su propio panel
+  if (getUser()?.rol === "Domiciliario") {
+    return <Navigate to="/admin/mi-dashboard" replace />;
+  }
+
   return (
     <div className="page-wrapper">
       <div className="page-header">
@@ -987,7 +1021,7 @@ export default function GestionDomicilios() {
             { label: "Total domicilios", val: totalDom,   color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7", icon: "🛵" },
             { label: "Asignados",        val: conAsignar, color: "#1565c0", bg: "#e3f2fd", border: "#90caf9", icon: "📌" },
             { label: "En camino",        val: enCamino,   color: "#6a1b9a", bg: "#f3e5f5", border: "#ce93d8", icon: "🚴" },
-            { label: "Entregados",       val: entregados, color: "#00695c", bg: "#e0f2f1", border: "#80cbc4", icon: "✅" },
+            { label: "Entregados",       val: entregados, color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7", icon: "✅" },
             {
               label: "Sin asignar",
               val: sinAsignar,
@@ -1087,7 +1121,8 @@ export default function GestionDomicilios() {
                       <th className="col-dir">Dirección</th>
                       <th className="col-domi">Domiciliario</th>
                       <th className="col-fechas">Fechas</th>
-                      <th className="col-estado">Estado</th>
+                      <th className="col-estado" style={{ whiteSpace: "nowrap" }}>Est. Pedido</th>
+                      <th className="col-estado" style={{ whiteSpace: "nowrap" }}>Est. Entrega</th>
                       <th className="col-acciones">Acciones</th>
                     </tr>
                   </thead>
@@ -1095,7 +1130,7 @@ export default function GestionDomicilios() {
                     {loading ? (
                       <SkeletonRows cols={8} rows={5} />
                     ) : paged.length === 0 ? (
-                      <tr><td colSpan={8}>
+                      <tr><td colSpan={9}>
                         <div className="empty-state">
                           <div className="empty-state__icon">🛵</div>
                           <p className="empty-state__text">
@@ -1164,8 +1199,21 @@ export default function GestionDomicilios() {
                             </div>
                           </td>
                           <td>
+                            {ped.venta_estado_id != null
+                              ? <VentaEstadoBadge estadoId={ped.venta_estado_id} />
+                              : <span style={{ color: "#bdbdbd", fontSize: 11 }}>—</span>
+                            }
+                          </td>
+                          <td>
                             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                               <EstadoBadge estado={ped.estado} estadoId={ped.estadoId} />
+                              {/* Avisa si venta cancelada pero entrega aún abierta */}
+                              {ped.venta_estado_id === 5 && ped.estadoId !== 5 && ped.estadoId !== 8 && (
+                                <span style={{
+                                  fontSize: 10, fontWeight: 700, color: "#c62828",
+                                  background: "#ffebee", borderRadius: 4, padding: "2px 5px",
+                                }}>⚠ Pedido cancelado</span>
+                              )}
                               <AlertaEstado pedido={ped} empleados={empleados} />
                             </div>
                           </td>

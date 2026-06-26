@@ -217,7 +217,6 @@ function abrirFactura(html) {
   win.document.write(html);
   win.document.close();
   win.focus();
-  setTimeout(() => win.print(), 900);
 }
 
 /* ── Para PedidosClientePage ──────────────────────────── */

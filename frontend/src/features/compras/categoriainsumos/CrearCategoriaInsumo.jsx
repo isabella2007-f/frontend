@@ -61,17 +61,10 @@ export default function CrearCategoriaInsumo({ onClose, onSave }) {
             >
               {form.icon}
             </button>
-            <input
-              className="field-input"
-              style={{ flex: 1 }}
-              value={form.icon}
-              placeholder="Escribe un emoji o pega una URL de imagen…"
-              onChange={e => { if (e.target.value) set("icon", e.target.value); }}
-            />
+            <span style={{ fontSize: 12, color: "#9e9e9e" }}>
+              {pickingIcon ? "Selecciona un emoji de la lista" : "Haz clic para cambiar el ícono"}
+            </span>
           </div>
-          <p style={{ margin: "4px 0 0", fontSize: 11, color: "#757575" }}>
-            Selecciona un emoji de la lista o escríbelo directamente. También puedes pegar una URL de imagen (Cloudinary).
-          </p>
           {pickingIcon && (
             <div className="icon-picker-grid">
               {ICON_OPTIONS.map(ic => (
@@ -103,13 +96,17 @@ export default function CrearCategoriaInsumo({ onClose, onSave }) {
         </div>
 
         <div className="form-group">
-          <label className="form-label">
-            Descripción <span style={{ color: "#e53935", fontWeight: 800 }}>*</span>
+          <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
+            <span>Descripción <span style={{ color: "#e53935", fontWeight: 800 }}>*</span></span>
+            <span style={{ fontSize: 11, color: form.descripcion.length >= 180 ? "#e65100" : "#9e9e9e", fontWeight: 400, letterSpacing: 0 }}>
+              {form.descripcion.length}/200
+            </span>
           </label>
           <textarea
             className={`field-input${errors.descripcion ? " field-input--error" : ""}`}
             rows={2}
             style={{ resize: "none" }}
+            maxLength={200}
             value={form.descripcion}
             onChange={e => set("descripcion", e.target.value)}
             placeholder="Describe esta categoría de insumos"

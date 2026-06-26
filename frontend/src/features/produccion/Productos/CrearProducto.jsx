@@ -244,7 +244,7 @@ export default function CrearProducto({ categorias = [], onClose, onSave }) {
 
             {/* ── Paso 1: Información ── */}
             {step === 1 && (
-              <>
+              <div>
                 <div className="form-group">
                   <label className="form-label">
                     Nombre <span className="required">*</span>
@@ -299,15 +299,15 @@ export default function CrearProducto({ categorias = [], onClose, onSave }) {
                   <label className="form-label">Descripción larga</label>
                   <textarea
                     className="field-input"
-                    rows={3}
+                    rows={2}
                     value={form.descripcion_larga}
                     onChange={(e) => set("descripcion_larga", e.target.value)}
                     placeholder="Descripción detallada del producto para la tienda..."
-                    style={{ resize: "vertical", minHeight: 70 }}
+                    style={{ resize: "none" }}
                   />
                 </div>
 
-                <div className="form-group">
+                <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">Estado</label>
                   <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -354,12 +354,12 @@ export default function CrearProducto({ categorias = [], onClose, onSave }) {
                     </div>
                   </div>
                 </div>
-              </>
+              </div>
             )}
 
             {/* ── Paso 2: Precio, stock e imágenes ── */}
             {step === 2 && (
-              <>
+              <div>
                 {/* Bloque de costos (solo si hay ficha con costo calculado) */}
                 {costoProduccion > 0 && (
                   <div
@@ -413,14 +413,22 @@ export default function CrearProducto({ categorias = [], onClose, onSave }) {
                     <label className="form-label">
                       Precio venta <span className="required">*</span>
                     </label>
-                    <input
-                      className={`field-input${errors.precio ? " error" : ""}`}
-                      type="number"
-                      min="0"
-                      value={form.precio}
-                      onChange={(e) => set("precio", e.target.value)}
-                      placeholder="0"
-                    />
+                    <div style={{ position: "relative" }}>
+                      <span style={{
+                        position: "absolute", left: 12, top: "50%",
+                        transform: "translateY(-50%)", color: "#9e9e9e",
+                        fontSize: 13, pointerEvents: "none",
+                      }}>$</span>
+                      <input
+                        className={`field-input${errors.precio ? " error" : ""}`}
+                        style={{ paddingLeft: 24 }}
+                        type="text"
+                        inputMode="numeric"
+                        value={form.precio ? Number(form.precio).toLocaleString("es-CO") : ""}
+                        onChange={(e) => set("precio", e.target.value.replace(/[^\d]/g, ""))}
+                        placeholder="0"
+                      />
+                    </div>
                     {errors.precio && <p className="field-error">{errors.precio}</p>}
                   </div>
                   <div className="form-group">
@@ -487,8 +495,8 @@ export default function CrearProducto({ categorias = [], onClose, onSave }) {
                       onClick={() => fileRef.current.click()}
                       style={{
                         width: 50, height: 50, borderRadius: 8,
-                        border: "1.5px dashed #ccc", background: "#f9f9f9",
-                        color: "#999", fontSize: 20, cursor: "pointer",
+                        border: "1.5px dashed #a5d6a7", background: "#f1f8f1",
+                        color: "#43a047", fontSize: 22, fontWeight: 300, cursor: "pointer",
                         display: "flex", alignItems: "center", justifyContent: "center",
                         flexShrink: 0,
                       }}
@@ -510,7 +518,7 @@ export default function CrearProducto({ categorias = [], onClose, onSave }) {
                     </p>
                   )}
                 </div>
-              </>
+              </div>
             )}
           </div>
 
@@ -521,25 +529,23 @@ export default function CrearProducto({ categorias = [], onClose, onSave }) {
             ) : (
               <button className="btn-ghost" onClick={onClose}>Cancelar</button>
             )}
-            <div style={{ display: "flex", gap: 10 }}>
-              {step < 2 ? (
-                <button className="btn-save" onClick={handleNext}>Siguiente →</button>
-              ) : (
-                <button
-                  className="btn-save"
-                  onClick={handleSave}
-                  disabled={saving}
-                >
-                  {saving ? (
-                    <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <span className="spinner">⏳</span> Guardando…
-                    </span>
-                  ) : (
-                    "Guardar"
-                  )}
-                </button>
-              )}
-            </div>
+            {step < 2 ? (
+              <button className="btn-save" onClick={handleNext}>Siguiente →</button>
+            ) : (
+              <button
+                className="btn-save"
+                onClick={handleSave}
+                disabled={saving}
+              >
+                {saving ? (
+                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span className="spinner">⏳</span> Guardando…
+                  </span>
+                ) : (
+                  "Guardar"
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>

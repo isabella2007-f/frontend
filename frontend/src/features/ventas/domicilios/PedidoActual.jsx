@@ -11,21 +11,21 @@ const fmt = (n) =>
 const ESTADO_ORDEN = ["En camino", "En proceso", "Confirmado", "Asignado", "Pendiente"];
 
 const ESTADO_INFO = {
-  "Asignado":   { color: "#1565c0", bg: "#e3f2fd", icon: "📦" },
+  "Asignado":   { color: "#2e7d32", bg: "#e8f5e9", icon: "📦" },
   "Confirmado": { color: "#2e7d32", bg: "#e8f5e9", icon: "✅" },
-  "En proceso": { color: "#e65100", bg: "#fff3e0", icon: "🏠" },
+  "En proceso": { color: "#1565c0", bg: "#e3f2fd", icon: "🏠" },
   "En camino":  { color: "#8e24aa", bg: "#f3e5f5", icon: "🛵" },
-  "Entregado":  { color: "#009688", bg: "#e0f2f1", icon: "✅" },
+  "Entregado":  { color: "#2e7d32", bg: "#e8f5e9", icon: "✅" },
 };
 
 // "Entregado" (8) abre el modal de evidencia; el resto cambia de estado directamente
 const ACCIONES = {
   "Asignado":   [{ valor: 13, label: "Llegué al local",  icon: "🏠", color: "#e65100", bg: "#fff3e0" }],
-  "Confirmado": [{ valor: 13, label: "Llegué al local",  icon: "🏠", color: "#e65100", bg: "#fff3e0" }],
-  "Pendiente":  [{ valor: 13, label: "Llegué al local",  icon: "🏠", color: "#e65100", bg: "#fff3e0" }],
+  "Confirmado": [{ valor: 13, label: "Llegué al local",  icon: "🏠", color: "#1565c0", bg: "#e3f2fd" }],
+  "Pendiente":  [{ valor: 13, label: "Llegué al local",  icon: "🏠", color: "#1565c0", bg: "#e3f2fd" }],
   "En proceso": [{ valor: 9,  label: "Iniciar entrega",  icon: "🛵", color: "#8e24aa", bg: "#f3e5f5" }],
   "En camino":  [
-    { valor: 8,  label: "Entregado",   icon: "✅", color: "#009688", bg: "#e0f2f1", evidencia: true },
+    { valor: 8,  label: "Entregado",   icon: "✅", color: "#2e7d32", bg: "#e8f5e9", evidencia: true },
     { valor: 5,  label: "Cancelar",    icon: "❌", color: "#c62828", bg: "#ffebee", secondary: true },
   ],
 };
@@ -125,9 +125,9 @@ function EvidenciaModal({ pedido, onClose, onConfirm }) {
           {tabsDisponibles.map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)} style={{
               flex: 1, padding: "9px 6px", borderRadius: 10, cursor: "pointer",
-              border: tab === id ? "2px solid #009688" : "1.5px solid #e0e0e0",
-              background: tab === id ? "#e0f2f1" : "#fafafa",
-              color: tab === id ? "#009688" : "#616161",
+              border: tab === id ? "2px solid #2e7d32" : "1.5px solid #e0e0e0",
+              background: tab === id ? "#e8f5e9" : "#fafafa",
+              color: tab === id ? "#2e7d32" : "#616161",
               fontWeight: tab === id ? 700 : 400, fontSize: 12,
             }}>{label}</button>
           ))}
@@ -205,7 +205,7 @@ function EvidenciaModal({ pedido, onClose, onConfirm }) {
           <button onClick={handleConfirm} disabled={confirmDisabled}
             style={{
               padding: "9px 20px", borderRadius: 8, border: "none",
-              background: confirmDisabled ? "#a5d6a7" : "#009688",
+              background: confirmDisabled ? "#a5d6a7" : "#2e7d32",
               color: "#fff", fontSize: 13, fontWeight: 700,
               cursor: confirmDisabled ? "not-allowed" : "pointer",
             }}>

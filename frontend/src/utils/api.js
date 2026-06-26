@@ -1,7 +1,9 @@
 // src/utils/api.js
 import { API_URL } from "../config/api";
 
-const INACTIVITY_LIMIT = 8 * 60 * 60 * 1000; // 8 horas en ms
+// ── Configuración de sesión — cambia INACTIVIDAD_HORAS para ajustar el timeout ──
+export const INACTIVIDAD_HORAS = 8;
+const INACTIVITY_LIMIT         = INACTIVIDAD_HORAS * 60 * 60 * 1000;
 
 function getToken() {
   return localStorage.getItem("token");
@@ -15,6 +17,13 @@ export function isInactive() {
   const last = parseInt(localStorage.getItem("last_activity") || "0", 10);
   if (!last) return false;
   return Date.now() - last > INACTIVITY_LIMIT;
+}
+
+export function isNearlyInactive(avisoMs = 5 * 60 * 1000) {
+  const last = parseInt(localStorage.getItem("last_activity") || "0", 10);
+  if (!last) return false;
+  const elapsed = Date.now() - last;
+  return elapsed >= INACTIVITY_LIMIT - avisoMs && elapsed < INACTIVITY_LIMIT;
 }
 
 export function clearSession() {

@@ -130,8 +130,8 @@
 .estado--Aprobada     .estado-badge__dot { background:#43a047; }
 .estado--Rechazada    { background:#ffebee; color:#c62828; border-color:#ef9a9a; }
 .estado--Rechazada    .estado-badge__dot { background:#e53935; }
-.estado--Reembolsada  { background:#e0f2f1; color:#00695c; border-color:#80cbc4; }
-.estado--Reembolsada  .estado-badge__dot { background:#009688; }
+.estado--Reembolsada  { background:#e8f5e9; color:#2e7d32; border-color:#a5d6a7; }
+.estado--Reembolsada  .estado-badge__dot { background:#43a047; }
 
 /* Acciones */
 .actions-cell { display:flex; gap:6px; justify-content:center; }
@@ -144,7 +144,7 @@
 .act-btn--view     { background:#e8f5e9; border-color:#a5d6a7; }
 .act-btn--approve  { background:#e8f5e9; border-color:#a5d6a7; }
 .act-btn--reject   { background:#ffebee; border-color:#ef9a9a; }
-.act-btn--credit   { background:#e0f2f1; border-color:#80cbc4; }
+.act-btn--credit   { background:#e8f5e9; border-color:#a5d6a7; color:#2e7d32; }
 .act-btn--delete   { background:#ffebee; border-color:#ef9a9a; }
 
 .empty-state       { padding:56px 20px; text-align:center; }
@@ -228,13 +228,13 @@
 .info-box__label { font-weight:700; display:block; margin-bottom:2px; }
 
 .credito-box {
-  background:#e0f2f1; border:1.5px solid #80cbc4; border-radius:12px;
+  background:#e8f5e9; border:1.5px solid #a5d6a7; border-radius:12px;
   padding:14px 16px; display:flex; align-items:center; gap:12px;
 }
 .credito-box__icon  { font-size:28px; }
-.credito-box__label { font-size:11px; font-weight:700; color:#00695c; text-transform:uppercase; letter-spacing:0.8px; }
-.credito-box__val   { font-size:20px; font-weight:800; color:#00695c; font-family:var(--font-head); }
-.credito-box__saldo { font-size:11px; color:#4db6ac; margin-top:2px; }
+.credito-box__label { font-size:11px; font-weight:700; color:#2e7d32; text-transform:uppercase; letter-spacing:0.8px; }
+.credito-box__val   { font-size:20px; font-weight:800; color:#2e7d32; font-family:var(--font-head); }
+.credito-box__saldo { font-size:11px; color:#66bb6a; margin-top:2px; }
 
 .delete-icon-wrap {
   width:52px; height:52px; border-radius:14px; background:#ffebee;
@@ -269,12 +269,12 @@
 }
 .btn-reject:hover { background:#b71c1c; }
 .btn-credit {
-  display:flex; align-items:center; gap:8px; background:#00695c; color:white;
+  display:flex; align-items:center; gap:8px; background:#2e7d32; color:white;
   border:none; border-radius:9px; padding:9px 20px; font-family:var(--font-head);
   font-weight:700; font-size:14px; cursor:pointer;
-  box-shadow:0 3px 10px rgba(0,105,92,0.3); transition:all 0.18s;
+  box-shadow:0 3px 10px rgba(46,125,50,0.3); transition:all 0.18s;
 }
-.btn-credit:hover { background:#004d40; }
+.btn-credit:hover { background:#1b5e20; }
 .btn-cancel {
   display:flex; align-items:center; gap:8px; background:transparent; color:#616161;
   border:1.5px solid #e0e0e0; border-radius:9px; padding:9px 20px;

@@ -29,6 +29,39 @@ function Toggle({ value, onChange }) {
   );
 }
 
+function ModalConfirmarDesactivarRol({ rol, onConfirm, onCancel }) {
+  return (
+    <div className="modal-overlay" onClick={onCancel}>
+      <div style={{
+        background: "#fff", borderRadius: 16, padding: "32px 28px",
+        width: "min(420px, 95vw)", boxShadow: "0 8px 40px rgba(0,0,0,0.2)",
+        textAlign: "center",
+      }} onClick={e => e.stopPropagation()}>
+        <div style={{ fontSize: 38, marginBottom: 12 }}>⚠️</div>
+        <h3 style={{ margin: "0 0 10px", fontSize: 18, fontWeight: 800, color: "#b71c1c" }}>
+          Desactivar rol "{rol.nombre}"
+        </h3>
+        <p style={{ margin: "0 0 24px", color: "#616161", fontSize: 14, lineHeight: 1.6 }}>
+          Este rol tiene <strong>{rol.totalUsuarios} usuario{rol.totalUsuarios !== 1 ? "s" : ""}</strong> asignado{rol.totalUsuarios !== 1 ? "s" : ""}.
+          Desactivarlo les quitará el acceso al sistema hasta que el rol se reactive.
+        </p>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onCancel} style={{
+            flex: 1, padding: "11px", borderRadius: 10,
+            border: "1px solid #e0e0e0", background: "#fff",
+            color: "#555", fontSize: 14, cursor: "pointer", fontWeight: 600,
+          }}>Cancelar</button>
+          <button onClick={onConfirm} style={{
+            flex: 1, padding: "11px", borderRadius: 10,
+            border: "none", background: "#c62828",
+            color: "#fff", fontSize: 14, cursor: "pointer", fontWeight: 700,
+          }}>Sí, desactivar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Toast({ toast }) {
   if (!toast) return null;
   return (
@@ -119,8 +152,7 @@ export default function GestionRoles() {
     setModal(null);
   };
 
-  const handleToggleClick = async (rol) => {
-    // Optimistic update
+  const doToggle = async (rol) => {
     setRoles(prev => prev.map(r => r.id === rol.id ? { ...r, estado: !r.estado } : r));
     try {
       await toggleEstadoRol(rol.id, rol.estado);
@@ -129,10 +161,18 @@ export default function GestionRoles() {
         rol.estado ? "error" : "success"
       );
     } catch (e) {
-      // Revert on failure
       setRoles(prev => prev.map(r => r.id === rol.id ? { ...r, estado: rol.estado } : r));
       showToast(e.message || "Error al cambiar estado", "error");
     }
+  };
+
+  const handleToggleClick = (rol) => {
+    // Si se va a desactivar y tiene usuarios → pedir confirmación primero
+    if (rol.estado && (rol.totalUsuarios ?? 0) > 0) {
+      setModal({ mode: "confirmDesactivar", rol });
+      return;
+    }
+    doToggle(rol);
   };
 
   return (
@@ -301,6 +341,13 @@ export default function GestionRoles() {
         </div>
       </div>
 
+      {modal?.mode === "confirmDesactivar" && (
+        <ModalConfirmarDesactivarRol
+          rol={modal.rol}
+          onCancel={() => setModal(null)}
+          onConfirm={() => { setModal(null); doToggle(modal.rol); }}
+        />
+      )}
       {modal?.mode === "new"    && <CrearRol onClose={() => setModal(null)} onSave={handleSave} />}
       {modal?.mode === "edit"   && <EditarRol rol={modal.rol} mode="edit" onClose={() => setModal(null)} onSave={handleSave} />}
       {modal?.mode === "view"   && <EditarRol rol={modal.rol} mode="view" onClose={() => setModal(null)} />}

@@ -105,8 +105,16 @@
 .estado-badge__dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
 .estado--En-camino  { background:#f3e5f5; color:#6a1b9a; border-color:#ce93d8; }
 .estado--En-camino  .estado-badge__dot { background:#8e24aa; }
-.estado--Entregado  { background:#e0f2f1; color:#00695c; border-color:#80cbc4; }
-.estado--Entregado  .estado-badge__dot { background:#009688; }
+.estado--Confirmado { background:#e8f5e9; color:#2e7d32; border-color:#a5d6a7; }
+.estado--Confirmado .estado-badge__dot { background:#43a047; }
+.estado--En-preparación { background:#e3f2fd; color:#1565c0; border-color:#90caf9; }
+.estado--En-preparación .estado-badge__dot { background:#1976d2; }
+.estado--Asignado   { background:#e8f5e9; color:#2e7d32; border-color:#a5d6a7; }
+.estado--Asignado   .estado-badge__dot { background:#43a047; }
+.estado--Entregado  { background:#e8f5e9; color:#2e7d32; border-color:#a5d6a7; }
+.estado--Entregado  .estado-badge__dot { background:#43a047; }
+.estado--Cancelado  { background:#ffebee; color:#c62828; border-color:#ef9a9a; }
+.estado--Cancelado  .estado-badge__dot { background:#e53935; }
 .estado--Pendiente  { background:#fff8e1; color:#f9a825; border-color:#ffe082; }
 .estado--Pendiente  .estado-badge__dot { background:#f9a825; }
 .estado--Listo      { background:#e8f5e9; color:#2e7d32; border-color:#a5d6a7; }
@@ -141,7 +149,7 @@
   font-size:11px; font-weight:700; padding:2px 8px; border-radius:10px; border:1px solid;
 }
 .hist-stat--total     { background:#e3f2fd; color:#1565c0; border-color:#90caf9; }
-.hist-stat--entregado { background:#e0f2f1; color:#00695c; border-color:#80cbc4; }
+.hist-stat--entregado { background:#e8f5e9; color:#2e7d32; border-color:#a5d6a7; }
 .hist-stat--camino    { background:#f3e5f5; color:#6a1b9a; border-color:#ce93d8; }
 .hist-pedidos-list    { padding:0 16px 12px; display:flex; flex-direction:column; gap:6px; }
 .hist-pedido-row {
@@ -255,7 +263,7 @@
 .date-col { display: flex; flex-direction: column; gap: 3px; }
 .date-row  { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 3px 7px; border-radius: 6px; white-space: nowrap; }
 .date-row--pedido   { background: #fafafa; border: 1px solid #eeeeee; color: #757575; }
-.date-row--entrega  { background: #e0f2f1; border: 1px solid #80cbc4; color: #00695c; font-weight: 700; }
+.date-row--entrega  { background: #e8f5e9; border: 1px solid #a5d6a7; color: #2e7d32; font-weight: 700; }
 .date-row--pendiente { background: #fff8e1; border: 1px solid #ffe082; color: #f57f17; font-style: italic; }
 
 /* ─── Paginación ─── */

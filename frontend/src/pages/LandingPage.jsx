@@ -78,26 +78,26 @@ const LandingPage = ({ hideNavbar = false }) => {
     return () => window.removeEventListener('cart-updated', syncCartInfo);
   }, [syncCartInfo]);
 
-  useEffect(() => {
-    const cargar = async () => {
-      try {
-        const pData = await getProductos({ publicado: 1 });
-        const lista = pData.productos || [];
+  const cargarProductos = useCallback(async () => {
+    try {
+      const pData = await getProductos({ publicado: 1 });
+      const lista = pData.productos || [];
 
-        // Construir mapa de categorías a partir de los propios productos
-        const map = {};
-        lista.forEach(p => {
-          if (p.ID_Categoria && p.nombre_categoria) {
-            map[p.ID_Categoria] = {
-              nombre: p.nombre_categoria,
-              icon:   p.icono_categoria || "📦",
-            };
-          }
-        });
-        setCategoriasMap(map);
+      const map = {};
+      lista.forEach(p => {
+        if (p.ID_Categoria && p.nombre_categoria) {
+          map[p.ID_Categoria] = {
+            nombre: p.nombre_categoria,
+            icon:   p.icono_categoria || "📦",
+          };
+        }
+      });
+      setCategoriasMap(map);
 
-        setProductos(
-          lista.map(p => ({
+      setProductos(
+        lista
+          .filter(p => p.Estado !== 0 && !p.lote_vencido && !p.Lote_Vencido)
+          .map(p => ({
             id:               p.ID_Producto,
             nombre:           p.nombre,
             precio:           p.Precio_venta,
@@ -106,13 +106,22 @@ const LandingPage = ({ hideNavbar = false }) => {
             imagen:           p.imagenes?.[0]?.url || null,
             descripcion_corta: p.Descripcion_Corta ?? "",
           }))
-        );
-      } catch {
-        // silent — show empty grid
-      }
-    };
-    cargar();
+      );
+    } catch {
+      // silent — show empty grid
+    }
   }, []);
+
+  useEffect(() => {
+    cargarProductos();
+  }, [cargarProductos]);
+
+  // Re-fetch al volver a la pestaña (productos pueden haber cambiado)
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') cargarProductos(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [cargarProductos]);
 
   /* ── Auto-scroll si hay hash en la URL ── */
   useEffect(() => {
@@ -186,6 +195,7 @@ const LandingPage = ({ hideNavbar = false }) => {
     clearCart();
     setCheckoutOpen(false);
     setOrderDone(true);
+    cargarProductos(); // actualizar stock tras confirmar pedido
 
     agregarNotificacion({
       tipo: TIPOS.PEDIDO_NUEVO,
@@ -377,22 +387,21 @@ const LandingPage = ({ hideNavbar = false }) => {
 
       {/* ─── CATEGORÍAS ─── */}
       {Object.keys(categoriasMap).length > 0 && (
-        <section id="categorias" className="py-20 bg-[#f7faf8]">
+        <section id="categorias" className="py-10 bg-[#f7faf8]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center space-y-3 mb-14">
-              <h2 className="text-[#4caf50] font-black tracking-[0.3em] uppercase text-sm">Explora</h2>
-              <h3 className="text-4xl lg:text-5xl font-black text-[#1b5e20]">Nuestras Categorías</h3>
-              <div className="w-16 h-2 bg-[#1b5e20] mx-auto rounded-full" />
+            <div className="text-center space-y-2 mb-7">
+              <h2 className="text-[#4caf50] font-black tracking-[0.3em] uppercase text-xs">Explora</h2>
+              <h3 className="text-2xl lg:text-3xl font-black text-[#1b5e20]">Nuestras Categorías</h3>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
+            <div className="flex flex-wrap justify-center gap-3">
               {Object.values(categoriasMap).map((cat) => (
                 <button
                   key={cat.nombre}
                   onClick={() => { setActiveTab(cat.nombre); scrollToSection('productos'); }}
-                  className="group flex flex-col items-center gap-4 p-8 bg-white rounded-[28px] border border-[#f1f8f1] hover:border-[#c8e6c9] hover:shadow-[0_20px_50px_rgba(27,94,32,0.1)] transition-all duration-500 hover:-translate-y-1 text-center"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-white rounded-2xl border border-[#e8f5e9] hover:border-[#a5d6a7] hover:shadow-md hover:bg-[#f1f8f1] transition-all text-[#1b5e20] font-bold text-sm"
                 >
-                  <span className="text-5xl group-hover:scale-110 transition-transform duration-500">{cat.icon || '📦'}</span>
-                  <span className="font-black text-[#1b5e20] text-base leading-tight">{cat.nombre}</span>
+                  <span className="text-xl">{cat.icon || '📦'}</span>
+                  <span>{cat.nombre}</span>
                 </button>
               ))}
             </div>
@@ -458,7 +467,7 @@ const LandingPage = ({ hideNavbar = false }) => {
                           <Minus className="w-3.5 h-3.5 text-[#1b5e20]" />
                         </button>
                         <span className="w-8 text-center font-black text-[#1b5e20] text-sm">{qty}</span>
-                        <button onClick={() => setQty(p.id, qty + 1)} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-[#e8f5e9] transition-colors active:scale-90">
+                        <button onClick={() => setQty(p.id, Math.min(qty + 1, p.stock || 999))} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-[#e8f5e9] transition-colors active:scale-90">
                           <Plus className="w-3.5 h-3.5 text-[#1b5e20]" />
                         </button>
                       </div>

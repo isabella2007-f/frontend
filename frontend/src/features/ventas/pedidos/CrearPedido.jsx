@@ -250,6 +250,8 @@ export default function CrearPedido({ onClose, onSave }) {
         if (!form.direccion_entrega.trim()) e.direccion_entrega = "Ingresa la dirección de entrega";
         if (!form.departamento.trim())       e.departamento = "El departamento es obligatorio";
         if (!form.municipio.trim())          e.municipio = "El municipio es obligatorio";
+        const tel = (clienteSeleccionado?.telefono || "").replace(/\D/g, "");
+        if (tel.length !== 10) e.telefono_cliente = "El cliente debe tener un teléfono de 10 dígitos válido para pedidos con domicilio";
       }
     }
     if (s === 4) {
@@ -523,6 +525,11 @@ export default function CrearPedido({ onClose, onSave }) {
 
               {form.domicilio && (
                 <div className="delivery-details-form fade-in" style={{ marginTop: 24, padding: "20px", background: "#f9f9f9", borderRadius: "14px", border: "1px solid #eee" }}>
+                  {errors.telefono_cliente && (
+                    <div style={{ padding: "10px 14px", background: "#ffebee", borderRadius: 10, border: "1px solid #ef9a9a", color: "#c62828", fontSize: 13, fontWeight: 600, marginBottom: 14 }}>
+                      ⚠️ {errors.telefono_cliente}
+                    </div>
+                  )}
                   <div className="field-wrap">
                     <label className="field-label">Dirección exacta <span className="required">*</span></label>
                     <input

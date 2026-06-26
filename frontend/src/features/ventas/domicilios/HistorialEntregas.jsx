@@ -44,7 +44,7 @@ function getRango(filtro) {
 }
 
 const ESTADO_CFG = {
-  "Entregado": { color: "#009688", bg: "#e0f2f1", icon: "✅" },
+  "Entregado": { color: "#2e7d32", bg: "#e8f5e9", icon: "✅" },
   "Cancelado": { color: "#c62828", bg: "#ffebee", icon: "❌" },
 };
 
@@ -125,7 +125,7 @@ export default function HistorialEntregas() {
             gap: 12, marginBottom: 20,
           }}>
             {[
-              { label: "Entregas",          value: totalEntregadas, icon: "✅", color: "#009688", bg: "#e0f2f1" },
+              { label: "Entregas",          value: totalEntregadas, icon: "✅", color: "#2e7d32", bg: "#e8f5e9" },
               { label: "Canceladas",         value: domicilios.length - totalEntregadas, icon: "❌", color: "#c62828", bg: "#ffebee" },
               { label: "Valor entregado",    value: fmt(totalValor), icon: "💰", color: "#2e7d32", bg: "#e8f5e9", wide: true },
             ].map(s => (

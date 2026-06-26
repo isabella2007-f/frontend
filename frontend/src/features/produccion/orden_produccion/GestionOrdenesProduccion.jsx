@@ -21,10 +21,17 @@ const ESTADO_TO_NUM = {
 };
 
 const ESTADO_CONFIG = {
-  "Pendiente":  { dot: "#9e9e9e" },
+  "Pendiente":  { dot: "#f9a825" },
   "En proceso": { dot: "#1976d2" },
   "Completada": { dot: "#43a047" },
   "Cancelada":  { dot: "#e53935" },
+};
+
+const VALID_TRANSITIONS = {
+  "Pendiente":  ["En proceso", "Cancelada"],
+  "En proceso": ["Completada", "Cancelada"],
+  "Completada": [],
+  "Cancelada":  [],
 };
 
 const fmt = (n) =>
@@ -98,7 +105,7 @@ function ModalDetallesOrden({ orden, onClose }) {
   const [fichaInsumos, setFichaInsumos] = useState(null);
   const [fichaLoading, setFichaLoading] = useState(false);
   const [fichaError, setFichaError] = useState("");
-  const [insumosStockMap, setInsumosStockMap] = useState({});
+  const [insumosDataMap, setInsumosDataMap] = useState({});
   const [multiplier, setMultiplier] = useState(Number(orden?.cantidad || 1));
   const [showInsumos, setShowInsumos] = useState(false);
 
@@ -137,17 +144,20 @@ function ModalDetallesOrden({ orden, onClose }) {
         }));
         setFichaInsumos(mapped);
 
-        // Cargar stock de insumos y crear mapa por ID
+        // Cargar stock y precio de insumos
         getInsumos({ porPagina: 1000 })
           .then(res => {
             if (!active) return;
             const map = {};
             (res.insumos || []).forEach(ins => {
-              map[ins.ID_Insumo] = ins.Stock_Actual ?? ins.Stock ?? 0;
+              map[ins.ID_Insumo] = {
+                stock:  ins.Stock_Actual ?? ins.Stock ?? 0,
+                precio: ins.Precio_Unitario ?? ins.Precio_Compra ?? ins.Precio ?? 0,
+              };
             });
-            setInsumosStockMap(map);
+            setInsumosDataMap(map);
           })
-          .catch(() => { if (active) setInsumosStockMap({}); });
+          .catch(() => { if (active) setInsumosDataMap({}); });
       })
       .catch(() => {
         if (!active) return;
@@ -159,6 +169,19 @@ function ModalDetallesOrden({ orden, onClose }) {
   }, [orden?.idFicha, orden?.idProducto]);
 
   if (!orden) return null;
+
+  const costoOrden = fichaInsumos?.length > 0 && Object.keys(insumosDataMap).length > 0
+    ? fichaInsumos.reduce((acc, item) => {
+        const precio = insumosDataMap[item.idInsumo]?.precio ?? 0;
+        return acc + (Number(item.cantidad || 0) * precio);
+      }, 0) * Number(orden.cantidad || 1)
+    : null;
+  const costoDisplay = costoOrden != null && costoOrden > 0
+    ? fmt(costoOrden)
+    : orden.costo > 0
+      ? fmt(orden.costo)
+      : "—";
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
@@ -181,8 +204,8 @@ function ModalDetallesOrden({ orden, onClose }) {
           {/* Stats */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             {[
-              { label: "Cantidad",  value: orden.cantidad, bg: "#e8f5e9", color: "#2e7d32" },
-              { label: "Costo est.", value: fmt(orden.costo), bg: "#fff8e1", color: "#f9a825" },
+              { label: "Cantidad",   value: orden.cantidad, bg: "#e8f5e9", color: "#2e7d32" },
+              { label: "Costo est.", value: costoDisplay,   bg: "#f5f5f5", color: "#616161" },
             ].map(s => (
               <div key={s.label} style={{ background: s.bg, borderRadius: 12, padding: "12px 14px" }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: s.color, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>{s.label}</div>
@@ -236,12 +259,12 @@ function ModalDetallesOrden({ orden, onClose }) {
                     style={{
                       width: "100%", textAlign: "left", display: "flex", justifyContent: "space-between",
                       alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 12,
-                      border: "1px solid #e0e0e0", background: showInsumos ? "#e3f2fd" : "#fff",
+                      border: "1px solid #e0e0e0", background: showInsumos ? "#e8f5e9" : "#fff",
                       cursor: "pointer", fontSize: 13, fontWeight: 700,
                     }}
                   >
                     <span>Ver insumos de la ficha técnica</span>
-                    <span style={{ fontSize: 12, color: "#1976d2" }}>{showInsumos ? "Ocultar" : "Mostrar"}</span>
+                    <span style={{ fontSize: 12, color: "#2e7d32" }}>{showInsumos ? "Ocultar" : "Mostrar"}</span>
                   </button>
                   {showInsumos && (
                     <div style={{ overflowX: "auto", padding: "6px 0" }}>
@@ -275,7 +298,7 @@ function ModalDetallesOrden({ orden, onClose }) {
                             <tbody>
                               {fichaInsumos.map((item, index) => {
                                 const requerido = Number(item.cantidad || 0) * Number(multiplier || 1);
-                                const stock = item.idInsumo ? (insumosStockMap[item.idInsumo] ?? null) : null;
+                                const stock = item.idInsumo ? (insumosDataMap[item.idInsumo]?.stock ?? null) : null;
                                 const agotado = stock !== null ? (stock < requerido) : null;
                                 return (
                                   <tr key={item.id} style={{ background: index % 2 === 0 ? "#fafafa" : "#fff" }}>
@@ -342,15 +365,15 @@ function ModalDetallesOrden({ orden, onClose }) {
         </div>
 
         {orden.idFicha && (
-          <div style={{ background: "#e3f2fd", border: "1px solid #90caf9", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ background: "#e8f5e9", border: "1px solid #a5d6a7", borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
             <span style={{ fontSize: 20, flexShrink: 0 }}>📋</span>
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: "#1565c0", marginBottom: 2 }}>Ficha técnica disponible</div>
-              <div style={{ fontSize: 12, color: "#1976d2" }}>Consulta los insumos, cantidades y procedimiento detallado del producto.</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#2e7d32", marginBottom: 2 }}>Ficha técnica disponible</div>
+              <div style={{ fontSize: 12, color: "#388e3c" }}>Consulta los insumos, cantidades y procedimiento detallado del producto.</div>
             </div>
             <button
               onClick={() => { onClose(); navigate("/admin/products", { state: { openFicha: orden.idProducto } }); }}
-              style={{ background: "#1976d2", color: "#fff", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
+              style={{ background: "#2e7d32", color: "#fff", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}>
               Ver ficha
             </button>
           </div>
@@ -366,12 +389,73 @@ function ModalDetallesOrden({ orden, onClose }) {
 /* ═══════════════════════════════════════════════════════════
    MODAL CAMBIAR ESTADO
    ═══════════════════════════════════════════════════════════ */
+const ESTADO_COLORS = {
+  "Pendiente":  { bg: "#f5f5f5", color: "#757575", border: "#e0e0e0" },
+  "En proceso": { bg: "#e3f2fd", color: "#1565c0", border: "#90caf9" },
+  "Completada": { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7" },
+  "Cancelada":  { bg: "#ffebee", color: "#c62828", border: "#ef9a9a" },
+};
+
 function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
-  const [estadoSel,   setEstadoSel]   = useState(null);
-  const [confirmStep, setConfirmStep] = useState(false);
-  const [numeroLote, setNumeroLote] = useState("");
+  const [estadoSel,        setEstadoSel]        = useState(null);
+  const [confirmStep,      setConfirmStep]      = useState(false);
   const [fechaVencimiento, setFechaVencimiento] = useState("");
+  const [stockCheck,       setStockCheck]       = useState(null);
+  const [stockLoading,     setStockLoading]     = useState(false);
+
+  const today = new Date().toISOString().split("T")[0];
+
+  useEffect(() => {
+    if (estadoSel !== "Completada" || !confirmStep || !orden?.idFicha || !orden?.idProducto) {
+      setStockCheck(null);
+      return;
+    }
+    let active = true;
+    setStockLoading(true);
+    Promise.all([
+      getProducto(orden.idProducto),
+      getInsumos({ porPagina: 1000 }),
+    ]).then(([prod, insData]) => {
+      if (!active) return;
+      const fichaInsumos = (prod?.ficha_tecnica?.insumos || []).map(i => ({
+        idInsumo: i.ID_Insumo || null,
+        nombre:   i.nombre_insumo || "",
+        cantidadUnitaria: Number(i.Cantidad ?? 0),
+        unidad:   i.Unidad || "",
+      }));
+      const stockMap = {};
+      (insData.insumos || []).forEach(ins => {
+        stockMap[ins.ID_Insumo] = ins.Stock_Actual ?? ins.Stock ?? 0;
+      });
+      const cantidadOrden = Number(orden.cantidad || 1);
+      const insuficientes = fichaInsumos.filter(item =>
+        item.idInsumo && (stockMap[item.idInsumo] ?? 0) < item.cantidadUnitaria * cantidadOrden
+      );
+      setStockCheck({ insuficientes, fichaInsumos, stockMap, cantidadOrden });
+
+      const vidaUtil = prod?.Vida_Util || prod?.vida_util_dias || prod?.vida_util || 0;
+      if (vidaUtil && !fechaVencimiento) {
+        const venc = new Date(today + "T00:00:00");
+        venc.setDate(venc.getDate() + Number(vidaUtil));
+        setFechaVencimiento(venc.toISOString().split("T")[0]);
+      }
+    }).catch(() => { if (active) setStockCheck(null); })
+      .finally(() => { if (active) setStockLoading(false); });
+    return () => { active = false; };
+  }, [estadoSel, confirmStep, orden?.idFicha, orden?.idProducto]);
+
   if (!orden) return null;
+
+  const transicionesValidas = VALID_TRANSITIONS[orden.estado] || [];
+
+  const handleConfirm = () => {
+    const loteData = {};
+    if (estadoSel === "Completada") {
+      loteData.Fecha_Produccion = today;
+      if (fechaVencimiento) loteData.Fecha_Vencimiento = fechaVencimiento;
+    }
+    onConfirm(orden.id, estadoSel, loteData);
+  };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -390,43 +474,40 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
               <p className="section-label" style={{ marginTop: 0 }}>Orden #{orden.id} — selecciona el nuevo estado</p>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {ESTADOS_ORDEN.map(est => {
-                  const COLORS = {
-                    "Pendiente":  { bg: "#f5f5f5", color: "#757575", border: "#e0e0e0" },
-                    "En proceso": { bg: "#e3f2fd", color: "#1565c0", border: "#90caf9" },
-                    "Completada": { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7" },
-                    "Cancelada":  { bg: "#ffebee", color: "#c62828", border: "#ef9a9a" },
-                  };
-                  const c = COLORS[est] || {};
+                  const c = ESTADO_COLORS[est] || {};
                   const isCurrent = est === orden.estado;
+                  const isValid   = transicionesValidas.includes(est);
+                  const isDisabled = isCurrent || !isValid;
                   return (
                     <button
                       key={est}
-                      disabled={isCurrent}
+                      disabled={isDisabled}
                       onClick={() => { setEstadoSel(est); setConfirmStep(true); }}
                       style={{
                         display: "flex", alignItems: "center", gap: 10,
                         padding: "11px 14px", borderRadius: 10,
-                        border: `1.5px solid ${isCurrent ? c.border : "#e0e0e0"}`,
+                        border: `1.5px solid ${isCurrent ? c.border : isValid ? "#e0e0e0" : "#f0f0f0"}`,
                         background: isCurrent ? c.bg : "#fff",
-                        cursor: isCurrent ? "default" : "pointer",
-                        opacity: isCurrent ? 0.7 : 1,
+                        cursor: isDisabled ? "default" : "pointer",
+                        opacity: !isCurrent && !isValid ? 0.35 : 1,
                         fontFamily: "inherit", width: "100%", textAlign: "left",
                         transition: "all 0.15s",
                       }}
                     >
-                      <span style={{ width: 10, height: 10, borderRadius: "50%", background: c.color, flexShrink: 0 }} />
-                      <span style={{ fontSize: 13, fontWeight: 700, color: isCurrent ? c.color : "#1a1a1a", flex: 1 }}>{est}</span>
-                      {isCurrent && <span style={{ fontSize: 10, fontWeight: 700, color: "#2e7d32", textTransform: "uppercase" }}>Actual</span>}
-                      {!isCurrent && <span style={{ color: "#bdbdbd", fontSize: 16 }}>›</span>}
+                      <span style={{ width: 10, height: 10, borderRadius: "50%", background: !isValid && !isCurrent ? "#ccc" : c.color, flexShrink: 0 }} />
+                      <span style={{ fontSize: 13, fontWeight: 700, color: isCurrent ? c.color : !isValid ? "#bdbdbd" : "#1a1a1a", flex: 1 }}>{est}</span>
+                      {isCurrent  && <span style={{ fontSize: 10, fontWeight: 700, color: "#2e7d32", textTransform: "uppercase" }}>Actual</span>}
+                      {!isCurrent && isValid  && <span style={{ color: "#bdbdbd", fontSize: 16 }}>›</span>}
+                      {!isCurrent && !isValid && <span style={{ fontSize: 10, color: "#bdbdbd" }}>No disponible</span>}
                     </button>
                   );
                 })}
               </div>
             </>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div style={{ background: "#fff8e1", border: "1px solid #ffe082", borderRadius: 12, padding: "16px", textAlign: "center" }}>
-                <div style={{ fontSize: 28, marginBottom: 8 }}>⚠️</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ background: "#fff8e1", border: "1px solid #ffe082", borderRadius: 12, padding: "14px", textAlign: "center" }}>
+                <div style={{ fontSize: 26, marginBottom: 6 }}>⚠️</div>
                 <div style={{ fontSize: 14, fontWeight: 700, color: "#6d4c00", marginBottom: 4 }}>¿Confirmar cambio de estado?</div>
                 <div style={{ fontSize: 12, color: "#9a6400" }}>Esta acción actualizará el flujo de producción.</div>
               </div>
@@ -441,6 +522,49 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
                   <EstadoBadge estado={estadoSel} />
                 </div>
               </div>
+
+              {estadoSel === "Completada" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ background: "#e8f5e9", border: "1px solid #a5d6a7", borderRadius: 10, padding: "12px 14px" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#2e7d32", marginBottom: 2 }}>Se generará un lote automáticamente</div>
+                    <div style={{ fontSize: 11, color: "#388e3c" }}>Código: L-{today.replace(/-/g, "")} · Fecha producción: {today}</div>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: "#616161", display: "block", marginBottom: 4 }}>Fecha de vencimiento del lote</label>
+                    <input type="date" value={fechaVencimiento} onChange={e => setFechaVencimiento(e.target.value)}
+                      style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #e0e0e0", fontSize: 13, width: "100%", boxSizing: "border-box" }} />
+                  </div>
+
+                  {orden.idFicha && (
+                    stockLoading ? (
+                      <div style={{ fontSize: 12, color: "#616161" }}>Verificando disponibilidad de insumos…</div>
+                    ) : stockCheck ? (
+                      stockCheck.insuficientes.length > 0 ? (
+                        <div style={{ background: "#ffebee", border: "1px solid #ef9a9a", borderRadius: 10, padding: "12px 14px" }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: "#c62828", marginBottom: 6 }}>
+                            ⚠️ Stock insuficiente en {stockCheck.insuficientes.length} insumo{stockCheck.insuficientes.length > 1 ? "s" : ""}
+                          </div>
+                          {stockCheck.insuficientes.map((item, i) => {
+                            const stock = stockCheck.stockMap[item.idInsumo] ?? 0;
+                            const necesario = item.cantidadUnitaria * stockCheck.cantidadOrden;
+                            return (
+                              <div key={i} style={{ fontSize: 11, color: "#b71c1c", display: "flex", justifyContent: "space-between", marginTop: 3, gap: 8 }}>
+                                <span>{item.nombre}</span>
+                                <span style={{ whiteSpace: "nowrap" }}>Stock: {stock} / Necesario: {necesario} {item.unidad}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{ background: "#e8f5e9", border: "1px solid #a5d6a7", borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "#2e7d32", fontWeight: 600 }}>
+                          ✓ Todos los insumos tienen stock suficiente
+                        </div>
+                      )
+                    ) : null
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -448,18 +572,14 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
         <div className="modal-footer" style={{ justifyContent: confirmStep ? "space-between" : "flex-end" }}>
           {confirmStep
             ? <>
-                <button className="btn-ghost" onClick={() => setConfirmStep(false)}>← Volver</button>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  {estadoSel === "Completada" && (
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <input placeholder="Nº lote (opcional)" value={numeroLote} onChange={e=>setNumeroLote(e.target.value)} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #e0e0e0" }} />
-                      <input type="date" value={fechaVencimiento} onChange={e=>setFechaVencimiento(e.target.value)} style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #e0e0e0" }} />
-                    </div>
-                  )}
-                  <button className="btn-save" onClick={() => onConfirm(orden.id, estadoSel, { Numero_Lote: numeroLote || undefined, Fecha_Vencimiento: fechaVencimiento || undefined })} disabled={saving}>
-                    {saving ? "Guardando…" : "Confirmar cambio"}
-                  </button>
-                </div>
+                <button className="btn-ghost" onClick={() => { setConfirmStep(false); setStockCheck(null); }}>← Volver</button>
+                <button
+                  className="btn-save"
+                  onClick={handleConfirm}
+                  disabled={saving || stockLoading || (estadoSel === "Completada" && stockCheck?.insuficientes?.length > 0)}
+                >
+                  {saving ? "Guardando…" : "Confirmar cambio"}
+                </button>
               </>
             : <button className="btn-ghost" onClick={onClose}>Cancelar</button>
           }
@@ -501,24 +621,24 @@ function ModalErrorEstado({ mensaje, orden, onClose }) {
           </p>
           {esFichaTecnica && orden && (
             <div style={{
-              background: "#e3f2fd", border: "1px solid #90caf9",
+              background: "#e8f5e9", border: "1px solid #a5d6a7",
               borderRadius: 10, padding: "12px 16px",
               display: "flex", alignItems: "center", gap: 10,
               textAlign: "left", marginBottom: 8,
             }}>
               <span style={{ fontSize: 20, flexShrink: 0 }}>📋</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "#1565c0", marginBottom: 2 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#2e7d32", marginBottom: 2 }}>
                   Producto: {orden.nombreProducto}
                 </div>
-                <div style={{ fontSize: 11, color: "#1976d2" }}>
+                <div style={{ fontSize: 11, color: "#388e3c" }}>
                   Puedes crear o editar la ficha técnica desde Gestión de Productos.
                 </div>
               </div>
               <button
                 onClick={irAFicha}
                 style={{
-                  background: "#1976d2", color: "#fff", border: "none",
+                  background: "#2e7d32", color: "#fff", border: "none",
                   borderRadius: 8, padding: "7px 14px",
                   fontSize: 12, fontWeight: 700, cursor: "pointer",
                   whiteSpace: "nowrap", flexShrink: 0,

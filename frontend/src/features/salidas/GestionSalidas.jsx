@@ -29,19 +29,21 @@ const TIPO_MAP = Object.fromEntries(TIPOS.map(t => [t.val, t]));
 
 function adaptarSalida(s) {
   return {
-    id:            s.ID_Salida,
-    tipo:          s.Tipo,
-    entidadId:     s.ID_Insumo || s.ID_Producto,
-    entidadTipo:   s.ID_Insumo ? "insumo" : "producto",
-    entidadNombre: s.nombre_insumo || s.nombre_producto || "—",
-    entidadCat:    s.nombre_categoria || "—",
-    unidad:        "uds.",
-    cantidad:      s.Cantidad,
-    motivo:        s.Motivo,
-    fecha:         s.Fecha,
-    anulada:       s.estado_label === "Anulada",
-    estadoLabel:   s.estado_label || "Activa",
-    empleado:      s.nombre_empleado || "—",
+    id:              s.ID_Salida,
+    tipo:            s.Tipo,
+    entidadId:       s.ID_Insumo || s.ID_Producto,
+    entidadTipo:     s.ID_Insumo ? "insumo" : "producto",
+    entidadNombre:   s.nombre_insumo || s.nombre_producto || "—",
+    entidadCat:      s.nombre_categoria || "—",
+    unidad:          "uds.",
+    cantidad:        s.Cantidad,
+    motivo:          s.Motivo,
+    fecha:           s.Fecha,
+    anulada:         s.estado_label === "Anulada",
+    estadoLabel:     s.estado_label || "Activa",
+    empleado:        s.nombre_empleado || "—",
+    anuladoPor:      s.nombre_anulado_por || null,
+    fechaAnulacion:  s.Fecha_Anulacion   || null,
   };
 }
 
@@ -79,6 +81,12 @@ function ModalVerDetalle({ salida, onClose }) {
             <InfoRow label="Cantidad"       value={`-${salida.cantidad} ${salida.unidad}`} color="#c62828" />
             <InfoRow label="Registrado por" value={salida.empleado} />
             <InfoRow label="Fecha registro" value={salida.fecha || "—"} />
+            {salida.anulada && (
+              <InfoRow label="Anulado por"    value={salida.anuladoPor || "—"} color="#c62828" />
+            )}
+            {salida.anulada && (
+              <InfoRow label="Fecha anulación" value={salida.fechaAnulacion || "—"} />
+            )}
           </div>
           {salida.motivo && (
             <div style={{ marginTop: 14, padding: "10px 14px", background: "#f9f9f9", borderRadius: 9, border: "1px solid #e0e0e0" }}>
@@ -280,7 +288,7 @@ function RegistrarSalida({ productos, insumos, onClose, onRegistrada }) {
                 </div>
               )}
 
-              <div className="form-group" style={{ marginTop: 14 }}>
+              <div style={{ marginTop: 10, marginBottom: 10 }}>
                 <label className="sl-label">Tipo de salida</label>
                 <div className="sl-tipos-grid">
                   {TIPOS.filter(t => t.val !== "vencimiento").map(t => (
@@ -294,7 +302,7 @@ function RegistrarSalida({ productos, insumos, onClose, onRegistrada }) {
                 </div>
               </div>
 
-              <div className="form-group">
+              <div style={{ marginBottom: 10 }}>
                 <label className="sl-label">Cantidad a descontar</label>
                 <div style={{ position: "relative" }}>
                   <input type="number" min="1" max={stockActual}
@@ -329,7 +337,7 @@ function RegistrarSalida({ productos, insumos, onClose, onRegistrada }) {
                 </div>
               )}
 
-              <div className="form-group">
+              <div style={{ marginBottom: 10 }}>
                 <label className="sl-label">Motivo <span style={{ color: "#bdbdbd", fontWeight: 400, textTransform: "none" }}>(opcional)</span></label>
                 <input className="sl-input" value={motivo}
                   onChange={e => setMotivo(e.target.value)}
@@ -560,18 +568,18 @@ function HistorialSalidas({ salidas, loading, onAgregarClick, cargarSalidas }) {
               })}
             </tbody>
           </table>
+      </div>
 
-        <div className="pagination-bar">
-          <span className="pagination-count">
-            {filtradas.length} {filtradas.length === 1 ? "salida" : "salidas"} en total
-          </span>
-          <div className="pagination-btns">
-            <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
-            <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
-            <span className="pg-pill">Página {safePage} de {Math.max(1, totalPages)}</span>
-            <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}>›</button>
-            <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage >= totalPages}>»</button>
-          </div>
+      <div className="pagination-bar">
+        <span className="pagination-count">
+          {filtradas.length} {filtradas.length === 1 ? "salida" : "salidas"} en total
+        </span>
+        <div className="pagination-btns">
+          <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
+          <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
+          <span className="pg-pill">Página {safePage} de {Math.max(1, totalPages)}</span>
+          <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}>›</button>
+          <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage >= totalPages}>»</button>
         </div>
       </div>
 

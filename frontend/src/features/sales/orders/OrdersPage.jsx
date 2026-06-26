@@ -9,6 +9,8 @@ import {
   X, CheckCircle2, ShoppingCart
 } from 'lucide-react';
 import { getUser } from '../../../services/authService';
+import { updateUser } from '../../client/profile/services/profileService.js';
+import { subirImagenCloudinary } from '../../../utils/cloudinary.js';
 import CartAside from './components/CartAside';
 import CheckoutModal from './components/CheckoutModal';
 import '../../../styles/Client.css';
@@ -21,10 +23,11 @@ const OrdersPage = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [activeProducts,   setActiveProducts]   = useState([]);
   const [cartCount,        setCartCount]        = useState(0);
-  const [cartOpen,         setCartOpen]         = useState(false);
-  const [checkoutOpen,     setCheckoutOpen]     = useState(false);
-  const [orderDetails,     setOrderDetails]     = useState(null);
-  const [toast,            setToast]            = useState(null);
+  const [cartOpen,           setCartOpen]           = useState(false);
+  const [checkoutOpen,       setCheckoutOpen]       = useState(false);
+  const [orderDetails,       setOrderDetails]       = useState(null);
+  const [toast,              setToast]              = useState(null);
+  const [saveAddressPrompt,  setSaveAddressPrompt]  = useState(null);
 
   useEffect(() => {
     getProductos({ porPagina: 100 }).then(data => {
@@ -104,15 +107,27 @@ const OrdersPage = () => {
     const municipio      = orderDetails?.municipio    || '';
     const departamento   = orderDetails?.departamento || '';
 
+    // Subir comprobante a Cloudinary si existe
+    let comprobanteUrl = null;
+    if (paymentMethod === 'digital' && comprobante) {
+      try {
+        comprobanteUrl = await subirImagenCloudinary(comprobante);
+      } catch {
+        showToast('Error al subir el comprobante. Intenta de nuevo.', 'error');
+        return;
+      }
+    }
+
     const payload = {
-      ID_Usuario:  user?.id || null,
-      productos:   cart.map(item => ({
+      ID_Usuario:       user?.id || null,
+      productos:        cart.map(item => ({
         ID_Producto: Number(item.id),
         Cantidad:    Number(item.cantidad),
       })),
-      Metodo_Pago:  paymentMethod === 'digital' ? 'Transferencia' : 'Efectivo',
-      A_Nombre_De:  onBehalfOf || null,
-      usar_credito: usarCredito || false,
+      Metodo_Pago:      paymentMethod === 'digital' ? 'Transferencia' : 'Efectivo',
+      A_Nombre_De:      onBehalfOf || null,
+      usar_credito:     usarCredito || false,
+      comprobante_pago: comprobanteUrl,
       domicilio: tieneDomicilio && direccion ? {
         Direccion_entrega:    direccion,
         Municipio_entrega:    municipio || 'Sin municipio',
@@ -126,6 +141,10 @@ const OrdersPage = () => {
       clearCart();
       setCheckoutOpen(false);
       showToast('¡Pedido creado exitosamente! 🎉');
+      // Ofrecer guardar la dirección si es un domicilio
+      if (tieneDomicilio && direccion) {
+        setSaveAddressPrompt({ direccion, municipio, departamento });
+      }
     } catch (err) {
       showToast(err.message || 'Error al crear el pedido', 'error');
     }
@@ -297,6 +316,51 @@ const OrdersPage = () => {
           orderDetails={orderDetails}
           onConfirm={handleConfirmOrder}
         />
+      )}
+
+      {/* ── Prompt guardar dirección ── */}
+      {saveAddressPrompt && (
+        <div style={{
+          position: 'fixed', bottom: 32, right: 32, zIndex: 50,
+          background: '#fff', border: '2px solid #c8e6c9', borderRadius: 20,
+          padding: '16px 20px', boxShadow: '0 8px 32px rgba(0,0,0,0.14)',
+          maxWidth: 320, animation: 'fadeInUp 0.3s ease',
+        }}>
+          <p style={{ fontSize: 13, fontWeight: 800, color: '#1a1a1a', marginBottom: 4 }}>
+            📍 ¿Guardar esta dirección?
+          </p>
+          <p style={{ fontSize: 11, color: '#757575', marginBottom: 14, lineHeight: 1.4 }}>
+            {saveAddressPrompt.direccion}
+            {saveAddressPrompt.municipio ? `, ${saveAddressPrompt.municipio}` : ''}
+            {saveAddressPrompt.departamento ? `, ${saveAddressPrompt.departamento}` : ''}
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => setSaveAddressPrompt(null)}
+              style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: '1px solid #e0e0e0', background: '#fafafa', fontSize: 11, fontWeight: 700, cursor: 'pointer', color: '#757575' }}
+            >
+              No, gracias
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  await updateUser({
+                    Direccion:    saveAddressPrompt.direccion,
+                    Municipio:    saveAddressPrompt.municipio,
+                    Departamento: saveAddressPrompt.departamento,
+                  });
+                  setSaveAddressPrompt(null);
+                  showToast('Dirección guardada como predeterminada ✓');
+                } catch {
+                  setSaveAddressPrompt(null);
+                }
+              }}
+              style={{ flex: 1, padding: '9px 0', borderRadius: 10, border: 'none', background: '#2e7d32', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}
+            >
+              Guardar
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

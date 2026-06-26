@@ -254,7 +254,19 @@ export default function PrivilegiosModal({
 
   const toggle = (id) => {
     if (isView) return;
-    setLocal(prev => prev.map(p => p.id === id ? { ...p, estado: !p.estado } : p));
+    setLocal(prev => {
+      const target = prev.find(p => p.id === id);
+      if (!target) return prev;
+      const newEstado = !target.estado;
+      return prev.map(p => {
+        if (p.id === id) return { ...p, estado: newEstado };
+        // Si activamos "crear", también activamos "ver" en el mismo módulo
+        if (newEstado && target.accion === "crear" && p.modulo === target.modulo && p.accion === "ver") {
+          return { ...p, estado: true };
+        }
+        return p;
+      });
+    });
   };
 
   const toggleAll = (moduloKey, valor) => {

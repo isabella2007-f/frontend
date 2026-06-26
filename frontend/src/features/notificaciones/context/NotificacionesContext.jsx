@@ -1,47 +1,98 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import {
+  getNotificacionesAdmin,
+  marcarLeidaAPI,
+  eliminarNotificacionAPI,
+  getMisNotificacionesCliente,
+} from "../../../services/notificacionesService";
 
 /* ══════════════════════════════════════════════════════════
    TIPOS DE NOTIFICACIÓN
 ══════════════════════════════════════════════════════════ */
 export const TIPOS = {
-  STOCK_MINIMO:   "stock_minimo",
-  STOCK_AGOTADO:  "stock_agotado",
-  LOTE_POR_VENCER:"lote_por_vencer",
-  LOTE_VENCIDO:   "lote_vencido",
-  PEDIDO_NUEVO:   "pedido_nuevo",
-  COMPRA_PENDIENTE:"compra_pendiente",
-  SISTEMA:        "sistema",
+  STOCK_MINIMO:         "stock_minimo",
+  STOCK_AGOTADO:        "stock_agotado",
+  LOTE_POR_VENCER:      "lote_por_vencer",
+  LOTE_VENCIDO:         "lote_vencido",
+  PEDIDO_NUEVO:         "pedido_nuevo",
+  COMPRA_PENDIENTE:     "compra_pendiente",
+  SISTEMA:              "sistema",
+  DEVOLUCION_PENDIENTE: "devolucion_pendiente",
+  PEDIDO_CONFIRMADO:    "pedido_confirmado",
+  PEDIDO_ENTREGADO:     "pedido_entregado",
+  PEDIDO_CANCELADO:     "pedido_cancelado",
+  DEVOLUCION_APROBADA:  "devolucion_aprobada",
+  DEVOLUCION_RECHAZADA: "devolucion_rechazada",
 };
 
 export const TIPO_LABELS = {
-  [TIPOS.STOCK_MINIMO]:    "Stock mínimo",
-  [TIPOS.STOCK_AGOTADO]:   "Stock agotado",
-  [TIPOS.LOTE_POR_VENCER]: "Por vencer",
-  [TIPOS.LOTE_VENCIDO]:    "Vencido",
-  [TIPOS.PEDIDO_NUEVO]:    "Pedido",
-  [TIPOS.COMPRA_PENDIENTE]:"Compra",
-  [TIPOS.SISTEMA]:         "Sistema",
+  [TIPOS.STOCK_MINIMO]:         "Stock mínimo",
+  [TIPOS.STOCK_AGOTADO]:        "Stock agotado",
+  [TIPOS.LOTE_POR_VENCER]:      "Por vencer",
+  [TIPOS.LOTE_VENCIDO]:         "Vencido",
+  [TIPOS.PEDIDO_NUEVO]:         "Pedido nuevo",
+  [TIPOS.COMPRA_PENDIENTE]:     "Compra",
+  [TIPOS.SISTEMA]:              "Sistema",
+  [TIPOS.DEVOLUCION_PENDIENTE]: "Devolución",
+  [TIPOS.PEDIDO_CONFIRMADO]:    "Pedido",
+  [TIPOS.PEDIDO_ENTREGADO]:     "Pedido",
+  [TIPOS.PEDIDO_CANCELADO]:     "Pedido",
+  [TIPOS.DEVOLUCION_APROBADA]:  "Devolución",
+  [TIPOS.DEVOLUCION_RECHAZADA]: "Devolución",
 };
 
 export const TIPO_ICONS = {
-  [TIPOS.STOCK_MINIMO]:    "⚠️",
-  [TIPOS.STOCK_AGOTADO]:   "🚨",
-  [TIPOS.LOTE_POR_VENCER]: "⏰",
-  [TIPOS.LOTE_VENCIDO]:    "❌",
-  [TIPOS.PEDIDO_NUEVO]:    "🛒",
-  [TIPOS.COMPRA_PENDIENTE]:"📦",
-  [TIPOS.SISTEMA]:         "🔔",
+  [TIPOS.STOCK_MINIMO]:         "⚠️",
+  [TIPOS.STOCK_AGOTADO]:        "🚨",
+  [TIPOS.LOTE_POR_VENCER]:      "⏰",
+  [TIPOS.LOTE_VENCIDO]:         "❌",
+  [TIPOS.PEDIDO_NUEVO]:         "🛒",
+  [TIPOS.COMPRA_PENDIENTE]:     "📦",
+  [TIPOS.SISTEMA]:              "🔔",
+  [TIPOS.DEVOLUCION_PENDIENTE]: "↩️",
+  [TIPOS.PEDIDO_CONFIRMADO]:    "✅",
+  [TIPOS.PEDIDO_ENTREGADO]:     "🎉",
+  [TIPOS.PEDIDO_CANCELADO]:     "❌",
+  [TIPOS.DEVOLUCION_APROBADA]:  "✅",
+  [TIPOS.DEVOLUCION_RECHAZADA]: "❌",
 };
 
 export const TIPO_COLORS = {
-  [TIPOS.STOCK_MINIMO]:    "#f57f17",
-  [TIPOS.STOCK_AGOTADO]:   "#c62828",
-  [TIPOS.LOTE_POR_VENCER]: "#e65100",
-  [TIPOS.LOTE_VENCIDO]:    "#b71c1c",
-  [TIPOS.PEDIDO_NUEVO]:    "#1565c0",
-  [TIPOS.COMPRA_PENDIENTE]:"#6a1b9a",
-  [TIPOS.SISTEMA]:         "#2e7d32",
+  [TIPOS.STOCK_MINIMO]:         "#f57f17",
+  [TIPOS.STOCK_AGOTADO]:        "#c62828",
+  [TIPOS.LOTE_POR_VENCER]:      "#e65100",
+  [TIPOS.LOTE_VENCIDO]:         "#b71c1c",
+  [TIPOS.PEDIDO_NUEVO]:         "#1565c0",
+  [TIPOS.COMPRA_PENDIENTE]:     "#6a1b9a",
+  [TIPOS.SISTEMA]:              "#2e7d32",
+  [TIPOS.DEVOLUCION_PENDIENTE]: "#8e24aa",
+  [TIPOS.PEDIDO_CONFIRMADO]:    "#2e7d32",
+  [TIPOS.PEDIDO_ENTREGADO]:     "#2e7d32",
+  [TIPOS.PEDIDO_CANCELADO]:     "#c62828",
+  [TIPOS.DEVOLUCION_APROBADA]:  "#2e7d32",
+  [TIPOS.DEVOLUCION_RECHAZADA]: "#c62828",
 };
+
+// Tipos backend → tipos frontend
+const BACKEND_TYPE_MAP = {
+  stock_agotado_insumo:   TIPOS.STOCK_AGOTADO,
+  stock_agotado_producto: TIPOS.STOCK_AGOTADO,
+  stock_minimo_insumo:    TIPOS.STOCK_MINIMO,
+  stock_minimo_producto:  TIPOS.STOCK_MINIMO,
+  pedido_nuevo:           TIPOS.PEDIDO_NUEVO,
+  produccion_requerida:   TIPOS.SISTEMA,
+  domicilio_pendiente:    TIPOS.PEDIDO_NUEVO,
+  devolucion_pendiente:   TIPOS.DEVOLUCION_PENDIENTE,
+};
+
+// Tipos propios de notificaciones de cliente (no van a localStorage de admin)
+const TIPOS_CLIENTE = new Set([
+  TIPOS.PEDIDO_CONFIRMADO,
+  TIPOS.PEDIDO_ENTREGADO,
+  TIPOS.PEDIDO_CANCELADO,
+  TIPOS.DEVOLUCION_APROBADA,
+  TIPOS.DEVOLUCION_RECHAZADA,
+]);
 
 const uid = () => `N-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
 const fechaHoy = () => new Date().toISOString();
@@ -58,7 +109,6 @@ const loadFromLS = (key, def) => {
   catch { return def; }
 };
 
-// Limpia notificaciones guardadas si son de una versión anterior (datos mock).
 const initNotificaciones = () => {
   if (localStorage.getItem("notif_version") !== NOTIF_VERSION) {
     localStorage.removeItem("notificaciones");
@@ -76,44 +126,33 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
     return session ? JSON.parse(session) : null;
   });
 
-  // CA_01_01 — nivel mínimo configurable por insumo (idInsumo → número)
-  const [nivelesMinimos, setNivelesMinimos]   = useState(() => loadFromLS("notif_nivelesMinimos", {}));
-  // HU_01 — toggle del sistema de alertas automáticas
-  const [autoActivo, setAutoActivo]           = useState(() => loadFromLS("notif_autoActivo", true));
-  // controla si el banner de alerta de entrada fue mostrado en esta sesión
-  const [bannerVisto, setBannerVisto]         = useState(false);
+  const [nivelesMinimos, setNivelesMinimos] = useState(() => loadFromLS("notif_nivelesMinimos", {}));
+  const [autoActivo, setAutoActivo]         = useState(() => loadFromLS("notif_autoActivo", true));
+  const [bannerVisto, setBannerVisto]       = useState(false);
 
-  /* ── Persistencia ────────────────────────────────────── */
-  useEffect(() => { localStorage.setItem("notificaciones",       JSON.stringify(notificaciones)); },  [notificaciones]);
-  useEffect(() => { localStorage.setItem("notif_nivelesMinimos", JSON.stringify(nivelesMinimos)); },  [nivelesMinimos]);
-  useEffect(() => { localStorage.setItem("notif_autoActivo",     JSON.stringify(autoActivo)); },      [autoActivo]);
+  /* ── Persistencia (excluye notifs de API y cliente — se rehidratan por polling) ── */
+  useEffect(() => {
+    const sinEfimeras = notificaciones.filter(
+      n => !n.clave?.startsWith('api-') && !TIPOS_CLIENTE.has(n.tipo)
+    );
+    localStorage.setItem("notificaciones", JSON.stringify(sinEfimeras));
+  }, [notificaciones]);
+  useEffect(() => { localStorage.setItem("notif_nivelesMinimos", JSON.stringify(nivelesMinimos)); }, [nivelesMinimos]);
+  useEffect(() => { localStorage.setItem("notif_autoActivo",     JSON.stringify(autoActivo)); },     [autoActivo]);
 
-  // Obtener usuario actual para filtrar notificaciones automáticas
   useEffect(() => {
     const checkUser = () => {
       const session = localStorage.getItem("usuario");
-      const u = session ? JSON.parse(session) : null;
-      setLocalUser(u);
+      setLocalUser(session ? JSON.parse(session) : null);
     };
-    
     const syncNotifs = (e) => {
-      if (e.key === "notificaciones" && e.newValue) {
-        setNotificaciones(JSON.parse(e.newValue));
-      }
-      if (e.key === "notif_nivelesMinimos" && e.newValue) {
-        setNivelesMinimos(JSON.parse(e.newValue));
-      }
-      if (e.key === "notif_autoActivo" && e.newValue) {
-        setAutoActivo(JSON.parse(e.newValue));
-      }
-      if (e.key === "usuario") {
-        checkUser();
-      }
+      if (e.key === "notificaciones" && e.newValue) setNotificaciones(JSON.parse(e.newValue));
+      if (e.key === "notif_nivelesMinimos" && e.newValue) setNivelesMinimos(JSON.parse(e.newValue));
+      if (e.key === "notif_autoActivo"     && e.newValue) setAutoActivo(JSON.parse(e.newValue));
+      if (e.key === "usuario") checkUser();
     };
-
     window.addEventListener("storage", syncNotifs);
     window.addEventListener("session-changed", checkUser);
-    
     return () => {
       window.removeEventListener("storage", syncNotifs);
       window.removeEventListener("session-changed", checkUser);
@@ -123,41 +162,107 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
   const agregarNotificacion = useCallback((datos) => {
     const destinatario = datos.idDestinatario || 'admin';
     setNotificaciones(prev => {
-      // Evitar duplicados exactos si la clave existe
       if (datos.clave && prev.some(n => n.clave === datos.clave && !n.leida)) return prev;
       return [{ id: uid(), fecha: fechaHoy(), leida: false, ...datos, idDestinatario: destinatario }, ...prev];
     });
   }, []);
 
-  /* ── Listener para agregar notificaciones desde fuera (AppContext) ── */
   useEffect(() => {
-    const handleExternalNotif = (e) => {
-      if (e.detail) {
-        agregarNotificacion(e.detail);
-      }
-    };
+    const handleExternalNotif = (e) => { if (e.detail) agregarNotificacion(e.detail); };
     window.addEventListener("toston-add-notification", handleExternalNotif);
     return () => window.removeEventListener("toston-add-notification", handleExternalNotif);
   }, [agregarNotificacion]);
 
   /* ══════════════════════════════════════════════════════
-     HU_01 — Generar notificaciones automáticas al detectar
-             insumos bajo el nivel mínimo configurado
-             (SOLO PARA ADMINISTRADORES)
+     POLLING DE NOTIFICACIONES DESDE EL BACKEND
+  ══════════════════════════════════════════════════════ */
+  const fetchAPINotifs = useCallback(async () => {
+    if (!user) return;
+    const rol      = user.rol?.toLowerCase();
+    const isAdmin  = rol === 'admin' || rol === 'administrador';
+    const isCliente = user.tipo === 'cliente';
+
+    if (isAdmin) {
+      try {
+        const data    = await getNotificacionesAdmin();
+        const backend = (data.notificaciones || []).map(n => ({
+          id:             `api-${n.ID_Notificacion}`,
+          clave:          `api-${n.ID_Notificacion}`,
+          id_backend:     n.ID_Notificacion,
+          tipo:           BACKEND_TYPE_MAP[n.Tipo] || TIPOS.SISTEMA,
+          titulo:         n.Titulo,
+          mensaje:        n.Mensaje || "",
+          idReferencia:   n.Referencia_ID,
+          ruta:           n.Ruta,
+          fecha:          n.Fecha,
+          leida:          n.Leida,
+          idDestinatario: 'admin',
+        }));
+        setNotificaciones(prev => [
+          ...backend,
+          ...prev.filter(n => !n.clave?.startsWith('api-')),
+        ]);
+      } catch (_) {}
+
+    } else if (isCliente) {
+      try {
+        const data   = await getMisNotificacionesCliente();
+        const vistas = loadFromLS('notif_cliente_vistas', []);
+        const cliente = (data.notificaciones || []).map(n => ({
+          id:             n.id_ref,
+          clave:          n.id_ref,
+          tipo:           n.tipo,
+          titulo:         n.titulo,
+          mensaje:        n.mensaje || "",
+          ruta:           n.ruta,
+          fecha:          n.fecha,
+          leida:          vistas.includes(n.id_ref),
+          idDestinatario: String(user.id),
+        }));
+        setNotificaciones(prev => [
+          ...cliente,
+          ...prev.filter(n => !TIPOS_CLIENTE.has(n.tipo)),
+        ]);
+      } catch (_) {}
+    }
+  }, [user]);
+
+  // Inicia el polling según el rol
+  useEffect(() => {
+    if (!user) return;
+    const rol      = user.rol?.toLowerCase();
+    const isAdmin  = rol === 'admin' || rol === 'administrador';
+    const isCliente = user.tipo === 'cliente';
+    if (!isAdmin && !isCliente) return;
+
+    fetchAPINotifs();
+    const ms = isAdmin ? 30_000 : 60_000;
+    const id = setInterval(fetchAPINotifs, ms);
+    return () => clearInterval(id);
+  }, [user, fetchAPINotifs]);
+
+  // Limpia notificaciones de API/cliente al cambiar de usuario
+  useEffect(() => {
+    setNotificaciones(prev => prev.filter(
+      n => !n.clave?.startsWith('api-') && !TIPOS_CLIENTE.has(n.tipo)
+    ));
+  }, [user?.id]);
+
+  /* ══════════════════════════════════════════════════════
+     GENERACIÓN AUTOMÁTICA LOCAL (stock, lotes, compras)
+     Solo para administradores
   ══════════════════════════════════════════════════════ */
   const generarNotifAutomaticas = useCallback(() => {
-    const rol = user?.rol?.toLowerCase();
+    const rol     = user?.rol?.toLowerCase();
     const isAdmin = rol === 'admin' || rol === 'administrador';
-
     if (!autoActivo || !isAdmin) return;
 
     setNotificaciones(prev => {
       const nuevas = [];
-      const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+      const hoy    = new Date(); hoy.setHours(0, 0, 0, 0);
 
-      // Purga notificaciones cuya condición ya no está activa.
-      // Esto evita que notificaciones leídas persistan después de que el problema se resolvió.
       const notificacionesActuales = prev.filter(n => {
+        if (n.clave?.startsWith('api-') || TIPOS_CLIENTE.has(n.tipo)) return true;
         if (n.tipo === TIPOS.STOCK_AGOTADO) {
           const ins = insumos.find(i => i.id === n.idReferencia);
           return ins && ins.stockActual <= 0;
@@ -187,13 +292,9 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
         return true;
       });
 
-      // Genera notificaciones nuevas solo si NO existe ya una con la misma clave
-      // (leída o no leída). Así marcar como leída suprime el duplicado mientras
-      // la condición persista.
       insumos.forEach(ins => {
         const minimo = nivelesMinimos[ins.id] !== undefined ? nivelesMinimos[ins.id] : ins.stockMinimo;
         const stock  = ins.stockActual;
-
         if (stock <= 0) {
           const clave = `${TIPOS.STOCK_AGOTADO}-${ins.id}`;
           if (!notificacionesActuales.some(n => n.clave === clave)) {
@@ -202,8 +303,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
               titulo: `Stock agotado: ${ins.nombre}`,
               mensaje: `El insumo "${ins.nombre}" tiene stock en 0. Se requiere realizar una compra urgente.`,
               idReferencia: ins.id, refNombre: ins.nombre,
-              fecha: fechaHoy(), leida: false,
-              idDestinatario: 'admin',
+              fecha: fechaHoy(), leida: false, idDestinatario: 'admin',
             });
           }
         } else if (minimo !== undefined && stock <= minimo) {
@@ -214,8 +314,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
               titulo: `Stock bajo mínimo: ${ins.nombre}`,
               mensaje: `El insumo "${ins.nombre}" tiene ${stock} ${ins.unidad || "und"} disponibles, por debajo del mínimo configurado de ${minimo}. Se requiere realizar una compra.`,
               idReferencia: ins.id, refNombre: ins.nombre,
-              fecha: fechaHoy(), leida: false,
-              idDestinatario: 'admin',
+              fecha: fechaHoy(), leida: false, idDestinatario: 'admin',
             });
           }
         }
@@ -227,7 +326,6 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
         const dias = Math.round((fv - hoy) / 86_400_000);
         const insumo = insumos.find(i => i.id === lote.idInsumo);
         const nombre = insumo?.nombre || `Insumo #${lote.idInsumo}`;
-
         if (dias < 0) {
           const clave = `${TIPOS.LOTE_VENCIDO}-${lote.id}`;
           if (!notificacionesActuales.some(n => n.clave === clave)) {
@@ -236,8 +334,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
               titulo: `Lote vencido: ${nombre}`,
               mensaje: `El lote ${lote.id} de "${nombre}" venció el ${lote.fechaVencimiento}. Contiene ${lote.cantidadActual} unidades. Retírelo del inventario.`,
               idReferencia: lote.id, refNombre: nombre,
-              fecha: fechaHoy(), leida: false,
-              idDestinatario: 'admin',
+              fecha: fechaHoy(), leida: false, idDestinatario: 'admin',
             });
           }
         } else if (dias <= 7) {
@@ -248,8 +345,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
               titulo: `Lote próximo a vencer: ${nombre}`,
               mensaje: `El lote ${lote.id} de "${nombre}" vence en ${dias} día${dias === 1 ? "" : "s"} (${lote.fechaVencimiento}). Contiene ${lote.cantidadActual} unidades.`,
               idReferencia: lote.id, refNombre: nombre,
-              fecha: fechaHoy(), leida: false,
-              idDestinatario: 'admin',
+              fecha: fechaHoy(), leida: false, idDestinatario: 'admin',
             });
           }
         }
@@ -266,8 +362,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
               titulo: `Compra pendiente: ${compra.id}`,
               mensaje: `La compra ${compra.id} lleva ${dias} días en estado pendiente. Verifique su estado con el proveedor.`,
               idReferencia: compra.id, refNombre: compra.id,
-              fecha: fechaHoy(), leida: false,
-              idDestinatario: 'admin',
+              fecha: fechaHoy(), leida: false, idDestinatario: 'admin',
             });
           }
         }
@@ -284,42 +379,72 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
     generarNotifAutomaticas();
   }, [autoActivo, insumos, lotes, compras, user, generarNotifAutomaticas]);
 
+  /* ── Acciones ──────────────────────────────────────────── */
   const marcarLeida = useCallback((id) => {
-    setNotificaciones(prev => prev.map(n => n.id === id ? { ...n, leida: true } : n));
+    setNotificaciones(prev => {
+      const notif = prev.find(n => n.id === id);
+      if (notif?.id_backend) {
+        marcarLeidaAPI(notif.id_backend).catch(() => {});
+      }
+      if (notif && TIPOS_CLIENTE.has(notif.tipo)) {
+        const vistas = loadFromLS('notif_cliente_vistas', []);
+        if (!vistas.includes(id)) {
+          localStorage.setItem('notif_cliente_vistas', JSON.stringify([...vistas, id]));
+        }
+      }
+      return prev.map(n => n.id === id ? { ...n, leida: true } : n);
+    });
   }, []);
 
   const marcarTodasLeidas = useCallback(() => {
-    setNotificaciones(prev => prev.map(n => {
+    setNotificaciones(prev => {
       const currentUser = JSON.parse(localStorage.getItem("usuario") || "null") || user;
-      const rol = currentUser?.rol?.toLowerCase();
+      const rol    = currentUser?.rol?.toLowerCase();
       const isAdmin = rol === 'admin' || rol === 'administrador';
-      const isCook = ['cocina', 'cocinero', 'produccion', 'producción'].includes(rol);
-      const isForCurrent = (isAdmin && n.idDestinatario === 'admin') || (n.idDestinatario === currentUser?.id);
-      const isForCook = isCook && n.idDestinatario === 'produccion';
-      const isTargeted = isForCurrent || isForCook;
-      return isTargeted ? { ...n, leida: true } : n;
-    }));
+      const isCook  = ['cocina', 'cocinero', 'produccion', 'producción'].includes(rol);
+
+      // Sincronizar lecturas con el backend (fire-and-forget)
+      if (isAdmin) {
+        prev.filter(n => n.id_backend && !n.leida).forEach(n => {
+          marcarLeidaAPI(n.id_backend).catch(() => {});
+        });
+      }
+
+      // Sincronizar lecturas de cliente con localStorage
+      const clienteUnread = prev.filter(n => TIPOS_CLIENTE.has(n.tipo) && !n.leida);
+      if (clienteUnread.length > 0) {
+        const vistas     = loadFromLS('notif_cliente_vistas', []);
+        const nuevasVistas = [...new Set([...vistas, ...clienteUnread.map(n => n.id)])];
+        localStorage.setItem('notif_cliente_vistas', JSON.stringify(nuevasVistas));
+      }
+
+      return prev.map(n => {
+        const isForCurrent = (isAdmin && n.idDestinatario === 'admin')
+          || (n.idDestinatario === String(currentUser?.id));
+        const isForCook = isCook && n.idDestinatario === 'produccion';
+        return (isForCurrent || isForCook) ? { ...n, leida: true } : n;
+      });
+    });
   }, [user]);
 
   const filtrar = useCallback(({ tipo, estado, texto }) => {
     return notificaciones.filter(n => {
       const currentUser = JSON.parse(localStorage.getItem("usuario") || "null") || user;
-      const rol = currentUser?.rol?.toLowerCase();
+      const rol     = currentUser?.rol?.toLowerCase();
       const isAdmin = rol === 'admin' || rol === 'administrador';
-      const isCook = ['cocina', 'cocinero', 'produccion', 'producción'].includes(rol);
+      const isCook  = ['cocina', 'cocinero', 'produccion', 'producción'].includes(rol);
       const isClient = rol === 'cliente';
 
-      const isForAdmin = isAdmin && n.idDestinatario === 'admin';
-      const isForCook = isCook && n.idDestinatario === 'produccion';
-      const isForClient = isClient && n.idDestinatario === currentUser?.id;
-      
-      if (!isForAdmin && !isForCook && !isForClient) return false;
+      const isForAdmin  = isAdmin  && n.idDestinatario === 'admin';
+      const isForCook   = isCook   && n.idDestinatario === 'produccion';
+      const isForClient = isClient && n.idDestinatario === String(currentUser?.id);
 
-      if (tipo   && n.tipo  !== tipo)                                          return false;
-      if (estado === "leida"   && !n.leida)                                   return false;
-      if (estado === "no_leida" && n.leida)                                   return false;
+      if (!isForAdmin && !isForCook && !isForClient) return false;
+      if (tipo   && n.tipo  !== tipo)                                         return false;
+      if (estado === "leida"    && !n.leida)                                  return false;
+      if (estado === "no_leida" &&  n.leida)                                  return false;
       if (texto  && !n.titulo.toLowerCase().includes(texto.toLowerCase()) &&
-                    !n.mensaje.toLowerCase().includes(texto.toLowerCase()))   return false;
+                    !(n.mensaje || "").toLowerCase().includes(texto.toLowerCase())) return false;
       return true;
     }).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
   }, [notificaciones, user]);
@@ -329,17 +454,23 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
   }, []);
 
   const eliminarNotificacion = useCallback((id) => {
-    setNotificaciones(prev => prev.filter(n => n.id !== id));
+    setNotificaciones(prev => {
+      const notif = prev.find(n => n.id === id);
+      if (notif?.id_backend) {
+        eliminarNotificacionAPI(notif.id_backend).catch(() => {});
+      }
+      return prev.filter(n => n.id !== id);
+    });
   }, []);
 
   const notifUsuario = notificaciones.filter(n => {
-    const rol = user?.rol?.toLowerCase();
+    const rol     = user?.rol?.toLowerCase();
     const isAdmin = rol === 'admin' || rol === 'administrador';
-    const isCook = ['cocina', 'cocinero', 'produccion', 'producción'].includes(rol);
+    const isCook  = ['cocina', 'cocinero', 'produccion', 'producción'].includes(rol);
     const isClient = rol === 'cliente';
-    const isForAdmin = isAdmin && n.idDestinatario === 'admin';
-    const isForCook = isCook && n.idDestinatario === 'produccion';
-    const isForClient = isClient && n.idDestinatario === user?.id;
+    const isForAdmin  = isAdmin  && n.idDestinatario === 'admin';
+    const isForCook   = isCook   && n.idDestinatario === 'produccion';
+    const isForClient = isClient && n.idDestinatario === String(user?.id);
     return isForAdmin || isForCook || isForClient;
   });
 

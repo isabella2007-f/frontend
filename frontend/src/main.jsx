@@ -7,32 +7,83 @@ import { PrivilegiosProvider } from "./context/PrivilegiosContext.jsx";
 import { getUser } from "./services/authService.js";
 import { getInsumos } from "./services/insumosService.js";
 import { getCompras } from "./services/comprasService.js";
-import { updateActivity, isInactive, clearSession } from "./utils/api.js";
+import { updateActivity, isInactive, isNearlyInactive, clearSession } from "./utils/api.js";
 import "./shared/index.css";
 
+function ModalSesionExpira({ onContinuar }) {
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 99999,
+      background: 'rgba(0,0,0,0.55)', display: 'flex',
+      alignItems: 'center', justifyContent: 'center',
+    }}>
+      <div style={{
+        background: '#fff', borderRadius: 20, padding: '36px 32px',
+        maxWidth: 380, width: '90%', textAlign: 'center',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+      }}>
+        <div style={{ fontSize: 44, marginBottom: 12 }}>⏱️</div>
+        <h3 style={{ margin: '0 0 10px', fontSize: 20, fontWeight: 800, color: '#1b5e20' }}>
+          Sesión por cerrar
+        </h3>
+        <p style={{ margin: '0 0 24px', color: '#616161', fontSize: 14, lineHeight: 1.6 }}>
+          Tu sesión cerrará en unos minutos por inactividad.
+          ¿Deseas continuar navegando?
+        </p>
+        <button
+          onClick={onContinuar}
+          style={{
+            width: '100%', padding: '14px', borderRadius: 12,
+            background: 'linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%)',
+            color: '#fff', fontWeight: 800, fontSize: 15, border: 'none',
+            cursor: 'pointer', letterSpacing: '0.02em',
+          }}
+        >
+          Continuar sesión
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function InactivityGuard({ children }) {
+  const [avisoVisible, setAvisoVisible] = useState(false);
+
   useEffect(() => {
-    const update = () => updateActivity();
+    const onActivity = () => {
+      updateActivity();
+      setAvisoVisible(false);
+    };
     ["click", "keydown", "mousemove", "touchstart", "scroll"].forEach(ev =>
-      document.addEventListener(ev, update, { passive: true })
+      document.addEventListener(ev, onActivity, { passive: true })
     );
 
     const interval = setInterval(() => {
-      if (localStorage.getItem("token") && isInactive()) {
+      if (!localStorage.getItem("token")) { setAvisoVisible(false); return; }
+      if (isInactive()) {
         clearSession();
         window.location.href = "/login";
+      } else if (isNearlyInactive()) {
+        setAvisoVisible(true);
       }
-    }, 60_000);
+    }, 30_000);
 
     return () => {
       ["click", "keydown", "mousemove", "touchstart", "scroll"].forEach(ev =>
-        document.removeEventListener(ev, update)
+        document.removeEventListener(ev, onActivity)
       );
       clearInterval(interval);
     };
   }, []);
 
-  return children;
+  const continuar = () => { updateActivity(); setAvisoVisible(false); };
+
+  return (
+    <>
+      {children}
+      {avisoVisible && <ModalSesionExpira onContinuar={continuar} />}
+    </>
+  );
 }
 
 // Carga datos reales de la API para alimentar las notificaciones automáticas.

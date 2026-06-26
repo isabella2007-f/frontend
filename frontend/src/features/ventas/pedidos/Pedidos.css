@@ -17,7 +17,7 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; color: #1a1a1a; }
   --produccion-bg:    #e3f2fd; --produccion-color:   #1565c0; --produccion-border:  #90caf9;
   --listo-bg:         #e8f5e9; --listo-color:        #2e7d32; --listo-border:       #a5d6a7;
   --camino-bg:        #f3e5f5; --camino-color:       #6a1b9a; --camino-border:      #ce93d8;
-  --entregado-bg:     #e0f2f1; --entregado-color:    #00695c; --entregado-border:   #80cbc4;
+  --entregado-bg:     #e8f5e9; --entregado-color:    #2e7d32; --entregado-border:   #a5d6a7;
   --cancelado-bg:     #ffebee; --cancelado-color:    #c62828; --cancelado-border:   #ef9a9a;
 }
 

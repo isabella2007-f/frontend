@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { getDomicilios, cambiarEstadoDomicilio } from "../../../services/domiciliosService.js";
 import { getUser } from "../../../services/authService.js";
 import { fmtFechaHora as fmtFecha } from "../../../utils/dateUtils.js";
@@ -9,11 +10,11 @@ const fmt = (n) =>
 
 const ESTADO_INFO = {
   "Pendiente":   { color: "#f9a825", bg: "#fff8e1", border: "#ffe082", icon: "⏳" },
-  "Asignado":    { color: "#1565c0", bg: "#e3f2fd", border: "#90caf9", icon: "📦" },
+  "Asignado":    { color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7", icon: "📦" },
   "Confirmado":  { color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7", icon: "✅" },
-  "En proceso":  { color: "#e65100", bg: "#fff3e0", border: "#ffcc80", icon: "🏠" },
+  "En proceso":  { color: "#1565c0", bg: "#e3f2fd", border: "#90caf9", icon: "🏠" },
   "En camino":   { color: "#8e24aa", bg: "#f3e5f5", border: "#ce93d8", icon: "🛵" },
-  "Entregado":   { color: "#009688", bg: "#e0f2f1", border: "#80cbc4", icon: "✅" },
+  "Entregado":   { color: "#2e7d32", bg: "#e8f5e9", border: "#a5d6a7", icon: "✅" },
   "Cancelado":   { color: "#c62828", bg: "#ffebee", border: "#ef9a9a", icon: "❌" },
 };
 
@@ -175,6 +176,14 @@ function DetallesModal({ domicilio, onClose, onCambiarEstado }) {
           <div style={{ background: "#f8f8f8", borderRadius: 10, padding: "12px 14px" }}>
             <div style={{ fontSize: 11, color: "#9e9e9e", fontWeight: 700, marginBottom: 4 }}>CLIENTE</div>
             <div style={{ fontWeight: 700, fontSize: 14 }}>{domicilio.cliente?.nombre || "—"}</div>
+            {domicilio.cliente?.telefono && (
+              <a
+                href={`tel:${domicilio.cliente.telefono}`}
+                style={{ fontSize: 13, color: "#1976d2", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4, marginTop: 4 }}
+              >
+                📞 {domicilio.cliente.telefono}
+              </a>
+            )}
           </div>
           <div style={{ background: "#f8f8f8", borderRadius: 10, padding: "12px 14px" }}>
             <div style={{ fontSize: 11, color: "#9e9e9e", fontWeight: 700, marginBottom: 4 }}>DIRECCIÓN</div>
@@ -193,18 +202,32 @@ function DetallesModal({ domicilio, onClose, onCambiarEstado }) {
           </div>
         )}
 
-        {PROXIMOS_ESTADOS[domicilio.estado]?.length > 0 && (
-          <button
-            onClick={() => { onClose(); onCambiarEstado(domicilio); }}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {PROXIMOS_ESTADOS[domicilio.estado]?.length > 0 && (
+            <button
+              onClick={() => { onClose(); onCambiarEstado(domicilio); }}
+              style={{
+                width: "100%", padding: "12px", borderRadius: 10,
+                background: "#4caf50", color: "#fff", border: "none",
+                fontWeight: 700, fontSize: 14, cursor: "pointer",
+              }}
+            >
+              🛵 Actualizar estado de entrega
+            </button>
+          )}
+          <Link
+            to={`/admin/chat/${domicilio.id}`}
+            onClick={onClose}
             style={{
-              width: "100%", padding: "12px", borderRadius: 10,
-              background: "#4caf50", color: "#fff", border: "none",
-              fontWeight: 700, fontSize: 14, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+              padding: "12px", borderRadius: 10, textDecoration: "none",
+              border: "1.5px solid #e0e0e0", background: "#fff",
+              color: "#424242", fontWeight: 600, fontSize: 14,
             }}
           >
-            🛵 Actualizar estado de entrega
-          </button>
-        )}
+            💬 Chat con cliente / admin
+          </Link>
+        </div>
       </div>
     </div>
   );

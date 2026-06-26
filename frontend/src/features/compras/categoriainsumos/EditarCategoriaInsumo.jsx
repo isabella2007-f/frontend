@@ -65,17 +65,10 @@ export default function EditarCategoriaInsumo({ cat, onClose, onSave }) {
             >
               {form.icon}
             </button>
-            <input
-              className="field-input"
-              style={{ flex: 1 }}
-              value={form.icon}
-              placeholder="Escribe un emoji o pega una URL de imagen…"
-              onChange={e => { if (e.target.value) set("icon", e.target.value); }}
-            />
+            <span style={{ fontSize: 12, color: "#9e9e9e" }}>
+              {pickingIcon ? "Selecciona un emoji de la lista" : "Haz clic para cambiar el ícono"}
+            </span>
           </div>
-          <p style={{ margin: "4px 0 0", fontSize: 11, color: "#757575" }}>
-            Selecciona un emoji de la lista o escríbelo directamente. También puedes pegar una URL de imagen (Cloudinary).
-          </p>
           {pickingIcon && (
             <div className="icon-picker-grid">
               {ICON_OPTIONS.map(ic => (
@@ -107,13 +100,17 @@ export default function EditarCategoriaInsumo({ cat, onClose, onSave }) {
         </div>
 
         <div className="form-group">
-          <label className="form-label">
-            Descripción <span style={{ color: "#e53935", fontWeight: 800 }}>*</span>
+          <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
+            <span>Descripción <span style={{ color: "#e53935", fontWeight: 800 }}>*</span></span>
+            <span style={{ fontSize: 11, color: form.descripcion.length >= 180 ? "#e65100" : "#9e9e9e", fontWeight: 400, letterSpacing: 0 }}>
+              {form.descripcion.length}/200
+            </span>
           </label>
           <textarea
             className={`field-input${errors.descripcion ? " field-input--error" : ""}`}
             rows={2}
             style={{ resize: "none" }}
+            maxLength={200}
             value={form.descripcion}
             onChange={e => set("descripcion", e.target.value)}
             placeholder="Describe esta categoría de insumos"
@@ -123,12 +120,27 @@ export default function EditarCategoriaInsumo({ cat, onClose, onSave }) {
           {errors.descripcion && <p className="field-error">{errors.descripcion}</p>}
         </div>
 
-        {cat?.fecha && (
-          <div className="date-info">
-            <span>📅</span>
-            <span>Creada el <strong>{cat.fecha}</strong></span>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 4 }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Estado</label>
+            <span style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600,
+              background: cat.estado ? "#e8f5e9" : "#f5f5f5",
+              color:      cat.estado ? "#2e7d32" : "#9e9e9e",
+              border:     `1px solid ${cat.estado ? "#a5d6a7" : "#e0e0e0"}`,
+            }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: cat.estado ? "#43a047" : "#bdbdbd", display: "inline-block" }} />
+              {cat.estado ? "Activo" : "Inactivo"}
+            </span>
           </div>
-        )}
+          {cat?.fecha && (
+            <div style={{ textAlign: "right", fontSize: 11, color: "#9e9e9e" }}>
+              <p style={{ margin: 0 }}>Fecha de creación</p>
+              <strong style={{ color: "#616161" }}>{cat.fecha}</strong>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="modal-footer">

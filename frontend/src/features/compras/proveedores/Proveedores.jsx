@@ -13,14 +13,17 @@ import {
 const ITEMS_PER_PAGE = 10;
 
 const ADAPT = raw => ({
-  id:            raw.ID_Proveedor,
-  responsable:   raw.Responsable,
-  direccion:     raw.Direccion    ?? "",
-  ciudad:        raw.Municipio    ?? "",
-  departamento:  raw.Departamento ?? "",
-  celular:       raw.Telefono     ?? "",
-  correo:        raw.Correo       ?? "",
-  totalCompras:  raw.total_compras ?? 0,
+  id:                 raw.ID_Proveedor,
+  responsable:        raw.Responsable,
+  direccion:          raw.Direccion         ?? "",
+  ciudad:             raw.Municipio         ?? "",
+  departamento:       raw.Departamento      ?? "",
+  celular:            raw.Telefono          ?? "",
+  correo:             raw.Correo            ?? "",
+  totalCompras:       raw.total_compras     ?? 0,
+  ultimaCompraFecha:  raw.ultima_compra_fecha  ?? null,
+  ultimaCompraEstado: raw.ultima_compra_estado ?? null,
+  insumosProvistos:   raw.insumos_provistos    ?? [],
 });
 
 function Toast({ toast }) {
@@ -255,14 +258,19 @@ export default function GestionProveedores() {
                     </td>
 
                     <td>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                        <span className="phone-cell" style={{ fontSize: 12 }}>
-                          <span className="phone-icon">📞</span>
-                          {p.celular || "—"}
-                        </span>
-                        <span className="client-email" style={{ fontSize: 12 }}>
-                          {p.correo || "—"}
-                        </span>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                        {p.celular
+                          ? <a href={`tel:${p.celular.replace(/\s/g, "")}`} className="prov-contact-link prov-contact-link--tel">
+                              📞 {p.celular}
+                            </a>
+                          : <span style={{ fontSize: 12, color: "#bdbdbd" }}>—</span>
+                        }
+                        {p.correo
+                          ? <a href={`mailto:${p.correo}`} className="prov-contact-link prov-contact-link--mail">
+                              ✉ {p.correo}
+                            </a>
+                          : <span style={{ fontSize: 12, color: "#bdbdbd" }}>—</span>
+                        }
                       </div>
                     </td>
 

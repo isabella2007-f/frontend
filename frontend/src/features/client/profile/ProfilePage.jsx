@@ -13,9 +13,9 @@ const COP = (n) => new Intl.NumberFormat('es-CO', { style: 'currency', currency:
 
 const ESTADO_CONFIG = {
   'Pendiente':    { bg: '#fff8e1', color: '#f57f17', border: '#ffe082', dot: '#ffa726' },
-  'Confirmado':   { bg: '#e3f2fd', color: '#1565c0', border: '#90caf9', dot: '#42a5f5' },
-  'En proceso':   { bg: '#f3e5f5', color: '#6a1b9a', border: '#ce93d8', dot: '#ab47bc' },
-  'En camino':    { bg: '#e8f5e9', color: '#1b5e20', border: '#a5d6a7', dot: '#66bb6a' },
+  'Confirmado':   { bg: '#e8f5e9', color: '#2e7d32', border: '#a5d6a7', dot: '#43a047' },
+  'En proceso':   { bg: '#e3f2fd', color: '#1565c0', border: '#90caf9', dot: '#1976d2' },
+  'En camino':    { bg: '#f3e5f5', color: '#6a1b9a', border: '#ce93d8', dot: '#8e24aa' },
   'Entregado':    { bg: '#e8f5e9', color: '#2e7d32', border: '#c8e6c9', dot: '#43a047' },
   'Cancelado':    { bg: '#ffebee', color: '#b71c1c', border: '#ef9a9a', dot: '#ef5350' },
   'Completada':   { bg: '#e8f5e9', color: '#2e7d32', border: '#c8e6c9', dot: '#43a047' },

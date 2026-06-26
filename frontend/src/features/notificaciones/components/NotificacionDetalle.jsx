@@ -5,14 +5,20 @@ import "./notificaciones.css";
 
 /* Mapeo de rutas para navegación rápida */
 const RUTA_MAP = {
-  [TIPOS.STOCK_MINIMO]:    "/admin/gestion-insumos",
-  [TIPOS.STOCK_AGOTADO]:   "/admin/gestion-insumos",
-  [TIPOS.LOTE_POR_VENCER]: "/admin/gestion-insumos",
-  [TIPOS.LOTE_VENCIDO]:    "/admin/gestion-insumos",
-  [TIPOS.PEDIDO_NUEVO]:    "/admin/pedidos",
-  [TIPOS.COMPRA_PENDIENTE]:"/admin/compras",
-  [TIPOS.DEVOLUCION]:      "/admin/devoluciones",
-  [TIPOS.SISTEMA]:         "/admin",
+  [TIPOS.STOCK_MINIMO]:         "/admin/gestion-insumos",
+  [TIPOS.STOCK_AGOTADO]:        "/admin/gestion-insumos",
+  [TIPOS.LOTE_POR_VENCER]:      "/admin/gestion-insumos",
+  [TIPOS.LOTE_VENCIDO]:         "/admin/gestion-insumos",
+  [TIPOS.PEDIDO_NUEVO]:         "/admin/pedidos",
+  [TIPOS.COMPRA_PENDIENTE]:     "/admin/compras",
+  [TIPOS.DEVOLUCION_PENDIENTE]: "/admin/devoluciones",
+  [TIPOS.SISTEMA]:              "/admin",
+  // Rutas del cliente
+  [TIPOS.PEDIDO_CONFIRMADO]:    "/cliente/pedidos",
+  [TIPOS.PEDIDO_ENTREGADO]:     "/cliente/pedidos",
+  [TIPOS.PEDIDO_CANCELADO]:     "/cliente/pedidos",
+  [TIPOS.DEVOLUCION_APROBADA]:  "/cliente/devoluciones",
+  [TIPOS.DEVOLUCION_RECHAZADA]: "/cliente/devoluciones",
 };
 
 export default function NotificacionDetalle({ notif, onClose }) {

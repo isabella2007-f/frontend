@@ -34,6 +34,7 @@ const ADAPT_INSUMO = raw => ({
   diasParaVencer:   raw.dias_para_vencer ?? null,
   loteId:           raw.lote_id ?? null,
   tieneFicha:       raw.tiene_ficha_tecnica ?? false,
+  tieneOrden:       raw.tiene_orden_produccion ?? false,
 });
 
 const ADAPT_CAT = raw => ({
@@ -81,6 +82,11 @@ function StockBar({ actual, minimo }) {
       <span className="stock-nums" style={est === "agotado" ? { color: "#c62828" } : undefined}>
         <strong>{actual}</strong> / mín {minimo}
       </span>
+      {est !== "disponible" && (
+        <span style={{ fontSize: 10, fontWeight: 700, color: est === "agotado" ? "#c62828" : "#e65100", whiteSpace: "nowrap" }}>
+          {est === "agotado" ? "🚫 Agotado" : "⚠ Bajo mínimo"}
+        </span>
+      )}
       {hovered && (
         <div className="stock-tooltip" style={{ background: tip.bg, border: `1px solid ${tip.border}`, color: tip.text }}>
           <span className="stock-tooltip__dot" style={{ background: color }} />
@@ -290,7 +296,7 @@ export default function GestionInsumos() {
     { val: "disponible", label: "Disponible", dot: "#43a047" },
     { val: "bajo",       label: "Stock bajo", dot: "#ffa726" },
     { val: "agotado",    label: "Agotado",    dot: "#ef5350" },
-    { val: "activo",     label: "Activo",     dot: "#2196f3" },
+    { val: "activo",     label: "Activo",     dot: "#43a047" },
     { val: "inactivo",   label: "Inactivo",   dot: "#9e9e9e" },
   ];
 
@@ -467,7 +473,7 @@ export default function GestionInsumos() {
         />
       )}
       {modal?.type === "eliminar" && (
-        modal.ins.tieneFicha ? (
+        (modal.ins.tieneFicha || modal.ins.tieneOrden) ? (
           <div className="modal-overlay" onClick={() => setModal(null)} style={{ zIndex: 30000 }}>
             <div className="modal-box" onClick={e => e.stopPropagation()}>
               <div className="modal-header">
@@ -482,11 +488,17 @@ export default function GestionInsumos() {
                   <span style={{ fontSize: 28, lineHeight: 1 }}>⚠️</span>
                   <div>
                     <p style={{ margin: 0, fontWeight: 700, color: "#e65100", fontSize: 14 }}>
-                      El insumo está asociado a una ficha técnica de producción
+                      El insumo está en uso y no puede eliminarse
                     </p>
                     <p style={{ margin: "6px 0 0", fontSize: 13, color: "#424242" }}>
-                      El insumo <strong>"{modal.ins.nombre}"</strong> forma parte de la receta de uno o más productos.
-                      Debes retirarlo de todas las fichas técnicas antes de poder eliminarlo.
+                      El insumo <strong>"{modal.ins.nombre}"</strong>
+                      {modal.ins.tieneFicha && modal.ins.tieneOrden
+                        ? " forma parte de fichas técnicas y está en órdenes de producción activas."
+                        : modal.ins.tieneFicha
+                        ? " forma parte de la receta de uno o más productos."
+                        : " está actualmente en una o más órdenes de producción activas."
+                      }
+                      {" "}Retíralo de todos los registros antes de poder eliminarlo.
                     </p>
                   </div>
                 </div>

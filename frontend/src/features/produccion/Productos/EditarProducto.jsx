@@ -284,7 +284,7 @@ export default function EditarProducto({ product, categorias = [], onClose, onSa
 
         {/* ── Paso 1: Información ── */}
         {step === 1 && (
-          <>
+          <div>
             <div className="form-group">
               <label className="form-label">Nombre</label>
               <input
@@ -329,7 +329,7 @@ export default function EditarProducto({ product, categorias = [], onClose, onSa
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <Toggle value={form.publicado} onChange={(v) => set("publicado", v)} />
-                  <span className="estado-label" style={{ color: form.publicado ? "#1565c0" : "#9e9e9e" }}>
+                  <span className="estado-label" style={{ color: form.publicado ? "#2e7d32" : "#9e9e9e" }}>
                     {form.publicado ? "Visible en la tienda" : "Oculto en la tienda"}
                   </span>
                 </div>
@@ -352,23 +352,23 @@ export default function EditarProducto({ product, categorias = [], onClose, onSa
               />
             </div>
 
-            <div className="form-group">
+            <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label">Descripción larga</label>
               <textarea
                 className="field-input"
-                rows={3}
+                rows={2}
                 value={form.descripcion_larga}
                 onChange={(e) => set("descripcion_larga", e.target.value)}
                 placeholder="Descripción detallada del producto para la tienda..."
-                style={{ resize: "vertical", minHeight: 70 }}
+                style={{ resize: "none" }}
               />
             </div>
-          </>
+          </div>
         )}
 
         {/* ── Paso 2: Precio, stock e imágenes ── */}
         {step === 2 && (
-          <>
+          <div>
             {/* Bloque de costos */}
             {costoProduccion > 0 && (
               <div
@@ -425,10 +425,10 @@ export default function EditarProducto({ product, categorias = [], onClose, onSa
                   <input
                     className={`field-input${errors.precio ? " field-input--error" : ""}`}
                     style={{ paddingLeft: 24 }}
-                    type="number"
-                    min="0"
-                    value={form.precio}
-                    onChange={(e) => set("precio", e.target.value)}
+                    type="text"
+                    inputMode="numeric"
+                    value={form.precio ? Number(form.precio).toLocaleString("es-CO") : ""}
+                    onChange={(e) => set("precio", e.target.value.replace(/[^\d]/g, ""))}
                     placeholder="0"
                     onFocus={(e) => (e.target.style.borderColor = "#4caf50")}
                     onBlur={(e)  => (e.target.style.borderColor = errors.precio ? "#e53935" : "#e0e0e0")}
@@ -529,13 +529,15 @@ export default function EditarProducto({ product, categorias = [], onClose, onSa
                 {/* Botón agregar */}
                 <div
                   onClick={() => fileRef.current.click()}
-                  className="img-upload-zone"
-                  style={{ width: 80, height: 80, margin: 0, padding: 0, cursor: "pointer" }}
+                  style={{
+                    width: 80, height: 80, borderRadius: 10,
+                    border: "1.5px dashed #a5d6a7", background: "#f1f8f1",
+                    display: "flex", flexDirection: "column", alignItems: "center",
+                    justifyContent: "center", cursor: "pointer", gap: 2, flexShrink: 0,
+                  }}
                 >
-                  <div style={{ textAlign: "center", color: "#9e9e9e" }}>
-                    <div style={{ fontSize: 20 }}>➕</div>
-                    <span style={{ fontSize: 9 }}>Subir</span>
-                  </div>
+                  <span style={{ fontSize: 22, fontWeight: 300, color: "#43a047", lineHeight: 1 }}>+</span>
+                  <span style={{ fontSize: 9, color: "#66bb6a", fontWeight: 600 }}>Subir</span>
                 </div>
               </div>
 
@@ -569,7 +571,7 @@ export default function EditarProducto({ product, categorias = [], onClose, onSa
                 onChange={handleImgs}
               />
             </div>
-          </>
+          </div>
         )}
       </div>
 

@@ -259,7 +259,7 @@ export default function GestionUsuarios() {
                         </div>
                         <div>
                           <div className="client-name">{user.nombre} {user.apellidos}</div>
-                          <div className="client-email">{user.correo}</div>
+                          <a href={`mailto:${user.correo}`} className="client-email" style={{ textDecoration: "none" }}>{user.correo}</a>
                         </div>
                       </div>
                     </td>
@@ -270,10 +270,13 @@ export default function GestionUsuarios() {
                       </div>
                     </td>
                     <td>
-                      <span className="phone-cell">
-                        <span className="phone-icon">📞</span>
-                        {user.telefono || "—"}
-                      </span>
+                      {user.telefono
+                        ? <a href={`tel:${user.telefono.replace(/\s/g, "")}`} className="phone-cell" style={{ textDecoration: "none" }}>
+                            <span className="phone-icon">📞</span>
+                            {user.telefono}
+                          </a>
+                        : <span className="phone-cell" style={{ color: "#bdbdbd" }}>—</span>
+                      }
                     </td>
                     <td>
                       <div className="location-city">{user.municipio    || "—"}</div>
@@ -283,12 +286,18 @@ export default function GestionUsuarios() {
                     <td>
                       {(() => {
                         const esAdmin = user.tipo === "empleado" && user.idRol === 1;
+                        const rolDesactivado = !esAdmin && user.tipo === "empleado" &&
+                          user.rol && roles.some(r => r.nombre === user.rol && !r.estado);
                         return (
                           <ToggleConTooltip
-                            on={esAdmin ? true : user.estado}
+                            on={esAdmin ? true : (!rolDesactivado && user.estado)}
                             onToggle={() => handleToggleClick(user)}
-                            disabled={esAdmin}
-                            razon={esAdmin ? "El administrador siempre está activo" : null}
+                            disabled={esAdmin || rolDesactivado}
+                            razon={
+                              esAdmin         ? "El administrador siempre está activo"
+                              : rolDesactivado ? `El rol "${user.rol}" está desactivado`
+                              : null
+                            }
                           />
                         );
                       })()}

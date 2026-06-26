@@ -470,7 +470,7 @@ export default function GestionDevoluciones() {
           {[
             { val: "todos",       label: "Total",        count: counts.todos,       color: "#2e7d32", icon: "📊" },
             { val: "Pendiente",   label: "Pendientes",   count: counts.Pendiente,   color: "#f9a825", icon: "⏳" },
-            { val: "Reembolsada", label: "Reembolsadas", count: counts.Reembolsada, color: "#009688", icon: "💳" },
+            { val: "Reembolsada", label: "Reembolsadas", count: counts.Reembolsada, color: "#2e7d32", icon: "💳" },
             { val: "Rechazada",   label: "Rechazadas",   count: counts.Rechazada,   color: "#c62828", icon: "🚫" },
           ].map((m) => (
             <button
@@ -512,7 +512,7 @@ export default function GestionDevoluciones() {
                   { val: "Pendiente",   label: "Pendiente",   dot: "#f9a825" },
                   { val: "Aprobada",    label: "Aprobada",    dot: "#43a047" },
                   { val: "Rechazada",   label: "Rechazada",   dot: "#e53935" },
-                  { val: "Reembolsada", label: "Reembolsada", dot: "#009688" },
+                  { val: "Reembolsada", label: "Reembolsada", dot: "#43a047" },
                 ].map((f) => (
                   <button
                     key={f.val}

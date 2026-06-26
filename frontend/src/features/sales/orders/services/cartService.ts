@@ -4,6 +4,7 @@ export interface CartItem {
   precio: number;
   cantidad: number;
   imagenPreview: string | null;
+  stock?: number;
 }
 
 const CART_KEY = "toston_app_cart";
@@ -22,6 +23,7 @@ export const addToCart = (product: any): void => {
   const existing = cart.find((item) => item.id === product.id);
 
   if (existing) {
+    if (existing.stock && existing.cantidad >= existing.stock) return;
     existing.cantidad += 1;
   } else {
     cart.push({
@@ -29,7 +31,8 @@ export const addToCart = (product: any): void => {
       nombre: product.nombre,
       precio: product.precio,
       cantidad: 1,
-      imagenPreview: product.imagenPreview,
+      imagenPreview: product.imagenPreview || product.imagen || null,
+      stock: product.stock || 0,
     });
   }
   saveCart(cart);
@@ -46,7 +49,8 @@ export const updateQuantity = (productId: number, quantity: number): void => {
   const cart = getCart();
   const item = cart.find((i) => i.id === productId);
   if (item) {
-    item.cantidad = Math.max(1, quantity);
+    const maxQty = item.stock || Infinity;
+    item.cantidad = Math.max(1, Math.min(quantity, maxQty));
     saveCart(cart);
     window.dispatchEvent(new Event('cart-updated'));
   }

@@ -92,12 +92,11 @@ export default function ChatConversacion() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  // Determinar qué ID corresponde a este usuario para marcar "propios"
-  const miTipo = user?.tipo === "usuario" ? "cliente"
+  // "cliente" / "admin" / "domiciliario" según el usuario logueado
+  const miTipo = user?.tipo === "cliente" ? "cliente"
     : user?.rol === "Admin" ? "admin" : "domiciliario";
-  const miId = user?.id;
 
-  const esMio = (msg) => msg.Tipo_Remitente === miTipo && msg.ID_Remitente === miId;
+  const esMio = (msg) => msg.Tipo_Remitente === miTipo;
 
   return (
     <div className="page-wrapper" style={{ display: "flex", flexDirection: "column", height: "100%" }}>

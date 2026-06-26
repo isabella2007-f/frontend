@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import "./Proveedores.css";
 
 const fmtTel = raw => {
@@ -8,49 +8,26 @@ const fmtTel = raw => {
   return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`;
 };
 
+const fmtFecha = iso => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d)) return null;
+  return d.toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
+};
+
+const VALLE_ABURRA = [
+  "Barbosa", "Bello", "Caldas", "Copacabana", "Envigado",
+  "Girardota", "Itagüí", "La Estrella", "Medellín", "Sabaneta",
+];
+
 function LocationSelects({ departamento, ciudad, onDepto, onCiudad, disabled }) {
-  const [deptos,     setDeptos]     = useState([]);
-  const [ciudades,   setCiudades]   = useState([]);
-  const [loadingD,   setLoadingD]   = useState(false);
-  const [loadingC,   setLoadingC]   = useState(false);
-  const initialDone = useRef(false);
-
   useEffect(() => {
-    setLoadingD(true);
-    fetch("https://api-colombia.com/api/v1/Department")
-      .then(r => r.json())
-      .then(d => setDeptos(d.sort((a, b) => a.name.localeCompare(b.name))))
-      .catch(() => {})
-      .finally(() => setLoadingD(false));
-  }, []);
+    if (!departamento) onDepto("Antioquia");
+  }, []); // eslint-disable-line
 
-  useEffect(() => {
-    if (!deptos.length || !departamento || initialDone.current) return;
-    const found = deptos.find(d => d.name === departamento);
-    if (!found) return;
-    initialDone.current = true;
-    setLoadingC(true);
-    fetch(`https://api-colombia.com/api/v1/Department/${found.id}/cities`)
-      .then(r => r.json())
-      .then(d => setCiudades(d.sort((a, b) => a.name.localeCompare(b.name))))
-      .catch(() => {})
-      .finally(() => setLoadingC(false));
-  }, [deptos, departamento]);
-
-  const handleDepto = (nombre) => {
-    initialDone.current = true;
-    onDepto(nombre);
-    onCiudad("");
-    if (!nombre) { setCiudades([]); return; }
-    const found = deptos.find(d => d.name === nombre);
-    if (!found) return;
-    setLoadingC(true);
-    fetch(`https://api-colombia.com/api/v1/Department/${found.id}/cities`)
-      .then(r => r.json())
-      .then(d => setCiudades(d.sort((a, b) => a.name.localeCompare(b.name))))
-      .catch(() => {})
-      .finally(() => setLoadingC(false));
-  };
+  const opciones = VALLE_ABURRA.includes(ciudad) || !ciudad
+    ? VALLE_ABURRA
+    : [...VALLE_ABURRA, ciudad].sort((a, b) => a.localeCompare(b));
 
   const selStyle = {
     width: "100%", border: "1.5px solid #e0e0e0", borderRadius: 9,
@@ -59,20 +36,22 @@ function LocationSelects({ departamento, ciudad, onDepto, onCiudad, disabled }) 
     fontFamily: "inherit", color: "#1a1a1a", boxSizing: "border-box",
     pointerEvents: disabled ? "none" : "auto",
   };
+  const arrow = (
+    <div style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
+    </div>
+  );
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
       <div className="form-group">
         <label className="form-label">Departamento</label>
         <div style={{ position: "relative" }}>
-          <select value={departamento || ""} onChange={e => handleDepto(e.target.value)}
-            style={selStyle} disabled={loadingD || disabled}>
-            <option value="">{loadingD ? "Cargando…" : "Seleccione…"}</option>
-            {deptos.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+          <select value={departamento || "Antioquia"} onChange={e => { onDepto(e.target.value); onCiudad(""); }}
+            style={selStyle} disabled={disabled}>
+            <option value="Antioquia">Antioquia</option>
           </select>
-          <div style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
-          </div>
+          {arrow}
         </div>
       </div>
 
@@ -80,13 +59,109 @@ function LocationSelects({ departamento, ciudad, onDepto, onCiudad, disabled }) 
         <label className="form-label">Ciudad</label>
         <div style={{ position: "relative" }}>
           <select value={ciudad || ""} onChange={e => onCiudad(e.target.value)}
-            style={selStyle} disabled={!departamento || loadingC || disabled}>
-            <option value="">{!departamento ? "Seleccione depto…" : loadingC ? "Cargando…" : "Seleccione…"}</option>
-            {ciudades.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+            style={selStyle} disabled={disabled}>
+            <option value="">Seleccione…</option>
+            {opciones.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
-          <div style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
+          {arrow}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Vista de sólo lectura — diseño compacto con contexto ── */
+function VistaProveedor({ proveedor, onClose }) {
+  const { responsable, celular, correo, direccion, departamento, ciudad,
+          totalCompras, ultimaCompraFecha, ultimaCompraEstado, insumosProvistos } = proveedor;
+
+  const ubicacion = [direccion, ciudad, departamento].filter(Boolean).join(", ");
+  const telRaw    = (celular || "").replace(/\s/g, "");
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
+
+        <div className="modal-header">
+          <div>
+            <p className="modal-header__eyebrow">Proveedores</p>
+            <h2 className="modal-header__title">Detalles del Proveedor</h2>
           </div>
+          <button className="modal-close-btn" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+          {/* Cabecera del proveedor */}
+          <div style={{ display: "flex", alignItems: "center", gap: 14,
+                        padding: "12px 14px", background: "#f1f8f1",
+                        border: "1.5px solid #c8e6c9", borderRadius: 12 }}>
+            <div className="prov-avatar" style={{ width: 44, height: 44, fontSize: 22, flexShrink: 0 }}>🏭</div>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 15, color: "#1a1a1a" }}>{responsable}</div>
+              <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 2 }}>ID: {proveedor.id}</div>
+            </div>
+          </div>
+
+          {/* Contacto — tappable */}
+          <div>
+            <p className="section-label" style={{ margin: "0 0 8px" }}>Contacto</p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {celular
+                ? <a href={`tel:${telRaw}`} className="prov-contact-link prov-contact-link--tel">📞 {celular}</a>
+                : <span className="prov-contact-empty">Sin teléfono</span>
+              }
+              {correo
+                ? <a href={`mailto:${correo}`} className="prov-contact-link prov-contact-link--mail">✉ {correo}</a>
+                : <span className="prov-contact-empty">Sin correo</span>
+              }
+            </div>
+          </div>
+
+          {/* Ubicación */}
+          {ubicacion && (
+            <div>
+              <p className="section-label" style={{ margin: "0 0 6px" }}>Ubicación</p>
+              <span style={{ fontSize: 13, color: "#424242" }}>📍 {ubicacion}</span>
+            </div>
+          )}
+
+          {/* Actividad */}
+          <div>
+            <p className="section-label" style={{ margin: "0 0 8px" }}>Actividad</p>
+            <div style={{ display: "flex", gap: 10 }}>
+              <div className="prov-stat-card">
+                <span className="prov-stat-card__num">{totalCompras}</span>
+                <span className="prov-stat-card__label">Compras</span>
+              </div>
+              <div className="prov-stat-card" style={{ flex: 2 }}>
+                <span className="prov-stat-card__num" style={{ fontSize: 13 }}>
+                  {fmtFecha(ultimaCompraFecha) ?? "—"}
+                </span>
+                <span className="prov-stat-card__label">
+                  Última compra{ultimaCompraEstado ? ` · ${ultimaCompraEstado}` : ""}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Insumos que provee */}
+          <div>
+            <p className="section-label" style={{ margin: "0 0 8px" }}>Insumos que provee</p>
+            {insumosProvistos.length > 0
+              ? <div className="prov-chips">
+                  {insumosProvistos.map(n => (
+                    <span key={n} className="prov-chip">🧺 {n}</span>
+                  ))}
+                </div>
+              : <span className="prov-chip prov-chip--empty">Sin compras registradas</span>
+            }
+          </div>
+
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn-ghost" onClick={onClose}>Cerrar</button>
         </div>
       </div>
     </div>
@@ -95,6 +170,8 @@ function LocationSelects({ departamento, ciudad, onDepto, onCiudad, disabled }) 
 
 export default function EditarProveedor({ proveedor, mode = "edit", onClose, onSave }) {
   const isView = mode === "view";
+
+  if (isView) return <VistaProveedor proveedor={proveedor} onClose={onClose} />;
 
   const [form,   setForm]   = useState({
     responsable:  "",
@@ -141,17 +218,14 @@ export default function EditarProveedor({ proveedor, mode = "edit", onClose, onS
 
   const renderField = (k, label, type = "text", placeholder = "") => (
     <div className="form-group" key={k}>
-      <label className="form-label">{label}{!isView && k === "responsable" && <span className="required"> *</span>}</label>
-      {isView
-        ? <div className="field-input field-input--disabled">{form[k] || "—"}</div>
-        : <input
-            className={`field-input${errors[k] ? " error" : ""}`}
-            type={type}
-            value={form[k] || ""}
-            onChange={e => set(k, k === "celular" ? fmtTel(e.target.value) : e.target.value)}
-            placeholder={placeholder}
-          />
-      }
+      <label className="form-label">{label}{k === "responsable" && <span className="required"> *</span>}</label>
+      <input
+        className={`field-input${errors[k] ? " error" : ""}`}
+        type={type}
+        value={form[k] || ""}
+        onChange={e => set(k, k === "celular" ? fmtTel(e.target.value) : e.target.value)}
+        placeholder={placeholder}
+      />
       {errors[k] && <span className="field-error">{errors[k]}</span>}
     </div>
   );
@@ -163,15 +237,12 @@ export default function EditarProveedor({ proveedor, mode = "edit", onClose, onS
         <div className="modal-header">
           <div>
             <p className="modal-header__eyebrow">Proveedores</p>
-            <h2 className="modal-header__title">
-              {isView ? "Detalles del Proveedor" : "Editar Proveedor"}
-            </h2>
+            <h2 className="modal-header__title">Editar Proveedor</h2>
           </div>
           <button className="modal-close-btn" onClick={onClose}>✕</button>
         </div>
 
-        <div className="modal-body" style={{ minHeight: 260 }}>
-
+        <div className="modal-body">
           <p className="section-label" style={{ marginTop: 0 }}>Identificación</p>
           {renderField("responsable", "Nombre / Razón Social", "text", "Ej: Juan García")}
 
@@ -183,37 +254,20 @@ export default function EditarProveedor({ proveedor, mode = "edit", onClose, onS
 
           <p className="section-label">Ubicación</p>
           {renderField("direccion", "Dirección", "text", "Ej: Cra 5 #12-34")}
-          {isView ? (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div className="form-group">
-                <label className="form-label">Departamento</label>
-                <div className="field-input field-input--disabled">{form.departamento || "—"}</div>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Ciudad</label>
-                <div className="field-input field-input--disabled">{form.ciudad || "—"}</div>
-              </div>
-            </div>
-          ) : (
-            <LocationSelects
-              departamento={form.departamento}
-              ciudad={form.ciudad}
-              onDepto={v => set("departamento", v)}
-              onCiudad={v => set("ciudad", v)}
-              disabled={false}
-            />
-          )}
+          <LocationSelects
+            departamento={form.departamento}
+            ciudad={form.ciudad}
+            onDepto={v => set("departamento", v)}
+            onCiudad={v => set("ciudad", v)}
+            disabled={false}
+          />
         </div>
 
         <div className="modal-footer">
-          <button className="btn-ghost" onClick={onClose}>
-            {isView ? "Cerrar" : "Cancelar"}
+          <button className="btn-ghost" onClick={onClose}>Cancelar</button>
+          <button className="btn-save" onClick={handleSave} disabled={saving}>
+            {saving ? "Guardando…" : "Guardar cambios"}
           </button>
-          {!isView && (
-            <button className="btn-save" onClick={handleSave} disabled={saving}>
-              {saving ? "Guardando…" : "Guardar cambios"}
-            </button>
-          )}
         </div>
       </div>
     </div>

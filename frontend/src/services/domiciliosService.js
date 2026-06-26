@@ -30,10 +30,11 @@ const adaptDomicilio = (d) => {
     metodo_pago:        d.metodo_pago         || "",
     productos:          d.productos           || [],
     domicilio:          true,
+    venta_estado_id:    d.venta_estado ?? null,
     cliente: {
-      nombre:   d.nombre_cliente || "",
+      nombre:   d.nombre_cliente   || "",
       correo:   "",
-      telefono: "",
+      telefono: d.telefono_cliente || "",
     },
   };
 };

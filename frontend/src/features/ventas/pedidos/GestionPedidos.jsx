@@ -38,22 +38,27 @@ const PER_PAGE = 5;
 const ESTADOS_ACTIVOS_PEDIDO = ["Pendiente", "En producción"];
 
 const ESTADO_CONFIG = {
-  "Pendiente":      { bg: "bg-amber-50",   color: "text-amber-700",  border: "border-amber-200",  dot: "#f9a825" },
-  "En producción":  { bg: "bg-blue-50",    color: "text-blue-700",   border: "border-blue-200",   dot: "#1976d2" },
-  "Confirmado":     { bg: "bg-green-50",   color: "text-green-700",  border: "border-green-200",  dot: "#43a047" },
-  "Listo":          { bg: "bg-indigo-50",  color: "text-indigo-700", border: "border-indigo-200", dot: "#3949ab" },
-  "Asignado":       { bg: "bg-orange-50",  color: "text-orange-700", border: "border-orange-200", dot: "#e65100" },
-  "En camino":      { bg: "bg-purple-50",  color: "text-purple-700", border: "border-purple-200", dot: "#8e24aa" },
-  "Cancelado":      { bg: "bg-red-50",     color: "text-red-700",    border: "border-red-200",    dot: "#e53935" },
-  "Entregado":      { bg: "bg-teal-50",    color: "text-teal-700",   border: "border-teal-200",   dot: "#009688" },
+  "Pendiente":     { bg: "#fff8e1", color: "#f9a825", border: "#ffe082", dot: "#f9a825" },
+  "En producción": { bg: "#e3f2fd", color: "#1565c0", border: "#90caf9", dot: "#1976d2" },
+  "Confirmado":    { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7", dot: "#43a047" },
+  "Listo":         { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7", dot: "#43a047" },
+  "Asignado":      { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7", dot: "#43a047" },
+  "En camino":     { bg: "#f3e5f5", color: "#6a1b9a", border: "#ce93d8", dot: "#8e24aa" },
+  "Cancelado":     { bg: "#ffebee", color: "#c62828", border: "#ef9a9a", dot: "#e53935" },
+  "Entregado":     { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7", dot: "#43a047" },
 };
 
 /* ─── EstadoBadge ────────────────────────────────────────── */
 function EstadoBadge({ estado }) {
-  const c   = ESTADO_CONFIG[estado] || { bg: "bg-gray-50", color: "text-gray-700", border: "border-gray-200", dot: "#bdbdbd" };
+  const c = ESTADO_CONFIG[estado] || { bg: "#f5f5f5", color: "#757575", border: "#e0e0e0", dot: "#bdbdbd" };
   return (
-    <span className={`estado-badge ${c.bg} ${c.color} border ${c.border} px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5`}>
-      <span className="w-1.5 h-1.5 rounded-full" style={{ background: c.dot }} />
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 5,
+      background: c.bg, color: c.color, border: `1px solid ${c.border}`,
+      borderRadius: 20, padding: "3px 10px", fontSize: 10, fontWeight: 700,
+      textTransform: "uppercase", letterSpacing: "0.05em",
+    }}>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: c.dot, flexShrink: 0 }} />
       {estado}
     </span>
   );
@@ -139,11 +144,10 @@ function ModalConfirmarEstado({ pedido, nuevoEstado, onClose, onConfirm }) {
    ═══════════════════════════════════════════════════════════ */
 function ModalVerPedido({ pedido, empleados, onClose, onEdit }) {
   const navigate = useNavigate();
-  const [tab, setTab] = useState("resumen");
+  const esTransferencia = pedido.metodo_pago?.includes("Transferencia");
+  const [tab, setTab] = useState(esTransferencia ? "pago" : "resumen");
   const emp = empleados.find(e => e.id === pedido.idEmpleado);
   if (!pedido) return null;
-
-  const esTransferencia = pedido.metodo_pago === "Transferencia";
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -388,7 +392,7 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit }) {
             style={{ background: '#f1f8f1', color: '#2e7d32', border: '1.5px solid #c8e6c9' }}
             onClick={() => descargarFacturaPedido(pedido, pedido.cliente)}
           >
-            📄 Descargar factura
+            📄 Ver / Imprimir factura
           </button>
           {!["Entregado", "Cancelado"].includes(pedido.estado) && (
             <button className="btn-save" onClick={() => { onClose(); onEdit(pedido); }}>✎ Editar Pedido</button>
@@ -699,13 +703,13 @@ function AccionesMenu({ ped, saving, onVer, onEditar, onConfirmar, onMarcarListo
                 </button>
               )}
               {canMarcarListo && (
-                <button className="w-full text-left px-4 py-2.5 text-xs font-bold text-indigo-700 hover:bg-indigo-50 flex items-center gap-3 transition-colors"
+                <button className="w-full text-left px-4 py-2.5 text-xs font-bold text-green-700 hover:bg-green-50 flex items-center gap-3 transition-colors"
                   onClick={() => { onMarcarListo(ped); setOpen(false); }}>
                   <span className="text-sm">📦</span> Marcar como listo
                 </button>
               )}
               {canEntregarTienda && (
-                <button className="w-full text-left px-4 py-2.5 text-xs font-bold text-teal-700 hover:bg-teal-50 flex items-center gap-3 transition-colors"
+                <button className="w-full text-left px-4 py-2.5 text-xs font-bold text-green-700 hover:bg-green-50 flex items-center gap-3 transition-colors"
                   onClick={() => { onEntregar(ped); setOpen(false); }}>
                   <span className="text-sm">🏪</span> Entregar en tienda
                 </button>
@@ -782,7 +786,13 @@ export default function GestionPedidos() {
     setLoading(true);
     try {
       const data = await getPedidos({ porPagina: 100 });
-      setPedidos(data.pedidos);
+      setPedidos(prev => {
+        const newIds = new Set(data.pedidos.map(p => p.id));
+        const preserved = prev.filter(p =>
+          ["Entregado", "Cancelado"].includes(p.estado) && !newIds.has(p.id)
+        );
+        return [...data.pedidos, ...preserved];
+      });
     } catch (err) {
       showToast(err.message || "Error al cargar pedidos", "error");
     } finally {

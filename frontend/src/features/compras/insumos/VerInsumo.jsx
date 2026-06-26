@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { getLotesInsumo } from "../../../services/insumosService.js";
 import "./GestionInsumos.css";
 
@@ -38,8 +39,7 @@ function StockBar({ actual, minimo }) {
   );
 }
 
-function LotesTab({ lotes, loading, tipo }) {
-  const hoy = new Date().toISOString().split("T")[0];
+function LotesTab({ lotes, loading, tipo, unidad }) {
   if (loading) return (
     <div style={{ textAlign: "center", padding: "28px 0", color: "#9e9e9e", fontSize: 13 }}>Cargando lotes…</div>
   );
@@ -52,7 +52,16 @@ function LotesTab({ lotes, loading, tipo }) {
 
   const activos  = lotes.filter(l => !l.vencido);
   const vencidos = lotes.filter(l => l.vencido);
-  const mostrar  = tipo === "vencidos" ? vencidos : activos;
+
+  // FEFO: mostrar activos del que vence primero al último
+  const activosSorted = [...activos].sort((a, b) => {
+    if (!a.fecha_vencimiento && !b.fecha_vencimiento) return 0;
+    if (!a.fecha_vencimiento) return 1;
+    if (!b.fecha_vencimiento) return -1;
+    return a.fecha_vencimiento.localeCompare(b.fecha_vencimiento);
+  });
+
+  const mostrar = tipo === "vencidos" ? vencidos : activosSorted;
 
   if (!mostrar.length) return (
     <div style={{ textAlign: "center", padding: "28px 0", color: "#9e9e9e" }}>
@@ -66,11 +75,12 @@ function LotesTab({ lotes, loading, tipo }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {mostrar.map(l => {
-        const fv = l.fecha_vencimiento;
+        const fv   = l.fecha_vencimiento;
         const dias = l.dias_para_vencer;
         const urgente = !l.vencido && dias !== null && dias <= 7;
-        const borderColor = l.vencido ? "#ef9a9a" : urgente ? "#ffcc80" : "#c8e6c9";
-        const bg = l.vencido ? "#fff8f8" : urgente ? "#fffdf0" : "#f9fdf9";
+        const pronto  = !l.vencido && dias !== null && dias > 7 && dias <= 30;
+        const borderColor = l.vencido ? "#ef9a9a" : urgente ? "#ffcc80" : pronto ? "#ffe082" : "#c8e6c9";
+        const bg          = l.vencido ? "#fff8f8" : urgente ? "#fff3e0" : pronto ? "#fffde7" : "#f9fdf9";
         return (
           <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 14px", borderRadius: 10, border: `1.5px solid ${borderColor}`, background: bg }}>
             <span style={{ fontSize: 18 }}>📦</span>
@@ -81,20 +91,29 @@ function LotesTab({ lotes, loading, tipo }) {
               </div>
               <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 2 }}>
                 {l.fecha_produccion && `Producción: ${l.fecha_produccion} · `}
-                {fv ? `Vence: ${fv}` : "Sin fecha de vencimiento"}
+                {fv
+                  ? (l.vencido
+                      ? `Venció: ${fv}${dias !== null ? ` · hace ${Math.abs(dias)} días` : ""}`
+                      : `Vence: ${fv}`)
+                  : "Sin fecha de vencimiento"}
               </div>
             </div>
             <div style={{ textAlign: "right", flexShrink: 0 }}>
               <div style={{ fontWeight: 700, fontSize: 14, color: "#2e7d32" }}>
                 {l.cantidad ?? l.cantidad_inicial ?? "—"}
               </div>
-              <div style={{ fontSize: 10, color: "#9e9e9e" }}>uds.</div>
+              <div style={{ fontSize: 10, color: "#9e9e9e" }}>{unidad?.simbolo ?? "uds."}</div>
             </div>
             {l.vencido && (
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#c62828", background: "#ffebee", border: "1px solid #ef9a9a", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" }}>Vencido</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#c62828", background: "#ffebee", border: "1px solid #ef9a9a", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" }}>
+                Vencido
+              </span>
             )}
             {urgente && (
               <span style={{ fontSize: 10, fontWeight: 700, color: "#e65100", background: "#fff3e0", border: "1px solid #ffcc80", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" }}>⚠️ {dias}d</span>
+            )}
+            {pronto && (
+              <span style={{ fontSize: 10, fontWeight: 700, color: "#f9a825", background: "#fff8e1", border: "1px solid #ffe082", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" }}>🟡 {dias}d</span>
             )}
           </div>
         );
@@ -104,6 +123,7 @@ function LotesTab({ lotes, loading, tipo }) {
 }
 
 export default function VerInsumo({ ins, categorias, unidades, onClose }) {
+  const navigate = useNavigate();
   const [tab,     setTab]     = useState("info");
   const [lotes,   setLotes]   = useState([]);
   const [lotesLoading, setLotesLoading] = useState(false);
@@ -131,6 +151,8 @@ export default function VerInsumo({ ins, categorias, unidades, onClose }) {
   };
   const ec = estConfig[est];
 
+  const handleSolicitarProveedor = () => { onClose(); navigate("/admin/proveedores"); };
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div
@@ -152,7 +174,7 @@ export default function VerInsumo({ ins, categorias, unidades, onClose }) {
         <div className="ver-ins-tabs">
           <button className={`ver-ins-tab${tab === "info"     ? " ver-ins-tab--active" : ""}`} onClick={() => setTab("info")}>📋 Información</button>
           <button className={`ver-ins-tab${tab === "lotes"    ? " ver-ins-tab--active" : ""}`} onClick={() => setTab("lotes")}>📦 Lotes en inventario</button>
-          <button className={`ver-ins-tab${tab === "vencidos" ? " ver-ins-tab--active" : ""}`} onClick={() => setTab("vencidos")}>🕒 Historial vencidos</button>
+          <button className={`ver-ins-tab${tab === "vencidos" ? " ver-ins-tab--active" : ""}`} onClick={() => setTab("vencidos")}>📦 Lotes vencidos</button>
         </div>
 
         <div className="modal-body" style={{ flex: 1, overflowY: "auto" }}>
@@ -160,11 +182,18 @@ export default function VerInsumo({ ins, categorias, unidades, onClose }) {
           {tab === "info" && (
             <>
               {est !== "disponible" && (
-                <div className="ver-ins-alerta" style={{ borderColor: ec.border, background: ec.bg, color: ec.color, marginBottom: 12 }}>
-                  {ec.icon} <strong>{ec.label}</strong>
-                  {est === "bajo"    && ` — faltan ${ins.stockMinimo - ins.stockActual} ${unidad.simbolo} para alcanzar el mínimo`}
-                  {est === "agotado" && " — este insumo no tiene stock disponible"}
-                </div>
+                <>
+                  <div className="ver-ins-alerta" style={{ borderColor: ec.border, background: ec.bg, color: ec.color, marginBottom: 8 }}>
+                    {ec.icon} <strong>{ec.label}</strong>
+                    {est === "bajo"    && ` — faltan ${ins.stockMinimo - ins.stockActual} ${unidad.simbolo} para alcanzar el mínimo`}
+                    {est === "agotado" && " — este insumo no tiene stock disponible"}
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+                    <button onClick={handleSolicitarProveedor} style={{ fontSize: 12, fontWeight: 600, color: "#1565c0", background: "#e3f2fd", border: "1px solid #90caf9", borderRadius: 8, padding: "5px 12px", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: "inherit" }}>
+                      🛒 Solicitar al proveedor →
+                    </button>
+                  </div>
+                </>
               )}
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
@@ -212,7 +241,7 @@ export default function VerInsumo({ ins, categorias, unidades, onClose }) {
           )}
 
           {(tab === "lotes" || tab === "vencidos") && (
-            <LotesTab lotes={lotes} loading={lotesLoading} tipo={tab} />
+            <LotesTab lotes={lotes} loading={lotesLoading} tipo={tab} unidad={unidad} />
           )}
         </div>
 

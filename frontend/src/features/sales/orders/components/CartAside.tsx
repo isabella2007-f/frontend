@@ -23,7 +23,7 @@ const hoyISO = () => new Date().toISOString().split('T')[0];
 const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLoginRequired }) => {
   const [cart, setCart]               = useState<CartItem[]>(() => getCart());
   const [address, setAddress]         = useState('');
-  const [departamento] = useState('Antioquia');
+  const [departamento, setDepartamento] = useState('Antioquia');
   const [municipio, setMunicipio]     = useState('');
   const [date, setDate]               = useState('');
   const [tieneDomicilio,    setTieneDomicilio]    = useState(false);
@@ -51,8 +51,9 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
     const item = cart.find(i => i.id === id);
     if (!item) return;
     const newQty = item.cantidad + delta;
-    if (newQty > 0) updateQuantity(id, newQty);
-    else removeFromCart(id);
+    if (newQty <= 0) { removeFromCart(id); return; }
+    if (item.stock && newQty > item.stock) return;
+    updateQuantity(id, newQty);
   };
 
   const usarDireccionRegistrada = async () => {
@@ -97,7 +98,7 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
     <div className="fixed inset-0 z-[9000] overflow-hidden">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] transition-all duration-500 animate-in fade-in" onClick={onClose} />
 
-      <div className="absolute right-0 top-0 bottom-0 w-full max-w-sm bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-500 ease-out border-l border-emerald-100">
+      <div className="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-500 ease-out border-l border-emerald-100">
 
         {/* Header */}
         <div className="text-white p-4 shadow-xl relative overflow-hidden shrink-0" style={{ background: 'linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 50%, var(--green-700) 100%)' }}>
@@ -338,14 +339,12 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
               <span className="text-gray-500 font-bold">Subtotal productos</span>
               <span className="text-gray-800 font-black">{COP(total)}</span>
             </div>
-            <div className="flex justify-between items-center text-[11px]">
-              <span className="text-gray-500 font-bold">Envío</span>
-              {tieneDomicilio ? (
+            {tieneDomicilio && (
+              <div className="flex justify-between items-center text-[11px]">
+                <span className="text-gray-500 font-bold">Domicilio</span>
                 <span className="font-black text-[11px]" style={{ color: '#7b1fa2' }}>{COP(COSTO_DOMICILIO)}</span>
-              ) : (
-                <span className="font-black text-[8px] uppercase tracking-widest bg-emerald-50 px-1.5 py-0.5 rounded-md border border-emerald-100" style={{ color: 'var(--green-700)' }}>Gratis</span>
-              )}
-            </div>
+              </div>
+            )}
             <div className="relative py-0.5">
               <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-dashed border-gray-100" /></div>
             </div>

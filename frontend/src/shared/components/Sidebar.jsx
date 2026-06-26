@@ -58,7 +58,7 @@ const adminMenuItems = [
     icon: "💰",
     items: [
       { label: "Pedidos",       icon: "🛍️", link: "/admin/pedidos",              privilegioKey: "Pedidos" },
-      { label: "Domicilios",    icon: "🚚", link: "/admin/domicilios",           privilegioKey: "Domicilios" },
+      { label: "Domicilios",    icon: "🚚", link: "/admin/domicilios",           privilegioKey: "Domicilios", soloNoRepartidor: true },
       { label: "Mi Dashboard",    icon: "🏠", link: "/admin/mi-dashboard",           clave: "Domicilios_cambiar_estado", hideFromAdmin: true },
       { label: "Mis Entregas",    icon: "🛵", link: "/admin/mis-entregas",           clave: "Domicilios_cambiar_estado", hideFromAdmin: true },
       { label: "Pedido Actual",   icon: "📦", link: "/admin/pedido-actual",          clave: "Domicilios_cambiar_estado", hideFromAdmin: true },
@@ -113,6 +113,8 @@ export default function Sidebar({ isOpen, onToggle }) {
       const matches = expected.some(r => r.toLowerCase() === rol);
       if (!matches) return false;
     }
+    // Vista admin de domicilios: solo para quienes NO son domiciliarios
+    if (item.soloNoRepartidor && user?.rol === "Domiciliario") return false;
     if (!item.privilegioKey && !item.clave) return true;  // sin restricción → siempre visible
     if (loading) return false;                             // aún cargando → no mostrar hasta tener privilegios
     if (item.hideFromAdmin && isAdmin) return false;       // ocultar al admin explícitamente

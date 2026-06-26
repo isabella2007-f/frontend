@@ -96,6 +96,8 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
     window.dispatchEvent(new Event('cart-updated'));
   };
 
+  const isOnLanding = location.pathname === '/';
+
   const scrollToSection = (id) => {
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
     setMenuOpen(false);
@@ -127,9 +129,18 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
               <div className="nav-links">
                 {isLanding && (
                   <>
-                    <button onClick={() => scrollToSection('inicio')}    className="nav-link">Inicio</button>
-                    <button onClick={() => scrollToSection('productos')} className="nav-link">Productos</button>
-                    <button onClick={() => scrollToSection('nosotros')}  className="nav-link">Nosotros</button>
+                    <button
+                      onClick={() => isOnLanding ? scrollToSection('inicio')    : navigate('/')}
+                      className="nav-link"
+                    >Inicio</button>
+                    <button
+                      onClick={() => isOnLanding ? scrollToSection('productos') : navigate({ pathname: '/', hash: '#productos' })}
+                      className="nav-link"
+                    >Productos</button>
+                    <button
+                      onClick={() => isOnLanding ? scrollToSection('nosotros')  : navigate({ pathname: '/', hash: '#nosotros' })}
+                      className="nav-link"
+                    >Nosotros</button>
                   </>
                 )}
                 {!isLanding && user?.tipo === 'cliente' && (

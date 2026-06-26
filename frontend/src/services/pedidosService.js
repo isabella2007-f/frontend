@@ -34,7 +34,7 @@ const adaptPedido = (p) => {
     idEmpleado:          p.ID_Empleado          || p.id_empleado         || null,
     nombre_domiciliario: p.nombre_domiciliario  || null,
     orden_produccion: (p.ordenes_produccion_pendientes > 0) || !!(p.Orden_Produccion ?? p.orden_produccion),
-    comprobante:      p.Comprobante || p.comprobante || null,
+    comprobante:      p.comprobante_pago || p.Comprobante || p.comprobante || null,
     cliente: {
       nombre:   p.nombre_cliente   || "",
       correo:   p.correo_cliente   || "",
@@ -104,3 +104,6 @@ export const getMisVentas = async ({ pagina = 1, porPagina = 100 } = {}) => {
     pedidos: (data.pedidos || data.ventas || []).map(adaptPedido),
   };
 };
+
+export const cancelarMiPedido = async (id) =>
+  apiFetch(`/pedidos/${id}/cancelar-mi-pedido`, { method: "PATCH" });

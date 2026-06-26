@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getPedidos, getMisVentas } from '../../../services/pedidosService';
+import { getMisVentas, cancelarMiPedido } from '../../../services/pedidosService';
+import { crearDevolucion } from '../../../services/devolucionesService';
 import { fmtFecha } from '../../../utils/dateUtils.js';
 import { getCurrentUser } from '../../client/profile/services/profileService.js';
 import { descargarFacturaPedido } from '../../../utils/facturaGenerator.js';
 import {
   Package, Calendar, MapPin, DollarSign, Leaf, Search,
   ChevronRight, Clock, CheckCircle2, Truck, AlertCircle,
-  XCircle, ShoppingBag
+  XCircle, ShoppingBag, RefreshCw,
 } from 'lucide-react';
 import '../../../styles/Client.css';
 
@@ -72,7 +73,7 @@ const COP = (n) =>
   }).format(n);
 
 const ESTADO_CONFIG = {
-  'Pendiente': { 
+  'Pendiente': {
     color: 'amber',
     icon: Clock,
     label: 'Pendiente',
@@ -81,7 +82,7 @@ const ESTADO_CONFIG = {
     border: 'border-amber-200',
     badge: 'bg-amber-100 text-amber-700'
   },
-  'En producción': { 
+  'En producción': {
     color: 'blue',
     icon: Package,
     label: 'En producción',
@@ -90,7 +91,7 @@ const ESTADO_CONFIG = {
     border: 'border-blue-200',
     badge: 'bg-blue-100 text-blue-700'
   },
-  'Listo': { 
+  'Listo': {
     color: 'emerald',
     icon: CheckCircle2,
     label: 'Listo',
@@ -99,7 +100,7 @@ const ESTADO_CONFIG = {
     border: 'border-emerald-200',
     badge: 'bg-emerald-100 text-emerald-700'
   },
-  'En camino': { 
+  'En camino': {
     color: 'purple',
     icon: Truck,
     label: 'En camino',
@@ -108,16 +109,16 @@ const ESTADO_CONFIG = {
     border: 'border-purple-200',
     badge: 'bg-purple-100 text-purple-700'
   },
-  'Entregado': { 
-    color: 'teal',
+  'Entregado': {
+    color: 'emerald',
     icon: CheckCircle2,
     label: 'Entregado',
-    bg: 'bg-teal-50',
-    text: 'text-teal-700',
-    border: 'border-teal-200',
-    badge: 'bg-teal-100 text-teal-700'
+    bg: 'bg-emerald-50',
+    text: 'text-emerald-700',
+    border: 'border-emerald-200',
+    badge: 'bg-emerald-100 text-emerald-700'
   },
-  'Cancelado': { 
+  'Cancelado': {
     color: 'red',
     icon: XCircle,
     label: 'Cancelado',
@@ -128,38 +129,231 @@ const ESTADO_CONFIG = {
   },
 };
 
+const MOTIVOS_DEV = [
+  "Producto en mal estado",
+  "Producto incorrecto",
+  "Producto vencido",
+  "No cumple con lo solicitado",
+  "Error en el pedido",
+  "Otro",
+];
+
+const COP_DEV = (n) =>
+  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(n);
+
+function SolicitarDevolucionModal({ pedido, onClose, onSuccess }) {
+  const [items,      setItems]      = useState(
+    (pedido.productosItems || []).map(p => ({ ...p, cantDev: 0 }))
+  );
+  const [motivo,     setMotivo]     = useState('');
+  const [comentario, setComentario] = useState('');
+  const [saving,     setSaving]     = useState(false);
+  const [error,      setError]      = useState('');
+
+  const setCant = (idx, val) => {
+    const n = Math.max(0, Math.min(items[idx].cantidad, Number(val) || 0));
+    setItems(prev => { const a = [...prev]; a[idx] = { ...a[idx], cantDev: n }; return a; });
+  };
+
+  const seleccionados = items.filter(i => i.cantDev > 0);
+  const total = seleccionados.reduce((s, i) => s + i.precio * i.cantDev, 0);
+
+  const handleSubmit = async () => {
+    if (!motivo)              { setError('Selecciona el motivo de la devolución.'); return; }
+    if (seleccionados.length === 0) { setError('Selecciona al menos un producto.'); return; }
+    setError('');
+    setSaving(true);
+    try {
+      await crearDevolucion({
+        idPedido:  pedido.id,
+        motivo,
+        comentario,
+        productos: seleccionados.map(i => ({
+          idProducto:     i.idProducto,
+          nombre:         i.nombre,
+          cantidad:       i.cantDev,
+          precioUnitario: i.precio,
+        })),
+      });
+      onSuccess();
+    } catch (e) {
+      setError(e.message || 'Error al enviar la solicitud.');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal-box bg-white w-full max-w-lg shadow-2xl flex flex-col"
+        style={{ borderRadius: 24, maxHeight: '90vh', overflow: 'hidden' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{ background: 'linear-gradient(135deg,#b71c1c,#c62828)', padding: '18px 22px', borderRadius: '24px 24px 0 0', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <p style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.6)', letterSpacing: 1, textTransform: 'uppercase', margin: 0 }}>Devolución · Pedido #{pedido.numero}</p>
+            <h2 style={{ margin: '2px 0 0', fontSize: 17, fontWeight: 800, color: '#fff' }}>Solicitar devolución</h2>
+          </div>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', color: '#fff', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+        </div>
+
+        {/* Body */}
+        <div style={{ overflowY: 'auto', flex: 1, padding: '18px 22px' }}>
+          {/* Plazo info */}
+          <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: '#f57f17', fontWeight: 600 }}>
+            ⏱ Tienes hasta <strong>7 días</strong> desde la entrega para solicitar una devolución.
+          </div>
+
+          {/* Productos */}
+          <p style={{ fontSize: 11, fontWeight: 700, color: '#9e9e9e', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>¿Qué productos deseas devolver?</p>
+          <div style={{ border: '1px solid #f0f0f0', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
+            {items.map((item, idx) => (
+              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderBottom: idx < items.length - 1 ? '1px solid #f5f5f5' : 'none', background: item.cantDev > 0 ? '#f9fdf9' : '#fff' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#212121' }}>{item.nombre}</div>
+                  <div style={{ fontSize: 11, color: '#9e9e9e' }}>{COP_DEV(item.precio)} c/u · comprado: ×{item.cantidad}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button onClick={() => setCant(idx, item.cantDev - 1)} disabled={item.cantDev === 0}
+                    style={{ width: 28, height: 28, borderRadius: '50%', border: '1.5px solid #e0e0e0', background: '#fff', cursor: item.cantDev === 0 ? 'not-allowed' : 'pointer', fontSize: 16, color: '#616161', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                  <span style={{ minWidth: 24, textAlign: 'center', fontWeight: 800, fontSize: 14, color: item.cantDev > 0 ? '#c62828' : '#bdbdbd' }}>{item.cantDev}</span>
+                  <button onClick={() => setCant(idx, item.cantDev + 1)} disabled={item.cantDev >= item.cantidad}
+                    style={{ width: 28, height: 28, borderRadius: '50%', border: '1.5px solid #e0e0e0', background: '#fff', cursor: item.cantDev >= item.cantidad ? 'not-allowed' : 'pointer', fontSize: 16, color: '#616161', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                </div>
+                {item.cantDev > 0 && (
+                  <div style={{ minWidth: 72, textAlign: 'right', fontSize: 13, fontWeight: 700, color: '#c62828' }}>{COP_DEV(item.precio * item.cantDev)}</div>
+                )}
+              </div>
+            ))}
+            {total > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', background: '#fff3f3', borderTop: '1.5px solid #ffcdd2' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#c62828', textTransform: 'uppercase' }}>Total a devolver</span>
+                <span style={{ fontSize: 15, fontWeight: 800, color: '#c62828' }}>{COP_DEV(total)}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Motivo */}
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: '#616161', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Motivo <span style={{ color: '#c62828' }}>*</span></label>
+            <select value={motivo} onChange={e => setMotivo(e.target.value)}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e0e0e0', fontSize: 13, fontFamily: 'inherit', outline: 'none', background: '#fff' }}>
+              <option value="">Selecciona el motivo…</option>
+              {MOTIVOS_DEV.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
+
+          {/* Comentario */}
+          <div style={{ marginBottom: 4 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: '#616161', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Comentario adicional (opcional)</label>
+            <textarea rows={2} value={comentario} onChange={e => setComentario(e.target.value)}
+              placeholder="Describe el problema con más detalle…"
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e0e0e0', fontSize: 13, fontFamily: 'inherit', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+
+          {error && (
+            <div style={{ background: '#ffebee', border: '1px solid #ffcdd2', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#c62828', fontWeight: 600, marginTop: 8 }}>
+              ⚠ {error}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ flexShrink: 0, padding: '14px 22px', borderTop: '1px solid #f0f0f0', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ padding: '10px 20px', borderRadius: 10, border: '1px solid #e0e0e0', background: '#fff', color: '#616161', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            Cancelar
+          </button>
+          <button onClick={handleSubmit} disabled={saving || total === 0}
+            style={{ padding: '10px 22px', borderRadius: 10, border: 'none', background: saving || total === 0 ? '#ef9a9a' : '#c62828', color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving || total === 0 ? 'not-allowed' : 'pointer' }}>
+            {saving ? 'Enviando…' : '↩ Solicitar devolución'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const PedidosClientePage = () => {
-  const [pedidos,    setPedidos]    = useState([]);
-  const [user,       setUser]       = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [pedidos,        setPedidos]        = useState([]);
+  const [user,           setUser]           = useState(null);
+  const [searchTerm,     setSearchTerm]     = useState('');
   const [selectedPedido, setSelectedPedido] = useState(null);
-  const [filterEstado, setFilterEstado] = useState('todos');
+  const [filterEstado,   setFilterEstado]   = useState('todos');
+  const [cancelando,     setCancelando]     = useState(false);
+  const [confirmCancel,  setConfirmCancel]  = useState(false);
+  const [cancelError,    setCancelError]    = useState('');
+  const [devModal,       setDevModal]       = useState(null);
+  const [devToast,       setDevToast]       = useState(null);
   const navigate = useNavigate();
+
+  // Ref para acceder al pedido seleccionado dentro del interval sin recrear el callback
+  const selectedPedidoRef = useRef(null);
+  selectedPedidoRef.current = selectedPedido;
+
+  const fetchPedidos = useCallback(() => {
+    getMisVentas({ porPagina: 100 }).then(data => {
+      const lista = data.pedidos || [];
+      setPedidos(lista);
+      // Actualizar el modal si está abierto
+      const curr = selectedPedidoRef.current;
+      if (curr) {
+        const actualizado = lista.find(p => p.id === curr.id);
+        if (actualizado) setSelectedPedido(actualizado);
+      }
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
     setUser(currentUser);
-    getMisVentas({ porPagina: 100 }).then(data => setPedidos(data.pedidos || [])).catch(() =>
-      getPedidos({ porPagina: 100 }).then(data => setPedidos(data.pedidos || [])).catch(() => {})
-    );
-  }, []);
+    fetchPedidos();
+    // Polling cada 30s para actualizar estados
+    const timer = setInterval(fetchPedidos, 30000);
+    return () => clearInterval(timer);
+  }, [fetchPedidos]);
 
-  const userPedidos = user
-    ? pedidos.filter(p => p.cliente?.correo === user.correo || p.idCliente === user.id)
-    : [];
+  // getMisVentas ya devuelve solo los pedidos del usuario autenticado
+  const userPedidos = pedidos;
 
   const filteredPedidos = userPedidos.filter(p => {
     const matchSearch =
-      p.numero.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (p.numero || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (p.cliente?.nombre || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchEstado = filterEstado === 'todos' || p.estado === filterEstado;
     return matchSearch && matchEstado;
   }).sort((a, b) => new Date(b.fecha_pedido) - new Date(a.fecha_pedido));
 
   const handleRequestReturn = (pedido) => {
-    navigate('/cliente/devoluciones', {
-      state: { orderNumber: pedido.numero, productId: pedido.productosItems[0]?.idProducto },
-    });
+    closeModal();
+    setDevModal(pedido);
+  };
+
+  const handleCancelarPedido = async (pedido) => {
+    setCancelando(true);
+    setCancelError('');
+    try {
+      await cancelarMiPedido(pedido.id);
+      setSelectedPedido(null);
+      setConfirmCancel(false);
+      fetchPedidos();
+    } catch (err) {
+      setCancelError(err.message || 'No se pudo cancelar el pedido. Intenta de nuevo.');
+    } finally {
+      setCancelando(false);
+    }
+  };
+
+  const closeModal = () => {
+    setSelectedPedido(null);
+    setConfirmCancel(false);
+    setCancelError('');
+  };
+
+  const openModal = (pedido) => {
+    setSelectedPedido(pedido);
+    setConfirmCancel(false);
+    setCancelError('');
   };
 
   if (!user)
@@ -224,20 +418,20 @@ const PedidosClientePage = () => {
             <div className="flex items-center gap-2 bg-white p-1.5 rounded-2xl border-2 border-gray-100 shadow-sm">
               <button
                 className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                  filterEstado === 'todos' 
-                    ? 'bg-green-700 text-white shadow-lg shadow-green-200' 
+                  filterEstado === 'todos'
+                    ? 'bg-green-700 text-white shadow-lg shadow-green-200'
                     : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
                 }`}
                 onClick={() => setFilterEstado('todos')}
               >
                 Todos
               </button>
-              {['Pendiente', 'En camino', 'Entregado'].map(estado => (
+              {['Pendiente', 'En producción', 'En camino', 'Entregado', 'Cancelado'].map(estado => (
                 <button
                   key={estado}
                   className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                    filterEstado === estado 
-                      ? 'bg-green-700 text-white shadow-lg shadow-green-200' 
+                    filterEstado === estado
+                      ? 'bg-green-700 text-white shadow-lg shadow-green-200'
                       : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
                   }`}
                   onClick={() => setFilterEstado(estado)}
@@ -246,6 +440,14 @@ const PedidosClientePage = () => {
                 </button>
               ))}
             </div>
+
+            <button
+              onClick={fetchPedidos}
+              title="Actualizar pedidos"
+              className="p-3 bg-white border-2 border-gray-100 rounded-2xl text-gray-400 hover:text-green-700 hover:border-green-200 transition-all shadow-sm"
+            >
+              <RefreshCw size={16} />
+            </button>
           </div>
         </div>
 
@@ -255,7 +457,7 @@ const PedidosClientePage = () => {
             {filteredPedidos.map(pedido => {
               const config = ESTADO_CONFIG[pedido.estado] || ESTADO_CONFIG['Pendiente'];
               const StatusIcon = config.icon;
-              
+
               return (
                 <div
                   key={pedido.id}
@@ -289,22 +491,22 @@ const PedidosClientePage = () => {
                       <div>
                         <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 leading-none">Total Pagado</p>
                         <p className="text-2xl font-black text-gray-900 tracking-tight leading-none">
-                          {COP(
+                          {COP(pedido.total || (
                             (pedido.productosItems || []).reduce((s, p) => s + p.precio * p.cantidad, 0)
                             + (pedido.domicilio ? 5000 : 0)
                             - (pedido.descuento || 0)
-                          )}
+                          ))}
                         </p>
                       </div>
                       <div className="flex flex-col items-end">
                         <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 leading-none">Productos</p>
                         <div className="flex -space-x-2">
-                           {pedido.productosItems.slice(0, 3).map((_, i) => (
+                           {(pedido.productosItems || []).slice(0, 3).map((_, i) => (
                              <div key={i} className="w-6 h-6 rounded-full bg-green-50 border-2 border-white flex items-center justify-center text-[8px] font-black text-green-600">
                                📦
                              </div>
                            ))}
-                           {pedido.productosItems.length > 3 && (
+                           {(pedido.productosItems || []).length > 3 && (
                              <div className="w-6 h-6 rounded-full bg-gray-50 border-2 border-white flex items-center justify-center text-[8px] font-black text-gray-400">
                                +{pedido.productosItems.length - 3}
                              </div>
@@ -322,9 +524,9 @@ const PedidosClientePage = () => {
                             : '🏪 Recogida en local'}
                         </span>
                       </div>
-                      
+
                       <button
-                        onClick={() => setSelectedPedido(pedido)}
+                        onClick={() => openModal(pedido)}
                         className="w-full flex items-center justify-center gap-2 py-3 bg-gray-50 hover:bg-green-700 hover:text-white rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all duration-300 group/btn shadow-sm"
                       >
                         Ver Detalle Completo
@@ -358,9 +560,21 @@ const PedidosClientePage = () => {
         )}
       </main>
 
+      {/* ── Toast devolución ── */}
+      {devToast && (
+        <div style={{
+          position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 9999, background: '#2e7d32', color: '#fff', borderRadius: 14,
+          padding: '14px 24px', fontSize: 14, fontWeight: 700,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.2)', whiteSpace: 'nowrap',
+        }}>
+          ✅ {devToast}
+        </div>
+      )}
+
       {/* ── Modal Detalle ── */}
       {selectedPedido && (
-        <div className="modal-overlay" onClick={() => setSelectedPedido(null)}>
+        <div className="modal-overlay" onClick={closeModal}>
           <div
             className="modal-box relative bg-white w-full max-w-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col border-none"
             style={{ borderRadius: 28 }}
@@ -372,7 +586,7 @@ const PedidosClientePage = () => {
                 <p className="modal-header__eyebrow">Pedido #{selectedPedido.numero}</p>
                 <h2 className="modal-header__title">Detalle de Compra</h2>
               </div>
-              <button onClick={() => setSelectedPedido(null)} className="modal-close-btn">✕</button>
+              <button onClick={closeModal} className="modal-close-btn">✕</button>
             </div>
 
             {/* Stepper de seguimiento */}
@@ -420,6 +634,36 @@ const PedidosClientePage = () => {
                 </div>
               )}
 
+              {/* Comprobante de pago */}
+              {(selectedPedido.metodo_pago || '').toLowerCase().includes('transferencia') && (
+                <div style={{ marginBottom: 14 }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: '#9e9e9e', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Comprobante de pago</p>
+                  {selectedPedido.comprobante ? (
+                    <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: '10px 14px' }}>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: '#15803d', marginBottom: 8 }}>✅ Comprobante adjuntado</p>
+                      <img
+                        src={selectedPedido.comprobante}
+                        alt="Comprobante de pago"
+                        style={{ width: '100%', maxHeight: 180, objectFit: 'contain', borderRadius: 8, marginBottom: 6, background: '#fff' }}
+                        onError={e => { e.target.style.display = 'none'; }}
+                      />
+                      <a
+                        href={selectedPedido.comprobante}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontSize: 11, color: '#2563eb', fontWeight: 600 }}
+                      >
+                        Abrir en nueva pestaña ↗
+                      </a>
+                    </div>
+                  ) : (
+                    <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 12, padding: '10px 14px', fontSize: 12, color: '#f57f17', fontWeight: 600 }}>
+                      ⚠️ Aún no se ha adjuntado comprobante de pago
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Productos */}
               <p style={{ fontSize: 10, fontWeight: 700, color: '#9e9e9e', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Productos</p>
               <div style={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 12, overflow: 'hidden', marginBottom: 14 }}>
@@ -432,7 +676,7 @@ const PedidosClientePage = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {selectedPedido.productosItems.map((item, idx) => (
+                    {(selectedPedido.productosItems || []).map((item, idx) => (
                       <tr key={idx} style={{ borderTop: '1px solid #f5f5f5' }}>
                         <td style={{ padding: '8px 14px', fontWeight: 600 }}>
                           {item.nombre}
@@ -455,21 +699,50 @@ const PedidosClientePage = () => {
                     <tr style={{ borderTop: '2px solid #e8f5e9', background: '#f9fdf9' }}>
                       <td colSpan={2} style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, fontWeight: 700, color: '#9e9e9e', textTransform: 'uppercase' }}>Total pagado</td>
                       <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 15, fontWeight: 800, color: '#2e7d32' }}>
-                        {COP(
+                        {COP(selectedPedido.total || (
                           (selectedPedido.productosItems || []).reduce((s, p) => s + p.precio * p.cantidad, 0)
                           + (selectedPedido.domicilio ? 5000 : 0)
                           - (selectedPedido.descuento || 0)
-                        )}
+                        ))}
                       </td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
+
+              {/* Confirmación de cancelación */}
+              {confirmCancel && (
+                <div style={{ background: '#fff3f3', border: '1.5px solid #fca5a5', borderRadius: 12, padding: '12px 16px', marginBottom: 4 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#b91c1c', marginBottom: cancelError ? 6 : 10 }}>
+                    ⚠️ ¿Confirmar la cancelación del pedido #{selectedPedido.numero}? Esta acción no se puede deshacer.
+                  </p>
+                  {cancelError && (
+                    <p style={{ fontSize: 11, color: '#b91c1c', marginBottom: 10, background: '#fee2e2', borderRadius: 8, padding: '6px 10px' }}>
+                      {cancelError}
+                    </p>
+                  )}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: '1px solid #e5e7eb', background: '#fff', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+                      onClick={() => { setConfirmCancel(false); setCancelError(''); }}
+                    >
+                      No, mantener
+                    </button>
+                    <button
+                      style={{ flex: 1, padding: '8px 0', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700, fontSize: 12, cursor: cancelando ? 'not-allowed' : 'pointer', opacity: cancelando ? 0.7 : 1 }}
+                      onClick={() => handleCancelarPedido(selectedPedido)}
+                      disabled={cancelando}
+                    >
+                      {cancelando ? 'Cancelando...' : 'Sí, cancelar pedido'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Footer */}
             <div className="modal-footer">
-              <button className="btn-ghost" onClick={() => setSelectedPedido(null)}>Cerrar</button>
+              <button className="btn-ghost" onClick={closeModal}>Cerrar</button>
               <button
                 className="btn-cancel"
                 style={{ background: '#f1f8f1', color: '#2e7d32', border: '1.5px solid #c8e6c9' }}
@@ -481,9 +754,18 @@ const PedidosClientePage = () => {
                !['Entregado', 'Cancelado'].includes(selectedPedido.estado) && (
                 <button
                   className="btn-cancel"
-                  onClick={() => { setSelectedPedido(null); navigate(`/cliente/chat/${selectedPedido.id_domicilio}`); }}
+                  onClick={() => { closeModal(); navigate(`/cliente/chat/${selectedPedido.id_domicilio}`); }}
                 >
                   💬 Chat con domiciliario
+                </button>
+              )}
+              {selectedPedido.estado === 'Pendiente' && !confirmCancel && (
+                <button
+                  className="btn-cancel"
+                  style={{ background: '#fff5f5', color: '#dc2626', border: '1.5px solid #fca5a5' }}
+                  onClick={() => setConfirmCancel(true)}
+                >
+                  🚫 Cancelar pedido
                 </button>
               )}
               {selectedPedido.estado === 'Entregado' && (
@@ -492,6 +774,18 @@ const PedidosClientePage = () => {
             </div>
           </div>
         </div>
+      )}
+      {/* ── Modal solicitar devolución ── */}
+      {devModal && (
+        <SolicitarDevolucionModal
+          pedido={devModal}
+          onClose={() => setDevModal(null)}
+          onSuccess={() => {
+            setDevModal(null);
+            setDevToast('Solicitud de devolución enviada. El equipo la revisará pronto.');
+            setTimeout(() => setDevToast(null), 5000);
+          }}
+        />
       )}
     </div>
   );

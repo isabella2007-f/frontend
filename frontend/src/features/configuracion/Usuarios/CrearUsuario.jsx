@@ -83,62 +83,27 @@ export function Field({ label, value, onChange, type = "text", placeholder = "",
   );
 }
 
-// ─── SELECTOR DEPARTAMENTO / MUNICIPIO ────────────────────
-function LocationSelects({
-  departamento, municipio,
-  onDepto, onMunicipio,
-  errDepto, errMunicipio,
-  initialDepto, initialMunicipio,
-}) {
-  const [deptos,     setDeptos]     = useState([]);
-  const [municipios, setMunicipios] = useState([]);
-  const [loadingD,   setLoadingD]   = useState(false);
-  const [loadingM,   setLoadingM]   = useState(false);
+// ─── SELECTOR DEPARTAMENTO / MUNICIPIO (Valle de Aburrá) ──
+const VALLE_ABURRA = [
+  "Barbosa", "Bello", "Caldas", "Copacabana", "Envigado",
+  "Girardota", "Itagüí", "La Estrella", "Medellín", "Sabaneta",
+];
 
-  const initialLoadDone = useRef(false);
-
+function LocationSelects({ departamento, municipio, onDepto, onMunicipio, errDepto, errMunicipio }) {
   useEffect(() => {
-    setLoadingD(true);
-    fetch("https://api-colombia.com/api/v1/Department")
-      .then(r => r.json())
-      .then(data => setDeptos(data.sort((a, b) => a.name.localeCompare(b.name))))
-      .catch(() => {})
-      .finally(() => setLoadingD(false));
-  }, []);
+    if (!departamento) onDepto("Antioquia");
+  }, []); // eslint-disable-line
 
-  useEffect(() => {
-    if (!deptos.length) return;
-    if (!initialDepto)  return;
-    if (initialLoadDone.current) return;
+  // Si el municipio actual no está en la lista (usuario preexistente), incluirlo
+  const opciones = VALLE_ABURRA.includes(municipio) || !municipio
+    ? VALLE_ABURRA
+    : [...VALLE_ABURRA, municipio].sort((a, b) => a.localeCompare(b));
 
-    const found = deptos.find(d => d.name === initialDepto);
-    if (!found) return;
-
-    initialLoadDone.current = true;
-    setLoadingM(true);
-    fetch(`https://api-colombia.com/api/v1/Department/${found.id}/cities`)
-      .then(r => r.json())
-      .then(data => setMunicipios(data.sort((a, b) => a.name.localeCompare(b.name))))
-      .catch(() => {})
-      .finally(() => setLoadingM(false));
-  }, [deptos, initialDepto]);
-
-  const handleDeptoChange = (newDepto) => {
-    initialLoadDone.current = true;
-    onDepto(newDepto);
-    onMunicipio("");
-
-    if (!newDepto) { setMunicipios([]); return; }
-    const found = deptos.find(d => d.name === newDepto);
-    if (!found) return;
-
-    setLoadingM(true);
-    fetch(`https://api-colombia.com/api/v1/Department/${found.id}/cities`)
-      .then(r => r.json())
-      .then(data => setMunicipios(data.sort((a, b) => a.name.localeCompare(b.name))))
-      .catch(() => {})
-      .finally(() => setLoadingM(false));
-  };
+  const SVG = (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5">
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
 
   return (
     <>
@@ -146,19 +111,13 @@ function LocationSelects({
         <label className="field-label">Departamento <span className="required">*</span></label>
         <div className="select-wrap">
           <select
-            value={departamento}
-            onChange={e => handleDeptoChange(e.target.value)}
+            value={departamento || "Antioquia"}
+            onChange={e => { onDepto(e.target.value); onMunicipio(""); }}
             className={`field-select${errDepto ? " error" : ""}`}
-            disabled={loadingD}
           >
-            <option value="">{loadingD ? "Cargando…" : "Seleccione…"}</option>
-            {deptos.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+            <option value="Antioquia">Antioquia</option>
           </select>
-          <div className="select-arrow">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5">
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-          </div>
+          <div className="select-arrow">{SVG}</div>
         </div>
         {errDepto && <span className="field-error">{errDepto}</span>}
       </div>
@@ -170,18 +129,11 @@ function LocationSelects({
             value={municipio}
             onChange={e => onMunicipio(e.target.value)}
             className={`field-select${errMunicipio ? " error" : ""}`}
-            disabled={!departamento || loadingM}
           >
-            <option value="">
-              {!departamento ? "Seleccione depto…" : loadingM ? "Cargando…" : "Seleccione…"}
-            </option>
-            {municipios.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+            <option value="">Seleccione…</option>
+            {opciones.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
-          <div className="select-arrow">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5">
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-          </div>
+          <div className="select-arrow">{SVG}</div>
         </div>
         {errMunicipio && <span className="field-error">{errMunicipio}</span>}
       </div>

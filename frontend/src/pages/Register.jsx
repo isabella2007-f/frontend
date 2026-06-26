@@ -72,7 +72,7 @@ const Register = () => {
         <div className="auth-bg">
           <div className="auth-blob auth-blob--1" />
           <div className="auth-blob auth-blob--2" />
-          <div className="auth-card">
+          <div className="auth-card auth-card--wide">
             <div className="auth-topbar" />
             <div className="auth-brand">
               <div className="auth-brand-icon">
@@ -109,7 +109,7 @@ const Register = () => {
         <div className="auth-blob auth-blob--1" />
         <div className="auth-blob auth-blob--2" />
 
-        <div className="auth-card">
+        <div className="auth-card auth-card--wide">
           <div className="auth-topbar" />
 
           {/* Brand */}
@@ -131,32 +131,33 @@ const Register = () => {
 
           <form onSubmit={handleSubmit} className="auth-form">
 
-            {/* Nombre */}
-            <div className="auth-field">
-              <label className="auth-label"><User size={11} /> Nombre(s)</label>
-              <div className="auth-input-wrap">
-                <span className="auth-input-icon"><User size={14} /></span>
-                <input
-                  type="text" placeholder="Carlos"
-                  className="auth-input" value={form.Nombre}
-                  onChange={set('Nombre')}
-                />
+            {/* Nombre + Apellidos — lado a lado */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="auth-field">
+                <label className="auth-label"><User size={11} /> Nombre(s)</label>
+                <div className="auth-input-wrap">
+                  <span className="auth-input-icon"><User size={14} /></span>
+                  <input
+                    type="text" placeholder="Carlos"
+                    className="auth-input" value={form.Nombre}
+                    onChange={set('Nombre')}
+                  />
+                </div>
+                {errors.Nombre && <p style={{ margin: '4px 0 0', fontSize: 11, color: '#dc2626' }}>{errors.Nombre}</p>}
               </div>
-              {errors.Nombre && <p style={{ margin: '4px 0 0', fontSize: 11, color: '#dc2626' }}>{errors.Nombre}</p>}
-            </div>
 
-            {/* Apellidos */}
-            <div className="auth-field">
-              <label className="auth-label"><User size={11} /> Apellidos</label>
-              <div className="auth-input-wrap">
-                <span className="auth-input-icon"><User size={14} /></span>
-                <input
-                  type="text" placeholder="Pérez García"
-                  className="auth-input" value={form.Apellidos}
-                  onChange={set('Apellidos')}
-                />
+              <div className="auth-field">
+                <label className="auth-label"><User size={11} /> Apellidos</label>
+                <div className="auth-input-wrap">
+                  <span className="auth-input-icon"><User size={14} /></span>
+                  <input
+                    type="text" placeholder="Pérez García"
+                    className="auth-input" value={form.Apellidos}
+                    onChange={set('Apellidos')}
+                  />
+                </div>
+                {errors.Apellidos && <p style={{ margin: '4px 0 0', fontSize: 11, color: '#dc2626' }}>{errors.Apellidos}</p>}
               </div>
-              {errors.Apellidos && <p style={{ margin: '4px 0 0', fontSize: 11, color: '#dc2626' }}>{errors.Apellidos}</p>}
             </div>
 
             {/* Correo */}
@@ -224,6 +225,11 @@ const Register = () => {
           <p className="auth-switch">
             ¿Ya tienes cuenta?{' '}
             <Link to="/login" className="auth-switch-link">Inicia sesión</Link>
+          </p>
+          <p className="auth-switch" style={{ marginTop: 4 }}>
+            <Link to="/" className="auth-switch-link" style={{ opacity: 0.65, fontSize: '0.9em' }}>
+              ← Volver al inicio
+            </Link>
           </p>
         </div>
       </div>

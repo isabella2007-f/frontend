@@ -224,7 +224,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
     "En producción":  { bg: "#e3f2fd", color: "#1565c0", border: "#90caf9", dot: "#1976d2" },
     "Listo":          { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7", dot: "#43a047" },
     "En camino":      { bg: "#f3e5f5", color: "#6a1b9a", border: "#ce93d8", dot: "#8e24aa" },
-    "Entregado":      { bg: "#e0f2f1", color: "#00695c", border: "#80cbc4", dot: "#009688" },
+    "Entregado":      { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7", dot: "#43a047" },
     "Cancelado":      { bg: "#ffebee", color: "#c62828", border: "#ef9a9a", dot: "#e53935" },
   };
 
@@ -339,6 +339,8 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
       if (!form.direccion_entrega.trim()) e.direccion_entrega = "Ingresa la dirección";
       if (!form.departamento.trim())       e.departamento = "Selecciona el departamento";
       if (!form.municipio.trim())          e.municipio = "Selecciona el municipio";
+      const clienteTel = (clienteActual?.telefono || pedido.cliente?.telefono || "").replace(/\D/g, "");
+      if (clienteTel.length !== 10) e.telefono_cliente = "El cliente debe tener un teléfono de 10 dígitos válido para pedidos con domicilio";
     }
     return e;
   };
@@ -728,6 +730,11 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
           {(pedido.domicilio || form.domicilio) && (
             permisos.direccion_entrega ? (
               <>
+                {errors.telefono_cliente && (
+                  <div style={{ padding: "10px 14px", background: "#ffebee", borderRadius: 10, border: "1px solid #ef9a9a", color: "#c62828", fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+                    ⚠️ {errors.telefono_cliente}
+                  </div>
+                )}
                 <div className="field-wrap">
                   <label className="field-label">
                     Dirección de entrega {form.domicilio && <span className="required">*</span>}

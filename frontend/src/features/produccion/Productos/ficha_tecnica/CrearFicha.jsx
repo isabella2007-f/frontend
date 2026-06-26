@@ -148,7 +148,7 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
   const TABS = [
     { id: "insumos",       label: "🧪 Insumos" },
     { id: "procedimiento", label: "📋 Procedimiento" },
-    { id: "observaciones", label: "💬 Observaciones" },
+    { id: "observaciones", label: "📝 Observaciones" },
   ];
 
   return (
@@ -167,7 +167,7 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
           <div className="ficha-foto-upload" onClick={() => fotoRef.current.click()}>
             {form.fotoPreview
               ? <img src={form.fotoPreview} alt="foto" className="ficha-foto-upload__img" />
-              : <><span className="ficha-foto-upload__icon">🖼️</span><span className="ficha-foto-upload__hint">Subir foto</span></>
+              : <><span style={{ fontSize: 24, color: "#43a047", lineHeight: 1 }}>+</span><span className="ficha-foto-upload__hint">Subir foto</span></>
             }
           </div>
           <input ref={fotoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFoto} />
@@ -299,10 +299,7 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
           )}
         </div>
 
-        <div className="ficha-modal__footer">
-          <div className="ficha-tabs-nav">
-            {TABS.map(t => <span key={t.id} className={`ficha-step-dot${tab === t.id ? " ficha-step-dot--active" : ""}`} />)}
-          </div>
+        <div className="ficha-modal__footer" style={{ justifyContent: "flex-end" }}>
           <div style={{ display: "flex", gap: 10 }}>
             <button className="btn-ghost" onClick={onClose}>Cancelar</button>
             <button className="btn-save" onClick={handleSave} disabled={saving}>{saving ? "Guardando…" : "Guardar"}</button>

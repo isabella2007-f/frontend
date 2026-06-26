@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import "./Proveedores.css";
 
 const fmtTel = raw => {
@@ -36,34 +36,27 @@ function StepsBar({ current }) {
   );
 }
 
+const VALLE_ABURRA = [
+  "Barbosa", "Bello", "Caldas", "Copacabana", "Envigado",
+  "Girardota", "Itagüí", "La Estrella", "Medellín", "Sabaneta",
+];
+
+const ARROW_SVG = (
+  <div style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
+  </div>
+);
+
 function LocationSelects({ departamento, ciudad, onDepto, onCiudad, errDepto, errCiudad }) {
-  const [deptos,   setDeptos]   = useState([]);
-  const [ciudades, setCiudades] = useState([]);
-  const [loadingD, setLoadingD] = useState(false);
-  const [loadingC, setLoadingC] = useState(false);
-
   useEffect(() => {
-    setLoadingD(true);
-    fetch("https://api-colombia.com/api/v1/Department")
-      .then(r => r.json())
-      .then(d => setDeptos(d.sort((a, b) => a.name.localeCompare(b.name))))
-      .catch(() => {})
-      .finally(() => setLoadingD(false));
-  }, []);
+    if (!departamento) onDepto("Antioquia");
+  }, []); // eslint-disable-line
 
-  const handleDepto = (nombre) => {
-    onDepto(nombre);
-    onCiudad("");
-    if (!nombre) { setCiudades([]); return; }
-    const found = deptos.find(d => d.name === nombre);
-    if (!found) return;
-    setLoadingC(true);
-    fetch(`https://api-colombia.com/api/v1/Department/${found.id}/cities`)
-      .then(r => r.json())
-      .then(d => setCiudades(d.sort((a, b) => a.name.localeCompare(b.name))))
-      .catch(() => {})
-      .finally(() => setLoadingC(false));
-  };
+  const opciones = VALLE_ABURRA.includes(ciudad) || !ciudad
+    ? VALLE_ABURRA
+    : [...VALLE_ABURRA, ciudad].sort((a, b) => a.localeCompare(b));
+
+  const selStyle = { appearance: "none", paddingRight: 32 };
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -72,17 +65,13 @@ function LocationSelects({ departamento, ciudad, onDepto, onCiudad, errDepto, er
         <div style={{ position: "relative" }}>
           <select
             className={`field-input${errDepto ? " error" : ""}`}
-            style={{ appearance: "none", paddingRight: 32 }}
-            value={departamento || ""}
-            onChange={e => handleDepto(e.target.value)}
-            disabled={loadingD}
+            style={selStyle}
+            value={departamento || "Antioquia"}
+            onChange={e => { onDepto(e.target.value); onCiudad(""); }}
           >
-            <option value="">{loadingD ? "Cargando…" : "Seleccione…"}</option>
-            {deptos.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+            <option value="Antioquia">Antioquia</option>
           </select>
-          <div style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
-          </div>
+          {ARROW_SVG}
         </div>
         {errDepto && <span className="field-error">{errDepto}</span>}
       </div>
@@ -92,17 +81,14 @@ function LocationSelects({ departamento, ciudad, onDepto, onCiudad, errDepto, er
         <div style={{ position: "relative" }}>
           <select
             className={`field-input${errCiudad ? " error" : ""}`}
-            style={{ appearance: "none", paddingRight: 32 }}
+            style={selStyle}
             value={ciudad || ""}
             onChange={e => onCiudad(e.target.value)}
-            disabled={!departamento || loadingC}
           >
-            <option value="">{!departamento ? "Seleccione depto…" : loadingC ? "Cargando…" : "Seleccione…"}</option>
-            {ciudades.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+            <option value="">Seleccione…</option>
+            {opciones.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
-          <div style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
-          </div>
+          {ARROW_SVG}
         </div>
         {errCiudad && <span className="field-error">{errCiudad}</span>}
       </div>
