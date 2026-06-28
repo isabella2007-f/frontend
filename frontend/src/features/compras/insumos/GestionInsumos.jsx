@@ -501,36 +501,63 @@ export default function GestionInsumos() {
       {modal?.type === "eliminar" && (
         (modal.ins.tieneFicha || modal.ins.tieneOrden) ? (
           <div className="modal-overlay" onClick={() => setModal(null)} style={{ zIndex: 30000 }}>
-            <div className="modal-box" onClick={e => e.stopPropagation()}>
-              <div className="modal-header">
-                <div>
-                  <p className="modal-header__eyebrow">Gestión de Insumos</p>
-                  <h2 className="modal-header__title">No se puede eliminar</h2>
+            <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 440, overflow: "hidden" }}>
+
+              {/* ── Cabecera roja ── */}
+              <div style={{ background: "linear-gradient(135deg, #b71c1c 0%, #c62828 100%)", padding: "28px 24px 22px", textAlign: "center", position: "relative" }}>
+                <button className="modal-close-btn" onClick={() => setModal(null)}
+                  style={{ position: "absolute", top: 12, right: 12, color: "rgba(255,255,255,0.8)", border: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)" }}>✕</button>
+                <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "2px solid rgba(255,255,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", fontSize: 32 }}>
+                  🚫
                 </div>
-                <button className="modal-close-btn" onClick={() => setModal(null)}>✕</button>
+                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#fff", letterSpacing: -0.3 }}>
+                  No se puede eliminar
+                </h2>
+                <p style={{ margin: "6px 0 0", fontSize: 13, color: "rgba(255,255,255,0.8)", fontWeight: 500 }}>
+                  "{modal.ins.nombre}"
+                </p>
               </div>
-              <div className="modal-body" style={{ padding: "20px 24px 24px" }}>
-                <div style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: 16, borderRadius: 10, background: "#fff3e0", border: "1px solid #ffcc80" }}>
-                  <span style={{ fontSize: 28, lineHeight: 1 }}>⚠️</span>
-                  <div>
-                    <p style={{ margin: 0, fontWeight: 700, color: "#e65100", fontSize: 14 }}>
-                      El insumo está en uso y no puede eliminarse
-                    </p>
-                    <p style={{ margin: "6px 0 0", fontSize: 13, color: "#424242" }}>
-                      El insumo <strong>"{modal.ins.nombre}"</strong>
-                      {modal.ins.tieneFicha && modal.ins.tieneOrden
-                        ? " forma parte de fichas técnicas y está en órdenes de producción activas."
-                        : modal.ins.tieneFicha
-                        ? " forma parte de la receta de uno o más productos."
-                        : " está actualmente en una o más órdenes de producción activas."
-                      }
-                      {" "}Retíralo de todos los registros antes de poder eliminarlo.
-                    </p>
-                  </div>
+
+              {/* ── Cuerpo ── */}
+              <div style={{ padding: "20px 24px" }}>
+                <p style={{ margin: "0 0 14px", fontSize: 13, color: "#424242", lineHeight: 1.6 }}>
+                  Este insumo <strong>está vinculado a otros registros activos</strong> del sistema y no puede eliminarse mientras esté en uso:
+                </p>
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {modal.ins.tieneFicha && (
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 14px", background: "#ffebee", border: "1.5px solid #ef9a9a", borderRadius: 10 }}>
+                      <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0 }}>📋</span>
+                      <div>
+                        <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#c62828" }}>Ficha técnica</p>
+                        <p style={{ margin: "2px 0 0", fontSize: 12, color: "#616161" }}>
+                          Aparece en la receta de uno o más productos. Retíralo de las fichas técnicas primero.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {modal.ins.tieneOrden && (
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 14px", background: "#ffebee", border: "1.5px solid #ef9a9a", borderRadius: 10 }}>
+                      <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0 }}>⚙️</span>
+                      <div>
+                        <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#c62828" }}>Órdenes de producción</p>
+                        <p style={{ margin: "2px 0 0", fontSize: 12, color: "#616161" }}>
+                          Está asignado a órdenes de producción activas. Espera a que terminen o cancélalas.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="modal-footer">
-                <button className="btn-ghost" onClick={() => setModal(null)}>Entendido</button>
+
+              {/* ── Footer ── */}
+              <div className="modal-footer" style={{ borderTop: "1px solid #f5f5f5" }}>
+                <button
+                  onClick={() => setModal(null)}
+                  style={{ width: "100%", padding: "11px", background: "#c62828", color: "#fff", border: "none", borderRadius: 10, fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}
+                >
+                  Entendido
+                </button>
               </div>
             </div>
           </div>
