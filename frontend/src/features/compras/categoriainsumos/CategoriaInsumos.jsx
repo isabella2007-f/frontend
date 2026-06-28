@@ -365,31 +365,37 @@ export default function CategoriaInsumos() {
       {modal?.type === "ver"      && <VerCategoria cat={modal.cat} onClose={() => setModal(null)} />}
       {modal?.type === "eliminar" && (
         modal.cat.totalInsumos > 0 ? (
-          <ModalOverlay onClose={() => setModal(null)}>
-            <div className="modal-header">
-              <div>
-                <p className="modal-header__eyebrow">Categorías de Insumo</p>
-                <h2 className="modal-header__title">No se puede eliminar</h2>
+          <div className="modal-overlay" onClick={() => setModal(null)}>
+            <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()} style={{ overflow: "hidden", padding: 0 }}>
+
+              <div style={{ background: "linear-gradient(135deg, #b71c1c 0%, #c62828 100%)", padding: "28px 24px 22px", textAlign: "center", position: "relative" }}>
+                <button onClick={() => setModal(null)} style={{ position: "absolute", top: 12, right: 12, color: "rgba(255,255,255,0.8)", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 8, width: 30, height: 30, cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+                <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "2px solid rgba(255,255,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", fontSize: 30 }}>🚫</div>
+                <h3 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: "#fff", letterSpacing: -0.3 }}>No se puede eliminar</h3>
+                <p style={{ margin: "6px 0 0", fontSize: 13, color: "rgba(255,255,255,0.85)", fontWeight: 500 }}>"{modal.cat.nombre}"</p>
               </div>
-              <button className="modal-close-btn" onClick={() => setModal(null)}>✕</button>
-            </div>
-            <div className="modal-body" style={{ padding: "20px 24px 24px" }}>
-              <div style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: "16px", borderRadius: 10, background: "#fff3e0", border: "1px solid #ffcc80" }}>
-                <span style={{ fontSize: 28, lineHeight: 1 }}>⚠️</span>
-                <div>
-                  <p style={{ margin: 0, fontWeight: 700, color: "#e65100", fontSize: 14 }}>
-                    La categoría tiene {modal.cat.totalInsumos} insumo{modal.cat.totalInsumos !== 1 ? "s" : ""} asociado{modal.cat.totalInsumos !== 1 ? "s" : ""}
-                  </p>
-                  <p style={{ margin: "6px 0 0", fontSize: 13, color: "#424242" }}>
-                    Debes reasignar o eliminar los insumos antes de poder eliminar la categoría <strong>"{modal.cat.nombre}"</strong>.
-                  </p>
+
+              <div style={{ padding: "18px 24px" }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 14px", background: "#ffebee", border: "1.5px solid #ef9a9a", borderRadius: 10 }}>
+                  <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0 }}>📦</span>
+                  <div>
+                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#c62828" }}>
+                      Tiene {modal.cat.totalInsumos} insumo{modal.cat.totalInsumos !== 1 ? "s" : ""} asociado{modal.cat.totalInsumos !== 1 ? "s" : ""}
+                    </p>
+                    <p style={{ margin: "3px 0 0", fontSize: 12, color: "#616161" }}>
+                      Reasigna o elimina los insumos de esta categoría antes de poder eliminarla.
+                    </p>
+                  </div>
                 </div>
               </div>
+
+              <div style={{ padding: "0 24px 20px" }}>
+                <button onClick={() => setModal(null)} style={{ width: "100%", padding: "11px", borderRadius: 10, border: "none", background: "#c62828", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
+                  Entendido
+                </button>
+              </div>
             </div>
-            <div className="modal-footer">
-              <button className="btn-ghost" onClick={() => setModal(null)}>Entendido</button>
-            </div>
-          </ModalOverlay>
+          </div>
         ) : (
           <ModalEliminarValidado
             titulo="Eliminar categoría"

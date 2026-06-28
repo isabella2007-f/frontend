@@ -412,15 +412,21 @@ function ModalEliminarPedido({ pedido, onClose, onConfirm }) {
   if (["Entregado"].includes(pedido.estado)) {
     return (
       <div className="modal-overlay" onClick={onClose}>
-        <div className="modal-box modal-box--sm shadow-2xl overflow-hidden flex flex-col border-none text-center p-8" style={{ borderRadius: '32px' }}>
-            <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-6 text-red-600">
-              <X size={32} strokeWidth={3} />
+        <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()} style={{ overflow: "hidden", padding: 0 }}>
+          <div style={{ background: "linear-gradient(135deg, #b71c1c 0%, #c62828 100%)", padding: "28px 24px 22px", textAlign: "center", position: "relative" }}>
+            <button onClick={onClose} style={{ position: "absolute", top: 12, right: 12, color: "rgba(255,255,255,0.8)", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 8, width: 30, height: 30, cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+            <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "2px solid rgba(255,255,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", fontSize: 30 }}>🚫</div>
+            <h3 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: "#fff", letterSpacing: -0.3 }}>No se puede eliminar</h3>
+            <p style={{ margin: "6px 0 0", fontSize: 13, color: "rgba(255,255,255,0.85)", fontWeight: 500 }}>Pedido #{pedido.numero}</p>
+          </div>
+          <div style={{ padding: "18px 24px" }}>
+            <div style={{ padding: "12px 14px", background: "#ffebee", border: "1.5px solid #ef9a9a", borderRadius: 10, color: "#c62828", fontSize: 13, fontWeight: 600, lineHeight: 1.6 }}>
+              🔒 Los pedidos entregados forman parte del historial financiero y <strong>no pueden eliminarse</strong>.
             </div>
-            <h3 className="text-xl font-black text-gray-800 uppercase tracking-tight mb-2">No se puede eliminar</h3>
-            <p className="text-xs text-gray-500 font-medium leading-relaxed mb-8">
-              Los pedidos entregados forman parte del historial financiero y no pueden ser eliminados.
-            </p>
-            <button className="btn-secondary w-full py-4 text-xs font-black uppercase" onClick={onClose}>Entendido</button>
+          </div>
+          <div style={{ padding: "0 24px 20px" }}>
+            <button onClick={onClose} style={{ width: "100%", padding: "11px", borderRadius: 10, border: "none", background: "#c62828", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>Entendido</button>
+          </div>
         </div>
       </div>
     );
@@ -428,22 +434,24 @@ function ModalEliminarPedido({ pedido, onClose, onConfirm }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box--sm shadow-2xl overflow-hidden flex flex-col border-none text-center p-8" style={{ borderRadius: '32px' }}>
-          <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-red-600 border border-red-100 shadow-inner">
-            <Trash2 size={32} />
+      <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()} style={{ overflow: "hidden", padding: 0 }}>
+        <div style={{ background: "linear-gradient(135deg, #e65100 0%, #f57f17 100%)", padding: "28px 24px 22px", textAlign: "center", position: "relative" }}>
+          <button onClick={onClose} style={{ position: "absolute", top: 12, right: 12, color: "rgba(255,255,255,0.8)", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 8, width: 30, height: 30, cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+          <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "2px solid rgba(255,255,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", fontSize: 30 }}>⚠️</div>
+          <h3 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: "#fff", letterSpacing: -0.3 }}>Eliminar pedido</h3>
+          <p style={{ margin: "6px 0 0", fontSize: 13, color: "rgba(255,255,255,0.85)", fontWeight: 500 }}>#{pedido.numero}</p>
+        </div>
+        <div style={{ padding: "18px 24px" }}>
+          <div style={{ padding: "12px 14px", background: "#fff8e1", border: "1.5px solid #ffe082", borderRadius: 10, color: "#e65100", fontSize: 13, fontWeight: 600, lineHeight: 1.6 }}>
+            ⚠️ Esta acción <strong>no se puede deshacer</strong>. El pedido será eliminado permanentemente.
           </div>
-          <h3 className="text-xl font-black text-gray-800 uppercase tracking-tight mb-2">Eliminar pedido</h3>
-          <p className="text-sm font-bold text-gray-600 mb-1">
-            ¿Confirmas la eliminación de <strong>"{pedido.numero}"</strong>?
-          </p>
-          <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-8">Esta acción es irreversible.</p>
-          
-          <div className="flex gap-3">
-            <button className="btn-secondary flex-1 py-4 text-xs font-black uppercase" onClick={onClose}>Cancelar</button>
-            <button className="btn-danger flex-1 py-4 text-xs font-black uppercase shadow-lg shadow-red-200" disabled={done} onClick={() => { setDone(true); setTimeout(() => onConfirm(pedido.id), 800); }}>
-              {done ? "Eliminando…" : "Eliminar"}
-            </button>
-          </div>
+        </div>
+        <div style={{ padding: "0 24px 20px", display: "flex", flexDirection: "column", gap: 8 }}>
+          <button disabled={done} onClick={() => { setDone(true); setTimeout(() => onConfirm(pedido.id), 800); }} style={{ width: "100%", padding: "11px", borderRadius: 10, border: "none", background: "#c62828", color: "#fff", fontWeight: 700, fontSize: 14, cursor: done ? "not-allowed" : "pointer", opacity: done ? 0.7 : 1, fontFamily: "inherit" }}>
+            {done ? "Eliminando…" : "Eliminar"}
+          </button>
+          <button onClick={onClose} style={{ width: "100%", padding: "10px", borderRadius: 10, border: "1.5px solid #e0e0e0", background: "#fff", color: "#616161", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Cancelar</button>
+        </div>
       </div>
     </div>
   );
@@ -453,26 +461,20 @@ function ModalErrorEstadoPedido({ mensaje, onClose }) {
   if (!mensaje) return null;
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div
-        className="modal-box modal-box--sm shadow-2xl overflow-hidden flex flex-col border-none text-center p-8"
-        style={{ borderRadius: "32px" }}
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-6 text-amber-600 border border-amber-100">
-          <AlertCircle size={32} />
+      <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()} style={{ overflow: "hidden", padding: 0 }}>
+        <div style={{ background: "linear-gradient(135deg, #e65100 0%, #f57f17 100%)", padding: "28px 24px 22px", textAlign: "center", position: "relative" }}>
+          <button onClick={onClose} style={{ position: "absolute", top: 12, right: 12, color: "rgba(255,255,255,0.8)", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 8, width: 30, height: 30, cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+          <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "2px solid rgba(255,255,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", fontSize: 30 }}>⚠️</div>
+          <h3 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: "#fff", letterSpacing: -0.3 }}>No se pudo avanzar</h3>
         </div>
-        <h3 className="text-xl font-black text-gray-800 uppercase tracking-tight mb-2">
-          No se pudo avanzar
-        </h3>
-        <p className="text-sm font-medium text-gray-600 leading-relaxed mb-8">
-          {mensaje}
-        </p>
-        <button
-          className="btn-secondary w-full py-4 text-xs font-black uppercase"
-          onClick={onClose}
-        >
-          Entendido
-        </button>
+        <div style={{ padding: "18px 24px" }}>
+          <div style={{ padding: "12px 14px", background: "#fff8e1", border: "1.5px solid #ffe082", borderRadius: 10, color: "#e65100", fontSize: 13, fontWeight: 600, lineHeight: 1.6 }}>
+            ⚠️ {mensaje}
+          </div>
+        </div>
+        <div style={{ padding: "0 24px 20px" }}>
+          <button onClick={onClose} style={{ width: "100%", padding: "11px", borderRadius: 10, border: "none", background: "#f57f17", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>Entendido</button>
+        </div>
       </div>
     </div>
   );
