@@ -298,48 +298,42 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
               </div>
             )}
 
-            {/* ── Insumos como tabla ── */}
+            {/* ── Insumos comprados ── */}
             <p className="section-label" style={{ marginTop: 0, marginBottom: 8 }}>Insumos comprados</p>
-            <div style={{ border: "1px solid #e8f5e9", borderRadius: 10, overflow: "hidden", marginBottom: 18 }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                <thead>
-                  <tr style={{ background: "#f1f8f1" }}>
-                    {["Insumo", "Cantidad", "P. unitario", "Subtotal", "Vencimiento"].map(h => (
-                      <th key={h} style={{ padding: "8px 12px", fontWeight: 700, color: "#2e7d32", fontSize: 11, textAlign: "left", textTransform: "uppercase", letterSpacing: 0.4 }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(compra.items || []).length === 0 ? (
-                    <tr>
-                      <td colSpan={5} style={{ padding: "20px 12px", textAlign: "center", color: "#bdbdbd", fontSize: 13 }}>
-                        Sin insumos registrados en esta compra
-                      </td>
-                    </tr>
-                  ) : (compra.items || []).map((d, idx) => {
-                    const ins  = insumosActivos.find(i => i.id === Number(d.idInsumo));
-                    const dias = diasHasta(d.fechaVencimiento);
-                    return (
-                      <tr key={d.idInsumo || idx} style={{ borderTop: "1px solid #f0f0f0" }}>
-                        <td style={{ padding: "9px 12px", fontWeight: 600 }}>📦 {d.nombre || ins?.nombre || "—"}</td>
-                        <td style={{ padding: "9px 12px", color: "#424242" }}>{d.cantidad} {ins?.unidad || ""}</td>
-                        <td style={{ padding: "9px 12px", color: "#424242" }}>{COP(d.precioUnd)}</td>
-                        <td style={{ padding: "9px 12px", fontWeight: 700, color: "#2e7d32" }}>{COP(d.cantidad * d.precioUnd)}</td>
-                        <td style={{ padding: "9px 12px" }}>
-                          {d.fechaVencimiento ? (
-                            <span style={{ color: dias !== null && dias < 0 ? "#c62828" : dias !== null && dias <= 7 ? "#e65100" : "#9e9e9e", fontWeight: dias !== null && dias <= 7 ? 700 : 400 }}>
-                              {d.fechaVencimiento}
-                              {dias !== null && dias < 0 && " ⚠️"}
+            {(compra.items || []).length === 0 ? (
+              <div style={{ padding: "20px", textAlign: "center", color: "#bdbdbd", fontSize: 13, background: "#fafafa", border: "1.5px dashed #e0e0e0", borderRadius: 10, marginBottom: 18 }}>
+                Sin insumos registrados en esta compra
+              </div>
+            ) : (
+              <div className="insumos-list" style={{ marginBottom: 18 }}>
+                {(compra.items || []).map((d, idx) => {
+                  const ins  = insumosActivos.find(i => i.id === Number(d.idInsumo));
+                  const dias = diasHasta(d.fechaVencimiento);
+                  return (
+                    <div key={d.idInsumo || idx} className="insumo-item">
+                      <div className="insumo-left">
+                        <span className="insumo-icon">📦</span>
+                        <div style={{ minWidth: 0 }}>
+                          <div className="insumo-name">{d.nombre || ins?.nombre || "—"}</div>
+                          <div className="insumo-notes">{d.cantidad} {ins?.unidad || ""} · {COP(d.precioUnd)} c/u</div>
+                          {d.fechaVencimiento && (
+                            <div className={`insumo-venc${dias !== null && dias < 0 ? " venc-danger" : dias !== null && dias <= 7 ? " venc-warn" : ""}`}>
+                              📅 Vence: {d.fechaVencimiento}
+                              {dias !== null && dias < 0 && " ⚠️ Vencido"}
                               {dias !== null && dias >= 0 && dias <= 7 && ` (${dias}d)`}
-                            </span>
-                          ) : <span style={{ color: "#bdbdbd" }}>—</span>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="insumo-right">
+                        <div className="insumo-price">{COP(d.cantidad * d.precioUnd)}</div>
+                        <div className="insumo-qty">{d.cantidad} {ins?.unidad || ""}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* ── Costos ── */}
             {(() => {
