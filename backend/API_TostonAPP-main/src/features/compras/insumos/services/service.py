@@ -20,12 +20,7 @@ def _formato_insumo(insumo: Insumo, db: Session) -> dict:
     hoy = datetime.utcnow()
     proximo_lote = (
         db.query(LoteCompra)
-        .filter(
-            LoteCompra.ID_Insumo == insumo.ID_Insumo,
-            LoteCompra.Fecha_Vencimiento != None,
-            LoteCompra.Estado == 1,  # Solo lotes activos (compra ya recibida)
-        )
-        .order_by(LoteCompra.Fecha_Vencimiento.asc())
+        .filter(LoteCompra.ID_Insumo == insumo.ID_Insumo)
         .first()
     )
 

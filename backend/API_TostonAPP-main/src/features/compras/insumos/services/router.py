@@ -14,7 +14,7 @@ from .service import (
 router = APIRouter(prefix="/insumos", tags=["Gestión de Insumos"])
 
 
-@router.get("/", response_model=InsumoListResponse)
+@router.get("/")
 def listar_insumos(
     pagina:     int           = Query(1, ge=1),
     por_pagina: int           = Query(10, ge=1, le=100),

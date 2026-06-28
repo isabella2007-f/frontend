@@ -47,16 +47,20 @@ class LoteCompraResponse(BaseModel):
 
 # ── Respuesta de un insumo ──
 class InsumoResponse(BaseModel):
-    ID_Insumo:        int
-    Nombre:           str
-    ID_Categoria:     Optional[int] = None
-    nombre_categoria: Optional[str] = None
-    Unidad_Medida:    Optional[int] = None
-    simbolo_unidad:   Optional[str] = None      # ej: "kg", "l"
-    Stock_Actual:     Optional[int] = None
-    Stock_Minimo:     Optional[int] = None
-    Estado:           Optional[int] = None
-    lote:             Optional[LoteCompraResponse] = None
+    ID_Insumo:               int
+    Nombre:                  str
+    ID_Categoria:            Optional[int] = None
+    nombre_categoria:        Optional[str] = None
+    Unidad_Medida:           Optional[int] = None
+    simbolo_unidad:          Optional[str] = None
+    Stock_Actual:            Optional[float] = None
+    Stock_Minimo:            Optional[int] = None
+    Estado:                  Optional[int] = None
+    proximo_vencimiento:     Optional[str] = None
+    dias_para_vencer:        Optional[int] = None
+    lote_id:                 Optional[int] = None
+    tiene_ficha_tecnica:     Optional[bool] = None
+    tiene_orden_produccion:  Optional[bool] = None
 
     class Config:
         from_attributes = True
