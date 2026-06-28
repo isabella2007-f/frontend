@@ -73,6 +73,7 @@ class DetalleCompraResponse(BaseModel):
     Cantidad:          Optional[int]     = None
     Precio_Und:        Optional[Decimal] = None
     Notas:             Optional[str]     = None
+    Fecha_Vencimiento: Optional[str]     = None
 
     class Config:
         from_attributes = True

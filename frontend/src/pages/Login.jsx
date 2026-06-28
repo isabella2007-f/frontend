@@ -32,6 +32,13 @@ const Login = () => {
 
   return (
     <div className="auth-page">
+      <div className="auth-topbar">
+        <div className="auth-topbar-logo">
+          <div className="auth-topbar-logo-icon"><Leaf size={16} color="#fff" /></div>
+          Tostón App
+        </div>
+        <Link to="/" className="auth-topbar-back">← Inicio</Link>
+      </div>
     <div className="auth-card">
 
       {/* Panel izquierdo */}

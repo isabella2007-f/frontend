@@ -11,7 +11,53 @@
   background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 45%, #43a047 100%);
   padding: 24px;
   font-family: 'DM Sans', sans-serif;
+  position: relative;
 }
+
+/* ── Topbar ── */
+.auth-topbar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 28px;
+  pointer-events: none;
+}
+
+.auth-topbar-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.3px;
+  pointer-events: auto;
+}
+
+.auth-topbar-logo-icon {
+  width: 32px; height: 32px;
+  background: rgba(255,255,255,0.18);
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255,255,255,0.25);
+}
+
+.auth-topbar-back {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.85);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: color 0.2s;
+  pointer-events: auto;
+}
+.auth-topbar-back:hover { color: #fff; }
 
 /* ── Card central ── */
 .auth-card {
