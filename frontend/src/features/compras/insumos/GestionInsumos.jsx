@@ -62,7 +62,7 @@ function Toggle({ value, onChange }) {
   );
 }
 
-function StockBar({ actual, minimo }) {
+function StockBar({ actual, minimo, simbolo = "" }) {
   const [hovered, setHovered] = useState(false);
   const pct   = minimo > 0 ? Math.min(100, Math.round((actual / (minimo * 2)) * 100)) : 100;
   const est   = calcEstado(actual, minimo);
@@ -80,7 +80,7 @@ function StockBar({ actual, minimo }) {
         <div className="stock-bar" style={{ width: est === "agotado" ? "100%" : pct + "%", background: color }} />
       </div>
       <span className="stock-nums" style={est === "agotado" ? { color: "#c62828" } : undefined}>
-        <strong>{actual}</strong> / mín {minimo}
+        <strong>{actual}</strong>{simbolo ? ` ${simbolo}` : ""} / mín {minimo}{simbolo ? ` ${simbolo}` : ""}
       </span>
       {est !== "disponible" && (
         <span style={{ fontSize: 10, fontWeight: 700, color: est === "agotado" ? "#c62828" : "#e65100", whiteSpace: "nowrap" }}>
@@ -117,28 +117,54 @@ function CatCell({ cat }) {
 }
 
 function VencCell({ fecha, dias }) {
+  const [hovered, setHovered] = useState(false);
+
   if (!fecha) return <span style={{ fontSize: 13, color: "#bdbdbd", fontWeight: 500 }}>—</span>;
 
   const [y, m, d] = fecha.split("-");
   const label = `${d}/${m}/${y}`;
 
+  const handlers = {
+    onMouseEnter: () => setHovered(true),
+    onMouseLeave: () => setHovered(false),
+    style: { position: "relative", cursor: "default" },
+  };
+
+  const Tooltip = ({ bg, border, color, text }) => hovered ? (
+    <div style={{
+      position: "absolute", bottom: "calc(100% + 6px)", left: "50%",
+      transform: "translateX(-50%)", whiteSpace: "nowrap",
+      background: bg, border: `1px solid ${border}`, color,
+      borderRadius: 8, padding: "5px 10px", fontSize: 11, fontWeight: 700,
+      boxShadow: "0 2px 8px rgba(0,0,0,0.12)", zIndex: 99, pointerEvents: "none",
+    }}>
+      {text}
+    </div>
+  ) : null;
+
   if (dias <= 0) return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#c62828", background: "#ffebee", border: "1px solid #ef9a9a", borderRadius: 6, padding: "3px 8px" }}>
+    <span {...handlers} style={{ ...handlers.style, display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#c62828", background: "#ffebee", border: "1px solid #ef9a9a", borderRadius: 6, padding: "3px 8px" }}>
       ⚠️ Vencido
+      <Tooltip bg="#ffebee" border="#ef9a9a" color="#c62828" text="Este insumo ya está vencido — no apto para producción" />
     </span>
   );
   if (dias <= 7) return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#e65100", background: "#fff3e0", border: "1px solid #ffcc80", borderRadius: 6, padding: "3px 8px" }}>
+    <span {...handlers} style={{ ...handlers.style, display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#e65100", background: "#fff3e0", border: "1px solid #ffcc80", borderRadius: 6, padding: "3px 8px" }}>
       🔴 {label} <span style={{ fontWeight: 400, opacity: 0.8 }}>({dias}d)</span>
+      <Tooltip bg="#fff3e0" border="#ffcc80" color="#e65100" text={`⚠️ Vence en ${dias} día${dias === 1 ? "" : "s"} — atención urgente`} />
     </span>
   );
   if (dias <= 30) return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#f57f17", background: "#fff8e1", border: "1px solid #ffe082", borderRadius: 6, padding: "3px 8px" }}>
+    <span {...handlers} style={{ ...handlers.style, display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#f57f17", background: "#fff8e1", border: "1px solid #ffe082", borderRadius: 6, padding: "3px 8px" }}>
       🟡 {label} <span style={{ fontWeight: 400, opacity: 0.8 }}>({dias}d)</span>
+      <Tooltip bg="#fff8e1" border="#ffe082" color="#f57f17" text={`Próximo a vencer — quedan ${dias} días`} />
     </span>
   );
   return (
-    <span style={{ fontSize: 12, fontWeight: 600, color: "#616161" }}>{label}</span>
+    <span {...handlers} style={{ ...handlers.style, fontSize: 12, fontWeight: 600, color: "#616161" }}>
+      {label}
+      <Tooltip bg="#f5f5f5" border="#e0e0e0" color="#424242" text={`Vence el ${label} — quedan ${dias} días`} />
+    </span>
   );
 }
 
@@ -418,7 +444,7 @@ export default function GestionInsumos() {
                           : <span style={{ fontSize: 13, color: "#bdbdbd", fontWeight: 500 }}>—</span>
                         }
                       </td>
-                      <td><StockBar actual={ins.stockActual} minimo={ins.stockMinimo} /></td>
+                      <td><StockBar actual={ins.stockActual} minimo={ins.stockMinimo} simbolo={ins.simboloUnidad} /></td>
                       <td><VencCell fecha={ins.proxVencimiento} dias={ins.diasParaVencer} /></td>
                       <td><Toggle value={ins.estado} onChange={() => handleToggle(ins)} /></td>
                       <td>

@@ -1,18 +1,17 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { apiFetch } from '../utils/api';
-import Navbar from '../shared/components/Navbar';
 import { User, Mail, Lock, Eye, EyeOff, Check, Leaf, ChevronRight } from 'lucide-react';
 import './Auth.css';
 
 const Register = () => {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
-  const [errors,  setErrors]  = useState({});
-  const [showPass, setShowPass] = useState(false);
-  const [showConf, setShowConf] = useState(false);
-  const [success,  setSuccess]  = useState(false);
-  const [successEmail, setSuccessEmail] = useState("");
+  const [loading,      setLoading]      = useState(false);
+  const [errors,       setErrors]       = useState({});
+  const [showPass,     setShowPass]     = useState(false);
+  const [showConf,     setShowConf]     = useState(false);
+  const [success,      setSuccess]      = useState(false);
+  const [successEmail, setSuccessEmail] = useState('');
 
   const [form, setForm] = useState({
     Nombre:               '',
@@ -65,98 +64,98 @@ const Register = () => {
     }
   };
 
+  const PanelIzquierdo = () => (
+    <div className="auth-panel-left">
+      <div className="auth-shape auth-shape--1" />
+      <div className="auth-shape auth-shape--2" />
+      <div className="auth-shape auth-shape--3" />
+      <div className="auth-shape auth-shape--4" />
+      <div className="auth-shape auth-shape--5" />
+      <div className="auth-left-content">
+        <div className="auth-left-logo">
+          <Leaf size={28} color="white" />
+        </div>
+        <h1 className="auth-left-brand">Tostón App</h1>
+        <p className="auth-left-tagline">
+          Únete a nuestra comunidad y descubre el verdadero sabor artesanal del plátano.
+        </p>
+        <div className="auth-left-divider" />
+        <div className="auth-left-pills">
+          <span className="auth-left-pill">🎁 Registro gratis</span>
+          <span className="auth-left-pill">🍌 Productos únicos</span>
+          <span className="auth-left-pill">⚡ Pedidos fáciles</span>
+        </div>
+      </div>
+    </div>
+  );
+
   if (success) {
     return (
       <div className="auth-page">
-        <Navbar isLanding={true} />
-        <div className="auth-bg">
-          <div className="auth-blob auth-blob--1" />
-          <div className="auth-blob auth-blob--2" />
-          <div className="auth-card auth-card--wide">
-            <div className="auth-topbar" />
-            <div className="auth-brand">
-              <div className="auth-brand-icon">
-                <Leaf size={22} color="#2a9d47" />
-              </div>
-              <h1 className="auth-brand-name">¡Cuenta creada!</h1>
-              <p className="auth-brand-sub">Revisa tu correo para activarla</p>
-            </div>
-            <div style={{ textAlign: 'center', padding: '8px 24px 24px' }}>
-              <div style={{ fontSize: 48, marginBottom: 12 }}>📧</div>
-              <p style={{ fontSize: 14, color: '#555', lineHeight: 1.6, marginBottom: 8 }}>
-                Enviamos un enlace de verificación a:
-              </p>
-              <p style={{ fontSize: 15, fontWeight: 700, color: '#2a9d47', marginBottom: 20 }}>
-                {successEmail}
-              </p>
-              <p style={{ fontSize: 13, color: '#888', marginBottom: 24 }}>
-                Haz clic en el enlace del correo para activar tu cuenta. El enlace expira en 24 horas.
-              </p>
-              <button className="auth-submit" onClick={() => navigate('/login')}>
-                Ir al inicio de sesión <ChevronRight size={18} />
-              </button>
-            </div>
+      <div className="auth-card">
+        <PanelIzquierdo />
+        <div className="auth-panel-right">
+          <div className="auth-form-box" style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 56, marginBottom: 16 }}>📧</div>
+            <h2 className="auth-form-title" style={{ textAlign: 'center' }}>¡Cuenta creada!</h2>
+            <p className="auth-form-subtitle" style={{ textAlign: 'center', marginBottom: 24 }}>
+              Enviamos un enlace de verificación a:
+            </p>
+            <p style={{ fontSize: 15, fontWeight: 700, color: '#2e7d32', marginBottom: 12 }}>
+              {successEmail}
+            </p>
+            <p style={{ fontSize: 13, color: '#90a4a1', marginBottom: 28, lineHeight: 1.6 }}>
+              Haz clic en el enlace del correo para activar tu cuenta. El enlace expira en 24 horas.
+            </p>
+            <button className="auth-submit" onClick={() => navigate('/login')}>
+              Ir al inicio de sesión <span className="auth-arrow"><ChevronRight size={18} /></span>
+            </button>
           </div>
         </div>
+      </div>
       </div>
     );
   }
 
   return (
     <div className="auth-page">
-      <Navbar isLanding={true} />
-      <div className="auth-bg">
-        <div className="auth-blob auth-blob--1" />
-        <div className="auth-blob auth-blob--2" />
+    <div className="auth-card">
+      <PanelIzquierdo />
 
-        <div className="auth-card auth-card--wide">
-          <div className="auth-topbar" />
+      <div className="auth-panel-right">
+        <div className="auth-form-box">
 
-          {/* Brand */}
-          <div className="auth-brand">
-            <div className="auth-brand-icon">
-              <Leaf size={22} color="#2a9d47" />
-            </div>
-            <h1 className="auth-brand-name">Crear cuenta</h1>
-            <p className="auth-brand-sub">Únete a la familia Tostón</p>
-          </div>
+          <h2 className="auth-form-title">Crear cuenta</h2>
+          <p className="auth-form-subtitle">Únete a la familia Tostón gratis</p>
 
-          {/* Error global */}
           {errors.global && (
             <div className="auth-error">
-              <span className="auth-error-icon">⚠</span>
-              {errors.global}
+              <span>⚠</span> {errors.global}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="auth-form">
 
-            {/* Nombre + Apellidos — lado a lado */}
+            {/* Nombre + Apellidos */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div className="auth-field">
                 <label className="auth-label"><User size={11} /> Nombre(s)</label>
                 <div className="auth-input-wrap">
-                  <span className="auth-input-icon"><User size={14} /></span>
-                  <input
-                    type="text" placeholder="Carlos"
-                    className="auth-input" value={form.Nombre}
-                    onChange={set('Nombre')}
-                  />
+                  <span className="auth-input-icon"><User size={15} /></span>
+                  <input type="text" placeholder="Carlos" className="auth-input"
+                    value={form.Nombre} onChange={set('Nombre')} />
                 </div>
-                {errors.Nombre && <p style={{ margin: '4px 0 0', fontSize: 11, color: '#dc2626' }}>{errors.Nombre}</p>}
+                {errors.Nombre && <p style={{ margin: '3px 0 0', fontSize: 11, color: '#dc2626' }}>{errors.Nombre}</p>}
               </div>
 
               <div className="auth-field">
                 <label className="auth-label"><User size={11} /> Apellidos</label>
                 <div className="auth-input-wrap">
-                  <span className="auth-input-icon"><User size={14} /></span>
-                  <input
-                    type="text" placeholder="Pérez García"
-                    className="auth-input" value={form.Apellidos}
-                    onChange={set('Apellidos')}
-                  />
+                  <span className="auth-input-icon"><User size={15} /></span>
+                  <input type="text" placeholder="Pérez García" className="auth-input"
+                    value={form.Apellidos} onChange={set('Apellidos')} />
                 </div>
-                {errors.Apellidos && <p style={{ margin: '4px 0 0', fontSize: 11, color: '#dc2626' }}>{errors.Apellidos}</p>}
+                {errors.Apellidos && <p style={{ margin: '3px 0 0', fontSize: 11, color: '#dc2626' }}>{errors.Apellidos}</p>}
               </div>
             </div>
 
@@ -164,60 +163,54 @@ const Register = () => {
             <div className="auth-field">
               <label className="auth-label"><Mail size={11} /> Correo electrónico</label>
               <div className="auth-input-wrap">
-                <span className="auth-input-icon"><Mail size={14} /></span>
-                <input
-                  type="email" placeholder="tu@correo.com"
-                  className="auth-input" value={form.Correo}
-                  onChange={set('Correo')}
-                />
+                <span className="auth-input-icon"><Mail size={15} /></span>
+                <input type="email" placeholder="tu@correo.com" className="auth-input"
+                  value={form.Correo} onChange={set('Correo')} />
               </div>
-              {errors.Correo && <p style={{ margin: '4px 0 0', fontSize: 11, color: '#dc2626' }}>{errors.Correo}</p>}
+              {errors.Correo && <p style={{ margin: '3px 0 0', fontSize: 11, color: '#dc2626' }}>{errors.Correo}</p>}
             </div>
 
             {/* Contraseña */}
             <div className="auth-field">
               <label className="auth-label"><Lock size={11} /> Contraseña</label>
               <div className="auth-input-wrap">
-                <span className="auth-input-icon"><Lock size={14} /></span>
-                <input
-                  type={showPass ? 'text' : 'password'}
-                  placeholder="Mínimo 8 caracteres"
-                  className="auth-input" value={form.Contrasena}
-                  onChange={set('Contrasena')}
-                />
+                <span className="auth-input-icon"><Lock size={15} /></span>
+                <input type={showPass ? 'text' : 'password'} placeholder="Mínimo 8 caracteres"
+                  className="auth-input" value={form.Contrasena} onChange={set('Contrasena')} />
                 <button type="button" className="auth-eye" onClick={() => setShowPass(v => !v)} tabIndex={-1}>
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-              {errors.Contrasena && <p style={{ margin: '4px 0 0', fontSize: 11, color: '#dc2626' }}>{errors.Contrasena}</p>}
+              {errors.Contrasena && <p style={{ margin: '3px 0 0', fontSize: 11, color: '#dc2626' }}>{errors.Contrasena}</p>}
             </div>
 
             {/* Confirmar contraseña */}
             <div className="auth-field">
               <label className="auth-label"><Lock size={11} /> Confirmar contraseña</label>
               <div className="auth-input-wrap">
-                <span className="auth-input-icon"><Lock size={14} /></span>
-                <input
-                  type={showConf ? 'text' : 'password'}
-                  placeholder="Repite tu contraseña"
-                  className="auth-input" value={form.Confirmar_contrasena}
-                  onChange={set('Confirmar_contrasena')}
-                />
+                <span className="auth-input-icon"><Lock size={15} /></span>
+                <input type={showConf ? 'text' : 'password'} placeholder="Repite tu contraseña"
+                  className="auth-input" value={form.Confirmar_contrasena} onChange={set('Confirmar_contrasena')} />
                 <button type="button" className="auth-eye" onClick={() => setShowConf(v => !v)} tabIndex={-1}>
                   {showConf ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-              {errors.Confirmar_contrasena && <p style={{ margin: '4px 0 0', fontSize: 11, color: '#dc2626' }}>{errors.Confirmar_contrasena}</p>}
+              {errors.Confirmar_contrasena && <p style={{ margin: '3px 0 0', fontSize: 11, color: '#dc2626' }}>{errors.Confirmar_contrasena}</p>}
               {form.Confirmar_contrasena && (
-                <p style={{ margin: '4px 0 0', fontSize: 12, fontWeight: 600, color: form.Contrasena === form.Confirmar_contrasena ? '#166534' : '#991b1b' }}>
-                  {form.Contrasena === form.Confirmar_contrasena ? <><Check size={12} /> Las contraseñas coinciden</> : '✗ Las contraseñas no coinciden'}
+                <p style={{ margin: '4px 0 0', fontSize: 12, fontWeight: 700,
+                  color: form.Contrasena === form.Confirmar_contrasena ? '#166534' : '#991b1b',
+                  display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {form.Contrasena === form.Confirmar_contrasena
+                    ? <><Check size={12} /> Las contraseñas coinciden</>
+                    : '✗ Las contraseñas no coinciden'}
                 </p>
               )}
             </div>
 
-            {/* Submit */}
             <button type="submit" className="auth-submit" disabled={loading}>
-              {loading ? <span className="auth-spinner" /> : <> Crear mi cuenta <ChevronRight size={18} /> </>}
+              {loading
+                ? <span className="auth-spinner" />
+                : <> Crear mi cuenta <span className="auth-arrow"><ChevronRight size={18} /></span> </>}
             </button>
 
           </form>
@@ -226,13 +219,15 @@ const Register = () => {
             ¿Ya tienes cuenta?{' '}
             <Link to="/login" className="auth-switch-link">Inicia sesión</Link>
           </p>
-          <p className="auth-switch" style={{ marginTop: 4 }}>
-            <Link to="/" className="auth-switch-link" style={{ opacity: 0.65, fontSize: '0.9em' }}>
+          <p className="auth-switch" style={{ marginTop: 6 }}>
+            <Link to="/" className="auth-switch-link" style={{ opacity: 0.6, fontSize: '0.88em' }}>
               ← Volver al inicio
             </Link>
           </p>
+
         </div>
       </div>
+    </div>
     </div>
   );
 };

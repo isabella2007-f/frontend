@@ -44,8 +44,11 @@ function ToggleView({ value, razon }) {
           {value ? "Activo" : "Inactivo"}
         </span>
         {razon && (
-          <div style={{ fontSize: 11, color: "#ef5350", marginTop: 2, fontWeight: 600 }}>
-            ⚠️ {razon}
+          <div style={{
+            fontSize: 11, marginTop: 2, fontWeight: 600,
+            color: razon.startsWith("El rol") ? "#ef5350" : "#757575",
+          }}>
+            {razon.startsWith("El rol") ? "⚠️ " : "ℹ️ "}{razon}
           </div>
         )}
       </div>
@@ -83,8 +86,10 @@ export function ModalVerUsuario({ user, roles = [], onClose }) {
 
   const rolObj   = roles.find(r => r.nombre === user.rol);
   const rolStyle = getRolStyle(user.rol);
-  const razonInactivo = !user.estado && rolObj && !rolObj.estado
-    ? `El rol "${user.rol}" está desactivado`
+  const razonInactivo = !user.estado
+    ? (rolObj && !rolObj.estado
+        ? `El rol "${user.rol}" está desactivado`
+        : "Desactivado manualmente")
     : null;
 
   return (

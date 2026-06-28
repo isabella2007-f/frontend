@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { login } from "../services/authService";
-import Navbar from "../shared/components/Navbar";
 import { Mail, Lock, Eye, EyeOff, Leaf, ChevronRight } from "lucide-react";
 import "./Auth.css";
 
@@ -13,7 +12,7 @@ const Login = () => {
   const [loading,  setLoading]  = useState(false);
   const navigate = useNavigate();
 
-const handleSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
@@ -32,48 +31,55 @@ const handleSubmit = async (e) => {
   };
 
   return (
-    <>
-    <Navbar isLanding={true} />
     <div className="auth-page">
-      <div className="auth-bg">
-        <div className="auth-blob auth-blob--1" />
-        <div className="auth-blob auth-blob--2" />
+    <div className="auth-card">
 
-        <div className="auth-card">
+      {/* Panel izquierdo */}
+      <div className="auth-panel-left">
+        <div className="auth-shape auth-shape--1" />
+        <div className="auth-shape auth-shape--2" />
+        <div className="auth-shape auth-shape--3" />
+        <div className="auth-shape auth-shape--4" />
+        <div className="auth-shape auth-shape--5" />
 
-          {/* Barra superior animada */}
-          <div className="auth-topbar" />
-
-          {/* Brand */}
-          <div className="auth-brand">
-            <div className="auth-brand-icon">
-              <Leaf size={20} color="#2e7d32" />
-            </div>
-            <h1 className="auth-brand-name">Tostón App</h1>
-            <p className="auth-brand-sub">Bienvenido de vuelta</p>
+        <div className="auth-left-content">
+          <div className="auth-left-logo">
+            <Leaf size={28} color="white" />
           </div>
+          <h1 className="auth-left-brand">Tostón App</h1>
+          <p className="auth-left-tagline">
+            El sabor auténtico del plátano, directo desde el campo hasta tu mesa.
+          </p>
+          <div className="auth-left-divider" />
+          <div className="auth-left-pills">
+            <span className="auth-left-pill">🍌 100% Natural</span>
+            <span className="auth-left-pill">🚚 Entrega rápida</span>
+            <span className="auth-left-pill">✨ Calidad premium</span>
+          </div>
+        </div>
+      </div>
 
-          {/* Error */}
+      {/* Panel derecho */}
+      <div className="auth-panel-right">
+        <div className="auth-form-box">
+
+          <h2 className="auth-form-title">Bienvenido de vuelta</h2>
+          <p className="auth-form-subtitle">Inicia sesión para continuar</p>
+
           {error && (
             <div className="auth-error">
-              <span className="auth-error-icon">⚠</span>
-              {error}
+              <span>⚠</span> {error}
             </div>
           )}
 
-          {/* Formulario */}
           <form onSubmit={handleSubmit} className="auth-form">
 
-            {/* Correo */}
             <div className="auth-field">
               <label className="auth-label">
-                <Mail size={11} />
-                Correo electrónico
+                <Mail size={11} /> Correo electrónico
               </label>
               <div className="auth-input-wrap">
-                <span className="auth-input-icon">
-                  <Mail size={14} />
-                </span>
+                <span className="auth-input-icon"><Mail size={15} /></span>
                 <input
                   type="email"
                   required
@@ -85,18 +91,17 @@ const handleSubmit = async (e) => {
               </div>
             </div>
 
-            {/* Contraseña */}
             <div className="auth-field">
               <div className="auth-label-row">
                 <label className="auth-label">
-                  <Lock size={11} />
-                  Contraseña
+                  <Lock size={11} /> Contraseña
                 </label>
+                <Link to="/recuperar" className="auth-forgot">
+                  ¿Olvidaste tu contraseña?
+                </Link>
               </div>
               <div className="auth-input-wrap">
-                <span className="auth-input-icon">
-                  <Lock size={14} />
-                </span>
+                <span className="auth-input-icon"><Lock size={15} /></span>
                 <input
                   type={showPass ? "text" : "password"}
                   required
@@ -114,45 +119,35 @@ const handleSubmit = async (e) => {
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-                <Link to="/recuperar" className="auth-forgot">
-                  ¿Olvidaste tu contraseña?
-                </Link>
             </div>
 
-            {/* Submit */}
             <button type="submit" className="auth-submit" disabled={loading}>
               {loading ? (
                 <span className="auth-spinner" />
               ) : (
                 <>
                   Iniciar sesión
-                  <span className="auth-arrow">
-                    <ChevronRight size={18} />
-                  </span>
+                  <span className="auth-arrow"><ChevronRight size={18} /></span>
                 </>
               )}
             </button>
 
           </form>
 
-          {/* Footer */}
           <p className="auth-switch">
             ¿No tienes cuenta?{" "}
-            <Link to="/register" className="auth-switch-link">
-              Regístrate gratis
-            </Link>
+            <Link to="/register" className="auth-switch-link">Regístrate gratis</Link>
           </p>
-
-          <p className="auth-switch" style={{ marginTop: '5px' }}>
-            <Link to="/" className="auth-switch-link" style={{ opacity: 0.7, fontSize: '0.9em' }}>
-              Volver al inicio
+          <p className="auth-switch" style={{ marginTop: 6 }}>
+            <Link to="/" className="auth-switch-link" style={{ opacity: 0.6, fontSize: '0.88em' }}>
+              ← Volver al inicio
             </Link>
           </p>
 
         </div>
       </div>
     </div>
-    </>
+    </div>
   );
 };
 

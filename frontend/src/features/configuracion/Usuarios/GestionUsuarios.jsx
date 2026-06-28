@@ -271,7 +271,7 @@ export default function GestionUsuarios() {
                     </td>
                     <td>
                       {user.telefono
-                        ? <a href={`tel:${user.telefono.replace(/\s/g, "")}`} className="phone-cell" style={{ textDecoration: "none" }}>
+                        ? <a href={`https://wa.me/${user.telefono.replace(/\D/g, "")}`} className="phone-cell" style={{ textDecoration: "none" }} target="_blank" rel="noopener noreferrer">
                             <span className="phone-icon">📞</span>
                             {user.telefono}
                           </a>
@@ -286,7 +286,7 @@ export default function GestionUsuarios() {
                     <td>
                       {(() => {
                         const esAdmin = user.tipo === "empleado" && user.idRol === 1;
-                        const rolDesactivado = !esAdmin && user.tipo === "empleado" &&
+                        const rolDesactivado = !esAdmin &&
                           user.rol && roles.some(r => r.nombre === user.rol && !r.estado);
                         return (
                           <ToggleConTooltip

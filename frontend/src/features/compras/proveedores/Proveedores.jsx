@@ -260,7 +260,7 @@ export default function GestionProveedores() {
                     <td>
                       <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                         {p.celular
-                          ? <a href={`tel:${p.celular.replace(/\s/g, "")}`} className="prov-contact-link prov-contact-link--tel">
+                          ? <a href={`https://wa.me/${p.celular.replace(/\D/g, "")}`} className="prov-contact-link prov-contact-link--tel" target="_blank" rel="noopener noreferrer">
                               📞 {p.celular}
                             </a>
                           : <span style={{ fontSize: 12, color: "#bdbdbd" }}>—</span>

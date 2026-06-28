@@ -108,7 +108,7 @@ function VistaProveedor({ proveedor, onClose }) {
             <p className="section-label" style={{ margin: "0 0 8px" }}>Contacto</p>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               {celular
-                ? <a href={`tel:${telRaw}`} className="prov-contact-link prov-contact-link--tel">📞 {celular}</a>
+                ? <a href={`https://wa.me/${celular.replace(/\D/g, "")}`} className="prov-contact-link prov-contact-link--tel" target="_blank" rel="noopener noreferrer">📞 {celular}</a>
                 : <span className="prov-contact-empty">Sin teléfono</span>
               }
               {correo

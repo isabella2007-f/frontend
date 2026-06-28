@@ -178,8 +178,9 @@ function DetallesModal({ domicilio, onClose, onCambiarEstado }) {
             <div style={{ fontWeight: 700, fontSize: 14 }}>{domicilio.cliente?.nombre || "—"}</div>
             {domicilio.cliente?.telefono && (
               <a
-                href={`tel:${domicilio.cliente.telefono}`}
-                style={{ fontSize: 13, color: "#1976d2", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4, marginTop: 4 }}
+                href={`https://wa.me/${domicilio.cliente.telefono.replace(/\D/g, "")}`}
+                target="_blank" rel="noopener noreferrer"
+                style={{ fontSize: 13, color: "#25d366", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4, marginTop: 4 }}
               >
                 📞 {domicilio.cliente.telefono}
               </a>

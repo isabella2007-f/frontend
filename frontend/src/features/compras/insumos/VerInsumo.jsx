@@ -3,6 +3,43 @@ import { useNavigate } from "react-router-dom";
 import { getLotesInsumo } from "../../../services/insumosService.js";
 import "./GestionInsumos.css";
 
+function BadgeVenc({ color, bg, border, icon, label, tooltip }) {
+  const [show, setShow] = useState(false);
+  return (
+    <span
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+      style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 4,
+        fontSize: 10, fontWeight: 700, color, background: bg,
+        border: `1px solid ${border}`, borderRadius: 6, padding: "3px 8px",
+        whiteSpace: "nowrap", cursor: "help", userSelect: "none" }}
+    >
+      {icon} {label}
+      {show && (
+        <div style={{
+          position: "absolute", bottom: "calc(100% + 7px)", left: "50%",
+          transform: "translateX(-50%)", whiteSpace: "nowrap",
+          background: "#1a1a2e", color: "#fff",
+          borderRadius: 8, padding: "6px 12px",
+          fontSize: 11, fontWeight: 600, lineHeight: 1.4,
+          boxShadow: "0 4px 14px rgba(0,0,0,0.22)",
+          zIndex: 999, pointerEvents: "none",
+        }}>
+          {tooltip}
+          <div style={{
+            position: "absolute", top: "100%", left: "50%",
+            transform: "translateX(-50%)",
+            width: 0, height: 0,
+            borderLeft: "5px solid transparent",
+            borderRight: "5px solid transparent",
+            borderTop: "5px solid #1a1a2e",
+          }} />
+        </div>
+      )}
+    </span>
+  );
+}
+
 function calcEstado(actual, minimo) {
   if (actual === 0)    return "agotado";
   if (actual < minimo) return "bajo";
@@ -23,7 +60,7 @@ function Toggle({ value }) {
   );
 }
 
-function StockBar({ actual, minimo }) {
+function StockBar({ actual, minimo, simbolo = "" }) {
   const pct   = minimo > 0 ? Math.min(100, Math.round((actual / (minimo * 2)) * 100)) : 100;
   const est   = calcEstado(actual, minimo);
   const color = est === "agotado" ? "#ef5350" : est === "bajo" ? "#ffa726" : "#43a047";
@@ -33,7 +70,7 @@ function StockBar({ actual, minimo }) {
         <div className="stock-bar" style={{ width: est === "agotado" ? "100%" : pct + "%", background: color }} />
       </div>
       <span className="stock-nums" style={est === "agotado" ? { color: "#c62828" } : undefined}>
-        <strong>{actual}</strong> / mín {minimo}
+        <strong>{actual}</strong>{simbolo ? ` ${simbolo}` : ""} / mín {minimo}{simbolo ? ` ${simbolo}` : ""}
       </span>
     </div>
   );
@@ -105,15 +142,25 @@ function LotesTab({ lotes, loading, tipo, unidad }) {
               <div style={{ fontSize: 10, color: "#9e9e9e" }}>{unidad?.simbolo ?? "uds."}</div>
             </div>
             {l.vencido && (
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#c62828", background: "#ffebee", border: "1px solid #ef9a9a", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" }}>
-                Vencido
-              </span>
+              <BadgeVenc
+                color="#c62828" bg="#ffebee" border="#ef9a9a"
+                icon="🚫" label="Vencido"
+                tooltip={dias !== null ? `Venció hace ${Math.abs(dias)} día${Math.abs(dias) === 1 ? "" : "s"} — no apto para producción` : "Este lote ya está vencido — no apto para producción"}
+              />
             )}
             {urgente && (
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#e65100", background: "#fff3e0", border: "1px solid #ffcc80", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" }}>⚠️ {dias}d</span>
+              <BadgeVenc
+                color="#e65100" bg="#fff3e0" border="#ffcc80"
+                icon="⚠️" label={`${dias}d`}
+                tooltip={`Vence en ${dias} día${dias === 1 ? "" : "s"} — requiere atención urgente`}
+              />
             )}
             {pronto && (
-              <span style={{ fontSize: 10, fontWeight: 700, color: "#f9a825", background: "#fff8e1", border: "1px solid #ffe082", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" }}>🟡 {dias}d</span>
+              <BadgeVenc
+                color="#f9a825" bg="#fff8e1" border="#ffe082"
+                icon="🟡" label={`${dias}d`}
+                tooltip={`Próximo a vencer — quedan ${dias} días`}
+              />
             )}
           </div>
         );
@@ -234,7 +281,7 @@ export default function VerInsumo({ ins, categorias, unidades, onClose }) {
                       <span className="ver-ins-stock-card__uni">{unidad.simbolo}</span>
                     </div>
                   </div>
-                  <StockBar actual={ins.stockActual} minimo={ins.stockMinimo} />
+                  <StockBar actual={ins.stockActual} minimo={ins.stockMinimo} simbolo={unidad.simbolo} />
                 </div>
               </div>
             </>
