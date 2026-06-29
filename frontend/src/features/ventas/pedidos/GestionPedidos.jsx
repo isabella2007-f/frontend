@@ -187,16 +187,26 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit }) {
               <div>
                 <p className="section-label">Información del Cliente</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  {[
-                    { label: "Nombre",   value: pedido.cliente?.nombre },
-                    { label: "Correo",   value: pedido.cliente?.correo },
-                    { label: "Teléfono", value: pedido.cliente?.telefono },
-                  ].map(({ label, value }) => (
-                    <div key={label} className="ver-ped-field">
-                      <span className="ver-ped-field__label">{label}</span>
-                      <span className="ver-ped-field__value">{value || "—"}</span>
-                    </div>
-                  ))}
+                  <div className="ver-ped-field">
+                    <span className="ver-ped-field__label">Nombre</span>
+                    <span className="ver-ped-field__value">{pedido.cliente?.nombre || "—"}</span>
+                  </div>
+                  <div className="ver-ped-field">
+                    <span className="ver-ped-field__label">Correo</span>
+                    <span className="ver-ped-field__value">
+                      {pedido.cliente?.correo
+                        ? <a href={`mailto:${pedido.cliente.correo}`} style={{ color: "#1565c0", textDecoration: "none", fontWeight: 600 }}>✉ {pedido.cliente.correo}</a>
+                        : "—"}
+                    </span>
+                  </div>
+                  <div className="ver-ped-field">
+                    <span className="ver-ped-field__label">Teléfono</span>
+                    <span className="ver-ped-field__value">
+                      {pedido.cliente?.telefono
+                        ? <a href={`https://wa.me/${pedido.cliente.telefono.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" style={{ color: "#2e7d32", textDecoration: "none", fontWeight: 600 }}>📞 {pedido.cliente.telefono}</a>
+                        : "—"}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -930,6 +940,7 @@ export default function GestionPedidos() {
       const payload = {
         ID_Usuario: Number(formData.idCliente),
         Metodo_Pago: metodoPago,
+        comprobante_pago: formData.comprobante || null,
         productos: (formData.productosItems || []).map(p => ({
           ID_Producto: Number(p.idProducto),
           Cantidad:    Number(p.cantidad),
@@ -944,11 +955,12 @@ export default function GestionPedidos() {
           : null,
       };
       await crearPedido(payload);
-      await cargarDatos();
-      showToast("Pedido creado correctamente");
       setModal(null);
+      cargarDatos().catch(() => {});
+      showToast("Pedido creado correctamente");
     } catch (err) {
       showToast(err.message || "Error al crear pedido", "error");
+      throw err;
     }
   };
 
@@ -964,13 +976,15 @@ export default function GestionPedidos() {
         Descuento:            formData.descuento,
         Total:                formData.total,
         Notas:                formData.notas || null,
+        Comprobante_Pago:     formData.comprobante || null,
       };
       await editarPedido(formData.id, payload);
-      await cargarDatos();
-      showToast("Pedido actualizado");
       setModal(null);
+      cargarDatos().catch(() => {});
+      showToast("Pedido actualizado");
     } catch (err) {
       showToast(err.message || "Error al actualizar pedido", "error");
+      throw err;
     }
   };
 

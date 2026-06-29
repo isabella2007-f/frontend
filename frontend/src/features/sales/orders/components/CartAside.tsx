@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, MapPin, Calendar, Trash2, Plus, Minus, ShoppingBag, LogIn, Sparkles, ChevronRight, ShoppingCart, FileText } from 'lucide-react';
+import { X, MapPin, Calendar, Trash2, Plus, Minus, ShoppingBag, LogIn, Sparkles, ChevronRight, ShoppingCart, FileText, Truck } from 'lucide-react';
 import { CartItem, removeFromCart, updateQuantity, clearCart, getCart } from '../services/cartService';
 import { isAuthenticated } from '../../../../services/authService';
 import { apiFetch } from '../../../../utils/api';
@@ -81,11 +81,11 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
 
   const handleCheckout = () => {
     if (cart.length === 0) return alert('El carrito está vacío');
+    if (!date)           return alert('Indica la fecha en que necesitas el pedido');
+    if (date < hoyISO()) return alert('La fecha no puede ser en el pasado');
     if (tieneDomicilio) {
-      if (!address)      { setShowDeliveryInfo(true); return alert('Ingresa una dirección de entrega'); }
-      if (!municipio)    { setShowDeliveryInfo(true); return alert('Selecciona un municipio'); }
-      if (!date)         { setShowDeliveryInfo(true); return alert('Selecciona una fecha de entrega'); }
-      if (date < hoyISO()) { setShowDeliveryInfo(true); return alert('La fecha de entrega no puede ser en el pasado'); }
+      if (!address)   return alert('Ingresa una dirección de entrega');
+      if (!municipio) return alert('Selecciona un municipio');
     }
     if (!isAuthenticated()) { onClose(); onLoginRequired(); return; }
     onCheckout({ address, departamento, municipio, date, observaciones, tieneDomicilio });
@@ -101,127 +101,106 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
       <div className="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-500 ease-out border-l border-emerald-100">
 
         {/* Header */}
-        <div className="text-white p-4 shadow-xl relative overflow-hidden shrink-0" style={{ background: 'linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 50%, var(--green-700) 100%)' }}>
+        <div className="text-white px-5 py-4 relative overflow-hidden shrink-0" style={{ background: 'linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 50%, var(--green-700) 100%)' }}>
           <div className="absolute top-[-20px] right-[-20px] w-48 h-48 bg-white/5 rounded-full blur-3xl animate-pulse" />
-
-          <div className="flex items-center justify-between mb-3 relative z-10">
-            <div className="flex items-center gap-2.5">
-              <div className="bg-white/10 backdrop-blur-xl p-2 rounded-xl border border-white/20 shadow-inner">
-                <ShoppingBag size={18} className="text-white" />
+          <div className="flex items-center justify-between relative z-10">
+            <div className="flex items-center gap-3">
+              <div className="bg-white/10 backdrop-blur-xl p-2.5 rounded-xl border border-white/20 shadow-inner">
+                <ShoppingBag size={20} className="text-white" />
               </div>
               <div>
-                <h2 className="text-lg font-black tracking-tight leading-none mb-0.5">Tu Carrito</h2>
-                <p className="text-[8px] text-emerald-100 font-black uppercase tracking-widest opacity-80 flex items-center gap-1.5">
-                  <span className="w-1 h-1 bg-emerald-400 rounded-full animate-pulse" />
+                <h2 className="text-xl font-black tracking-tight leading-none mb-1">Tu Carrito</h2>
+                <p className="text-[10px] text-emerald-200 font-bold flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
                   {cart.length} {cart.length === 1 ? 'producto' : 'productos'}
                 </p>
               </div>
             </div>
-            <button onClick={onClose} className="p-1.5 hover:bg-white/20 rounded-full transition-all text-white/70 hover:text-white border border-white/10">
-              <X size={16} />
+            <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-full transition-all text-white/80 hover:text-white border border-white/10">
+              <X size={18} />
             </button>
           </div>
+        </div>
 
-          {/* Toggle domicilio */}
-          <div className="relative z-10 flex items-center gap-3 bg-black/10 rounded-xl px-3 py-2 border border-white/10 mb-2">
+        {/* Toggle Recogida / Domicilio */}
+        <div className="px-5 py-4 bg-white border-b border-gray-100 shrink-0">
+          <div className="grid grid-cols-2 bg-gray-100 rounded-2xl p-1.5 gap-1.5">
             <button
               onClick={() => { setTieneDomicilio(false); setShowDeliveryInfo(false); }}
-              className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${!tieneDomicilio ? 'bg-white text-green-800' : 'text-white/60 hover:text-white'}`}
+              className={`flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-black uppercase tracking-wider transition-all duration-200 ${!tieneDomicilio ? 'bg-white text-green-800 shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
             >
-              🏪 Recogida
+              <ShoppingBag size={16} />
+              Recogida
             </button>
             <button
               onClick={() => { setTieneDomicilio(true); setShowDeliveryInfo(true); }}
-              className={`flex-1 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${tieneDomicilio ? 'bg-white text-green-800' : 'text-white/60 hover:text-white'}`}
+              className={`flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-black uppercase tracking-wider transition-all duration-200 ${tieneDomicilio ? 'bg-white text-green-800 shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
             >
-              🛵 Domicilio
+              <Truck size={16} />
+              Domicilio
             </button>
+          </div>
+
+          {/* Fecha siempre visible */}
+          <div className="mt-3 relative">
+            <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="date"
+              min={hoyISO()}
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 pl-9 pr-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400 transition-all font-medium text-gray-700"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
           </div>
 
           {/* Formulario de entrega (solo si domicilio) */}
           {tieneDomicilio && (
-            <div className="relative z-10 bg-black/10 rounded-xl border border-white/10 backdrop-blur-sm overflow-hidden transition-all duration-300">
-              <button
-                onClick={() => setShowDeliveryInfo(!showDeliveryInfo)}
-                className="w-full p-2.5 flex items-center justify-between hover:bg-white/5 transition-colors group"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 bg-white/10 rounded-lg group-hover:bg-white/20 transition-colors">
-                    <MapPin size={10} className="text-emerald-300" />
-                  </div>
-                  <div className="text-left">
-                    <p className="text-[8px] font-black uppercase tracking-widest text-white/60 leading-none mb-1">Entrega en:</p>
-                    <p className="text-[10px] font-bold text-white/90 truncate max-w-[180px]">{address || 'Configura tu ubicación'}</p>
-                  </div>
+            <div className="mt-2 space-y-2">
+              {loggedIn && (
+                <div>
+                  <button
+                    onClick={usarDireccionRegistrada}
+                    className="w-full py-2 px-3 bg-green-50 hover:bg-green-100 border border-green-200 rounded-xl text-xs font-black text-green-800 uppercase tracking-widest transition-all text-center"
+                  >
+                    📍 Usar mi dirección registrada
+                  </button>
+                  {sinDireccionMsg && (
+                    <div className="mt-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2">
+                      <span style={{ fontSize: 13 }}>⚠️</span>
+                      <p className="text-xs font-bold text-amber-700 leading-tight">
+                        No tienes dirección registrada. Ve a tu <strong>Perfil</strong> para agregarla.
+                      </p>
+                    </div>
+                  )}
                 </div>
-                <div className={`transition-transform duration-300 ${showDeliveryInfo ? 'rotate-90' : ''}`}>
-                  <ChevronRight size={12} className="opacity-60" />
-                </div>
-              </button>
+              )}
 
-              <div className={`px-3 pb-3 space-y-2 transition-all duration-300 ${showDeliveryInfo ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'}`}>
-                {/* Botón usar dirección registrada */}
-                {loggedIn && (
-                  <div>
-                    <button
-                      onClick={usarDireccionRegistrada}
-                      className="w-full py-1.5 px-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-[9px] font-black text-white uppercase tracking-widest transition-all text-left"
-                    >
-                      📍 Usar mi dirección registrada
-                    </button>
-                    {sinDireccionMsg && (
-                      <div className="mt-1.5 px-2.5 py-1.5 bg-amber-400/20 border border-amber-400/30 rounded-lg flex items-center gap-1.5">
-                        <span style={{ fontSize: 12 }}>⚠️</span>
-                        <p className="text-[8px] font-bold text-amber-100 leading-tight">
-                          No tienes dirección registrada. Ve a tu <strong>Perfil</strong> para agregarla.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <div className="col-span-2 relative group">
-                    <MapPin size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/70 group-focus-within:text-white transition-colors" />
-                    <input
-                      type="text"
-                      placeholder="Dirección (Ej: Calle 10 #20-30)"
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-2 pl-9 pr-3 text-xs placeholder:text-white/40 focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all font-medium"
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="col-span-2 relative group">
-                    <select
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-2 px-3 text-xs appearance-none focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all font-medium text-white"
-                      value={municipio}
-                      onChange={(e) => setMunicipio(e.target.value)}
-                    >
-                      <option value="" className="text-gray-900">— Municipio (Valle de Aburrá) —</option>
-                      {MUNICIPIOS_VALLE_ABURRA.map(m => <option key={m} value={m} className="text-gray-900">{m}</option>)}
-                    </select>
-                  </div>
-
-                  <div className="col-span-2 relative group">
-                    <Calendar size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/70" />
-                    <input
-                      type="date"
-                      min={hoyISO()}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl py-2 pl-9 pr-3 text-xs focus:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/30 transition-all font-medium [color-scheme:dark]"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                {!loggedIn && (
-                  <div className="flex items-center gap-2 py-1 px-2.5 bg-amber-400/10 border border-amber-400/20 rounded-lg">
-                    <LogIn size={10} className="text-amber-400" />
-                    <p className="text-[8px] font-bold text-amber-100 uppercase tracking-tighter">Inicia sesión para comprar</p>
-                  </div>
-                )}
+              <div className="relative">
+                <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Dirección (Ej: Calle 10 #20-30)"
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 pl-9 pr-3 text-sm placeholder:text-gray-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400 transition-all font-medium text-gray-700"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                />
               </div>
+
+              <select
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400 transition-all font-medium text-gray-700"
+                value={municipio}
+                onChange={(e) => setMunicipio(e.target.value)}
+              >
+                <option value="">— Municipio (Valle de Aburrá) —</option>
+                {MUNICIPIOS_VALLE_ABURRA.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+
+              {!loggedIn && (
+                <div className="flex items-center gap-2 py-2 px-3 bg-amber-50 border border-amber-200 rounded-xl">
+                  <LogIn size={13} className="text-amber-500 shrink-0" />
+                  <p className="text-xs font-bold text-amber-700">Inicia sesión para continuar con el pedido</p>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -321,46 +300,48 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-white border-t border-gray-100 shadow-[0_-10px_40px_rgba(0,0,0,0.04)] relative z-20">
+        <div className={`bg-white border-t border-gray-100 shadow-[0_-10px_40px_rgba(0,0,0,0.04)] relative z-20 ${tieneDomicilio ? 'px-4 py-3' : 'p-4'}`}>
 
-          {/* Banner domicilio */}
-          {tieneDomicilio && (
-            <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: '#f3e5f5', border: '1px solid #ce93d8' }}>
-              <span style={{ fontSize: 14 }}>🛵</span>
-              <div className="flex-1">
-                <p style={{ fontSize: 9, fontWeight: 800, color: '#6a1b9a', margin: 0, textTransform: 'uppercase', letterSpacing: 1 }}>Costo de domicilio</p>
-                <p style={{ fontSize: 13, fontWeight: 800, color: '#4a148c', margin: 0 }}>{COP(COSTO_DOMICILIO)}</p>
+          {tieneDomicilio ? (
+            /* Vista compacta cuando hay domicilio */
+            <div className="flex items-center justify-between mb-3">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-3 text-[11px] text-gray-400 font-medium">
+                  <span>Productos <span className="font-black text-gray-700">{COP(total)}</span></span>
+                  <span>+</span>
+                  <span>Domicilio <span className="font-black" style={{ color: '#7b1fa2' }}>{COP(COSTO_DOMICILIO)}</span></span>
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Total</span>
+                  <span className="text-xl font-black text-gray-900 tracking-tighter leading-none">{COP(costoTotal)}</span>
+                </div>
+              </div>
+              <div className="text-amber-400"><Sparkles size={16} /></div>
+            </div>
+          ) : (
+            /* Vista normal */
+            <div className="space-y-1.5 mb-4">
+              <div className="flex justify-between items-center text-[11px]">
+                <span className="text-gray-500 font-bold">Subtotal productos</span>
+                <span className="text-gray-800 font-black">{COP(total)}</span>
+              </div>
+              <div className="relative py-0.5">
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-dashed border-gray-100" /></div>
+              </div>
+              <div className="flex justify-between items-end">
+                <div>
+                  <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Total a pagar</span>
+                  <span className="text-2xl font-black text-gray-900 tracking-tighter leading-none">{COP(costoTotal)}</span>
+                </div>
+                <div className="text-amber-500 pb-1"><Sparkles size={18} /></div>
               </div>
             </div>
           )}
 
-          <div className="space-y-1.5 mb-4">
-            <div className="flex justify-between items-center text-[11px]">
-              <span className="text-gray-500 font-bold">Subtotal productos</span>
-              <span className="text-gray-800 font-black">{COP(total)}</span>
-            </div>
-            {tieneDomicilio && (
-              <div className="flex justify-between items-center text-[11px]">
-                <span className="text-gray-500 font-bold">Domicilio</span>
-                <span className="font-black text-[11px]" style={{ color: '#7b1fa2' }}>{COP(COSTO_DOMICILIO)}</span>
-              </div>
-            )}
-            <div className="relative py-0.5">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-dashed border-gray-100" /></div>
-            </div>
-            <div className="flex justify-between items-end">
-              <div>
-                <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Total a pagar</span>
-                <span className="text-2xl font-black text-gray-900 tracking-tighter leading-none">{COP(costoTotal)}</span>
-              </div>
-              <div className="text-amber-500 pb-1"><Sparkles size={18} /></div>
-            </div>
-          </div>
-
           <button
             onClick={handleCheckout}
             disabled={cart.length === 0}
-            className={`w-full group relative overflow-hidden flex items-center justify-center gap-3 py-3.5 rounded-xl font-black text-sm transition-all duration-300 shadow-lg active:scale-[0.98] ${
+            className={`w-full group relative overflow-hidden flex items-center justify-center gap-3 rounded-xl font-black text-sm transition-all duration-300 shadow-lg active:scale-[0.98] ${tieneDomicilio ? 'py-2.5' : 'py-3.5'} ${
               cart.length === 0 ? 'bg-gray-100 text-gray-300 cursor-not-allowed border border-gray-200 shadow-none' : 'btn-primary shadow-emerald-200/50 hover:shadow-xl hover:-translate-y-0.5'
             }`}
             style={cart.length > 0 ? { background: 'linear-gradient(135deg, var(--green-700) 0%, var(--green-600) 100%)' } : {}}

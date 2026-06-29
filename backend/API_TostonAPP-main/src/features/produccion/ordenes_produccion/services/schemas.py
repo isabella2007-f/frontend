@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, model_validator
-from typing import Optional
+from typing import Optional, Any, List
 from datetime import datetime, date
 from decimal import Decimal
 
@@ -53,18 +53,22 @@ class OrdenEstado(BaseModel):
 # ── Respuesta de una orden ──
 class OrdenResponse(BaseModel):
     ID_Orden_Produccion: int
-    ID_Producto:         Optional[int]     = None
-    nombre_producto:     Optional[str]     = None
-    ID_Insumo:           Optional[int]     = None
-    nombre_insumo:       Optional[str]     = None
-    ID_Ficha:            Optional[int]     = None
-    version_ficha:       Optional[str]     = None
-    Cantidad:            Optional[int]     = None
+    ID_Venta:            Optional[int]      = None
+    ID_Producto:         Optional[int]      = None
+    nombre_producto:     Optional[str]      = None
+    ID_Insumo:           Optional[int]      = None
+    nombre_insumo:       Optional[str]      = None
+    stock_insumo:        Optional[float]    = None
+    ID_Ficha:            Optional[int]      = None
+    version_ficha:       Optional[str]      = None
+    Cantidad:            Optional[int]      = None
     Fecha_inicio:        Optional[datetime] = None
     Fecha_Entrega:       Optional[datetime] = None
-    Estado:              Optional[int]     = None
-    estado_label:        Optional[str]     = None   # "Pendiente", "Completada", etc.
-    Costo:               Optional[Decimal] = None   # calculado automáticamente
+    Estado:              Optional[int]      = None
+    estado_label:        Optional[str]      = None
+    Costo:               Optional[float]    = None
+    costo_detalle:       Optional[List[Any]] = None
+    lote:                Optional[Any]      = None
 
     class Config:
         from_attributes = True

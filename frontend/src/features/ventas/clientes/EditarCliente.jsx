@@ -204,11 +204,19 @@ function ModalVerCliente({ cliente, onClose }) {
                   </div>
                   <div className="form-group" style={{ gridColumn: "1 / -1" }}>
                     <label className="form-label">Correo electrónico</label>
-                    <div className="field-input field-input--disabled">{cliente.correo || "—"}</div>
+                    <div className="field-input field-input--disabled">
+                      {cliente.correo
+                        ? <a href={`mailto:${cliente.correo}`} style={{ color: "#1565c0", textDecoration: "none", fontWeight: 600 }}>✉ {cliente.correo}</a>
+                        : "—"}
+                    </div>
                   </div>
                   <div className="form-group">
                     <label className="form-label">Teléfono</label>
-                    <div className="field-input field-input--disabled">{cliente.telefono || "—"}</div>
+                    <div className="field-input field-input--disabled">
+                      {cliente.telefono
+                        ? <a href={`https://wa.me/${cliente.telefono.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" style={{ color: "#2e7d32", textDecoration: "none", fontWeight: 600 }}>📞 {cliente.telefono}</a>
+                        : "—"}
+                    </div>
                   </div>
                   <div className="form-group">
                     <label className="form-label">Fecha de registro</label>

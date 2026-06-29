@@ -195,8 +195,8 @@
 .ficha-modal__top {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 14px 20px 0;
+  gap: 10px;
+  padding: 12px 20px 0;
   flex-shrink: 0;
 }
 
@@ -299,7 +299,9 @@
 .ficha-insumos-table-wrap {
   border: 1.5px solid #e8f5e9;
   border-radius: 12px;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: 260px;
   margin-bottom: 10px;
 }
 .ficha-insumos-tbl {

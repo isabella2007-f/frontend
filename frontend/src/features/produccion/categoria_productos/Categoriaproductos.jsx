@@ -196,20 +196,20 @@ function ModalDesactivarCategoria({ cat, count, onClose, onConfirm }) {
 function SkeletonRow() {
   return (
     <tr className="tbl-row">
-      <td><div style={{ height: 14, width: 28, borderRadius: 4, background: "#e8f5e9" }} /></td>
+      <td><div className="skeleton-cell" style={{ width: 28 }} /></td>
       <td>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 8, background: "#e8f5e9", flexShrink: 0 }} />
-          <div style={{ height: 14, width: "70%", borderRadius: 4, background: "#e8f5e9" }} />
+          <div className="skeleton-cell" style={{ width: 36, height: 36, borderRadius: 9, flexShrink: 0 }} />
+          <div className="skeleton-cell" style={{ width: "70%" }} />
         </div>
       </td>
-      <td><div style={{ height: 14, width: "85%", borderRadius: 4, background: "#e8f5e9" }} /></td>
-      <td><div style={{ height: 28, width: 52, borderRadius: 14, background: "#e8f5e9" }} /></td>
-      <td><div style={{ height: 14, width: 70, borderRadius: 4, background: "#e8f5e9" }} /></td>
+      <td><div className="skeleton-cell" style={{ width: "85%" }} /></td>
+      <td><div className="skeleton-cell" style={{ width: 52, height: 28, borderRadius: 14 }} /></td>
+      <td><div className="skeleton-cell" style={{ width: 70 }} /></td>
       <td>
         <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
           {[0, 1, 2].map(i => (
-            <div key={i} style={{ width: 34, height: 34, borderRadius: 8, background: "#e8f5e9" }} />
+            <div key={i} className="skeleton-cell" style={{ width: 34, height: 34, borderRadius: 8 }} />
           ))}
         </div>
       </td>
@@ -314,9 +314,10 @@ export default function CategoriaProductos() {
     }
   };
 
-  const handleEdit = async (apiData) => {
+  const handleEdit = async (apiData, toggleEstado) => {
     try {
       await editarCategoria(modal.category.id, apiData);
+      if (toggleEstado) await toggleEstadoCategoria(modal.category.id, modal.category.estado);
       showToast("Cambios guardados");
       setModal(null);
       await cargarDatos();

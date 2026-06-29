@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from datetime import datetime
 
-from src.shared.services.models import CategoriaProducto, Producto
+from src.shared.services.models import CategoriaProducto, Producto, Venta, VentaXProducto
 from .schemas import CategoriaProductoCreate, CategoriaProductoUpdate
 
 
@@ -108,6 +108,24 @@ def cambiar_estado(db: Session, id_categoria: int, nuevo_estado: int) -> dict:
     ).first()
     if not categoria:
         raise HTTPException(status_code=404, detail="Categoría no encontrada")
+
+    # Al desactivar: bloquear si algún producto está en un pedido activo
+    if nuevo_estado == 2:
+        pedido_activo = (
+            db.query(Venta)
+            .join(VentaXProducto, Venta.ID_Venta == VentaXProducto.ID_Venta)
+            .join(Producto, VentaXProducto.ID_Producto == Producto.ID_Producto)
+            .filter(
+                Producto.ID_Categoria == id_categoria,
+                Venta.Estado.notin_([5, 8]),  # 5=Cancelado, 8=Entregado
+            )
+            .first()
+        )
+        if pedido_activo:
+            raise HTTPException(
+                status_code=400,
+                detail="No se puede desactivar: uno o más productos de esta categoría están en pedidos activos",
+            )
 
     categoria.Estado = nuevo_estado
     db.query(Producto).filter(

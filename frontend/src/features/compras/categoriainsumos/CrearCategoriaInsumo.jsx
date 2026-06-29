@@ -97,7 +97,7 @@ export default function CrearCategoriaInsumo({ onClose, onSave }) {
 
         <div className="form-group">
           <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>Descripción <span style={{ color: "#e53935", fontWeight: 800 }}>*</span></span>
+            <span style={{ color: "inherit" }}>Descripción <span style={{ color: "#e53935", fontWeight: 800 }}>*</span></span>
             <span style={{ fontSize: 11, color: form.descripcion.length >= 180 ? "#e65100" : "#9e9e9e", fontWeight: 400, letterSpacing: 0 }}>
               {form.descripcion.length}/200
             </span>

@@ -26,6 +26,7 @@ class PedidoResponse(BaseModel):
     direccion_entrega:    Optional[str]     = None
     municipio_entrega:    Optional[str]     = None
     departamento_entrega: Optional[str]     = None
+    comprobante_pago:     Optional[str]     = None
 
     class Config:
         from_attributes = True
@@ -42,6 +43,7 @@ class PedidoUpdate(BaseModel):
     Descuento:            Optional[float] = None
     Total:                Optional[float] = None
     Notas:                Optional[str]   = None
+    Comprobante_Pago:     Optional[str]   = None
 
 
 # ── Respuesta paginada ──

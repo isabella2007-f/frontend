@@ -2,6 +2,26 @@ import { useState, useEffect } from "react";
 import { ModalOverlay } from "./ui.jsx";
 import "./CategoriaInsumos.css";
 
+function Toggle({ value, onChange }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!value)}
+      className="toggle-btn"
+      style={{
+        background: value ? "#43a047" : "#c62828",
+        boxShadow: value ? "0 2px 8px rgba(67,160,71,0.45)" : "0 2px 8px rgba(198,40,40,0.3)",
+      }}
+    >
+      <span className="toggle-thumb" style={{ left: value ? 27 : 3 }}>
+        <span className="toggle-label" style={{ color: "black" }}>
+          {value ? "ON" : "OFF"}
+        </span>
+      </span>
+    </button>
+  );
+}
+
 const ICON_OPTIONS = [
   "🥬","🥩","🧀","🌾","🧂","🛢️","🥫","📦",
   "🫙","🧈","🥚","🌽","🍋","🧄","🫚","🍅",
@@ -9,13 +29,13 @@ const ICON_OPTIONS = [
 ];
 
 export default function EditarCategoriaInsumo({ cat, onClose, onSave }) {
-  const [form, setForm]               = useState({ nombre: cat.nombre, descripcion: cat.descripcion, icon: cat.icon });
+  const [form, setForm]               = useState({ nombre: cat.nombre, descripcion: cat.descripcion, icon: cat.icon, estado: cat.estado });
   const [errors, setErrors]           = useState({});
   const [saving, setSaving]           = useState(false);
   const [pickingIcon, setPickingIcon] = useState(false);
 
   useEffect(() => {
-    if (cat) setForm({ nombre: cat.nombre, descripcion: cat.descripcion, icon: cat.icon });
+    if (cat) setForm({ nombre: cat.nombre, descripcion: cat.descripcion, icon: cat.icon, estado: cat.estado });
   }, [cat]);
 
   const set = (k, v) => {
@@ -35,11 +55,10 @@ export default function EditarCategoriaInsumo({ cat, onClose, onSave }) {
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaving(true);
     try {
-      await onSave({
-        Nombre_Categoria: form.nombre.trim(),
-        Descripcion:      form.descripcion.trim(),
-        Icono:            form.icon,
-      });
+      await onSave(
+        { Nombre_Categoria: form.nombre.trim(), Descripcion: form.descripcion.trim(), Icono: form.icon },
+        form.estado !== cat.estado,
+      );
     } finally {
       setSaving(false);
     }
@@ -101,7 +120,7 @@ export default function EditarCategoriaInsumo({ cat, onClose, onSave }) {
 
         <div className="form-group">
           <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
-            <span>Descripción <span style={{ color: "#e53935", fontWeight: 800 }}>*</span></span>
+            <span style={{ color: "inherit" }}>Descripción <span style={{ color: "#e53935", fontWeight: 800 }}>*</span></span>
             <span style={{ fontSize: 11, color: form.descripcion.length >= 180 ? "#e65100" : "#9e9e9e", fontWeight: 400, letterSpacing: 0 }}>
               {form.descripcion.length}/200
             </span>
@@ -123,16 +142,12 @@ export default function EditarCategoriaInsumo({ cat, onClose, onSave }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 4 }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label className="form-label">Estado</label>
-            <span style={{
-              display: "inline-flex", alignItems: "center", gap: 5,
-              padding: "3px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600,
-              background: cat.estado ? "#e8f5e9" : "#f5f5f5",
-              color:      cat.estado ? "#2e7d32" : "#9e9e9e",
-              border:     `1px solid ${cat.estado ? "#a5d6a7" : "#e0e0e0"}`,
-            }}>
-              <span style={{ width: 6, height: 6, borderRadius: "50%", background: cat.estado ? "#43a047" : "#bdbdbd", display: "inline-block" }} />
-              {cat.estado ? "Activo" : "Inactivo"}
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Toggle value={form.estado} onChange={v => setForm(p => ({ ...p, estado: v }))} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: form.estado ? "#2e7d32" : "#9e9e9e" }}>
+                {form.estado ? "Activo" : "Inactivo"}
+              </span>
+            </div>
           </div>
           {cat?.fecha && (
             <div style={{ textAlign: "right", fontSize: 11, color: "#9e9e9e" }}>

@@ -74,6 +74,9 @@ def editar_pedido(db: Session, id_venta: int, datos: dict) -> dict:
     if datos.get("Metodo_Pago"):
         pedido.Metodo_Pago = datos["Metodo_Pago"].split(" ")[0].strip()
 
+    if datos.get("Comprobante_Pago") is not None:
+        pedido.Comprobante_Pago = datos["Comprobante_Pago"]
+
     if datos.get("Total") is not None:
         pedido.Total = datos["Total"]
 

@@ -2,21 +2,35 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from decimal import Decimal
 
-from src.shared.services.models import OrdenProduccion, Producto, Insumo, FichaTecnica, FichaTecnicaInsumo, Estado, Venta, LoteProducto, LoteCompra, UnidadMedida
+from src.shared.services.models import OrdenProduccion, Producto, Insumo, FichaTecnica, FichaTecnicaInsumo, Estado, Venta, LoteProducto, LoteCompra, UnidadMedida, DetalleCompra
 from src.shared.services.notificaciones_utils import notificar_stock_insumo, notificar_stock_producto
 from .schemas import OrdenCreate, OrdenUpdate
 
 
-# ── Conversión de unidades ────────────────────────────────────
+# ── Conversión de unidades (para validación de stock FEFO) ───────
 _CONV = {
-    ("ml", "L"):   1 / 1000,
-    ("L",  "ml"):  1000,
-    ("g",  "kg"):  1 / 1000,
-    ("kg", "g"):   1000,
-    ("lb", "kg"):  0.453592,
-    ("kg", "lb"):  2.20462,
-    ("lb", "g"):   453.592,
-    ("g",  "lb"):  1 / 453.592,
+    ("ml", "L"):         1 / 1000,
+    ("L",  "ml"):        1000,
+    ("g",  "kg"):        1 / 1000,
+    ("kg", "g"):         1000,
+    ("lb", "kg"):        0.453592,
+    ("kg", "lb"):        2.20462,
+    ("lb", "g"):         453.592,
+    ("g",  "lb"):        1 / 453.592,
+    # Medidas de cocina → ml
+    ("taza",       "ml"): 240,
+    ("ml", "taza"):       1 / 240,
+    ("cucharada",  "ml"): 15,
+    ("ml", "cucharada"):  1 / 15,
+    ("cucharadita","ml"): 5,
+    ("ml","cucharadita"): 1 / 5,
+    # Medidas de cocina → g (aproximado para líquidos con densidad ~1)
+    ("taza",       "g"):  240,
+    ("g",  "taza"):       1 / 240,
+    ("cucharada",  "g"):  15,
+    ("g",  "cucharada"):  1 / 15,
+    ("cucharadita","g"):  5,
+    ("g", "cucharadita"): 1 / 5,
 }
 
 def _convertir(cantidad: float, desde: str, hasta: str) -> float:
@@ -32,6 +46,110 @@ def _convertir(cantidad: float, desde: str, hasta: str) -> float:
             detail=f"No se puede convertir de '{desde}' a '{hasta}'. Revisa las unidades en la ficha técnica."
         )
     return cantidad * factor
+
+
+# ── Costo de producción con conversión a unidad base ────────────
+# Convención de mercado colombiano: lb = 500 g (NO 453.592)
+_FAMILIA: dict[str, str] = {
+    "g": "masa", "kg": "masa", "lb": "masa",
+    "ml": "volumen", "l": "volumen",
+    "unidad": "conteo", "uds": "conteo", "und": "conteo", "u": "conteo", "unidades": "conteo",
+}
+
+# Factor para convertir a la unidad base de cada familia (g, ml, unidad)
+_FACTOR: dict[str, Decimal] = {
+    "g":        Decimal("1"),
+    "kg":       Decimal("1000"),
+    "lb":       Decimal("500"),
+    "ml":       Decimal("1"),
+    "l":        Decimal("1000"),
+    "unidad":   Decimal("1"),
+    "uds":      Decimal("1"),
+    "und":      Decimal("1"),
+    "u":        Decimal("1"),
+    "unidades": Decimal("1"),
+}
+
+
+def _norm(simbolo: str) -> str:
+    return (simbolo or "").strip().lower()
+
+
+def _costo_un_insumo(
+    precio: Decimal,
+    unidad_insumo: str,
+    cantidad_ficha: Decimal,
+    unidad_ficha: str,
+) -> tuple[Decimal, str | None]:
+    """
+    Aplica la fórmula de conversión a unidad base:
+      valor_base    = precio / factor(unidad_insumo)
+      cantidad_base = cantidad_ficha * factor(unidad_ficha)
+      costo         = cantidad_base * valor_base
+
+    Devuelve (costo, error). error es None cuando el cálculo es válido.
+    """
+    ui = _norm(unidad_insumo)
+    uf = _norm(unidad_ficha)
+
+    familia_i = _FAMILIA.get(ui)
+    familia_f = _FAMILIA.get(uf)
+
+    if not familia_i:
+        return Decimal("0"), f"Unidad de compra '{unidad_insumo}' desconocida"
+    if not familia_f:
+        return Decimal("0"), f"Unidad en ficha '{unidad_ficha}' desconocida"
+    if familia_i != familia_f:
+        return Decimal("0"), (
+            f"Unidades incompatibles: insumo comprado en '{unidad_insumo}' ({familia_i}) "
+            f"vs ficha pide '{unidad_ficha}' ({familia_f})"
+        )
+
+    valor_base    = precio / _FACTOR[ui]
+    cantidad_base = cantidad_ficha * _FACTOR[uf]
+    return cantidad_base * valor_base, None
+
+
+def _calcular_costo_detalle(db: Session, id_ficha: int, cantidad_orden: int) -> list[dict]:
+    """
+    Desglose de costo por insumo de la ficha.
+    Cada entrada: { nombre, costo, error }
+    """
+    insumos_ficha = db.query(FichaTecnicaInsumo).filter(
+        FichaTecnicaInsumo.ID_Ficha == id_ficha
+    ).all()
+
+    resultado = []
+    for fi in insumos_ficha:
+        insumo = db.query(Insumo).filter(Insumo.ID_Insumo == fi.ID_Insumo).first()
+        nombre = insumo.Nombre if insumo else f"Insumo #{fi.ID_Insumo}"
+
+        # Precio de la compra más reciente
+        detalle_compra = (
+            db.query(DetalleCompra)
+            .filter(DetalleCompra.ID_Insumo == fi.ID_Insumo)
+            .order_by(DetalleCompra.ID_Detalle_Compra.desc())
+            .first()
+        )
+        if not detalle_compra or not detalle_compra.Precio_Und:
+            resultado.append({"nombre": nombre, "costo": Decimal("0"), "error": "Sin precio de compra registrado"})
+            continue
+
+        precio = Decimal(str(detalle_compra.Precio_Und))
+
+        # Unidad con que se compra el insumo (según su ficha de insumo)
+        unidad_medida = None
+        if insumo and insumo.Unidad_Medida:
+            unidad_medida = db.query(UnidadMedida).filter(
+                UnidadMedida.ID_Unidad_Medida == insumo.Unidad_Medida
+            ).first()
+        unidad_insumo = unidad_medida.Simbolo if unidad_medida else ""
+
+        cantidad_total = Decimal(str(fi.Cantidad or 0)) * Decimal(str(cantidad_orden))
+        costo, error = _costo_un_insumo(precio, unidad_insumo, cantidad_total, fi.Unidad or "")
+        resultado.append({"nombre": nombre, "costo": costo, "error": error})
+
+    return resultado
 
 
 # ── FEFO: descontar lotes del que vence primero al último ────
@@ -85,6 +203,48 @@ ESTADO_EN_PROCESO = 13
 ESTADO_COMPLETADA = 11
 ESTADO_CANCELADA  = 5
 
+# Estados de venta que no se deben tocar (ya terminados)
+_ESTADOS_VENTA_FINALES = {5, 8, 9}  # Cancelado, Entregado, En camino
+
+
+def _sync_venta_por_ordenes(
+    db: Session,
+    id_venta: int,
+    id_orden_actual: int,
+    nuevo_estado_orden: int,
+) -> None:
+    """
+    Mantiene el estado del pedido (Venta) coherente con sus órdenes de producción.
+
+    Reglas:
+    - Si TODAS las órdenes vinculadas están Completadas o Canceladas
+      → el pedido vuelve a Pendiente (1) para que el admin lo confirme.
+    - Si hay alguna orden activa (Pendiente o En proceso)
+      → el pedido pasa/permanece en En producción (13).
+    - Nunca toca pedidos en estado final (Cancelado/Entregado/En camino).
+    """
+    venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
+    if not venta or venta.Estado in _ESTADOS_VENTA_FINALES:
+        return
+
+    otras = db.query(OrdenProduccion).filter(
+        OrdenProduccion.ID_Venta == id_venta,
+        OrdenProduccion.ID_Orden_Produccion != id_orden_actual,
+    ).all()
+
+    # Incluir el estado que tendrá la orden actual tras este cambio
+    estados = [o.Estado for o in otras] + [nuevo_estado_orden]
+    terminadas = {ESTADO_COMPLETADA, ESTADO_CANCELADA}
+
+    todas_terminadas = all(e in terminadas for e in estados)
+
+    if todas_terminadas:
+        # Producción finalizada → pedido queda Pendiente para confirmación del admin
+        venta.Estado = ESTADO_PENDIENTE
+    elif venta.Estado not in {ESTADO_EN_PROCESO}:
+        # Hay órdenes activas y el pedido aún no refleja "En producción"
+        venta.Estado = ESTADO_EN_PROCESO
+
 
 def _actualizar_estado_insumo(insumo: Insumo) -> None:
     stock  = insumo.Stock_Actual or 0
@@ -116,7 +276,6 @@ def _label_estado(db: Session, id_estado: int) -> str:
 
 def _precio_ultimo_lote(db: Session, id_insumo: int) -> Decimal:
     """Precio unitario del insumo en su compra más reciente."""
-    from src.shared.services.models import DetalleCompra
     detalle = (
         db.query(DetalleCompra)
         .filter(DetalleCompra.ID_Insumo == id_insumo)
@@ -128,21 +287,12 @@ def _precio_ultimo_lote(db: Session, id_insumo: int) -> Decimal:
 
 def _calcular_costo(db: Session, id_ficha, id_insumo, cantidad: int) -> Decimal:
     """
-    Costo estimado de producción:
-    - Con ficha técnica: suma (precio_último_lote * cantidad_insumo_ficha * cantidad_a_producir)
-      para cada insumo de la ficha.
-    - Sin ficha (insumo directo): precio_último_lote * cantidad.
+    Costo total: suma los costos válidos del desglose (ignora los que tienen error).
+    Sin ficha, usa precio del último lote × cantidad (insumo directo).
     """
     if id_ficha:
-        insumos_ficha = db.query(FichaTecnicaInsumo).filter(
-            FichaTecnicaInsumo.ID_Ficha == id_ficha
-        ).all()
-        total = Decimal("0")
-        for fi in insumos_ficha:
-            precio = _precio_ultimo_lote(db, fi.ID_Insumo)
-            cant_fi = Decimal(str(fi.Cantidad or 0))
-            total += precio * cant_fi * Decimal(str(cantidad))
-        return total
+        desglose = _calcular_costo_detalle(db, id_ficha, cantidad)
+        return sum((d["costo"] for d in desglose if d["error"] is None), Decimal("0"))
 
     if id_insumo:
         return _precio_ultimo_lote(db, id_insumo) * Decimal(str(cantidad))
@@ -168,6 +318,20 @@ def _formato_orden(orden: OrdenProduccion, db: Session) -> dict:
         LoteProducto.ID_Orden_Produccion == orden.ID_Orden_Produccion
     ).first()
 
+    # Recalcular con conversión de unidades; conservar stored si no hay datos de compra
+    if orden.ID_Ficha:
+        desglose = _calcular_costo_detalle(db, orden.ID_Ficha, orden.Cantidad)
+        costo_calculado = sum((d["costo"] for d in desglose if d["error"] is None), Decimal("0"))
+        costo_detalle = [
+            {"nombre": d["nombre"], "costo": float(d["costo"]), "error": d["error"]}
+            for d in desglose
+        ]
+    else:
+        costo_calculado = _calcular_costo(db, None, orden.ID_Insumo, orden.Cantidad)
+        costo_detalle = []
+
+    costo = costo_calculado if costo_calculado > 0 else (orden.Costo or Decimal("0"))
+
     return {
         "ID_Orden_Produccion": orden.ID_Orden_Produccion,
         "ID_Venta":            orden.ID_Venta,
@@ -183,7 +347,8 @@ def _formato_orden(orden: OrdenProduccion, db: Session) -> dict:
         "Fecha_Entrega":       orden.Fecha_Entrega,
         "Estado":              orden.Estado,
         "estado_label":        _label_estado(db, orden.Estado) if orden.Estado else None,
-        "Costo":               orden.Costo,
+        "Costo":               float(costo),
+        "costo_detalle":       costo_detalle,
         "lote": {
             "ID_Lote_Producto":  lote.ID_Lote_Producto,
             "Numero_Lote":       lote.Numero_Lote,
@@ -302,6 +467,17 @@ def cambiar_estado(db: Session, id_orden: int, datos) -> dict:
 
     # Al iniciar (13=En proceso): validar ficha, descontar todos los insumos de la receta
     if nuevo_estado == ESTADO_EN_PROCESO and orden.Estado == ESTADO_PENDIENTE:
+        # Si la orden se creó sin ficha (p.ej. auto-generada), resolver la ficha actual del producto
+        if not orden.ID_Ficha and orden.ID_Producto:
+            ficha_auto = (
+                db.query(FichaTecnica)
+                .filter(FichaTecnica.ID_Producto == orden.ID_Producto)
+                .order_by(FichaTecnica.ID_Ficha.desc())
+                .first()
+            )
+            if ficha_auto:
+                orden.ID_Ficha = ficha_auto.ID_Ficha
+
         if not orden.ID_Ficha:
             raise HTTPException(
                 status_code=400,
@@ -352,6 +528,9 @@ def cambiar_estado(db: Session, id_orden: int, datos) -> dict:
             _actualizar_estado_insumo(insumo)
             notificar_stock_insumo(db, insumo)
 
+        if orden.ID_Venta:
+            _sync_venta_por_ordenes(db, orden.ID_Venta, orden.ID_Orden_Produccion, ESTADO_EN_PROCESO)
+
     # Al completar (11=Completada): incrementar stock del producto y crear lote
     elif nuevo_estado == ESTADO_COMPLETADA and orden.Estado == ESTADO_EN_PROCESO:
         from datetime import datetime, timedelta
@@ -372,7 +551,6 @@ def cambiar_estado(db: Session, id_orden: int, datos) -> dict:
         dias_vida = (ficha.Dias_Vida_Util if ficha and ficha.Dias_Vida_Util else None)
         fecha_vencimiento = hoy + timedelta(days=dias_vida) if dias_vida else None
 
-        # Use provided lote info if available, otherwise auto-generate
         numero_lote = lote_info.get('Numero_Lote') or f"LP-{orden.ID_Orden_Produccion}-{hoy.strftime('%Y%m%d')}"
         fecha_venc = lote_info.get('Fecha_Vencimiento') or fecha_vencimiento
 
@@ -386,17 +564,8 @@ def cambiar_estado(db: Session, id_orden: int, datos) -> dict:
             Estado              = 1,
         ))
 
-        # Si la orden estaba ligada a un pedido, verificar si puede volver a Pendiente
         if orden.ID_Venta:
-            venta = db.query(Venta).filter(Venta.ID_Venta == orden.ID_Venta).first()
-            if venta and venta.Estado == 13:  # En proceso
-                otras = db.query(OrdenProduccion).filter(
-                    OrdenProduccion.ID_Venta            == orden.ID_Venta,
-                    OrdenProduccion.ID_Orden_Produccion != orden.ID_Orden_Produccion,
-                ).all()
-                # La orden actual pasa a Completada; las demás deben ser Completadas o Canceladas
-                if all(o.Estado in {ESTADO_COMPLETADA, ESTADO_CANCELADA} for o in otras):
-                    venta.Estado = 1  # Vuelve a Pendiente — listo para que el admin confirme
+            _sync_venta_por_ordenes(db, orden.ID_Venta, orden.ID_Orden_Produccion, ESTADO_COMPLETADA)
 
     # Al cancelar (5): restaurar insumos si la orden estaba en proceso
     elif nuevo_estado == ESTADO_CANCELADA and orden.Estado == ESTADO_EN_PROCESO:
@@ -428,6 +597,9 @@ def cambiar_estado(db: Session, id_orden: int, datos) -> dict:
                 insumo.Stock_Actual = round(float(insumo.Stock_Actual or 0) + devolver, 4)
                 _actualizar_estado_insumo(insumo)
                 notificar_stock_insumo(db, insumo)
+
+        if orden.ID_Venta:
+            _sync_venta_por_ordenes(db, orden.ID_Venta, orden.ID_Orden_Produccion, ESTADO_CANCELADA)
 
     orden.Estado = nuevo_estado
     db.commit()

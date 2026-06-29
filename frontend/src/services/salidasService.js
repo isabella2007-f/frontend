@@ -3,6 +3,7 @@ import { apiFetch } from "../utils/api";
 export async function registrarSalida({ tipo, idInsumo, idProducto, cantidad, motivo }) {
   return apiFetch("/salidas/", {
     method: "POST",
+    timeout: 90000,
     body: JSON.stringify({
       Tipo:        tipo,
       ID_Insumo:   idInsumo   ?? null,
@@ -18,7 +19,7 @@ export async function getSalidas({ pagina = 1, porPagina = 100, tipo, idInsumo, 
   if (tipo)       params.append("tipo",        tipo);
   if (idInsumo)   params.append("id_insumo",   idInsumo);
   if (idProducto) params.append("id_producto", idProducto);
-  return apiFetch(`/salidas/?${params}`);
+  return apiFetch(`/salidas/?${params}`, { timeout: 60000 });
 }
 
 export async function anularSalida(id) {

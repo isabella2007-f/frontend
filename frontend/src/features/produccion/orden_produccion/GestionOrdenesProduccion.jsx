@@ -152,7 +152,7 @@ function ModalDetallesOrden({ orden, onClose }) {
             (res.insumos || []).forEach(ins => {
               map[ins.ID_Insumo] = {
                 stock:  ins.Stock_Actual ?? ins.Stock ?? 0,
-                precio: ins.Precio_Unitario ?? ins.Precio_Compra ?? ins.Precio ?? 0,
+                precio: ins.precio_unitario ?? 0,
               };
             });
             setInsumosDataMap(map);
@@ -170,17 +170,11 @@ function ModalDetallesOrden({ orden, onClose }) {
 
   if (!orden) return null;
 
-  const costoOrden = fichaInsumos?.length > 0 && Object.keys(insumosDataMap).length > 0
-    ? fichaInsumos.reduce((acc, item) => {
-        const precio = insumosDataMap[item.idInsumo]?.precio ?? 0;
-        return acc + (Number(item.cantidad || 0) * precio);
-      }, 0) * Number(orden.cantidad || 1)
-    : null;
-  const costoDisplay = costoOrden != null && costoOrden > 0
-    ? fmt(costoOrden)
-    : orden.costo > 0
-      ? fmt(orden.costo)
-      : "—";
+  const costoDisplay = orden.costo > 0 ? fmt(orden.costo) : "—";
+  const costoConProblemas = (orden.costoDetalle || []).some(d => d.error);
+  const detalleCostoPorNombre = Object.fromEntries(
+    (orden.costoDetalle || []).map(d => [d.nombre, d])
+  );
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -213,6 +207,12 @@ function ModalDetallesOrden({ orden, onClose }) {
               </div>
             ))}
           </div>
+          {costoConProblemas && (
+            <div style={{ background: "#fff3e0", borderRadius: 10, padding: "8px 12px", fontSize: 12, color: "#e65100", display: "flex", gap: 8, alignItems: "flex-start" }}>
+              <span style={{ flexShrink: 0 }}>⚠️</span>
+              <span>Algunos insumos no tienen precio de compra registrado o tienen unidades incompatibles. El costo puede estar incompleto — revisa el detalle de insumos.</span>
+            </div>
+          )}
 
           {/* Producto */}
           <div className="field-input field-input--disabled" style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -293,6 +293,7 @@ function ModalDetallesOrden({ orden, onClose }) {
                                 <th style={{ textAlign: "left", padding: "10px", fontSize: 12, color: "#616161" }}>Insumo</th>
                                 <th style={{ textAlign: "right", padding: "10px", fontSize: 12, color: "#616161" }}>Necesario</th>
                                 <th style={{ textAlign: "right", padding: "10px", fontSize: 12, color: "#616161" }}>Stock</th>
+                                <th style={{ textAlign: "right", padding: "10px", fontSize: 12, color: "#616161" }}>Costo</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -300,6 +301,10 @@ function ModalDetallesOrden({ orden, onClose }) {
                                 const requerido = Number(item.cantidad || 0) * Number(multiplier || 1);
                                 const stock = item.idInsumo ? (insumosDataMap[item.idInsumo]?.stock ?? null) : null;
                                 const agotado = stock !== null ? (stock < requerido) : null;
+                                const detalleItem = detalleCostoPorNombre[item.nombre] || null;
+                                const costoItem = detalleItem && !detalleItem.error
+                                  ? (detalleItem.costo / Math.max(1, orden.cantidad)) * Number(multiplier || 1)
+                                  : null;
                                 return (
                                   <tr key={item.id} style={{ background: index % 2 === 0 ? "#fafafa" : "#fff" }}>
                                     <td style={{ padding: "10px", fontSize: 13, color: "#1a1a1a" }}>{item.nombre || "—"}</td>
@@ -309,6 +314,15 @@ function ModalDetallesOrden({ orden, onClose }) {
                                         <span style={{ color: "#9e9e9e" }}>—</span>
                                       ) : (
                                         <span style={{ fontWeight: 700, color: agotado ? "#c62828" : "#2e7d32" }}>{stock}{" "}{item.unidad || ""}</span>
+                                      )}
+                                    </td>
+                                    <td style={{ padding: "10px", textAlign: "right", fontSize: 13 }}>
+                                      {detalleItem?.error ? (
+                                        <span title={detalleItem.error} style={{ color: "#e65100", cursor: "help", fontSize: 12 }}>⚠️ S/P</span>
+                                      ) : costoItem != null ? (
+                                        <span style={{ fontWeight: 700, color: "#616161" }}>{fmt(costoItem)}</span>
+                                      ) : (
+                                        <span style={{ color: "#9e9e9e" }}>—</span>
                                       )}
                                     </td>
                                   </tr>
@@ -396,7 +410,11 @@ const ESTADO_COLORS = {
   "Cancelada":  { bg: "#ffebee", color: "#c62828", border: "#ef9a9a" },
 };
 
+// Factores a unidad base: lb=500g (convención de mercado colombiano)
+const FACTOR_CONV = { g:1, kg:1000, lb:500, ml:1, l:1000, unidad:1, uds:1, und:1, u:1, unidades:1 };
+
 function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
+  const navigate = useNavigate();
   const [estadoSel,        setEstadoSel]        = useState(null);
   const [confirmStep,      setConfirmStep]      = useState(false);
   const [fechaVencimiento, setFechaVencimiento] = useState("");
@@ -406,7 +424,8 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
   const today = new Date().toISOString().split("T")[0];
 
   useEffect(() => {
-    if (estadoSel !== "Completada" || !confirmStep || !orden?.idFicha || !orden?.idProducto) {
+    const necesitaCheck = estadoSel === "En proceso" || estadoSel === "Completada";
+    if (!necesitaCheck || !confirmStep || !orden?.idFicha || !orden?.idProducto) {
       setStockCheck(null);
       return;
     }
@@ -423,21 +442,42 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
         cantidadUnitaria: Number(i.Cantidad ?? 0),
         unidad:   i.Unidad || "",
       }));
+
+      // Mapa: idInsumo → { stock, simbolo }
       const stockMap = {};
       (insData.insumos || []).forEach(ins => {
-        stockMap[ins.ID_Insumo] = ins.Stock_Actual ?? ins.Stock ?? 0;
+        stockMap[ins.ID_Insumo] = {
+          stock:   ins.Stock_Actual ?? ins.Stock ?? 0,
+          simbolo: ins.simbolo_unidad || "",
+        };
       });
-      const cantidadOrden = Number(orden.cantidad || 1);
-      const insuficientes = fichaInsumos.filter(item =>
-        item.idInsumo && (stockMap[item.idInsumo] ?? 0) < item.cantidadUnitaria * cantidadOrden
-      );
-      setStockCheck({ insuficientes, fichaInsumos, stockMap, cantidadOrden });
 
-      const vidaUtil = prod?.Vida_Util || prod?.vida_util_dias || prod?.vida_util || 0;
-      if (vidaUtil && !fechaVencimiento) {
-        const venc = new Date(today + "T00:00:00");
-        venc.setDate(venc.getDate() + Number(vidaUtil));
-        setFechaVencimiento(venc.toISOString().split("T")[0]);
+      const cantidadOrden = Number(orden.cantidad || 1);
+
+      // Calcula necesario con conversión a unidad base (misma lógica que el backend)
+      const fichaConCheck = fichaInsumos.map(item => {
+        const entry = stockMap[item.idInsumo] || {};
+        const stock = entry.stock ?? 0;
+        const simIns   = (entry.simbolo || "").toLowerCase();
+        const simFicha = (item.unidad  || "").toLowerCase();
+        const fi = FACTOR_CONV[simFicha] ?? 1;
+        const fu = FACTOR_CONV[simIns]   ?? 1;
+        const necesarioBase = item.cantidadUnitaria * cantidadOrden * fi;
+        const necesario     = fu > 0 ? necesarioBase / fu : necesarioBase;
+        const faltante      = Math.max(0, necesario - stock);
+        return { ...item, stock, necesario, faltante, simboloInsumo: entry.simbolo || item.unidad };
+      });
+      const insuficientes = fichaConCheck.filter(i => i.faltante > 0.0001);
+      setStockCheck({ insuficientes, fichaConCheck, stockMap, cantidadOrden });
+
+      // Fecha vencimiento automática solo al completar
+      if (estadoSel === "Completada") {
+        const vidaUtil = prod?.Vida_Util || prod?.vida_util_dias || prod?.vida_util || 0;
+        if (vidaUtil && !fechaVencimiento) {
+          const venc = new Date(today + "T00:00:00");
+          venc.setDate(venc.getDate() + Number(vidaUtil));
+          setFechaVencimiento(venc.toISOString().split("T")[0]);
+        }
       }
     }).catch(() => { if (active) setStockCheck(null); })
       .finally(() => { if (active) setStockLoading(false); });
@@ -523,46 +563,67 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
                 </div>
               </div>
 
+              {/* Stock check — solo al pasar a "En proceso" (aquí se descuentan los insumos) */}
+              {estadoSel === "En proceso" && orden.idFicha && (
+                stockLoading ? (
+                  <div style={{ fontSize: 12, color: "#616161", padding: "8px 0" }}>Verificando disponibilidad de insumos…</div>
+                ) : stockCheck ? (
+                  stockCheck.insuficientes.length > 0 ? (
+                    <div style={{ background: "#ffebee", border: "1px solid #ef9a9a", borderRadius: 12, padding: "14px" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: "#c62828", marginBottom: 10 }}>
+                        Insumos insuficientes ({stockCheck.insuficientes.length})
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+                        {stockCheck.insuficientes.map((item, i) => (
+                          <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "center", background: "#fff5f5", borderRadius: 8, padding: "8px 10px" }}>
+                            <div>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: "#b71c1c" }}>{item.nombre}</div>
+                              <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 2 }}>
+                                Stock: <strong style={{ color: "#c62828" }}>{item.stock.toFixed(2)} {item.simboloInsumo}</strong>
+                                {" · "}Necesario: <strong>{item.necesario.toFixed(2)} {item.simboloInsumo}</strong>
+                              </div>
+                            </div>
+                            <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                              <div style={{ fontSize: 10, color: "#9e9e9e", textTransform: "uppercase" }}>Faltante</div>
+                              <div style={{ fontSize: 13, fontWeight: 800, color: "#c62828" }}>{item.faltante.toFixed(2)} {item.simboloInsumo}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ background: "#fff3e0", border: "1px solid #ffcc80", borderRadius: 10, padding: "10px 12px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: "#e65100" }}>¿Faltan materias primas?</div>
+                          <div style={{ fontSize: 11, color: "#bf360c", marginTop: 2 }}>Registra una compra al proveedor para reponer el stock.</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { onClose(); navigate("/admin/compras"); }}
+                          style={{ background: "#e65100", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
+                        >
+                          Ir a Compras →
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ background: "#e8f5e9", border: "1px solid #a5d6a7", borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "#2e7d32", fontWeight: 600 }}>
+                      ✓ Todos los insumos tienen stock suficiente
+                    </div>
+                  )
+                ) : null
+              )}
+
+              {/* Configuración del lote al completar */}
               {estadoSel === "Completada" && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   <div style={{ background: "#e8f5e9", border: "1px solid #a5d6a7", borderRadius: 10, padding: "12px 14px" }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: "#2e7d32", marginBottom: 2 }}>Se generará un lote automáticamente</div>
                     <div style={{ fontSize: 11, color: "#388e3c" }}>Código: L-{today.replace(/-/g, "")} · Fecha producción: {today}</div>
                   </div>
-
                   <div>
                     <label style={{ fontSize: 12, fontWeight: 600, color: "#616161", display: "block", marginBottom: 4 }}>Fecha de vencimiento del lote</label>
                     <input type="date" value={fechaVencimiento} onChange={e => setFechaVencimiento(e.target.value)}
                       style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #e0e0e0", fontSize: 13, width: "100%", boxSizing: "border-box" }} />
                   </div>
-
-                  {orden.idFicha && (
-                    stockLoading ? (
-                      <div style={{ fontSize: 12, color: "#616161" }}>Verificando disponibilidad de insumos…</div>
-                    ) : stockCheck ? (
-                      stockCheck.insuficientes.length > 0 ? (
-                        <div style={{ background: "#ffebee", border: "1px solid #ef9a9a", borderRadius: 10, padding: "12px 14px" }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: "#c62828", marginBottom: 6 }}>
-                            ⚠️ Stock insuficiente en {stockCheck.insuficientes.length} insumo{stockCheck.insuficientes.length > 1 ? "s" : ""}
-                          </div>
-                          {stockCheck.insuficientes.map((item, i) => {
-                            const stock = stockCheck.stockMap[item.idInsumo] ?? 0;
-                            const necesario = item.cantidadUnitaria * stockCheck.cantidadOrden;
-                            return (
-                              <div key={i} style={{ fontSize: 11, color: "#b71c1c", display: "flex", justifyContent: "space-between", marginTop: 3, gap: 8 }}>
-                                <span>{item.nombre}</span>
-                                <span style={{ whiteSpace: "nowrap" }}>Stock: {stock} / Necesario: {necesario} {item.unidad}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div style={{ background: "#e8f5e9", border: "1px solid #a5d6a7", borderRadius: 10, padding: "10px 14px", fontSize: 12, color: "#2e7d32", fontWeight: 600 }}>
-                          ✓ Todos los insumos tienen stock suficiente
-                        </div>
-                      )
-                    ) : null
-                  )}
                 </div>
               )}
             </div>
@@ -576,7 +637,7 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
                 <button
                   className="btn-save"
                   onClick={handleConfirm}
-                  disabled={saving || stockLoading || (estadoSel === "Completada" && stockCheck?.insuficientes?.length > 0)}
+                  disabled={saving || stockLoading || (estadoSel === "En proceso" && stockCheck?.insuficientes?.length > 0)}
                 >
                   {saving ? "Guardando…" : "Confirmar cambio"}
                 </button>
@@ -596,12 +657,14 @@ function ModalErrorEstado({ mensaje, orden, onClose }) {
   const navigate = useNavigate();
   if (!mensaje) return null;
 
-  const esFichaTecnica = /ficha t[eé]cnica/i.test(mensaje);
+  const esFichaTecnica    = /ficha t[eé]cnica/i.test(mensaje);
+  const esStockInsuficiente = /stock insuficiente/i.test(mensaje);
 
   const irAFicha = () => {
     onClose();
     navigate("/admin/products", { state: { openFicha: orden?.idProducto } });
   };
+  const irACompras = () => { onClose(); navigate("/admin/compras"); };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -645,6 +708,35 @@ function ModalErrorEstado({ mensaje, orden, onClose }) {
                 }}
               >
                 Ir a ficha técnica
+              </button>
+            </div>
+          )}
+          {esStockInsuficiente && (
+            <div style={{
+              background: "#fff3e0", border: "1px solid #ffcc80",
+              borderRadius: 10, padding: "12px 16px",
+              display: "flex", alignItems: "center", gap: 10,
+              textAlign: "left", marginBottom: 8,
+            }}>
+              <span style={{ fontSize: 20, flexShrink: 0 }}>🛒</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#e65100", marginBottom: 2 }}>
+                  ¿Faltan materias primas?
+                </div>
+                <div style={{ fontSize: 11, color: "#bf360c" }}>
+                  Registra una compra al proveedor para reponer el stock de los insumos que faltan.
+                </div>
+              </div>
+              <button
+                onClick={irACompras}
+                style={{
+                  background: "#e65100", color: "#fff", border: "none",
+                  borderRadius: 8, padding: "7px 14px",
+                  fontSize: 12, fontWeight: 700, cursor: "pointer",
+                  whiteSpace: "nowrap", flexShrink: 0,
+                }}
+              >
+                Ir a Compras
               </button>
             </div>
           )}
@@ -732,6 +824,7 @@ function ModalFormOrden({ orden, productos, insumos, onClose, onSave }) {
     cantidad:     orden?.cantidad     ?? 1,
     fechaInicio:  orden?.fechaInicio  ?? "",
     fechaEntrega: orden?.fechaEntrega ?? "",
+    estado:       orden?.estado       ?? "Pendiente",
   });
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [productLoading, setProductLoading] = useState(false);
@@ -770,27 +863,36 @@ function ModalFormOrden({ orden, productos, insumos, onClose, onSave }) {
   const handleSave = async () => {
     const today = new Date().toISOString().split('T')[0];
     const e = {};
-    if (!form.idProducto)                    e.idProducto   = "Seleccione un producto";
-    if (!form.cantidad || form.cantidad < 1) e.cantidad     = "Ingrese una cantidad válida";
-    if (!form.fechaEntrega)                  e.fechaEntrega = "La fecha de entrega es obligatoria";
-    else if (form.fechaEntrega < today)      e.fechaEntrega = "La fecha no puede ser anterior al día de hoy";
+    if (!form.idProducto)                    e.idProducto = "Seleccione un producto";
+    if (!form.cantidad || form.cantidad < 1) e.cantidad   = "Ingrese una cantidad válida";
+    if (!orden) {
+      // Creación: fecha de entrega obligatoria
+      if (!form.fechaEntrega)             e.fechaEntrega = "La fecha de entrega es obligatoria";
+      else if (form.fechaEntrega < today) e.fechaEntrega = "La fecha no puede ser anterior al día de hoy";
+    } else if (form.fechaEntrega && form.fechaEntrega < today) {
+      // Edición: solo validar si el usuario llenó el campo
+      e.fechaEntrega = "La fecha no puede ser anterior al día de hoy";
+    }
     if (form.fechaInicio && form.fechaInicio < today) e.fechaInicio = "La fecha de inicio no puede ser anterior al día de hoy";
     if (Object.keys(e).length) { setErrors(e); return; }
 
     setSaving(true);
     const payload = {
-      ID_Producto:   Number(form.idProducto),
-      Cantidad:      Number(form.cantidad),
-      Fecha_Entrega: form.fechaEntrega,
+      ID_Producto: Number(form.idProducto),
+      Cantidad:    Number(form.cantidad),
     };
-    if (selectedProduct?.ficha_tecnica?.ID_Ficha) {
-      payload.ID_Ficha = selectedProduct.ficha_tecnica.ID_Ficha;
-    }
-    if (form.fechaInicio) payload.Fecha_inicio = form.fechaInicio;
+    if (form.fechaEntrega)                     payload.Fecha_Entrega = form.fechaEntrega;
+    if (selectedProduct?.ficha_tecnica?.ID_Ficha) payload.ID_Ficha  = selectedProduct.ficha_tecnica.ID_Ficha;
+    if (form.fechaInicio)                      payload.Fecha_inicio  = form.fechaInicio;
 
     try {
       if (orden?.id) {
         await editarOrden(orden.id, payload);
+        if (form.estado !== orden.estado) {
+          const estadoNum = ESTADO_TO_NUM[form.estado];
+          const loteData = form.estado === "Completada" ? { Fecha_Produccion: today } : {};
+          await cambiarEstadoOrden(orden.id, estadoNum, loteData);
+        }
       } else {
         await crearOrden(payload);
       }
@@ -866,6 +968,59 @@ function ModalFormOrden({ orden, productos, insumos, onClose, onSave }) {
             />
             {errors.cantidad && <span className="field-error">{errors.cantidad}</span>}
           </div>
+
+          {/* Estado — solo al editar */}
+          {orden && (
+            <div className="form-group">
+              <label className="form-label">Estado</label>
+              {(VALID_TRANSITIONS[orden.estado] || []).length === 0 ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <EstadoBadge estado={orden.estado} />
+                  <span style={{ fontSize: 11, color: "#9e9e9e" }}>Estado final, sin cambios posibles</span>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {/* Preview de la transición */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 28 }}>
+                    <EstadoBadge estado={orden.estado} />
+                    {form.estado !== orden.estado && (
+                      <>
+                        <span style={{ color: "#bdbdbd", fontSize: 18, lineHeight: 1 }}>→</span>
+                        <EstadoBadge estado={form.estado} />
+                      </>
+                    )}
+                  </div>
+                  {/* Pills seleccionables */}
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {[orden.estado, ...(VALID_TRANSITIONS[orden.estado] || [])].map(est => {
+                      const c = ESTADO_COLORS[est] || { bg: "#f5f5f5", color: "#757575", border: "#e0e0e0" };
+                      const sel = form.estado === est;
+                      return (
+                        <button
+                          key={est}
+                          type="button"
+                          onClick={() => set("estado", est)}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 6,
+                            padding: "7px 14px", borderRadius: 20,
+                            border: `2px solid ${sel ? c.color : c.border}`,
+                            background: sel ? c.bg : "#fff",
+                            color: sel ? c.color : "#9e9e9e",
+                            fontSize: 12, fontWeight: sel ? 700 : 500,
+                            cursor: "pointer", transition: "all 0.15s", fontFamily: "inherit",
+                          }}
+                        >
+                          <span style={{ width: 7, height: 7, borderRadius: "50%", background: sel ? c.color : "#bdbdbd", flexShrink: 0 }} />
+                          {est}
+                          {est === orden.estado && <span style={{ fontSize: 10, opacity: 0.6, marginLeft: 2 }}>actual</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Fechas */}
           <div className="form-grid-2">
@@ -1121,7 +1276,9 @@ export default function GestionOrdenesProduccion() {
                         {fmtFecha(orden.fechaEntrega)}
                       </span>
                     </td>
-                    <td style={{ fontSize: 13, fontWeight: 700 }}>{fmt(orden.costo)}</td>
+                    <td style={{ fontSize: 13, fontWeight: 700 }}>
+                      {orden.costo > 0 ? fmt(orden.costo) : <span style={{ color: "#9e9e9e" }}>—</span>}
+                    </td>
                     <td><EstadoBadge estado={orden.estado} /></td>
                     <td>
                       <div className="actions-cell">

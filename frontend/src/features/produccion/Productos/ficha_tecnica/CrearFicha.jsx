@@ -38,6 +38,7 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
               id: i.ID_Insumo || i.id,
               nombre: i.Nombre || i.nombre,
               unidad: i.simbolo_unidad || i.Unidad || i.unidad || "",
+              precioUnitario: Number(i.precio_unitario || 0),
             });
           }
         });
@@ -65,8 +66,12 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  const [done,   setDone]   = useState(false);
   const [tab, setTab]       = useState("insumos");
   const fotoRef             = useRef();
+
+  // True when launched from CrearProducto (ficha stored in local state, no API call)
+  const fromCreate = Boolean(productoNombre && !productoIdProp);
 
   const set = (k, v) => { setForm(p => ({ ...p, [k]: v })); setErrors(p => ({ ...p, [k]: "" })); };
 
@@ -108,6 +113,7 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
           idInsumo: v ? Number(v) : "",
           nombre: found?.nombre || "",
           unidad: found?.unidad || "",
+          precioUnitario: found?.precioUnitario ?? 0,
         };
       }
       return { ...i, [k]: v };
@@ -116,7 +122,7 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
 
   const validate = () => {
     const e = {};
-    if (!form.productoId) e.producto = "Selecciona un producto";
+    if (!fromCreate && !form.productoId) e.producto = "Selecciona un producto";
     const insumosValidos = form.insumos.filter(i => i.idInsumo && i.cantidad && i.unidad);
     if (form.insumos.length === 0 || insumosValidos.length === 0) {
       e.insumos = "Debes agregar al menos un insumo completo";
@@ -135,6 +141,14 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
       else if (e.procedimiento) setTab("procedimiento");
       return;
     }
+
+    if (fromCreate) {
+      // No API call — show done screen then let parent close the modal
+      setDone(true);
+      setTimeout(() => onSave(form), 800);
+      return;
+    }
+
     setSaving(true);
     try {
       await onSave(form);
@@ -164,47 +178,49 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
         </div>
 
         <div className="ficha-modal__top">
-          <div className="ficha-foto-upload" onClick={() => fotoRef.current.click()}>
-            {form.fotoPreview
-              ? <img src={form.fotoPreview} alt="foto" className="ficha-foto-upload__img" />
-              : <><span style={{ fontSize: 24, color: "#43a047", lineHeight: 1 }}>+</span><span className="ficha-foto-upload__hint">Subir foto</span></>
-            }
-          </div>
-          <input ref={fotoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFoto} />
-
-          <div style={{ marginTop: 8, fontSize: 12, color: "#616161" }}>
+          <div style={{ fontSize: 12, color: "#616161", background: "#f9fdf9", borderRadius: 8, padding: "7px 12px", border: "1px solid #e8f5e9", marginBottom: 2 }}>
             ℹ️ Esta ficha técnica describe los insumos necesarios para producir <strong>1 unidad</strong> del producto.
           </div>
-          <div className="ficha-modal__info-grid">
-            <div className="form-group">
-              <label className="form-label">Producto</label>
-              {productoIdProp ? (
-                <div className="field-input field-input--disabled" style={{ background: "#f5f5f5", color: "#424242", cursor: "default" }}>
-                  {productoNombre}
-                </div>
-              ) : (
-                <>
-                  <select
-                    className={`field-input${errors.producto ? " field-input--error" : ""}`}
-                    value={form.productoId}
-                    onChange={e => {
-                      const id = e.target.value;
-                      const found = productosDisponibles.find(p => String(p.id) === String(id));
-                      set("productoId", id);
-                      set("producto", found?.nombre || "");
-                    }}>
-                    <option value="">— Selecciona un producto —</option>
-                    {productosDisponibles.map(p => (
-                      <option key={p.id} value={p.id}>{p.nombre}</option>
-                    ))}
-                  </select>
-                  {errors.producto && <p className="field-error">{errors.producto}</p>}
-                </>
-              )}
+          <div className="ficha-top-row">
+            <div className="ficha-foto-upload" onClick={() => fotoRef.current.click()}>
+              {form.fotoPreview
+                ? <img src={form.fotoPreview} alt="foto" className="ficha-foto-upload__img" />
+                : <><span style={{ fontSize: 24, color: "#43a047", lineHeight: 1 }}>+</span><span className="ficha-foto-upload__hint">Subir foto</span></>
+              }
             </div>
-            <div className="form-group">
-              <label className="form-label">Fecha</label>
-              <input type="date" className="field-input" value={form.fecha} onChange={e => set("fecha", e.target.value)} />
+            <input ref={fotoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleFoto} />
+
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 10 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Producto</label>
+                {(productoIdProp || fromCreate) ? (
+                  <div className="field-input field-input--disabled" style={{ background: "#f5f5f5", color: "#424242", cursor: "default" }}>
+                    {productoNombre || "—"}
+                  </div>
+                ) : (
+                  <>
+                    <select
+                      className={`field-input${errors.producto ? " field-input--error" : ""}`}
+                      value={form.productoId}
+                      onChange={e => {
+                        const id = e.target.value;
+                        const found = productosDisponibles.find(p => String(p.id) === String(id));
+                        set("productoId", id);
+                        set("producto", found?.nombre || "");
+                      }}>
+                      <option value="">— Selecciona un producto —</option>
+                      {productosDisponibles.map(p => (
+                        <option key={p.id} value={p.id}>{p.nombre}</option>
+                      ))}
+                    </select>
+                    {errors.producto && <p className="field-error">{errors.producto}</p>}
+                  </>
+                )}
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Fecha</label>
+                <input type="date" className="field-input" value={form.fecha} onChange={e => set("fecha", e.target.value)} />
+              </div>
             </div>
           </div>
         </div>
@@ -221,7 +237,18 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
 
         <div className="ficha-modal__body">
 
-          {tab === "insumos" && (
+          {/* ── Pantalla de confirmación ── */}
+          {done && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", minHeight: 200, gap: 14, padding: "32px 20px", textAlign: "center" }}>
+              <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#e8f5e9", border: "2.5px solid #a5d6a7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30, color: "#2e7d32" }}>✓</div>
+              <div>
+                <p style={{ fontWeight: 800, fontSize: 17, color: "#2e7d32", margin: "0 0 6px", fontFamily: "'Nunito', sans-serif" }}>¡Ficha técnica lista!</p>
+                <p style={{ fontSize: 13, color: "#9e9e9e", margin: 0 }}>Volviendo al formulario del producto…</p>
+              </div>
+            </div>
+          )}
+
+          {!done && tab === "insumos" && (
             <div>
               <div className="ficha-insumos-table-wrap">
                 <table className="ficha-insumos-tbl">
@@ -268,7 +295,7 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
             </div>
           )}
 
-          {tab === "procedimiento" && (
+          {!done && tab === "procedimiento" && (
             <div>
               <p className="ficha-hint">Escribe un paso por línea. Cada línea se numerará automáticamente.</p>
               <textarea className={`field-input ficha-textarea${errors.procedimiento ? " field-input--error" : ""}`}
@@ -289,7 +316,7 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
             </div>
           )}
 
-          {tab === "observaciones" && (
+          {!done && tab === "observaciones" && (
             <div>
               <p className="ficha-hint">Notas adicionales, alérgenos o recomendaciones de conservación.</p>
               <textarea className="field-input ficha-textarea" rows={6} placeholder="Ej: Conservar en lugar fresco y seco."
@@ -301,8 +328,10 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
 
         <div className="ficha-modal__footer" style={{ justifyContent: "flex-end" }}>
           <div style={{ display: "flex", gap: 10 }}>
-            <button className="btn-ghost" onClick={onClose}>Cancelar</button>
-            <button className="btn-save" onClick={handleSave} disabled={saving}>{saving ? "Guardando…" : "Guardar"}</button>
+            {!done && <button className="btn-ghost" onClick={onClose}>Cancelar</button>}
+            <button className="btn-save" onClick={handleSave} disabled={saving || done}>
+              {done ? "✓ Listo" : saving ? "Guardando…" : fromCreate ? "✓ Guardar ficha" : "Guardar"}
+            </button>
           </div>
         </div>
 

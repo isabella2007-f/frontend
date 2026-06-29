@@ -3,7 +3,7 @@ from fastapi import HTTPException
 from datetime import datetime
 
 from sqlalchemy import or_
-from src.shared.services.models import Insumo, CategoriaInsumo, UnidadMedida, LoteCompra, FichaTecnicaInsumo, OrdenProduccion
+from src.shared.services.models import Insumo, CategoriaInsumo, UnidadMedida, LoteCompra, FichaTecnicaInsumo, OrdenProduccion, DetalleCompra
 from .schemas import InsumoCreate, InsumoUpdate
 
 
@@ -29,6 +29,14 @@ def _formato_insumo(insumo: Insumo, db: Session) -> dict:
     if proximo_lote and proximo_lote.Fecha_Vencimiento:
         proximo_venc = proximo_lote.Fecha_Vencimiento.strftime("%Y-%m-%d")
         dias_para_vencer = (proximo_lote.Fecha_Vencimiento - hoy).days
+
+    ultimo_detalle = (
+        db.query(DetalleCompra)
+        .filter(DetalleCompra.ID_Insumo == insumo.ID_Insumo)
+        .order_by(DetalleCompra.ID_Detalle_Compra.desc())
+        .first()
+    )
+    precio_unitario = float(ultimo_detalle.Precio_Und) if ultimo_detalle and ultimo_detalle.Precio_Und else 0.0
 
     en_ficha = db.query(FichaTecnicaInsumo).filter(
         FichaTecnicaInsumo.ID_Insumo == insumo.ID_Insumo
@@ -61,6 +69,7 @@ def _formato_insumo(insumo: Insumo, db: Session) -> dict:
         "proximo_vencimiento":      proximo_venc,
         "dias_para_vencer":         dias_para_vencer,
         "lote_id":                  proximo_lote.ID_Lote_Compra if proximo_lote else None,
+        "precio_unitario":          precio_unitario,
         "tiene_ficha_tecnica":      en_ficha,
         "tiene_orden_produccion":   en_orden,
     }

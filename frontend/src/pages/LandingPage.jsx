@@ -5,6 +5,7 @@ import {
   Plus, Minus, ShoppingCart, CheckCircle2,
   ChevronRight, Zap, Edit3, Save, X as CloseIcon
 } from 'lucide-react';
+import { API_URL } from '../config/api.js';
 import { getUser } from '../services/authService.js';
 import { crearPedido } from '../services/pedidosService.js';
 import { getProductos } from '../services/productosService.js';
@@ -80,18 +81,41 @@ const LandingPage = ({ hideNavbar = false }) => {
 
   const cargarProductos = useCallback(async () => {
     try {
-      const pData = await getProductos({ publicado: 1 });
-      const lista = pData.productos || [];
+      const token = localStorage.getItem('token');
+      const [pData, catData] = await Promise.allSettled([
+        getProductos({ publicado: 1 }),
+        fetch(`${API_URL}/categoria-productos/?pagina=1&por_pagina=100`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        })
+          .then(r => r.ok ? r.json() : null)
+          .catch(() => null),
+      ]);
 
+      const lista = pData.status === 'fulfilled' ? (pData.value?.productos || []) : [];
+
+      // Construir mapa base desde categorías del endpoint (más completo)
       const map = {};
+      if (catData.status === 'fulfilled' && catData.value?.categorias) {
+        catData.value.categorias.forEach(c => {
+          if (c.ID_Categoria && c.Estado !== 0) {
+            map[c.ID_Categoria] = {
+              nombre: c.Nombre_Categoria || 'Sin categoría',
+              icon:   c.Icono ?? "📦",
+            };
+          }
+        });
+      }
+
+      // Completar/sobreescribir con datos de productos (tienen el icono por producto)
       lista.forEach(p => {
         if (p.ID_Categoria && p.nombre_categoria) {
           map[p.ID_Categoria] = {
             nombre: p.nombre_categoria,
-            icon:   p.icono_categoria || "📦",
+            icon:   p.icono_categoria || map[p.ID_Categoria]?.icon || "📦",
           };
         }
       });
+
       setCategoriasMap(map);
 
       setProductos(
@@ -161,10 +185,19 @@ const LandingPage = ({ hideNavbar = false }) => {
     setCheckoutOpen(true);
   };
 
-  const handleConfirmOrder = async (paymentMethod, onBehalfOf, comprobante) => {
+  const handleConfirmOrder = async (paymentMethod, onBehalfOf, comprobante, usarCredito, deliveryInfo) => {
     const currentUser = getUser();
     const currentCart = getCart();
-    const total = currentCart.reduce((s, i) => s + i.precio * i.cantidad, 0);
+
+    // deliveryInfo viene del modal (puede haber cambiado respecto al carrito)
+    const entrega = deliveryInfo ?? {
+      tieneDomicilio: orderDetails?.tieneDomicilio ?? false,
+      address:        orderDetails?.address || '',
+      municipio:      orderDetails?.municipio || '',
+      departamento:   orderDetails?.departamento || '',
+      date:           orderDetails?.date || '',
+      observaciones:  orderDetails?.observaciones || '',
+    };
 
     const payload = {
       ID_Usuario:        currentUser?.id || null,
@@ -173,14 +206,13 @@ const LandingPage = ({ hideNavbar = false }) => {
         ID_Producto: Number(item.id),
         Cantidad:    Number(item.cantidad),
       })),
-      usar_credito:      false,
+      usar_credito:      usarCredito ?? false,
       codigo_descuento:  null,
-      // domicilio opcional según si se proporcionó dirección
-      domicilio:         orderDetails?.address ? {
-        Direccion_entrega:  orderDetails.address || '',
-        Municipio_entrega:  orderDetails.departamento || '',
-        Departamento_entrega: orderDetails.departamento || '',
-        Observaciones:      null,
+      domicilio:         entrega.tieneDomicilio ? {
+        Direccion_entrega:    entrega.address || '',
+        Municipio_entrega:    entrega.municipio || '',
+        Departamento_entrega: entrega.departamento || '',
+        Observaciones:        entrega.observaciones || null,
       } : undefined,
     };
 
@@ -207,7 +239,7 @@ const LandingPage = ({ hideNavbar = false }) => {
   };
 
   const getCat = (id) => categoriasMap[id] || { nombre: 'Sin categoría', descripcion: '', icon: '🍌' };
-  const categories = ['Todos', ...new Set(productos.map(p => getCat(p.idCategoria).nombre))];
+  const categories = ['Todos', ...Object.values(categoriasMap).map(c => c.nombre)];
   const filteredProducts = activeTab === 'Todos'
     ? productos.slice(0, 6)
     : productos.filter(p => getCat(p.idCategoria).nombre === activeTab).slice(0, 6);

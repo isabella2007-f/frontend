@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { getSalidas, registrarSalida, anularSalida } from "../../services/salidasService.js";
+import { getSalidas, registrarSalida, anularSalida, procesarVencidos } from "../../services/salidasService.js";
 import { getProductos } from "../../services/productosService.js";
 import { getInsumos } from "../../services/insumosService.js";
 import { fmtFecha } from "../../utils/dateUtils.js";
@@ -9,7 +9,7 @@ import "./Salidas.css";
    HELPERS
 ══════════════════════════════════════════════════════════ */
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 5;
 
 function hoyISO() { return new Date().toISOString().split("T")[0]; }
 function estaVencido(fv)    { return fv ? fv < hoyISO() : false; }
@@ -27,6 +27,11 @@ const TIPOS = [
 ];
 const TIPO_MAP = Object.fromEntries(TIPOS.map(t => [t.val, t]));
 
+function fmtDate(dt) {
+  if (!dt) return null;
+  return String(dt).split("T")[0];
+}
+
 function adaptarSalida(s) {
   return {
     id:              s.ID_Salida,
@@ -38,12 +43,12 @@ function adaptarSalida(s) {
     unidad:          "uds.",
     cantidad:        s.Cantidad,
     motivo:          s.Motivo,
-    fecha:           s.Fecha,
+    fecha:           fmtDate(s.Fecha),
     anulada:         s.estado_label === "Anulada",
     estadoLabel:     s.estado_label || "Activa",
-    empleado:        s.nombre_empleado || "—",
+    empleado:        s.nombre_empleado || (s.Tipo === "vencimiento" ? "Sistema (auto)" : "—"),
     anuladoPor:      s.nombre_anulado_por || null,
-    fechaAnulacion:  s.Fecha_Anulacion   || null,
+    fechaAnulacion:  fmtDate(s.Fecha_Anulacion),
   };
 }
 
@@ -605,120 +610,176 @@ function HistorialSalidas({ salidas, loading, onAgregarClick, cargarSalidas }) {
 }
 
 /* ══════════════════════════════════════════════════════════
-   TAB VENCIDOS — sin endpoint de lotes en la API
+   TAB VENCIDOS
 ══════════════════════════════════════════════════════════ */
-function Vencidos() {
-  const productos = [];
-  const insumos   = [];
-  const getLotesProducto = () => [];
-  const getLotesDeInsumo = () => [];
-  const getCatProducto   = () => null;
-  const getCatInsumo     = () => null;
-  const getUnidad        = () => null;
-  const [filtro, setFiltro] = useState("todos");
+function Vencidos({ salidas, loading, cargarSalidas }) {
+  const [filtro,     setFiltro]     = useState("todos");
+  const [procesando, setProcesando] = useState(false);
+  const [toast,      setToast]      = useState(null);
+  const [page,       setPage]       = useState(1);
 
-  const lotesProductosVencidos = productos.flatMap(p =>
-    (getLotesProducto?.(p.id) || [])
-      .filter(l => l.fechaVencimiento && estaVencido(l.fechaVencimiento))
-      .map(l => ({ ...l, entidadTipo: "producto", entidadNombre: p.nombre, entidadCat: getCatProducto(p.idCategoria)?.nombre || "—", unidad: "uds." }))
-  );
-  const lotesInsumosVencidos = insumos.flatMap(i =>
-    (getLotesDeInsumo?.(i.id) || [])
-      .filter(l => l.fechaVencimiento && estaVencido(l.fechaVencimiento))
-      .map(l => ({ ...l, entidadTipo: "insumo", entidadNombre: i.nombre, entidadCat: getCatInsumo(i.idCategoria)?.nombre || "—", unidad: getUnidad(i.idUnidad)?.simbolo || "uds." }))
-  );
-  const lotesPorVencer = [
-    ...productos.flatMap(p => (getLotesProducto?.(p.id) || [])
-      .filter(l => { const d = diasParaVencer(l.fechaVencimiento); return d !== null && d >= 0 && d <= 7; })
-      .map(l => ({ ...l, entidadTipo: "producto", entidadNombre: p.nombre, entidadCat: getCatProducto(p.idCategoria)?.nombre || "—", unidad: "uds." }))),
-    ...insumos.flatMap(i => (getLotesDeInsumo?.(i.id) || [])
-      .filter(l => { const d = diasParaVencer(l.fechaVencimiento); return d !== null && d >= 0 && d <= 7; })
-      .map(l => ({ ...l, entidadTipo: "insumo", entidadNombre: i.nombre, entidadCat: getCatInsumo(i.idCategoria)?.nombre || "—", unidad: getUnidad(i.idUnidad)?.simbolo || "uds." }))),
-  ];
+  const showToast = (msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  };
 
-  const todosVencidos = [...lotesProductosVencidos, ...lotesInsumosVencidos]
-    .sort((a, b) => a.fechaVencimiento.localeCompare(b.fechaVencimiento));
+  useEffect(() => { setPage(1); }, [filtro]);
 
-  const mostrar = filtro === "por-vencer" ? lotesPorVencer
-    : filtro === "producto" ? lotesProductosVencidos
-    : filtro === "insumo"   ? lotesInsumosVencidos
-    : todosVencidos;
+  const vencimientos = salidas.filter(s => s.tipo === "vencimiento");
+  const porProducto  = vencimientos.filter(s => s.entidadTipo === "producto");
+  const porInsumo    = vencimientos.filter(s => s.entidadTipo === "insumo");
+  const totalUnidades = vencimientos.reduce((acc, s) => acc + (s.cantidad || 0), 0);
 
-  const toggleFiltroVencidos = (val) => setFiltro(prev => prev === val ? "todos" : val);
+  const filtrados = filtro === "producto" ? porProducto
+    : filtro === "insumo" ? porInsumo
+    : vencimientos;
+
+  const totalPages = Math.ceil(filtrados.length / ITEMS_PER_PAGE);
+  const safePage   = Math.min(page, Math.max(1, totalPages));
+  const paginados  = filtrados.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
+
+  const handleProcesar = async () => {
+    setProcesando(true);
+    try {
+      const res = await procesarVencidos();
+      showToast(`${res.procesados} lote(s) procesado(s) — stock descontado`);
+      await cargarSalidas();
+    } catch (err) {
+      showToast(err.message || "Error al procesar vencidos", "error");
+    }
+    setProcesando(false);
+  };
 
   return (
     <div className="sl-tab-content">
+      {/* Stats */}
       <div className="sl-stats-row">
-        {[
-          { val: "todos",      label: "Lotes vencidos",   num: todosVencidos.length,          color: "#c62828", border: "#ef9a9a", icon: "⛔" },
-          { val: "producto",   label: "Productos",         num: lotesProductosVencidos.length, color: "#c62828", border: "#ef9a9a", icon: "📦" },
-          { val: "insumo",     label: "Insumos",           num: lotesInsumosVencidos.length,   color: "#c62828", border: "#ef9a9a", icon: "🧺" },
-          { val: "por-vencer", label: "Por vencer (≤7d)",  num: lotesPorVencer.length,         color: "#e65100", border: "#ffcc80", icon: "⚠️" },
-        ].map(s => (
-          <div key={s.label} className={`sl-stat-card ${filtro === s.val ? "active" : ""}`}
-            style={{ borderColor: s.num > 0 ? (filtro === s.val ? s.color : s.border) : "#e0e0e0", cursor: "pointer" }}
-            onClick={() => toggleFiltroVencidos(s.val)}>
-            <span style={{ fontSize: 18 }}>{s.icon}</span>
-            <span className="sl-stat-card__num" style={{ color: s.num > 0 ? s.color : "#bdbdbd", fontSize: 18 }}>{s.num}</span>
-            <span className="sl-stat-card__label">{s.label}</span>
-          </div>
-        ))}
+        <div className={`sl-stat-card ${filtro === "todos" ? "active" : ""}`}
+          style={{ cursor: "pointer", borderColor: vencimientos.length > 0 ? (filtro === "todos" ? "#c62828" : "#ef9a9a") : "#e0e0e0" }}
+          onClick={() => setFiltro("todos")}>
+          <span style={{ fontSize: 18 }}>⛔</span>
+          <span className="sl-stat-card__num" style={{ color: vencimientos.length > 0 ? "#c62828" : "#bdbdbd" }}>{vencimientos.length}</span>
+          <span className="sl-stat-card__label">Total vencimientos</span>
+        </div>
+        <div className="sl-stat-card">
+          <span style={{ fontSize: 18 }}>📉</span>
+          <span className="sl-stat-card__num" style={{ color: totalUnidades > 0 ? "#c62828" : "#bdbdbd" }}>{totalUnidades}</span>
+          <span className="sl-stat-card__label">Unidades perdidas</span>
+        </div>
+        <div className={`sl-stat-card ${filtro === "producto" ? "active" : ""}`}
+          style={{ cursor: "pointer", borderColor: porProducto.length > 0 ? (filtro === "producto" ? "#c62828" : "#ef9a9a") : "#e0e0e0" }}
+          onClick={() => setFiltro("producto")}>
+          <span style={{ fontSize: 18 }}>📦</span>
+          <span className="sl-stat-card__num" style={{ color: porProducto.length > 0 ? "#c62828" : "#bdbdbd" }}>{porProducto.length}</span>
+          <span className="sl-stat-card__label">Productos</span>
+        </div>
+        <div className={`sl-stat-card ${filtro === "insumo" ? "active" : ""}`}
+          style={{ cursor: "pointer", borderColor: porInsumo.length > 0 ? (filtro === "insumo" ? "#c62828" : "#ef9a9a") : "#e0e0e0" }}
+          onClick={() => setFiltro("insumo")}>
+          <span style={{ fontSize: 18 }}>🧺</span>
+          <span className="sl-stat-card__num" style={{ color: porInsumo.length > 0 ? "#c62828" : "#bdbdbd" }}>{porInsumo.length}</span>
+          <span className="sl-stat-card__label">Insumos</span>
+        </div>
       </div>
 
+      {/* Toolbar */}
       <div className="sl-toolbar">
-        {[
-          { val: "todos",      label: "Todos",       icon: "📋" },
-          { val: "producto",   label: "Productos",   icon: "📦" },
-          { val: "insumo",     label: "Insumos",     icon: "🧺" },
-          { val: "por-vencer", label: "Por vencer",  icon: "⚠️" },
-        ].map(opt => (
-          <button key={opt.val}
-            className={`sl-pill${filtro === opt.val ? " active" : ""}`}
-            onClick={() => setFiltro(opt.val)}>
-            {opt.icon} {opt.label}
-          </button>
-        ))}
+        <div style={{ display: "flex", gap: 6 }}>
+          {[
+            { val: "todos",    label: "Todos",     icon: "📋" },
+            { val: "producto", label: "Productos", icon: "📦" },
+            { val: "insumo",   label: "Insumos",   icon: "🧺" },
+          ].map(opt => (
+            <button key={opt.val}
+              className={`sl-pill${filtro === opt.val ? " active" : ""}`}
+              onClick={() => setFiltro(opt.val)}>
+              {opt.icon} {opt.label}
+            </button>
+          ))}
+        </div>
+        <button className="btn-agregar" onClick={handleProcesar} disabled={procesando}
+          style={{ marginLeft: "auto", background: procesando ? "#bdbdbd" : "#c62828" }}>
+          {procesando ? "Procesando…" : "🔄 Procesar vencidos"}
+        </button>
       </div>
 
-      <div className="sl-vencidos-scroll">
-        {mostrar.length === 0 ? (
-          <div className="sl-empty">
-            <div style={{ fontSize: 32, opacity: 0.3, marginBottom: 8 }}>✅</div>
-            <p>{filtro === "por-vencer" ? "No hay lotes próximos a vencer" : "No hay lotes vencidos"}</p>
-          </div>
-        ) : (
-          <div className="sl-vencidos-grid">
-            {mostrar.map((lote, idx) => {
-              const vencido = estaVencido(lote.fechaVencimiento);
-              const dias    = diasParaVencer(lote.fechaVencimiento);
-              return (
-                <div key={lote.id || idx} className="sl-vencido-card"
-                  style={{ borderColor: vencido ? "#ef9a9a" : "#ffcc80", background: vencido ? "#fff8f8" : "#fffdf0" }}>
-                  <div className="sl-vencido-card__header">
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 18 }}>{lote.entidadTipo === "producto" ? "📦" : "🧺"}</span>
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: 13 }}>{lote.entidadNombre}</div>
-                        <div style={{ fontSize: 11, color: "#9e9e9e" }}>{lote.entidadCat}</div>
-                      </div>
-                    </div>
-                    <span className="sl-vencido-card__badge"
-                      style={{ background: vencido ? "#ffebee" : "#fff3e0", color: vencido ? "#c62828" : "#e65100", border: `1px solid ${vencido ? "#ef9a9a" : "#ffcc80"}` }}>
-                      {vencido ? "Vencido" : `Vence en ${dias}d`}
-                    </span>
-                  </div>
-                  <div className="sl-vencido-card__body">
-                    <div><span className="sl-vencido-card__key">Lote</span><span className="sl-vencido-card__val">{lote.id}</span></div>
-                    <div><span className="sl-vencido-card__key">Vencimiento</span><span className="sl-vencido-card__val" style={{ color: vencido ? "#c62828" : "#e65100", fontWeight: 700 }}>{fmtFecha(lote.fechaVencimiento)}</span></div>
-                    <div><span className="sl-vencido-card__key">Cantidad</span><span className="sl-vencido-card__val">{lote.cantidadActual} {lote.unidad}</span></div>
-                    <div><span className="sl-vencido-card__key">Ingreso</span><span className="sl-vencido-card__val">{fmtFecha(lote.fechaIngreso)}</span></div>
-                  </div>
+      {/* Tabla compacta */}
+      <div className="card">
+        <table className="tbl">
+          <thead>
+            <tr>
+              <th>Elemento</th>
+              <th>Categoría</th>
+              <th>Cantidad</th>
+              <th>Motivo / Lote</th>
+              <th>Fecha</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <SkeletonRows />
+            ) : paginados.length === 0 ? (
+              <tr><td colSpan={6}>
+                <div className="empty-state">
+                  <div className="empty-state__icon">✅</div>
+                  <p className="empty-state__text">No hay registros de vencimiento</p>
                 </div>
-              );
-            })}
-          </div>
-        )}
+              </td></tr>
+            ) : paginados.map((s, idx) => (
+              <tr key={s.id || idx} className="tbl-row" style={{ opacity: s.anulada ? 0.5 : 1 }}>
+                <td>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 15 }}>{s.entidadTipo === "producto" ? "📦" : "🧺"}</span>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{s.entidadNombre}</div>
+                      <div style={{ fontSize: 11, color: "#9e9e9e" }}>{s.entidadTipo}</div>
+                    </div>
+                  </div>
+                </td>
+                <td><span style={{ fontSize: 12, color: "#616161" }}>{s.entidadCat}</span></td>
+                <td>
+                  <span style={{ fontWeight: 700, color: "#c62828", fontSize: 14 }}>
+                    -{s.cantidad} <span style={{ fontWeight: 400, fontSize: 11, color: "#9e9e9e" }}>uds.</span>
+                  </span>
+                </td>
+                <td><span style={{ fontSize: 12, color: "#424242" }}>{s.motivo || "—"}</span></td>
+                <td><span style={{ fontSize: 12, color: "#9e9e9e" }}>{s.fecha || "—"}</span></td>
+                <td>
+                  <span style={{
+                    display: "inline-flex", alignItems: "center", gap: 4,
+                    padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700,
+                    background: s.anulada ? "#f5f5f5" : "#ffebee",
+                    color: s.anulada ? "#9e9e9e" : "#c62828",
+                    border: `1px solid ${s.anulada ? "#e0e0e0" : "#ef9a9a"}`,
+                  }}>
+                    {s.anulada ? "🚫 Anulada" : "⛔ Vencido"}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
+
+      <div className="pagination-bar">
+        <span className="pagination-count">
+          {filtrados.length} {filtrados.length === 1 ? "registro" : "registros"} en total
+        </span>
+        <div className="pagination-btns">
+          <button className="pg-btn-arrow" onClick={() => setPage(1)} disabled={safePage === 1}>«</button>
+          <button className="pg-btn-arrow" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>‹</button>
+          <span className="pg-pill">Página {safePage} de {Math.max(1, totalPages)}</span>
+          <button className="pg-btn-arrow" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage >= totalPages}>›</button>
+          <button className="pg-btn-arrow" onClick={() => setPage(totalPages)} disabled={safePage >= totalPages}>»</button>
+        </div>
+      </div>
+
+      {toast && (
+        <div className="sl-toast" style={{ background: toast.type === "error" ? "#c62828" : "#2e7d32" }}>
+          <span>{toast.type === "error" ? "❌" : "✅"}</span> {toast.msg}
+        </div>
+      )}
     </div>
   );
 }
@@ -834,7 +895,9 @@ export default function GestionSalidas() {
             cargarSalidas={cargarSalidas}
           />
         )}
-        {tab === "vencidos" && <Vencidos />}
+        {tab === "vencidos" && (
+          <Vencidos salidas={salidas} loading={loading} cargarSalidas={cargarSalidas} />
+        )}
       </div>
 
       {showModal && (

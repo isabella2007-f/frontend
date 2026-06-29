@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ICON_OPTIONS } from "./theme.js";
-import { FieldInput, ModalOverlay } from "./ui.jsx";
+import { ModalOverlay } from "./ui.jsx";
 import "./Categoriaproductos.css";
 
 export default function CrearCategoria({ onClose, onSave }) {
@@ -9,10 +9,15 @@ export default function CrearCategoria({ onClose, onSave }) {
   const [saving, setSaving] = useState(false);
   const [pickingIcon, setPickingIcon] = useState(false);
 
+  const set = (k, v) => {
+    setForm(p => ({ ...p, [k]: v }));
+    setErrors(p => ({ ...p, [k]: "" }));
+  };
+
   const validate = () => {
     const e = {};
-    if (!form.nombre.trim())      e.nombre      = "El nombre es obligatorio";
-    if (!form.descripcion.trim()) e.descripcion = "La descripción es obligatoria";
+    if (!form.nombre.trim())      e.nombre      = "Campo requerido";
+    if (!form.descripcion.trim()) e.descripcion = "Campo requerido";
     return e;
   };
 
@@ -35,8 +40,6 @@ export default function CrearCategoria({ onClose, onSave }) {
 
   return (
     <ModalOverlay onClose={onClose}>
-
-      {/* Header */}
       <div className="modal-header">
         <div>
           <p className="modal-header__eyebrow">Categorías</p>
@@ -45,26 +48,27 @@ export default function CrearCategoria({ onClose, onSave }) {
         <button className="modal-close-btn" onClick={onClose}>✕</button>
       </div>
 
-      {/* Body */}
       <div className="modal-body">
-
-        {/* Ícono */}
         <div className="form-group">
           <label className="form-label">Ícono</label>
-          <button
-            className={`icon-picker-trigger${pickingIcon ? " open" : ""}`}
-            onClick={() => setPickingIcon(!pickingIcon)}
-          >
-            {form.icon}
-          </button>
-
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button
+              className={`icon-picker-trigger${pickingIcon ? " open" : ""}`}
+              onClick={() => setPickingIcon(v => !v)}
+            >
+              {form.icon}
+            </button>
+            <span style={{ fontSize: 12, color: "#9e9e9e" }}>
+              {pickingIcon ? "Selecciona un emoji de la lista" : "Haz clic para cambiar el ícono"}
+            </span>
+          </div>
           {pickingIcon && (
             <div className="icon-picker-grid">
               {ICON_OPTIONS.map(ic => (
                 <button
                   key={ic}
                   className={`icon-option${form.icon === ic ? " selected" : ""}`}
-                  onClick={() => { setForm({ ...form, icon: ic }); setPickingIcon(false); }}
+                  onClick={() => { set("icon", ic); setPickingIcon(false); }}
                 >
                   {ic}
                 </button>
@@ -73,53 +77,49 @@ export default function CrearCategoria({ onClose, onSave }) {
           )}
         </div>
 
-        {/* Nombre */}
         <div className="form-group">
           <label className="form-label">
-            Nombre <span style={{ color: "red" }}>*</span>
+            Nombre <span style={{ color: "#e53935", fontWeight: 800 }}>*</span>
           </label>
-          <FieldInput
-            required
+          <input
+            className={`field-input${errors.nombre ? " field-input--error" : ""}`}
             value={form.nombre}
-            onChange={e => {
-              setForm({ ...form, nombre: e.target.value });
-              setErrors({ ...errors, nombre: "" });
-            }}
+            onChange={e => set("nombre", e.target.value)}
             placeholder="Ej. Snacks Premium"
-            error={errors.nombre}
+            onFocus={e => (e.target.style.borderColor = "#4caf50")}
+            onBlur={e  => (e.target.style.borderColor = errors.nombre ? "#e53935" : "#e0e0e0")}
           />
           {errors.nombre && <p className="field-error">{errors.nombre}</p>}
         </div>
 
-        {/* Descripción */}
         <div className="form-group" style={{ marginBottom: 0 }}>
-          <label className="form-label">
-            Descripción <span style={{ color: "red" }}>*</span>
+          <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ color: "inherit" }}>Descripción <span style={{ color: "#e53935", fontWeight: 800 }}>*</span></span>
+            <span style={{ fontSize: 11, color: form.descripcion.length >= 180 ? "#e65100" : "#9e9e9e", fontWeight: 400, letterSpacing: 0 }}>
+              {form.descripcion.length}/200
+            </span>
           </label>
-          <FieldInput
-            required
-            multiline
+          <textarea
+            className={`field-input${errors.descripcion ? " field-input--error" : ""}`}
+            rows={2}
+            style={{ resize: "none" }}
+            maxLength={200}
             value={form.descripcion}
-            onChange={e => {
-              setForm({ ...form, descripcion: e.target.value });
-              setErrors({ ...errors, descripcion: "" });
-            }}
+            onChange={e => set("descripcion", e.target.value)}
             placeholder="Describe los productos de esta categoría"
-            error={errors.descripcion}
+            onFocus={e => (e.target.style.borderColor = "#4caf50")}
+            onBlur={e  => (e.target.style.borderColor = errors.descripcion ? "#e53935" : "#e0e0e0")}
           />
           {errors.descripcion && <p className="field-error">{errors.descripcion}</p>}
         </div>
-
       </div>
 
-      {/* Footer */}
       <div className="modal-footer">
         <button className="btn-ghost" onClick={onClose} disabled={saving}>Cancelar</button>
         <button className="btn-save" onClick={handleSave} disabled={saving}>
           {saving ? "Guardando…" : "Guardar"}
         </button>
       </div>
-
     </ModalOverlay>
   );
 }

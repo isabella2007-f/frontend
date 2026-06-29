@@ -46,6 +46,50 @@ function Toggle({ value, onChange }) {
   );
 }
 
+function ModalDesactivarCategoriaInsumo({ cat, count, onClose, onConfirm }) {
+  const [done, setDone] = useState(false);
+
+  const handleConfirm = () => {
+    setDone(true);
+    setTimeout(() => {
+      onConfirm(cat.id);
+      onClose();
+    }, 600);
+  };
+
+  return (
+    <ModalOverlay onClose={onClose}>
+      <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
+        <div className="delete-icon-wrap" style={{ background: "#fff8e1", border: "1px solid #ffe082", color: "#e65100", fontSize: 24 }}>⚠️</div>
+        <h3 className="delete-title">Desactivar categoría</h3>
+        <p className="delete-body">
+          La categoría <strong>"{cat.nombre}"</strong> tiene {count} insumo{count > 1 ? "s" : ""} asociado{count > 1 ? "s" : ""}.
+        </p>
+        <div style={{ textAlign: "left", margin: "12px 0", background: "#fff8e1", borderRadius: 10, padding: "12px 16px", border: "1px solid #ffe082" }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+            <span style={{ fontSize: 14, marginTop: 1 }}>•</span>
+            <span style={{ fontSize: 13, color: "#6d4c00", lineHeight: 1.4 }}>
+              Todos los insumos vinculados a esta categoría serán <strong>desactivados</strong> automáticamente.
+            </span>
+          </div>
+        </div>
+        <p className="delete-warn">¿Desea continuar de todas formas?</p>
+      </div>
+      <div className="modal-footer" style={{ justifyContent: "center", gap: 12 }}>
+        <button className="btn-cancel-full" onClick={onClose}>Cancelar</button>
+        <button
+          className="btn-danger"
+          style={{ background: "#e65100", boxShadow: "0 3px 10px rgba(230,81,0,0.3)" }}
+          onClick={handleConfirm}
+          disabled={done}
+        >
+          {done ? "Desactivando…" : "Sí, desactivar"}
+        </button>
+      </div>
+    </ModalOverlay>
+  );
+}
+
 function StatusPill({ active }) {
   return (
     <span
@@ -178,14 +222,28 @@ export default function CategoriaInsumos() {
   const paginated  = filtered.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
   useEffect(() => setPage(1), [search, filter]);
 
-  /* ── Toggle optimista ── */
+  /* ── Toggle con confirmación si tiene insumos ── */
   const handleToggle = async (cat) => {
+    if (cat.estado && cat.totalInsumos > 0) {
+      setModal({ type: "desactivar", cat });
+      return;
+    }
     setCategorias(prev => prev.map(c => c.id === cat.id ? { ...c, estado: !c.estado } : c));
     try {
       await toggleEstadoCategoria(cat.id, cat.estado);
     } catch (e) {
       setCategorias(prev => prev.map(c => c.id === cat.id ? { ...c, estado: cat.estado } : c));
       showToast(e.message || "Error al cambiar estado", "error");
+    }
+  };
+
+  const handleToggleConfirm = async (catId) => {
+    try {
+      await toggleEstadoCategoria(catId, true);
+      showToast("Categoría e insumos asociados desactivados");
+      await cargarDatos();
+    } catch (e) {
+      showToast("Error al desactivar: " + e.message, "error");
     }
   };
 
@@ -201,9 +259,10 @@ export default function CategoriaInsumos() {
     }
   };
 
-  const handleEdit = async (payload) => {
+  const handleEdit = async (payload, toggleEstado) => {
     try {
       await editarCategoria(modal.cat.id, payload);
+      if (toggleEstado) await toggleEstadoCategoria(modal.cat.id, modal.cat.estado);
       showToast("Cambios guardados");
       setModal(null);
       cargarDatos();
@@ -363,6 +422,14 @@ export default function CategoriaInsumos() {
       {modal?.type === "crear"    && <CrearCategoriaInsumo onClose={() => setModal(null)} onSave={handleCreate} />}
       {modal?.type === "editar"   && <EditarCategoriaInsumo cat={modal.cat} onClose={() => setModal(null)} onSave={handleEdit} />}
       {modal?.type === "ver"      && <VerCategoria cat={modal.cat} onClose={() => setModal(null)} />}
+      {modal?.type === "desactivar" && (
+        <ModalDesactivarCategoriaInsumo
+          cat={modal.cat}
+          count={modal.cat.totalInsumos}
+          onClose={() => setModal(null)}
+          onConfirm={handleToggleConfirm}
+        />
+      )}
       {modal?.type === "eliminar" && (
         modal.cat.totalInsumos > 0 ? (
           <div className="modal-overlay" onClick={() => setModal(null)}>

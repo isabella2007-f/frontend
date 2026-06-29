@@ -157,7 +157,7 @@ function StockBar({ actual, minimo }) {
   const tip = tipMap[est];
   return (
     <div
-      style={{ position: "relative", minWidth: 120 }}
+      style={{ position: "relative", minWidth: 80 }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -415,7 +415,7 @@ function VerProducto({ product, catObj, onClose, onOpenFicha }) {
           {[
             { key: "info",     label: "📋 Información" },
             { key: "lotes",    label: "📦 Lotes" },
-            { key: "historial",label: "🕒 Historial" },
+            { key: "historial",label: "🕒 Vencidos" },
             { key: "ficha",    label: "📖 Ficha técnica" },
           ].map((t) => (
             <button
@@ -558,7 +558,7 @@ function VerProducto({ product, catObj, onClose, onOpenFicha }) {
           {/* ── Tab Lotes ── */}
           {tab === "lotes" && <LotesProductoPanel idProducto={product.id} tipo="lotes" />}
 
-          {/* ── Tab Historial ── */}
+          {/* ── Tab Vencidos ── */}
           {tab === "historial" && <LotesProductoPanel idProducto={product.id} tipo="historial" />}
 
           {/* ── Tab Ficha técnica ── */}
@@ -682,7 +682,7 @@ function VerProducto({ product, catObj, onClose, onOpenFicha }) {
               )}
 
               <p className="ver-ins-section-label" style={{ textTransform: "none", marginTop: 4 }}>
-                Historial de salidas
+                Vencidos
               </p>
               {salidas.length === 0 ? (
                 <div className="empty-state" style={{ padding: "14px 20px" }}>

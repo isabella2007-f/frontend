@@ -25,6 +25,7 @@ function adaptarOrden(o) {
     fechaEntrega:   o.Fecha_Entrega ? String(o.Fecha_Entrega).split("T")[0] : null,
     estado:         ESTADO_DISPLAY_MAP[label] || label || "Pendiente",
     costo:          parseFloat(o.Costo ?? 0),
+    costoDetalle:   o.costo_detalle || [],
     lote: o.lote ? {
       id:               o.lote.ID_Lote_Producto,
       numeroLote:       o.lote.Numero_Lote,

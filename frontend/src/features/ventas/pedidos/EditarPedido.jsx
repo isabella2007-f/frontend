@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { getUsuarios, editarUsuario } from "../../../services/usuariosService.js";
 import { getProductos } from "../../../services/productosService.js";
 import { MUNICIPIOS_VALLE_ABURRA } from "../../../utils/departamentosYCiudades.js";
+import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
 import "./Pedidos.css";
 
 /* ─── Helpers ────────────────────────────────────────────── */
@@ -331,7 +332,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
     if (permisos.productos && form.productosItems.length === 0)   e.productos         = "Agrega al menos un producto";
     if (permisos.metodo_pago && !form.metodo_pago)                e.metodo_pago       = "Selecciona método de pago";
     
-    if (form.metodo_pago === "Transferencia 🏦" && !form.comprobantePreview) {
+    if (form.metodo_pago?.includes("Transferencia") && !form.comprobantePreview) {
       e.comprobante = "El comprobante es obligatorio para transferencias";
     }
 
@@ -345,9 +346,20 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
     return e;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
+
+    let comprobanteUrl = typeof form.comprobante === "string" ? form.comprobante : null;
+    if (form.comprobante instanceof File) {
+      try {
+        comprobanteUrl = await subirImagenCloudinary(form.comprobante);
+      } catch (cloudErr) {
+        setErrors(e => ({ ...e, comprobante: cloudErr?.message || "Error al subir el comprobante." }));
+        return;
+      }
+    }
+
     setSaved(true);
     const clienteObj = clientes.find(c => c.id === form.idCliente);
     const payload = {
@@ -359,7 +371,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
         : pedido.cliente,
       productosItems:    permisos.productos ? form.productosItems : pedido.productosItems,
       metodo_pago:       permisos.metodo_pago ? form.metodo_pago : pedido.metodo_pago,
-      comprobante:       form.comprobantePreview,
+      comprobante:       comprobanteUrl,
       domicilio:         permisos.domicilio  ? form.domicilio    : pedido.domicilio,
       direccion_entrega: form.direccion_entrega,
       departamento:      form.departamento,
@@ -371,7 +383,11 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
       orden_produccion:  permisos.productos ? hayProductosSinStock : pedido.orden_produccion,
       estadoPedido:      form.estadoPedido,
     };
-    setTimeout(() => onSave(payload), 900);
+    try {
+      await onSave(payload);
+    } catch {
+      setSaved(false);
+    }
   };
 
   const handleFile = (e) => {
@@ -704,7 +720,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
             )}
           </div>
 
-          {form.metodo_pago === "Transferencia 🏦" && permisos.metodo_pago && (
+          {form.metodo_pago?.includes("Transferencia") && permisos.metodo_pago && (
             <div className="field-wrap" style={{ marginTop: 12 }}>
               <label className="field-label">Comprobante de pago <span className="required">*</span></label>
               <div className="comprobante-upload">

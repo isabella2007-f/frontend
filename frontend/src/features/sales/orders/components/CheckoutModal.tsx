@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { X, CreditCard, Banknote, User, MapPin, ShoppingBag, CheckCircle2, Sparkles, ShieldCheck, UploadCloud, ChevronRight, Gift } from 'lucide-react';
+import { X, CreditCard, Banknote, User, MapPin, ShoppingBag, CheckCircle2, Sparkles, ShieldCheck, UploadCloud, ChevronRight, Gift, Truck, Calendar, Phone, Save } from 'lucide-react';
 import { CartItem } from '../services/cartService';
 import { getUser } from '../../../../services/authService';
 import { getMiCredito } from '../../../../services/pedidosService';
+import { apiFetch } from '../../../../utils/api';
+import { MUNICIPIOS_VALLE_ABURRA } from '../../../../utils/departamentosYCiudades';
 import './CheckoutModal.css';
 
 // Datos de la cuenta bancaria — actualiza en GestionPedidos.jsx también
@@ -30,21 +32,62 @@ interface CheckoutModalProps {
     observaciones?: string;
     tieneDomicilio?: boolean;
   } | null;
-  onConfirm: (paymentMethod: string, onBehalfOf: string, comprobante?: File | null, usarCredito?: boolean) => void;
+  onConfirm: (paymentMethod: string, onBehalfOf: string, comprobante?: File | null, usarCredito?: boolean, deliveryInfo?: { tieneDomicilio: boolean; address: string; municipio: string; departamento: string; date: string; observaciones: string }) => void;
 }
 
+const COSTO_DOMICILIO = 5000;
+const hoyISO = () => new Date().toISOString().split('T')[0];
+
 const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDetails, onConfirm }) => {
-  const [paymentMethod, setPaymentMethod] = useState('digital');
-  const [onBehalfOf,    setOnBehalfOf]    = useState('');
-  const [comprobante,   setComprobante]   = useState<File | null>(null);
-  const [isConfirming,  setIsConfirming]  = useState(false);
-  const [credito,       setCredito]       = useState(0);
-  const [usarCredito,   setUsarCredito]   = useState(false);
+  const [paymentMethod,      setPaymentMethod]      = useState('digital');
+  const [onBehalfOf,         setOnBehalfOf]         = useState('');
+  const [comprobante,        setComprobante]        = useState<File | null>(null);
+  const [isConfirming,       setIsConfirming]       = useState(false);
+  const [credito,            setCredito]            = useState(0);
+  const [usarCredito,        setUsarCredito]        = useState(false);
+  const [tieneDomicilio,     setTieneDomicilio]     = useState(false);
+  const [address,            setAddress]            = useState('');
+  const [municipio,          setMunicipio]          = useState('');
+  const [date,               setDate]               = useState('');
+  const [observaciones,      setObservaciones]      = useState('');
+  // Teléfono
+  const [telefono,           setTelefono]           = useState('');
+  const [telefonoRegistrado, setTelefonoRegistrado] = useState(false);
+  const [guardarTelefono,    setGuardarTelefono]    = useState(true);
+  // Dirección guardada
+  const [direccionRegistrada, setDireccionRegistrada] = useState(false);
+  const [guardarDireccion,    setGuardarDireccion]    = useState(true);
 
   useEffect(() => {
     if (!isOpen || !orderDetails) return;
     const user = getUser();
     setOnBehalfOf(user?.nombre || orderDetails.clientName || '');
+    setTieneDomicilio(orderDetails.tieneDomicilio ?? false);
+    setAddress(orderDetails.address || '');
+    setMunicipio(orderDetails.municipio || '');
+    setDate(orderDetails.date || '');
+    setObservaciones(orderDetails.observaciones || '');
+    setComprobante(null);
+
+    // Cargar perfil para verificar teléfono y dirección
+    apiFetch('/auth/perfil')
+      .then((perfil: any) => {
+        const tel = perfil?.Telefono || '';
+        setTelefono(tel);
+        setTelefonoRegistrado(!!tel);
+        const dir = perfil?.Direccion || '';
+        setDireccionRegistrada(!!dir);
+        // Pre-llenar dirección si hay y no vino del carrito
+        if (dir && !orderDetails.address) {
+          setAddress(dir);
+          setMunicipio(perfil?.Municipio || '');
+        }
+      })
+      .catch(() => {
+        setTelefonoRegistrado(false);
+        setDireccionRegistrada(false);
+      });
+
     getMiCredito()
       .then((data: any) => setCredito(data?.saldo || 0))
       .catch(() => setCredito(0));
@@ -53,214 +96,254 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   if (!isOpen || !orderDetails) return null;
 
   const user = getUser();
-  const displayAddress = orderDetails.address
-    ? `${orderDetails.address}${orderDetails.municipio ? ', ' + orderDetails.municipio : ''}${orderDetails.departamento ? ', ' + orderDetails.departamento : ''}`
-    : user?.direccion || 'Recogida en tienda';
+  const costoDomicilio = tieneDomicilio ? COSTO_DOMICILIO : 0;
+  const creditoAplicar = usarCredito ? Math.min(credito, orderDetails.total + costoDomicilio) : 0;
+  const totalFinal     = Math.max(0, orderDetails.total + costoDomicilio - creditoAplicar);
 
-  const creditoAplicar  = usarCredito ? Math.min(credito, orderDetails.total) : 0;
-  const totalFinal      = Math.max(0, orderDetails.total - creditoAplicar);
+  const handleFinalConfirm = async () => {
+    if (!telefono.trim()) {
+      alert('El número de teléfono es obligatorio para realizar el pedido');
+      return;
+    }
+    if (telefono.replace(/\D/g, '').length < 7) {
+      alert('Ingresa un número de teléfono válido');
+      return;
+    }
+    if (!date) {
+      alert('Indica la fecha en que necesitas el pedido');
+      return;
+    }
+    if (tieneDomicilio && (!address.trim() || !municipio)) {
+      alert('Completa la dirección y municipio de entrega');
+      return;
+    }
 
-  const handleFinalConfirm = () => {
     setIsConfirming(true);
-    setTimeout(() => {
-      onConfirm(paymentMethod, onBehalfOf, comprobante, usarCredito);
-      setIsConfirming(false);
-    }, 800);
+
+    // Guardar teléfono si el usuario lo pidió y no estaba registrado (o cambió)
+    if (guardarTelefono && (!telefonoRegistrado || telefono !== (user as any)?.telefono)) {
+      await apiFetch('/auth/perfil', {
+        method: 'PUT',
+        body: JSON.stringify({ Telefono: telefono }),
+      }).catch(() => {});
+    }
+
+    // Guardar dirección si aplica
+    if (tieneDomicilio && guardarDireccion && (!direccionRegistrada || address)) {
+      await apiFetch('/auth/perfil', {
+        method: 'PUT',
+        body: JSON.stringify({ Direccion: address, Municipio: municipio }),
+      }).catch(() => {});
+    }
+
+    onConfirm(paymentMethod, onBehalfOf, comprobante, usarCredito, {
+      tieneDomicilio, address, municipio, departamento: orderDetails.departamento || 'Antioquia', date, observaciones,
+    });
+    setIsConfirming(false);
   };
+
+  const inputCls = "w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 text-sm text-gray-700 font-medium placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400 transition-all";
 
   return (
     <div className="modal-overlay">
-      <div className="modal-box relative shadow-2xl overflow-hidden flex flex-col max-h-[95vh] border-none" style={{ maxWidth: '480px', borderRadius: '28px' }}>
+      <div className="modal-box relative shadow-2xl overflow-hidden flex flex-col max-h-[95vh] border-none" style={{ maxWidth: '460px', borderRadius: '24px' }}>
 
         {/* Header */}
-        <div className="modal-header shrink-0" style={{ background: 'linear-gradient(135deg, var(--green-800) 0%, var(--green-700) 100%)', padding: '20px' }}>
-          <button onClick={onClose} className="absolute top-4 right-4 p-1.5 hover:bg-white/20 rounded-full transition-all text-white/80 hover:text-white z-10">
-            <X size={16} />
-          </button>
-          <div className="relative flex items-center gap-3.5">
-            <div className="bg-white/10 backdrop-blur-xl p-2.5 rounded-xl border border-white/20">
-              <ShoppingBag size={20} className="text-white" />
+        <div className="shrink-0 flex items-center justify-between px-5 py-4" style={{ background: 'linear-gradient(135deg, var(--green-800) 0%, var(--green-700) 100%)' }}>
+          <div className="flex items-center gap-3">
+            <div className="bg-white/10 p-2 rounded-xl border border-white/20">
+              <ShoppingBag size={18} className="text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-black tracking-tight leading-none mb-0.5 text-white">Confirmar Pedido</h2>
-              <p className="text-white/70 text-[9px] font-bold uppercase tracking-widest flex items-center gap-1.5">
-                <ShieldCheck size={10} /> Pago 100% Seguro
+              <h2 className="text-base font-black text-white leading-none mb-0.5">Confirmar Pedido</h2>
+              <p className="text-white/60 text-[10px] font-bold flex items-center gap-1">
+                <ShieldCheck size={9} /> Pago 100% Seguro
               </p>
             </div>
           </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-white/20 rounded-full transition-all text-white/70 hover:text-white">
+            <X size={16} />
+          </button>
         </div>
 
-        <div className="modal-body p-4 space-y-4 overflow-y-auto custom-scrollbar flex-1 bg-gray-50/20">
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar bg-gray-50 px-4 py-3 space-y-3">
 
-          {/* Info grid */}
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="bg-white p-2.5 rounded-xl border border-gray-100 shadow-sm">
-              <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">Quién recibe</label>
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg" style={{ background: 'var(--green-50)', color: 'var(--green-700)' }}>
-                  <User size={12} />
-                </div>
-                <p className="text-[11px] font-black text-gray-800 truncate">{user?.nombre} {user?.apellidos}</p>
+          {/* Quién recibe + a nombre de */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-white rounded-2xl border border-gray-100 px-3 py-2.5">
+              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Quién recibe</p>
+              <div className="flex items-center gap-1.5">
+                <User size={12} className="text-green-700 shrink-0" />
+                <p className="text-xs font-black text-gray-800 truncate">{user?.nombre} {user?.apellidos}</p>
               </div>
             </div>
+            <div className="bg-white rounded-2xl border border-gray-100 px-3 py-2.5">
+              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">A nombre de</p>
+              <input
+                type="text"
+                value={onBehalfOf}
+                onChange={e => setOnBehalfOf(e.target.value)}
+                placeholder="Nombre"
+                className="w-full bg-transparent text-xs font-black text-gray-800 outline-none placeholder:text-gray-300 border-none p-0"
+              />
+            </div>
+          </div>
 
-            <div className="bg-white p-2.5 rounded-xl border border-gray-100 shadow-sm">
-              <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">A nombre de</label>
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg" style={{ background: 'var(--green-50)', color: 'var(--green-700)' }}>
-                  <Sparkles size={12} />
-                </div>
+          {/* Teléfono de contacto */}
+          <div className={`bg-white rounded-2xl border px-3 py-3 space-y-2 ${!telefono.trim() ? 'border-red-200' : 'border-gray-100'}`}>
+            <div className="flex items-center justify-between">
+              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                <Phone size={10} /> Teléfono de contacto
+                <span className="text-red-400">*</span>
+              </p>
+              {telefonoRegistrado && (
+                <span className="text-[9px] font-bold text-green-600 flex items-center gap-1">
+                  <CheckCircle2 size={10} /> Registrado
+                </span>
+              )}
+            </div>
+            <div className="relative">
+              <Phone size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="tel"
+                placeholder="Ej: 300 123 4567"
+                value={telefono}
+                onChange={e => setTelefono(e.target.value)}
+                className={inputCls + " pl-8"}
+              />
+            </div>
+            {!telefonoRegistrado && telefono.trim() && (
+              <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
-                  type="text"
-                  value={onBehalfOf}
-                  onChange={(e) => setOnBehalfOf(e.target.value)}
-                  placeholder="Nombre"
-                  className="w-full bg-transparent text-[11px] font-bold text-gray-800 outline-none placeholder:text-gray-300 border-none p-0 focus:ring-0"
+                  type="checkbox"
+                  checked={guardarTelefono}
+                  onChange={e => setGuardarTelefono(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded accent-green-600"
                 />
-              </div>
-            </div>
-
-            <div className="col-span-2 bg-white p-2.5 rounded-xl border border-gray-100 shadow-sm">
-              <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-1 block px-1">
-                {orderDetails.tieneDomicilio ? 'Dirección de entrega' : 'Modalidad'}
+                <span className="text-xs font-bold text-gray-500 flex items-center gap-1">
+                  <Save size={11} className="text-green-600" /> Guardar como teléfono principal
+                </span>
               </label>
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg flex-shrink-0" style={{ background: 'var(--green-50)', color: 'var(--green-700)' }}>
-                  <MapPin size={12} />
-                </div>
-                <p className="text-[10px] font-bold text-gray-700 leading-snug">
-                  {orderDetails.tieneDomicilio ? displayAddress : '🏪 Recogida en tienda'}
-                </p>
-              </div>
+            )}
+            {!telefono.trim() && (
+              <p className="text-[10px] font-bold text-red-500">Requerido para realizar el pedido</p>
+            )}
+          </div>
+
+          {/* Tipo de entrega */}
+          <div className="bg-white rounded-2xl border border-gray-100 px-3 py-3 space-y-2.5">
+            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Tipo de entrega</p>
+            <div className="grid grid-cols-2 bg-gray-100 rounded-xl p-1 gap-1">
+              <button
+                onClick={() => setTieneDomicilio(false)}
+                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-black transition-all duration-200 ${!tieneDomicilio ? 'bg-white text-green-800 shadow' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                <ShoppingBag size={13} /> Recogida
+              </button>
+              <button
+                onClick={() => setTieneDomicilio(true)}
+                className={`flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-black transition-all duration-200 ${tieneDomicilio ? 'bg-white text-green-800 shadow' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                <Truck size={13} /> Domicilio
+              </button>
             </div>
 
-            {orderDetails.observaciones && (
-              <div className="col-span-2 bg-amber-50 p-2.5 rounded-xl border border-amber-100 shadow-sm">
-                <label className="text-[8px] font-black text-amber-600 uppercase tracking-widest mb-1 block px-1">Observaciones</label>
-                <p className="text-[10px] font-medium text-amber-800 italic">"{orderDetails.observaciones}"</p>
+            {/* Fecha siempre visible */}
+            <div className="relative">
+              <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input type="date" min={hoyISO()} value={date} onChange={e => setDate(e.target.value)}
+                placeholder="¿Cuándo lo necesitas?"
+                className={inputCls + " pl-8"} />
+            </div>
+
+            {tieneDomicilio && (
+              <div className="space-y-2">
+                <div className="relative">
+                  <MapPin size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input type="text" placeholder="Dirección (Ej: Calle 10 #20-30)" value={address} onChange={e => setAddress(e.target.value)}
+                    className={inputCls + " pl-8"} />
+                </div>
+                <select value={municipio} onChange={e => setMunicipio(e.target.value)} className={inputCls}>
+                  <option value="">— Municipio —</option>
+                  {MUNICIPIOS_VALLE_ABURRA.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+                {address.trim() && (
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input type="checkbox" checked={guardarDireccion} onChange={e => setGuardarDireccion(e.target.checked)}
+                      className="w-3.5 h-3.5 rounded accent-green-600" />
+                    <span className="text-xs font-bold text-gray-500 flex items-center gap-1">
+                      <Save size={11} className="text-green-600" />
+                      {direccionRegistrada ? 'Actualizar mi dirección registrada' : 'Guardar como dirección principal'}
+                    </span>
+                  </label>
+                )}
               </div>
             )}
           </div>
 
-          {/* Crédito — siempre visible */}
-          {credito > 0 ? (
-            <div
-              onClick={() => setUsarCredito(!usarCredito)}
-              className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${usarCredito ? 'border-green-500 bg-green-50' : 'border-gray-100 bg-white hover:border-green-200'}`}
-            >
-              <div className="p-2 rounded-lg" style={{ background: usarCredito ? 'var(--green-600)' : 'var(--green-50)', color: usarCredito ? 'white' : 'var(--green-700)' }}>
-                <Gift size={14} />
-              </div>
-              <div className="flex-1">
-                <p className="text-[10px] font-black text-gray-700">Usar crédito disponible</p>
-                <p className="text-[9px] font-bold" style={{ color: 'var(--green-700)' }}>Tienes <strong>{COP(credito)}</strong> en créditos</p>
-              </div>
-              {usarCredito && (
-                <span className="text-[10px] font-black" style={{ color: 'var(--green-700)' }}>−{COP(creditoAplicar)}</span>
-              )}
-              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${usarCredito ? 'bg-green-600 border-green-600' : 'border-gray-300'}`}>
-                {usarCredito && <CheckCircle2 size={10} className="text-white" />}
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 bg-gray-50/50">
-              <div className="p-2 rounded-lg bg-gray-100">
-                <Gift size={14} className="text-gray-400" />
-              </div>
-              <div>
-                <p className="text-[10px] font-black text-gray-400">Sin crédito disponible</p>
-                <p className="text-[9px] font-bold text-gray-300">Los créditos se generan con devoluciones aprobadas</p>
-              </div>
-            </div>
-          )}
-
           {/* Resumen productos */}
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="bg-gray-50/50 px-3 py-2 border-b border-gray-100 flex justify-between items-center">
-              <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Resumen del pedido</span>
-              <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md" style={{ background: 'var(--green-50)', color: 'var(--green-700)' }}>
-                {orderDetails.items.length} items
-              </span>
+          <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-gray-50">
+              <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Productos</span>
+              <span className="text-[9px] font-black text-green-700 bg-green-50 px-2 py-0.5 rounded-full">{orderDetails.items.length} items</span>
             </div>
-            <div className="max-h-36 overflow-y-auto custom-scrollbar px-3 py-1.5">
-              <table className="w-full">
-                <tbody className="divide-y divide-gray-50">
-                  {orderDetails.items.map((item) => (
-                    <tr key={item.id}>
-                      <td className="py-1.5 text-[11px] font-bold text-gray-700">{item.nombre}</td>
-                      <td className="py-1.5 text-[10px] font-black text-gray-400 text-center">x{item.cantidad}</td>
-                      <td className="py-1.5 text-[11px] font-black text-gray-900 text-right">{COP(item.precio * item.cantidad)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="max-h-28 overflow-y-auto custom-scrollbar px-3 py-1">
+              {orderDetails.items.map(item => (
+                <div key={item.id} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
+                  <span className="text-xs font-bold text-gray-700 flex-1 truncate">{item.nombre}</span>
+                  <span className="text-[10px] text-gray-400 font-black mx-2">×{item.cantidad}</span>
+                  <span className="text-xs font-black text-gray-900">{COP(item.precio * item.cantidad)}</span>
+                </div>
+              ))}
             </div>
           </div>
 
           {/* Método de pago */}
-          <div className="space-y-2.5">
-            <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest px-1">Método de pago</label>
-            <div className="grid grid-cols-2 gap-2.5">
+          <div className="bg-white rounded-2xl border border-gray-100 px-3 py-3 space-y-2.5">
+            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Método de pago</p>
+            <div className="grid grid-cols-2 gap-2">
               {[
-                { id: 'digital',   icon: <CreditCard size={14} />, label: 'Transferencia' },
-                { id: 'efectivo',  icon: <Banknote size={14} />,   label: 'Efectivo' },
+                { id: 'digital',  icon: <CreditCard size={14} />, label: 'Transferencia' },
+                { id: 'efectivo', icon: <Banknote size={14} />,   label: 'Efectivo' },
               ].map(m => (
-                <button
-                  key={m.id}
-                  onClick={() => setPaymentMethod(m.id)}
-                  className={`flex items-center gap-2.5 p-2.5 rounded-xl border-2 transition-all duration-300 ${paymentMethod === m.id ? 'shadow-md' : 'border-white bg-white text-gray-400 hover:border-green-100 shadow-sm'}`}
-                  style={paymentMethod === m.id ? { borderColor: 'var(--green-600)', background: 'var(--green-50)', color: 'var(--green-800)' } : {}}
-                >
-                  <div className="p-1.5 rounded-lg" style={paymentMethod === m.id ? { background: 'var(--green-600)', color: 'white' } : { background: '#f9fafb' }}>
-                    {m.icon}
-                  </div>
-                  <span className="text-[10px] font-black tracking-tight">{m.label}</span>
+                <button key={m.id} onClick={() => setPaymentMethod(m.id)}
+                  className={`flex items-center gap-2 p-2.5 rounded-xl border-2 transition-all text-xs font-black ${paymentMethod === m.id ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-100 bg-white text-gray-400 hover:border-gray-200'}`}>
+                  <div className={`p-1.5 rounded-lg ${paymentMethod === m.id ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-400'}`}>{m.icon}</div>
+                  {m.label}
                 </button>
               ))}
             </div>
 
             {paymentMethod === 'digital' && (
-              <div className="space-y-2 animate-in slide-in-from-top-2 duration-300">
-                {/* Datos bancarios */}
-                <div className="bg-white rounded-xl border border-blue-100 shadow-sm overflow-hidden">
-                  <div className="px-3 py-1.5 border-b border-blue-50 flex items-center gap-1.5" style={{ background: '#eff6ff' }}>
-                    <CreditCard size={10} className="text-blue-500" />
-                    <span className="text-[8px] font-black text-blue-600 uppercase tracking-widest">Datos para transferencia</span>
+              <div className="space-y-2">
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 flex gap-3">
+                  <div className="w-14 h-14 shrink-0 rounded-lg border-2 border-dashed border-blue-200 bg-white flex flex-col items-center justify-center text-blue-400">
+                    <span style={{ fontSize: 22 }}>📱</span>
+                    <span className="text-[7px] font-black uppercase mt-0.5">Nequi</span>
                   </div>
-                  <div className="flex gap-3 p-3">
-                    <div className="flex-shrink-0 w-16 h-16 rounded-lg border-2 border-dashed border-blue-200 flex flex-col items-center justify-center bg-blue-50 text-blue-400">
-                      <span style={{ fontSize: 28, lineHeight: 1 }}>📱</span>
-                      <span className="text-[7px] font-black uppercase tracking-wide mt-0.5">QR Nequi</span>
-                    </div>
-                    <div className="flex-1 space-y-1.5">
-                      {[
-                        { label: 'Banco',   value: CUENTA.banco },
-                        { label: 'Número',  value: CUENTA.numero },
-                        { label: 'Tipo',    value: CUENTA.tipo },
-                        { label: 'Titular', value: CUENTA.titular },
-                      ].map(({ label, value }) => (
-                        <div key={label} className="flex items-baseline gap-1.5">
-                          <span className="text-[8px] font-black text-gray-400 uppercase tracking-wider w-12 shrink-0">{label}</span>
-                          <span className="text-[10px] font-black text-gray-800 leading-tight">{value}</span>
-                        </div>
-                      ))}
-                    </div>
+                  <div className="space-y-1">
+                    {[['Banco', CUENTA.banco], ['Número', CUENTA.numero], ['Titular', CUENTA.titular]].map(([l, v]) => (
+                      <div key={l} className="flex gap-2">
+                        <span className="text-[9px] font-black text-blue-400 uppercase w-12 shrink-0">{l}</span>
+                        <span className="text-[10px] font-black text-blue-900">{v}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-
-                {/* Comprobante */}
                 <div className="relative group">
-                  <input type="file" accept="image/*,application/pdf" onChange={(e) => setComprobante(e.target.files?.[0] || null)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
-                  <div className="border-2 border-dashed border-emerald-200 bg-white group-hover:bg-emerald-50 transition-all rounded-xl p-3 text-center">
+                  <input type="file" accept="image/*,application/pdf" onChange={e => setComprobante(e.target.files?.[0] || null)}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                  <div className="border-2 border-dashed border-green-200 bg-white group-hover:bg-green-50 transition-all rounded-xl p-3 text-center">
                     {comprobante ? (
                       <div className="flex items-center justify-center gap-2">
-                        <CheckCircle2 size={14} className="text-emerald-500" />
-                        <p className="text-[9px] font-black text-emerald-700 truncate max-w-[150px]">{comprobante.name}</p>
+                        <CheckCircle2 size={14} className="text-green-500" />
+                        <p className="text-xs font-black text-green-700 truncate max-w-[160px]">{comprobante.name}</p>
                       </div>
                     ) : (
-                      <div className="flex flex-col items-center gap-1">
-                        <UploadCloud size={16} className="text-emerald-300" />
-                        <p className="text-[9px] font-black text-gray-500">Sube tu comprobante de pago</p>
+                      <div className="flex items-center justify-center gap-2">
+                        <UploadCloud size={15} className="text-green-300" />
+                        <p className="text-xs font-bold text-gray-400">Subir comprobante de pago</p>
                       </div>
                     )}
                   </div>
@@ -268,43 +351,71 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
               </div>
             )}
           </div>
+
+          {/* Crédito (solo si hay) */}
+          {credito > 0 && (
+            <div onClick={() => setUsarCredito(!usarCredito)}
+              className={`flex items-center gap-3 p-3 rounded-2xl border-2 cursor-pointer transition-all ${usarCredito ? 'border-green-500 bg-green-50' : 'border-gray-100 bg-white hover:border-green-200'}`}>
+              <div className={`p-2 rounded-xl ${usarCredito ? 'bg-green-600 text-white' : 'bg-green-50 text-green-700'}`}>
+                <Gift size={14} />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs font-black text-gray-700">Usar crédito disponible</p>
+                <p className="text-[10px] font-bold text-green-700">{COP(credito)} disponibles</p>
+              </div>
+              {usarCredito && <span className="text-xs font-black text-green-700">−{COP(creditoAplicar)}</span>}
+              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${usarCredito ? 'bg-green-600 border-green-600' : 'border-gray-300'}`}>
+                {usarCredito && <CheckCircle2 size={10} className="text-white" />}
+              </div>
+            </div>
+          )}
+
+          {/* Observaciones */}
+          <div className="bg-white rounded-2xl border border-gray-100 px-3 py-3">
+            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Observaciones del pedido</p>
+            <textarea
+              rows={2}
+              placeholder="Ej: Sin picante, toque el timbre, entregar después de las 5pm..."
+              value={observaciones}
+              onChange={e => setObservaciones(e.target.value)}
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 font-medium placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400 transition-all resize-none"
+            />
+          </div>
         </div>
 
         {/* Footer */}
-        <div className="modal-footer p-5 bg-white border-t border-gray-100 flex-shrink-0">
-          <div className="w-full mb-4 space-y-1">
-            <div className="flex justify-between text-[10px] text-gray-500 font-bold">
+        <div className="shrink-0 bg-white border-t border-gray-100 px-4 py-3">
+          <div className="space-y-1 mb-3">
+            <div className="flex justify-between text-xs text-gray-500 font-bold">
               <span>Subtotal</span><span>{COP(orderDetails.total)}</span>
             </div>
-            {usarCredito && creditoAplicar > 0 && (
-              <div className="flex justify-between text-[10px] font-bold" style={{ color: 'var(--green-700)' }}>
-                <span>Crédito aplicado</span><span>−{COP(creditoAplicar)}</span>
+            {tieneDomicilio && (
+              <div className="flex justify-between text-xs font-bold text-purple-700">
+                <span>Domicilio</span><span>+{COP(COSTO_DOMICILIO)}</span>
               </div>
             )}
-            <div className="flex items-end justify-between pt-1 border-t border-gray-100">
-              <div>
-                <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Total a pagar</p>
-                <div className="flex items-baseline gap-0.5">
-                  <span className="font-black text-xs" style={{ color: 'var(--green-700)' }}>$</span>
-                  <span className="text-2xl font-black text-gray-900 tracking-tighter leading-none">{totalFinal.toLocaleString('es-CO')}</span>
-                </div>
+            {usarCredito && creditoAplicar > 0 && (
+              <div className="flex justify-between text-xs font-bold text-green-700">
+                <span>Crédito</span><span>−{COP(creditoAplicar)}</span>
               </div>
-              <div className="bg-amber-50 p-2 rounded-xl border border-amber-100 text-amber-500"><Sparkles size={16} /></div>
+            )}
+            <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+              <div>
+                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Total a pagar</p>
+                <p className="text-2xl font-black text-gray-900 tracking-tighter leading-none">{COP(totalFinal)}</p>
+              </div>
+              <button
+                onClick={handleFinalConfirm}
+                disabled={isConfirming}
+                className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-sm transition-all shadow-lg active:scale-95 ${isConfirming ? 'bg-green-800 text-white' : 'text-white hover:shadow-xl hover:-translate-y-0.5'}`}
+                style={!isConfirming ? { background: 'linear-gradient(135deg, var(--green-800) 0%, var(--green-700) 100%)' } : {}}
+              >
+                {isConfirming
+                  ? <><div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Procesando</>
+                  : <>Confirmar <ChevronRight size={14} /></>}
+              </button>
             </div>
           </div>
-
-          <button
-            onClick={handleFinalConfirm}
-            disabled={isConfirming}
-            className={`w-full group relative overflow-hidden flex items-center justify-center gap-3 py-3.5 rounded-xl font-black text-sm transition-all duration-300 shadow-lg active:scale-[0.98] ${isConfirming ? 'bg-emerald-800 text-white' : 'btn-primary shadow-emerald-200/50 hover:shadow-xl hover:-translate-y-0.5'}`}
-            style={!isConfirming ? { background: 'linear-gradient(135deg, var(--green-800) 0%, var(--green-700) 100%)' } : {}}
-          >
-            {isConfirming ? (
-              <><div className="w-3.5 h-3.5 border-2 border-white/20 border-t-white rounded-full animate-spin" /> Procesando...</>
-            ) : (
-              <>Confirmar Compra <ChevronRight size={14} /></>
-            )}
-          </button>
         </div>
       </div>
 

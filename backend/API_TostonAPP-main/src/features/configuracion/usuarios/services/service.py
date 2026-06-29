@@ -208,6 +208,14 @@ def cambiar_estado(db: Session, id_persona: int, nuevo_estado: int) -> dict:
             detail="No se puede desactivar al administrador del sistema.",
         )
 
+    if nuevo_estado == 1:
+        rol = db.query(Rol).filter(Rol.ID_Rol == registro.ID_Rol).first()
+        if rol and rol.Estado == 2:
+            raise HTTPException(
+                status_code=400,
+                detail=f'No se puede activar este usuario: el rol "{rol.Rol}" está desactivado. Activa el rol primero.',
+            )
+
     registro.Estado = nuevo_estado
     db.commit()
     db.refresh(registro)

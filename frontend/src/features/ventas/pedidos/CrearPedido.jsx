@@ -203,6 +203,7 @@ export default function CrearPedido({ onClose, onSave }) {
   const [errors, setErrors] = useState({});
   const [saved,  setSaved]  = useState(false);
   const [step,   setStep]   = useState(1);
+  const [saveError, setSaveError] = useState(null);
 
   useEffect(() => {
     getUsuarios({ porPagina: 100 }).then(u => setClientes(u.filter(x => x.tipo === "cliente"))).catch(() => {});
@@ -275,27 +276,23 @@ export default function CrearPedido({ onClose, onSave }) {
     const e = validateStep(4);
     if (Object.keys(e).length) { setErrors(e); return; }
 
-    if (hayProductosSinStock) {
-      const confirmProd = window.confirm(
-        "Algunos productos no tienen stock suficiente. Se generará una orden de producción automáticamente. ¿Deseas continuar?"
-      );
-      if (!confirmProd) return;
-    }
-
     setSaved(true);
+    setSaveError(null);
 
     let comprobanteUrl = null;
     if (form.comprobante) {
       try {
         comprobanteUrl = await subirImagenCloudinary(form.comprobante);
-      } catch {
+      } catch (cloudErr) {
         setSaved(false);
-        setErrors(err => ({ ...err, comprobante: "Error al subir el comprobante. Intenta de nuevo." }));
+        setErrors(e => ({ ...e, comprobante: cloudErr?.message || "Error al subir el comprobante." }));
+        setStep(4);
         return;
       }
     }
 
     const cliente = clientes.find(c => String(c.id) === String(form.idCliente));
+    if (!cliente) { setSaved(false); return; }
 
     const payload = {
       idCliente: form.idCliente,
@@ -322,8 +319,9 @@ export default function CrearPedido({ onClose, onSave }) {
 
     try {
       await onSave(payload);
-    } catch {
+    } catch (err) {
       setSaved(false);
+      setSaveError(err.message || "Error al guardar el pedido. Intenta de nuevo.");
     }
   };
 
@@ -749,18 +747,26 @@ export default function CrearPedido({ onClose, onSave }) {
         </div>
 
         {/* Footer */}
-        <div className="modal-footer" style={{ padding: "20px 30px", borderTop: "1px solid #f0f0f0" }}>
-          {step > 1
-            ? <button className="btn-ghost" style={{ padding: "10px 20px" }} onClick={handleBack}>← Volver</button>
-            : <button className="btn-ghost" style={{ padding: "10px 20px" }} onClick={onClose}>Cancelar</button>
-          }
-          <div style={{ display: "flex", gap: 12 }}>
-            {step < 5
-              ? <button className="btn-save" style={{ padding: "10px 30px", fontSize: 14 }} onClick={handleNext}>Continuar →</button>
-              : <button className="btn-save" style={{ padding: "10px 40px", fontSize: 15, background: "#2e7d32" }} onClick={handleSave} disabled={saved}>
-                  {saved ? "Procesando…" : "Confirmar Pedido"}
-                </button>
+        <div className="modal-footer" style={{ padding: "20px 30px", borderTop: "1px solid #f0f0f0", flexDirection: "column", gap: 12 }}>
+          {saveError && step === 5 && (
+            <div style={{ width: "100%", padding: "10px 14px", background: "#ffebee", border: "1px solid #ef9a9a", borderRadius: "10px", color: "#c62828", fontSize: 13, fontWeight: 600, display: "flex", gap: 8, alignItems: "flex-start" }}>
+              <span style={{ flexShrink: 0 }}>⚠️</span>
+              <span>{saveError}</span>
+            </div>
+          )}
+          <div style={{ display: "flex", justifyContent: "space-between", width: "100%" }}>
+            {step > 1
+              ? <button className="btn-ghost" style={{ padding: "10px 20px" }} onClick={handleBack}>← Volver</button>
+              : <button className="btn-ghost" style={{ padding: "10px 20px" }} onClick={onClose}>Cancelar</button>
             }
+            <div style={{ display: "flex", gap: 12 }}>
+              {step < 5
+                ? <button className="btn-save" style={{ padding: "10px 30px", fontSize: 14 }} onClick={handleNext}>Continuar →</button>
+                : <button className="btn-save" style={{ padding: "10px 40px", fontSize: 15, background: "#2e7d32" }} onClick={handleSave} disabled={saved}>
+                    {saved ? "Procesando…" : "Confirmar Pedido"}
+                  </button>
+              }
+            </div>
           </div>
         </div>
 

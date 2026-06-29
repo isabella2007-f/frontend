@@ -1,27 +1,47 @@
 import { useState, useEffect } from "react";
 import { ICON_OPTIONS } from "./theme.js";
-import { FieldInput, ModalOverlay } from "./ui.jsx";
+import { ModalOverlay } from "./ui.jsx";
 import "./Categoriaproductos.css";
+
+function Toggle({ value, onChange }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onChange(!value)}
+      className="toggle-btn"
+      style={{
+        background: value ? "#43a047" : "#c62828",
+        boxShadow: value ? "0 2px 8px rgba(67,160,71,0.45)" : "0 2px 8px rgba(198,40,40,0.3)",
+      }}
+    >
+      <span className="toggle-thumb" style={{ left: value ? 27 : 3 }}>
+        <span className="toggle-label" style={{ color: "black" }}>
+          {value ? "ON" : "OFF"}
+        </span>
+      </span>
+    </button>
+  );
+}
 
 export default function EditarCategoria({ category, onClose, onSave }) {
   const [form, setForm] = useState({
     nombre: category?.nombre ?? "",
     descripcion: category?.descripcion ?? "",
     icon: category?.icon ?? "📦",
+    estado: category?.estado ?? true,
   });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [pickingIcon, setPickingIcon] = useState(false);
 
   useEffect(() => {
-    if (category) {
-      setForm({
-        nombre: category.nombre,
-        descripcion: category.descripcion,
-        icon: category.icon,
-      });
-    }
+    if (category) setForm({ nombre: category.nombre, descripcion: category.descripcion, icon: category.icon, estado: category.estado });
   }, [category]);
+
+  const set = (k, v) => {
+    setForm(p => ({ ...p, [k]: v }));
+    setErrors(p => ({ ...p, [k]: "" }));
+  };
 
   const validate = () => {
     const e = {};
@@ -35,11 +55,10 @@ export default function EditarCategoria({ category, onClose, onSave }) {
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaving(true);
     try {
-      await onSave({
-        Nombre_Categoria: form.nombre.trim(),
-        Descripcion: form.descripcion.trim(),
-        Icono: form.icon,
-      });
+      await onSave(
+        { Nombre_Categoria: form.nombre.trim(), Descripcion: form.descripcion.trim(), Icono: form.icon },
+        form.estado !== category.estado,
+      );
     } catch {
       // el padre ya mostró el toast de error; el modal se mantiene abierto
     } finally {
@@ -49,7 +68,6 @@ export default function EditarCategoria({ category, onClose, onSave }) {
 
   return (
     <ModalOverlay onClose={onClose}>
-      {/* Header */}
       <div className="modal-header">
         <div>
           <p className="modal-header__eyebrow">Categorías</p>
@@ -58,25 +76,27 @@ export default function EditarCategoria({ category, onClose, onSave }) {
         <button className="modal-close-btn" onClick={onClose}>✕</button>
       </div>
 
-      {/* Body */}
       <div className="modal-body">
-
-        {/* Ícono */}
         <div className="form-group">
           <label className="form-label">Ícono</label>
-          <button
-            className={`icon-picker-trigger${pickingIcon ? " open" : ""}`}
-            onClick={() => setPickingIcon(!pickingIcon)}
-          >
-            {form.icon}
-          </button>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button
+              className={`icon-picker-trigger${pickingIcon ? " open" : ""}`}
+              onClick={() => setPickingIcon(v => !v)}
+            >
+              {form.icon}
+            </button>
+            <span style={{ fontSize: 12, color: "#9e9e9e" }}>
+              {pickingIcon ? "Selecciona un emoji de la lista" : "Haz clic para cambiar el ícono"}
+            </span>
+          </div>
           {pickingIcon && (
             <div className="icon-picker-grid">
               {ICON_OPTIONS.map(ic => (
                 <button
                   key={ic}
                   className={`icon-option${form.icon === ic ? " selected" : ""}`}
-                  onClick={() => { setForm({ ...form, icon: ic }); setPickingIcon(false); }}
+                  onClick={() => { set("icon", ic); setPickingIcon(false); }}
                 >
                   {ic}
                 </button>
@@ -85,45 +105,65 @@ export default function EditarCategoria({ category, onClose, onSave }) {
           )}
         </div>
 
-        {/* Nombre */}
         <div className="form-group">
-          <label className="form-label">Nombre</label>
-          <FieldInput
+          <label className="form-label">
+            Nombre <span style={{ color: "#e53935", fontWeight: 800 }}>*</span>
+          </label>
+          <input
+            className={`field-input${errors.nombre ? " field-input--error" : ""}`}
             value={form.nombre}
-            onChange={e => { setForm({ ...form, nombre: e.target.value }); setErrors({ ...errors, nombre: "" }); }}
+            onChange={e => set("nombre", e.target.value)}
             placeholder="Ej. Snacks Premium"
-            error={errors.nombre}
+            onFocus={e => (e.target.style.borderColor = "#4caf50")}
+            onBlur={e  => (e.target.style.borderColor = errors.nombre ? "#e53935" : "#e0e0e0")}
           />
           {errors.nombre && <p className="field-error">{errors.nombre}</p>}
         </div>
 
-        {/* Descripción */}
         <div className="form-group">
-          <label className="form-label">Descripción</label>
-          <FieldInput
-            multiline
+          <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ color: "inherit" }}>Descripción <span style={{ color: "#e53935", fontWeight: 800 }}>*</span></span>
+            <span style={{ fontSize: 11, color: form.descripcion.length >= 180 ? "#e65100" : "#9e9e9e", fontWeight: 400, letterSpacing: 0 }}>
+              {form.descripcion.length}/200
+            </span>
+          </label>
+          <textarea
+            className={`field-input${errors.descripcion ? " field-input--error" : ""}`}
+            rows={2}
+            style={{ resize: "none" }}
+            maxLength={200}
             value={form.descripcion}
-            onChange={e => { setForm({ ...form, descripcion: e.target.value }); setErrors({ ...errors, descripcion: "" }); }}
+            onChange={e => set("descripcion", e.target.value)}
             placeholder="Describe los productos de esta categoría"
-            error={errors.descripcion}
+            onFocus={e => (e.target.style.borderColor = "#4caf50")}
+            onBlur={e  => (e.target.style.borderColor = errors.descripcion ? "#e53935" : "#e0e0e0")}
           />
           {errors.descripcion && <p className="field-error">{errors.descripcion}</p>}
         </div>
 
-        {/* Fecha de creación */}
-        {category?.fecha && (
-          <div className="date-info">
-            <span>📅</span>
-            <span>Creada el <strong>{category.fecha}</strong></span>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: 4 }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label className="form-label">Estado</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Toggle value={form.estado} onChange={v => setForm(p => ({ ...p, estado: v }))} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: form.estado ? "#2e7d32" : "#9e9e9e" }}>
+                {form.estado ? "Activo" : "Inactivo"}
+              </span>
+            </div>
           </div>
-        )}
+          {category?.fecha && (
+            <div style={{ textAlign: "right", fontSize: 11, color: "#9e9e9e" }}>
+              <p style={{ margin: 0 }}>Fecha de creación</p>
+              <strong style={{ color: "#616161" }}>{category.fecha}</strong>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Footer */}
       <div className="modal-footer">
-        <button className="btn-ghost" onClick={onClose} disabled={saving}>Cancelar</button>
+        <button className="btn-ghost" onClick={onClose}>Cancelar</button>
         <button className="btn-save" onClick={handleSave} disabled={saving}>
-          {saving ? "Guardando…" : "Guardar"}
+          {saving ? "Guardando…" : "Guardar cambios"}
         </button>
       </div>
     </ModalOverlay>
