@@ -49,13 +49,26 @@ const adaptPedido = (p) => {
   };
 };
 
-export const getPedidos = async ({ pagina = 1, porPagina = 100 } = {}) => {
-  const data = await apiFetch(`/pedidos/?pagina=${pagina}&por_pagina=${porPagina}`);
+export const getPedidos = async ({ pagina = 1, porPagina = 100, estado = null } = {}) => {
+  let url = `/pedidos/?pagina=${pagina}&por_pagina=${porPagina}`;
+  if (estado != null) url += `&estado=${estado}`;
+  const data = await apiFetch(url);
   return {
     total:     data.total,
     pagina:    data.pagina,
     por_pagina:data.por_pagina,
     pedidos:   (data.pedidos || []).map(adaptPedido),
+  };
+};
+
+export const getHistorialPedidos = async ({ pagina = 1, porPagina = 100 } = {}) => {
+  const data = await apiFetch(`/ventas/?pagina=${pagina}&por_pagina=${porPagina}`);
+  if (!data) return { total: 0, pedidos: [] };
+  return {
+    total:   data.total,
+    pedidos: (data.pedidos || data.ventas || [])
+      .map(adaptPedido)
+      .filter(p => ["Entregado", "Cancelado"].includes(p.estado)),
   };
 };
 

@@ -10,15 +10,18 @@ def obtener_pedidos(
     db: Session,
     pagina: int = 1,
     por_pagina: int = 10,
-    busqueda: str = None
+    busqueda: str = None,
+    estado: int = None,
 ) -> dict:
     """
-    Lista solo las ventas en estado Pendiente (pedidos sin confirmar).
-    Busca por nombre del cliente.
+    Lista ventas. Sin 'estado' devuelve solo los activos; con 'estado' filtra por ese valor exacto.
     """
     from src.shared.services.models import Usuario
 
-    query = db.query(Venta).filter(Venta.Estado.in_(ESTADOS_ACTIVOS))
+    if estado is not None:
+        query = db.query(Venta).filter(Venta.Estado == estado)
+    else:
+        query = db.query(Venta).filter(Venta.Estado.in_(ESTADOS_ACTIVOS))
 
     if busqueda:
         termino      = f"%{busqueda}%"

@@ -32,6 +32,7 @@ const EMPTY_FORM = {
   municipio:         "",
   notas:             "",
   descuento:         0,
+  fecha_entrega:     "",
 };
 
 /* ─── SelectArrow ────────────────────────────────────────── */
@@ -247,6 +248,10 @@ export default function CrearPedido({ onClose, onSave }) {
       }
     }
     if (s === 3) {
+      if (!form.fecha_entrega)
+        e.fecha_entrega = form.domicilio ? "Selecciona la fecha de entrega" : "Selecciona la fecha de recogida";
+      else if (new Date(form.fecha_entrega) < new Date(new Date().toDateString()))
+        e.fecha_entrega = "La fecha no puede ser en el pasado";
       if (form.domicilio) {
         if (!form.direccion_entrega.trim()) e.direccion_entrega = "Ingresa la dirección de entrega";
         if (!form.departamento.trim())       e.departamento = "El departamento es obligatorio";
@@ -308,6 +313,7 @@ export default function CrearPedido({ onClose, onSave }) {
       direccion_entrega: form.domicilio ? form.direccion_entrega : null,
       departamento:      form.domicilio ? form.departamento      : null,
       municipio:         form.domicilio ? form.municipio         : null,
+      fecha_entrega:     form.fecha_entrega || null,
       notas:             form.notas,
       descuento,
       subtotal,
@@ -523,11 +529,24 @@ export default function CrearPedido({ onClose, onSave }) {
 
               {form.domicilio && (
                 <div className="delivery-details-form fade-in" style={{ marginTop: 24, padding: "20px", background: "#f9f9f9", borderRadius: "14px", border: "1px solid #eee" }}>
-                  {errors.telefono_cliente && (
-                    <div style={{ padding: "10px 14px", background: "#ffebee", borderRadius: 10, border: "1px solid #ef9a9a", color: "#c62828", fontSize: 13, fontWeight: 600, marginBottom: 14 }}>
-                      ⚠️ {errors.telefono_cliente}
-                    </div>
-                  )}
+                  {/* Verificación de teléfono en tiempo real */}
+                  {(() => {
+                    const tel = (clienteSeleccionado?.telefono || "").replace(/\D/g, "");
+                    const valido = tel.length === 10;
+                    const tiene = !!clienteSeleccionado?.telefono;
+                    return valido ? (
+                      <div style={{ padding: "10px 14px", background: "#e8f5e9", border: "1px solid #a5d6a7", borderRadius: 10, color: "#1b5e20", fontSize: 13, fontWeight: 600, marginBottom: 14, display: "flex", gap: 8, alignItems: "center" }}>
+                        <span>✅</span>
+                        <span>Teléfono del cliente: <strong>{clienteSeleccionado.telefono}</strong></span>
+                      </div>
+                    ) : (
+                      <div style={{ padding: "10px 14px", background: "#fff3e0", border: "1px solid #ffcc80", borderRadius: 10, color: "#e65100", fontSize: 13, fontWeight: 600, marginBottom: 14 }}>
+                        ⚠️ {tiene
+                          ? `El teléfono registrado (${clienteSeleccionado.telefono}) no tiene 10 dígitos. El cliente debe actualizarlo antes de solicitar un domicilio.`
+                          : "Este cliente no tiene teléfono registrado. Es obligatorio para pedidos con domicilio."}
+                      </div>
+                    );
+                  })()}
                   <div className="field-wrap">
                     <label className="field-label">Dirección exacta <span className="required">*</span></label>
                     <input
@@ -539,8 +558,7 @@ export default function CrearPedido({ onClose, onSave }) {
                     {errors.direccion_entrega && <span className="field-error">{errors.direccion_entrega}</span>}
                   </div>
 
-                  <div className="form-grid-2" style={{ marginTop: 15 }}>
-                    <div className="field-wrap">
+                  <div className="field-wrap" style={{ marginTop: 15 }}>
                       <label className="field-label">Municipio <span className="required">*</span></label>
                       <div className="select-wrap">
                         <select
@@ -557,9 +575,25 @@ export default function CrearPedido({ onClose, onSave }) {
                         <SelectArrow />
                       </div>
                     </div>
-                  </div>
                 </div>
               )}
+
+              <div className="field-wrap" style={{ marginTop: 20 }}>
+                <label className="field-label">
+                  {form.domicilio ? "Fecha de entrega esperada" : "Fecha de recogida esperada"} <span className="required">*</span>
+                </label>
+                <input
+                  type="date"
+                  className={`field-input${errors.fecha_entrega ? " error" : ""}`}
+                  value={form.fecha_entrega}
+                  min={new Date().toISOString().split("T")[0]}
+                  onChange={e => {
+                    set("fecha_entrega", e.target.value);
+                    setErrors(err => ({ ...err, fecha_entrega: "" }));
+                  }}
+                />
+                {errors.fecha_entrega && <span className="field-error">{errors.fecha_entrega}</span>}
+              </div>
 
               <div className="field-wrap" style={{ marginTop: 20 }}>
                 <label className="field-label">Notas u observaciones</label>
@@ -691,6 +725,11 @@ export default function CrearPedido({ onClose, onSave }) {
                     <p className="resumen-card__sub" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {form.domicilio ? form.direccion_entrega : "Recoger en local"}
                     </p>
+                    {form.domicilio && form.fecha_entrega && (
+                      <p className="resumen-card__sub">
+                        📅 {new Date(form.fecha_entrega + "T00:00:00").toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" })}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -761,7 +800,12 @@ export default function CrearPedido({ onClose, onSave }) {
             }
             <div style={{ display: "flex", gap: 12 }}>
               {step < 5
-                ? <button className="btn-save" style={{ padding: "10px 30px", fontSize: 14 }} onClick={handleNext}>Continuar →</button>
+                ? <button
+                    className="btn-save"
+                    style={{ padding: "10px 30px", fontSize: 14 }}
+                    onClick={handleNext}
+                    disabled={step === 3 && form.domicilio && (clienteSeleccionado?.telefono || "").replace(/\D/g, "").length !== 10}
+                  >Continuar →</button>
                 : <button className="btn-save" style={{ padding: "10px 40px", fontSize: 15, background: "#2e7d32" }} onClick={handleSave} disabled={saved}>
                     {saved ? "Procesando…" : "Confirmar Pedido"}
                   </button>

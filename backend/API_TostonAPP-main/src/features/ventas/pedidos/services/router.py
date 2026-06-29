@@ -15,11 +15,12 @@ def listar_pedidos(
     pagina:     int           = Query(1, ge=1),
     por_pagina: int           = Query(10, ge=1, le=100),
     busqueda:   Optional[str] = Query(None),
+    estado:     Optional[int] = Query(None),
     db:         Session       = Depends(get_db),
     _:          dict          = Depends(requiere_permiso("ver_pedidos"))
 ):
-    """Lista todos los pedidos pendientes de confirmar. Busca por nombre del cliente."""
-    return obtener_pedidos(db, pagina, por_pagina, busqueda)
+    """Lista pedidos. Sin 'estado' devuelve activos; con 'estado=8' devuelve entregados, etc."""
+    return obtener_pedidos(db, pagina, por_pagina, busqueda, estado)
 
 
 @router.get("/{id_venta}", response_model=PedidoResponse)

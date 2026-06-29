@@ -166,11 +166,12 @@ function ProdItem({ item, idx, onSet }) {
 /* ─── COMPONENTE PRINCIPAL ───────────────────────────────── */
 export default function CrearDevolucion({ onClose, onSave, saving }) {
   const [pedidosEntregados, setPedidosEntregados] = useState([]);
+  const [loadError,         setLoadError]         = useState("");
 
   useEffect(() => {
-    getPedidos({ porPagina: 100 })
-      .then(data => setPedidosEntregados((data.pedidos || []).filter(p => p.estado === "Entregado")))
-      .catch(() => {});
+    getPedidos({ porPagina: 100, estado: 8 })
+      .then(data => setPedidosEntregados(data.pedidos || []))
+      .catch(err => setLoadError(err?.message || "Error al cargar pedidos entregados"));
   }, []);
 
   const [idPedido,   setIdPedido]   = useState("");
@@ -291,6 +292,11 @@ export default function CrearDevolucion({ onClose, onSave, saving }) {
               <p className="section-label" style={{ textTransform: "none", marginTop: 0 }}>
                 Seleccionar Pedido
               </p>
+              {loadError && (
+                <div style={{ padding: "10px 14px", background: "#ffebee", border: "1px solid #ef9a9a", borderRadius: 10, color: "#c62828", fontSize: 13, fontWeight: 600, marginBottom: 14 }}>
+                  ⚠️ {loadError}
+                </div>
+              )}
               <div className="field-wrap">
                 <label className="field-label">
                   Pedido entregado <span className="required">*</span>
@@ -301,7 +307,13 @@ export default function CrearDevolucion({ onClose, onSave, saving }) {
                     value={idPedido}
                     onChange={(e) => handleSelectPedido(e.target.value)}
                   >
-                    <option value="">Seleccione un pedido…</option>
+                    <option value="">
+                      {pedidosEntregados.length === 0 && !loadError
+                        ? "Cargando pedidos…"
+                        : pedidosEntregados.length === 0
+                        ? "Sin pedidos entregados disponibles"
+                        : "Seleccione un pedido…"}
+                    </option>
                     {pedidosEntregados.map((p) => (
                       <option key={p.id} value={String(p.id)}>
                         {p.numero} — {p.cliente?.nombre}

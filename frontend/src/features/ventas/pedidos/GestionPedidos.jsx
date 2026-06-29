@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { fmtFecha } from "../../../utils/dateUtils.js";
 import { descargarFacturaPedido } from "../../../utils/facturaGenerator.js";
-import { getPedidos, confirmarPedido, cancelarPedido, crearPedido, editarPedido, eliminarPedido, cambiarEstadoVenta } from "../../../services/pedidosService.js";
+import { getPedidos, getHistorialPedidos, confirmarPedido, cancelarPedido, crearPedido, editarPedido, eliminarPedido, cambiarEstadoVenta } from "../../../services/pedidosService.js";
 import { asignarRepartidor } from "../../../services/domiciliosService.js";
 import { registrarSalida } from "../../../services/salidasService.js";
 import { getUsuarios } from "../../../services/usuariosService.js";
@@ -784,6 +784,10 @@ export default function GestionPedidos() {
   const [filterEstado, setFilterEstado] = useState("todos");
   const [filterTipo,   setFilterTipo]   = useState("todos");
   const [showFilter,   setShowFilter]   = useState(false);
+  const [vista,            setVista]            = useState("activos");
+  const [historial,        setHistorial]        = useState([]);
+  const [loadingHistorial, setLoadingHistorial] = useState(false);
+  const [historialLoaded,  setHistorialLoaded]  = useState(false);
   const [page,         setPage]         = useState(1);
   const [modal,        setModal]        = useState(null);
   const [toast,        setToast]        = useState(null);
@@ -792,6 +796,26 @@ export default function GestionPedidos() {
   const showToast = (msg, type = "success") => {
     setToast({ message: msg, type });
     setTimeout(() => setToast(null), 3200);
+  };
+
+  const cargarHistorial = async () => {
+    if (historialLoaded) return;
+    setLoadingHistorial(true);
+    try {
+      const data = await getHistorialPedidos({ porPagina: 100 });
+      setHistorial(data.pedidos);
+      setHistorialLoaded(true);
+    } catch {
+      // silent
+    } finally {
+      setLoadingHistorial(false);
+    }
+  };
+
+  const handleCambiarVista = (v) => {
+    setVista(v);
+    setPage(1);
+    if (v === "historial") cargarHistorial();
   };
 
   const cargarDatos = async () => {
@@ -823,7 +847,8 @@ export default function GestionPedidos() {
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const filtered = pedidos.filter(p => {
+  const listaActual = vista === "activos" ? pedidos : historial;
+  const filtered = listaActual.filter(p => {
     const q      = search.toLowerCase();
     const matchQ = [p.numero, p.cliente?.nombre, p.cliente?.correo, p.metodo_pago, p.estado]
       .filter(Boolean).some(v => v.toLowerCase().includes(q));
@@ -945,6 +970,7 @@ export default function GestionPedidos() {
           ID_Producto: Number(p.idProducto),
           Cantidad:    Number(p.cantidad),
         })),
+        Fecha_entrega_esperada: formData.fecha_entrega || null,
         domicilio: formData.domicilio
           ? {
               Direccion_entrega:    formData.direccion_entrega || "",
@@ -1075,9 +1101,36 @@ export default function GestionPedidos() {
             </button>
           )}
 
-          <button className="btn-agregar" onClick={() => setModal({ type: "crear" })}>
-            Nuevo pedido <span style={{ fontSize: 18 }}>+</span>
-          </button>
+          {vista === "activos" && (
+            <button className="btn-agregar" onClick={() => setModal({ type: "crear" })}>
+              Nuevo pedido <span style={{ fontSize: 18 }}>+</span>
+            </button>
+          )}
+        </div>
+
+        <div style={{ display: "flex", gap: 0, marginBottom: 16, borderBottom: "2px solid #f0f0f0" }}>
+          {[
+            { val: "activos",   label: "Pedidos activos",  count: pedidos.length },
+            { val: "historial", label: "Historial",         count: historialLoaded ? historial.length : null },
+          ].map(t => (
+            <button
+              key={t.val}
+              onClick={() => handleCambiarVista(t.val)}
+              style={{
+                padding: "9px 22px", fontWeight: 700, fontSize: 13, border: "none", background: "none", cursor: "pointer",
+                borderBottom: vista === t.val ? "2px solid #2e7d32" : "2px solid transparent",
+                color: vista === t.val ? "#2e7d32" : "#888",
+                marginBottom: -2, transition: "color 0.15s",
+              }}
+            >
+              {t.label}
+              {t.count !== null && (
+                <span style={{ marginLeft: 6, background: vista === t.val ? "#e8f5e9" : "#f5f5f5", color: vista === t.val ? "#2e7d32" : "#888", fontWeight: 800, fontSize: 10, borderRadius: 20, padding: "2px 7px", border: `1px solid ${vista === t.val ? "#a5d6a7" : "#e0e0e0"}` }}>
+                  {t.count}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
 
         <div className="card">
@@ -1096,7 +1149,7 @@ export default function GestionPedidos() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
+                {(vista === "activos" ? loading : loadingHistorial) ? (
                   <SkeletonRows cols={8} rows={5} />
                 ) : paged.length === 0 ? (
                   <tr><td colSpan={8}><div className="empty-state"><div className="empty-state__icon">📦</div><p className="empty-state__text">Sin pedidos.</p></div></td></tr>
@@ -1143,17 +1196,24 @@ export default function GestionPedidos() {
                         </div>
                       </td>
                       <td>
-                        <AccionesMenu
-                          ped={ped}
-                          saving={actionSaving}
-                          onVer={ped => setModal({ type: "ver", pedido: ped })}
-                          onEditar={ped => setModal({ type: "editar", pedido: ped })}
-                          onConfirmar={handleCambiarEstadoDirecto}
-                          onMarcarListo={handleMarcarListo}
-                          onEntregar={handleEntregarPedido}
-                          onAsignarDomicilio={ped => setModal({ type: "asignarDomiciliario", pedido: ped })}
-                          onCancelar={handleCancelarPedido}
-                        />
+                        {vista === "historial" ? (
+                          <button
+                            style={{ padding: "5px 14px", fontSize: 12, border: "1px solid #e0e0e0", borderRadius: 8, cursor: "pointer", background: "#fafafa", fontWeight: 600, color: "#555" }}
+                            onClick={() => setModal({ type: "ver", pedido: ped })}
+                          >Ver detalles</button>
+                        ) : (
+                          <AccionesMenu
+                            ped={ped}
+                            saving={actionSaving}
+                            onVer={ped => setModal({ type: "ver", pedido: ped })}
+                            onEditar={ped => setModal({ type: "editar", pedido: ped })}
+                            onConfirmar={handleCambiarEstadoDirecto}
+                            onMarcarListo={handleMarcarListo}
+                            onEntregar={handleEntregarPedido}
+                            onAsignarDomicilio={ped => setModal({ type: "asignarDomiciliario", pedido: ped })}
+                            onCancelar={handleCancelarPedido}
+                          />
+                        )}
                       </td>
                     </tr>
                   );
