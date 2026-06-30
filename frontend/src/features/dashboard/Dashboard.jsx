@@ -86,6 +86,7 @@ const EMPTY_DATA = { kpi: { ventas: {}, pedidos: {}, clientes: {}, ticket: {} },
 export default function Dashboard() {
   const [datos,    setDatos]    = useState(EMPTY_DATA);
   const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState(false);
   const [animated, setAnimated] = useState(false);
   const [periodo,  setPeriodo]  = useState("hoy");
   const [periodoCharts, setPeriodoCharts] = useState("hoy");
@@ -97,11 +98,12 @@ export default function Dashboard() {
 
   const cargar = useCallback(async (p) => {
     setLoading(true);
+    setError(false);
     try {
       const d = await getDashboard(p);
       setDatos(d);
     } catch {
-      // mantener datos anteriores si falla
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -123,6 +125,24 @@ export default function Dashboard() {
       <div className="dash-wrapper dash-wrapper--in">
         <div className="dash-inner" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: 300 }}>
           <span style={{ color: "#9e9e9e", fontSize: 14 }}>Cargando datos…</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="dash-wrapper dash-wrapper--in">
+        <div className="dash-inner" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 300, gap: 12 }}>
+          <span style={{ fontSize: 32 }}>⚠️</span>
+          <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: "#424242" }}>No se pudieron cargar los datos del dashboard</p>
+          <p style={{ margin: 0, fontSize: 13, color: "#9e9e9e" }}>Verifica tu conexión o que el servidor esté activo.</p>
+          <button
+            onClick={() => cargar(periodo)}
+            style={{ marginTop: 8, padding: "8px 20px", borderRadius: 10, border: "1.5px solid #c8e6c9", background: "#fff", color: "#2e7d32", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+          >
+            Reintentar
+          </button>
         </div>
       </div>
     );
@@ -219,6 +239,11 @@ export default function Dashboard() {
 
           {/* Ventas en el Tiempo — Area Chart */}
           <ChartCard title="Ventas en el Tiempo">
+            {areaData.length === 0 || areaData.every(d => d.actual === 0 && d.anterior === 0) ? (
+              <div style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center", color: "#bdbdbd", fontSize: 13 }}>
+                Sin datos en este período
+              </div>
+            ) : (
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={areaData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
                 <defs>
@@ -241,6 +266,7 @@ export default function Dashboard() {
                 <Area type="monotone" dataKey="anterior" name="Anterior" stroke="#fb8c00" strokeWidth={2}   fill="url(#colorAnterior)" strokeDasharray="5 5" />
               </AreaChart>
             </ResponsiveContainer>
+            )}
           </ChartCard>
         </div>
 
