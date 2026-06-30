@@ -5,8 +5,8 @@ import { getCurrentUser } from '../../client/profile/services/profileService.js'
 import ReturnForm        from './components/ReturnForm';
 import ReturnList        from './components/ReturnList';
 import ReturnDetailModal from './components/ReturnDetailModal';
-import { getPedidos }    from '../../../services/pedidosService';
-import { getDevoluciones } from '../../../services/devolucionesService';
+import { getMisVentas }    from '../../../services/pedidosService';
+import { getMisDevoluciones } from '../../../services/devolucionesService';
 import { 
   RefreshCw, Leaf, PackageSearch, Package, Calendar, 
   MapPin, DollarSign, ChevronRight, ArrowRight, History, 
@@ -32,18 +32,15 @@ const ReturnsPage = () => {
   const defaultValues = location.state || {};
 
   const loadReturns = () => {
-    getDevoluciones({ porPagina: 100 }).then(data => setReturns(data.devoluciones || [])).catch(() => {});
+    getMisDevoluciones({ porPagina: 100 }).then(data => setReturns(data.devoluciones || [])).catch(() => {});
   };
 
   useEffect(() => {
     const currentUser = getCurrentUser();
     setUser(currentUser);
     loadReturns();
-    getPedidos({ porPagina: 100 }).then(data => {
-      const todos = data.pedidos || [];
-      if (currentUser) {
-        setPedidos(todos.filter(p => p.cliente?.correo === currentUser.correo || p.idCliente === currentUser.id));
-      }
+    getMisVentas({ porPagina: 100 }).then(data => {
+      setPedidos(data.pedidos || []);
     }).catch(() => {});
   }, []);
 
@@ -203,7 +200,7 @@ const ReturnsPage = () => {
                 
                 <ReturnForm
                   onSuccess={handleSuccess}
-                  defaultIdVenta={selectedOrderForReturn.numero}
+                  defaultIdVenta={selectedOrderForReturn.id}
                   orderProducts={selectedOrderForReturn.productosItems}
                 />
               </div>

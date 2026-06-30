@@ -55,7 +55,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   const [telefonoRegistrado, setTelefonoRegistrado] = useState(false);
   const [guardarTelefono,    setGuardarTelefono]    = useState(true);
   // Dirección guardada
-  const [direccionRegistrada, setDireccionRegistrada] = useState(false);
+  const [direccionRegistrada, setDireccionRegistrada] = useState('');
   const [guardarDireccion,    setGuardarDireccion]    = useState(true);
 
   useEffect(() => {
@@ -76,7 +76,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
         setTelefono(tel);
         setTelefonoRegistrado(!!tel);
         const dir = perfil?.Direccion || '';
-        setDireccionRegistrada(!!dir);
+        setDireccionRegistrada(dir);
         // Pre-llenar dirección si hay y no vino del carrito
         if (dir && !orderDetails.address) {
           setAddress(dir);
@@ -268,7 +268,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                   <option value="">— Municipio —</option>
                   {MUNICIPIOS_VALLE_ABURRA.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
-                {address.trim() && (
+                {address.trim() && address.trim() !== direccionRegistrada.trim() && (
                   <label className="flex items-center gap-2 cursor-pointer select-none">
                     <input type="checkbox" checked={guardarDireccion} onChange={e => setGuardarDireccion(e.target.checked)}
                       className="w-3.5 h-3.5 rounded accent-green-600" />

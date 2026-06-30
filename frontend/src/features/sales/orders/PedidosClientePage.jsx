@@ -91,6 +91,24 @@ const ESTADO_CONFIG = {
     border: 'border-blue-200',
     badge: 'bg-blue-100 text-blue-700'
   },
+  'Confirmado': {
+    color: 'emerald',
+    icon: CheckCircle2,
+    label: 'Confirmado',
+    bg: 'bg-emerald-50',
+    text: 'text-emerald-700',
+    border: 'border-emerald-200',
+    badge: 'bg-emerald-100 text-emerald-700'
+  },
+  'Asignado': {
+    color: 'purple',
+    icon: Truck,
+    label: 'Asignado',
+    bg: 'bg-purple-50',
+    text: 'text-purple-700',
+    border: 'border-purple-200',
+    badge: 'bg-purple-100 text-purple-700'
+  },
   'Listo': {
     color: 'emerald',
     icon: CheckCircle2,
@@ -599,7 +617,7 @@ const PedidosClientePage = () => {
             <div className="modal-body" style={{ flex: 1, overflowY: 'auto' }}>
 
               {/* Entrega */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div style={{ background: '#f9fdf9', border: '1px solid #c8e6c9', borderRadius: 12, padding: '12px 14px' }}>
                   <p style={{ fontSize: 9, fontWeight: 700, color: '#9e9e9e', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 4 }}>
                     {selectedPedido.domicilio ? '🛵 Domicilio' : '🏪 Recogida en local'}
@@ -619,7 +637,7 @@ const PedidosClientePage = () => {
 
               {/* Domiciliario (si aplica y está asignado) */}
               {selectedPedido.domicilio && selectedPedido.nombre_domiciliario && (
-                <div style={{ background: '#f3e5f5', border: '1px solid #ce93d8', borderRadius: 12, padding: '10px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ background: '#f3e5f5', border: '1px solid #ce93d8', borderRadius: 12, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ fontSize: 18 }}>🛵</span>
                   <div>
                     <p style={{ fontSize: 9, fontWeight: 700, color: '#6a1b9a', letterSpacing: 1, textTransform: 'uppercase', margin: 0 }}>Tu domiciliario</p>
@@ -629,14 +647,14 @@ const PedidosClientePage = () => {
                 </div>
               )}
               {selectedPedido.domicilio && !selectedPedido.nombre_domiciliario && selectedPedido.estado === 'Confirmado' && (
-                <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 12, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#f57f17', fontWeight: 600 }}>
+                <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 12, padding: '10px 14px', fontSize: 12, color: '#f57f17', fontWeight: 600 }}>
                   🕐 Asignando domiciliario...
                 </div>
               )}
 
               {/* Comprobante de pago */}
-              {(selectedPedido.metodo_pago || '').toLowerCase().includes('transferencia') && (
-                <div style={{ marginBottom: 14 }}>
+              {(() => { const mp = (selectedPedido.metodo_pago || '').toLowerCase(); return mp === 'digital' || mp.includes('transferencia') || !!selectedPedido.comprobante; })() && (
+                <div>
                   <p style={{ fontSize: 10, fontWeight: 700, color: '#9e9e9e', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Comprobante de pago</p>
                   {selectedPedido.comprobante ? (
                     <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: '10px 14px' }}>
@@ -665,8 +683,9 @@ const PedidosClientePage = () => {
               )}
 
               {/* Productos */}
+              <div>
               <p style={{ fontSize: 10, fontWeight: 700, color: '#9e9e9e', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Productos</p>
-              <div style={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 12, overflow: 'hidden', marginBottom: 14 }}>
+              <div style={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 12, overflow: 'hidden' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                   <thead>
                     <tr style={{ background: '#f9fdf9' }}>
@@ -709,15 +728,19 @@ const PedidosClientePage = () => {
                   </tfoot>
                 </table>
               </div>
+              </div>
 
-              {/* Confirmación de cancelación */}
-              {confirmCancel && (
-                <div style={{ background: '#fff3f3', border: '1.5px solid #fca5a5', borderRadius: 12, padding: '12px 16px', marginBottom: 4 }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: '#b91c1c', marginBottom: cancelError ? 6 : 10 }}>
+            </div>
+
+            {/* Footer */}
+            <div className="modal-footer" style={{ flexWrap: 'wrap' }}>
+              {confirmCancel ? (
+                <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#b91c1c', margin: 0 }}>
                     ⚠️ ¿Confirmar la cancelación del pedido #{selectedPedido.numero}? Esta acción no se puede deshacer.
                   </p>
                   {cancelError && (
-                    <p style={{ fontSize: 11, color: '#b91c1c', marginBottom: 10, background: '#fee2e2', borderRadius: 8, padding: '6px 10px' }}>
+                    <p style={{ fontSize: 11, color: '#b91c1c', background: '#fee2e2', borderRadius: 8, padding: '6px 10px', margin: 0 }}>
                       {cancelError}
                     </p>
                   )}
@@ -737,39 +760,38 @@ const PedidosClientePage = () => {
                     </button>
                   </div>
                 </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="modal-footer">
-              <button className="btn-ghost" onClick={closeModal}>Cerrar</button>
-              <button
-                className="btn-cancel"
-                style={{ background: '#f1f8f1', color: '#2e7d32', border: '1.5px solid #c8e6c9' }}
-                onClick={() => descargarFacturaPedido(selectedPedido, user)}
-              >
-                📄 Descargar factura
-              </button>
-              {selectedPedido.domicilio && selectedPedido.id_domicilio &&
-               !['Entregado', 'Cancelado'].includes(selectedPedido.estado) && (
-                <button
-                  className="btn-cancel"
-                  onClick={() => { closeModal(); navigate(`/cliente/chat/${selectedPedido.id_domicilio}`); }}
-                >
-                  💬 Chat con domiciliario
-                </button>
-              )}
-              {selectedPedido.estado === 'Pendiente' && !confirmCancel && (
-                <button
-                  className="btn-cancel"
-                  style={{ background: '#fff5f5', color: '#dc2626', border: '1.5px solid #fca5a5' }}
-                  onClick={() => setConfirmCancel(true)}
-                >
-                  🚫 Cancelar pedido
-                </button>
-              )}
-              {selectedPedido.estado === 'Entregado' && (
-                <button className="btn-save" onClick={() => handleRequestReturn(selectedPedido)}>Solicitar devolución</button>
+              ) : (
+                <>
+                  <button className="btn-ghost" onClick={closeModal}>Cerrar</button>
+                  <button
+                    className="btn-cancel"
+                    style={{ background: '#f1f8f1', color: '#2e7d32', border: '1.5px solid #c8e6c9' }}
+                    onClick={() => descargarFacturaPedido(selectedPedido, user)}
+                  >
+                    📄 Descargar factura
+                  </button>
+                  {selectedPedido.domicilio && selectedPedido.id_domicilio &&
+                   !['Entregado', 'Cancelado'].includes(selectedPedido.estado) && (
+                    <button
+                      className="btn-cancel"
+                      onClick={() => { closeModal(); navigate(`/cliente/chat/${selectedPedido.id_domicilio}`); }}
+                    >
+                      💬 Chat con domiciliario
+                    </button>
+                  )}
+                  {selectedPedido.estado === 'Pendiente' && (
+                    <button
+                      className="btn-cancel"
+                      style={{ background: '#fff5f5', color: '#dc2626', border: '1.5px solid #fca5a5' }}
+                      onClick={() => setConfirmCancel(true)}
+                    >
+                      🚫 Cancelar pedido
+                    </button>
+                  )}
+                  {selectedPedido.estado === 'Entregado' && (
+                    <button className="btn-save" onClick={() => handleRequestReturn(selectedPedido)}>Solicitar devolución</button>
+                  )}
+                </>
               )}
             </div>
           </div>

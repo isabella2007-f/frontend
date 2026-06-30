@@ -139,6 +139,7 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; }
   min-height: 0 !important;
   overflow-y: auto !important;
   overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
 }
 
 .modal-footer {

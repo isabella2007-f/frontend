@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { addReturn }  from '../services/returnService.js';
-import { PackageMinus, AlertCircle, FileText, Image } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { crearDevolucion } from '../../../../services/devolucionesService.js';
+import { PackageMinus, AlertCircle, FileText, Image, X } from 'lucide-react';
 
 const MOTIVOS = [
   'Producto en mal estado',
@@ -16,7 +16,7 @@ const ReturnForm = ({ onSuccess, defaultIdVenta = '', orderProducts = [] }) => {
     idVenta:   defaultIdVenta,
     productId: '',
     motivo:    '',
-    evidencia: '',
+    evidencia: null,
     comentario: '',
   });
 
@@ -27,31 +27,51 @@ const ReturnForm = ({ onSuccess, defaultIdVenta = '', orderProducts = [] }) => {
     }));
   }, [defaultIdVenta]);
 
-  const [error, setError] = useState('');
+  const [error,   setError]   = useState('');
+  const [loading, setLoading] = useState(false);
+  const fileRef = useRef(null);
 
   const set = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
 
-  const handleSubmit = (e) => {
+  const handleFile = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => set('evidencia', { nombre: file.name, base64: ev.target.result, tipo: file.type });
+    reader.readAsDataURL(file);
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.idVenta.trim() || !form.productId || !form.motivo) {
+    if (!form.idVenta || !form.productId || !form.motivo) {
       setError('Completa los campos obligatorios: Producto y motivo.');
       return;
     }
 
     const selectedProduct = orderProducts.find(p => String(p.idProducto || p.id) === String(form.productId));
+    if (!selectedProduct) { setError('Producto no encontrado.'); return; }
 
-    addReturn({
-      idVenta:    form.idVenta.trim(),
-      productId:  form.productId,
-      productName: selectedProduct ? selectedProduct.nombre : 'Producto desconocido',
-      motivo:     form.motivo,
-      evidencia:  form.evidencia.trim(),
-      comentario: form.comentario.trim(),
-    });
-
-    setForm({ idVenta: '', productId: '', motivo: '', evidencia: '', comentario: '' });
+    setLoading(true);
     setError('');
-    onSuccess();
+    try {
+      await crearDevolucion({
+        idPedido:   form.idVenta,
+        motivo:     form.motivo,
+        comentario: form.comentario.trim(),
+        evidencia:  form.evidencia,
+        productos:  [{
+          idProducto:     selectedProduct.idProducto || selectedProduct.id,
+          nombre:         selectedProduct.nombre,
+          cantidad:       selectedProduct.cantidad,
+          precioUnitario: selectedProduct.precio,
+        }],
+      });
+      setForm({ idVenta: defaultIdVenta, productId: '', motivo: '', evidencia: null, comentario: '' });
+      onSuccess();
+    } catch (err) {
+      setError(err.message || 'Error al enviar la solicitud. Intenta de nuevo.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -102,15 +122,38 @@ const ReturnForm = ({ onSuccess, defaultIdVenta = '', orderProducts = [] }) => {
       <div className="space-y-2">
         <label className="flex items-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest px-1">
           <Image size={12} className="text-emerald-500" /> Evidencia
-          <span className="text-[9px] font-bold text-gray-300 normal-case">(Opcional: URL de foto o descripción)</span>
+          <span className="text-[9px] font-bold text-gray-300 normal-case">(Opcional: foto del producto)</span>
         </label>
-        <input
-          type="text"
-          className="w-full bg-gray-50 border-2 border-transparent rounded-2xl py-3.5 px-4 text-xs font-bold text-gray-700 focus:bg-white focus:border-emerald-500 transition-all outline-none"
-          placeholder="Ej: https://imgur.com/foto-dano"
-          value={form.evidencia}
-          onChange={e => set('evidencia', e.target.value)}
-        />
+
+        {form.evidencia ? (
+          <div className="flex items-center gap-3 bg-gray-50 border-2 border-emerald-200 rounded-2xl p-3">
+            <img src={form.evidencia.base64} alt="evidencia" className="w-14 h-14 object-cover rounded-xl shrink-0" />
+            <p className="text-xs font-bold text-gray-600 flex-1 truncate">{form.evidencia.nombre}</p>
+            <button
+              type="button"
+              onClick={() => { set('evidencia', null); if (fileRef.current) fileRef.current.value = ''; }}
+              className="text-gray-400 hover:text-red-500 transition-colors p-1"
+              title="Quitar foto"
+            >
+              <X size={16} strokeWidth={3} />
+            </button>
+          </div>
+        ) : (
+          <div
+            onClick={() => fileRef.current?.click()}
+            className="flex flex-col items-center justify-center gap-2 bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl py-6 cursor-pointer hover:border-emerald-300 hover:bg-emerald-50/30 transition-all"
+          >
+            <Image size={20} className="text-gray-300" />
+            <p className="text-xs font-bold text-gray-400">Haz clic para subir una foto</p>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={e => handleFile(e.target.files[0])}
+            />
+          </div>
+        )}
       </div>
 
       {/* Comentario */}
@@ -127,12 +170,13 @@ const ReturnForm = ({ onSuccess, defaultIdVenta = '', orderProducts = [] }) => {
         />
       </div>
 
-      <button 
-        type="submit" 
-        className="w-full group relative overflow-hidden flex items-center justify-center gap-3 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-200"
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full group relative overflow-hidden flex items-center justify-center gap-3 py-4 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all shadow-lg shadow-emerald-200"
       >
         <PackageMinus size={16} strokeWidth={3} />
-        Enviar Solicitud de Devolución
+        {loading ? 'Enviando…' : 'Enviar Solicitud de Devolución'}
         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer"></div>
       </button>
     </form>

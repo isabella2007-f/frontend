@@ -586,14 +586,16 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                                 </div>
                               </div>
                             </div>
-                            <div className="detalle-summary__price">
-                              {d.cantidad && d.precioUnd ? COP(Number(d.cantidad) * Number(d.precioUnd)) : "$0"}
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <div className="detalle-summary__price">
+                                {d.cantidad && d.precioUnd ? COP(Number(d.cantidad) * Number(d.precioUnd)) : "$0"}
+                              </div>
+                              <button
+                                className="detalle-remove-btn"
+                                type="button"
+                                onClick={e => { e.stopPropagation(); removeDetalle(d._key); }}
+                              >✕</button>
                             </div>
-                            <button
-                              className="detalle-remove-btn"
-                              type="button"
-                              onClick={e => { e.stopPropagation(); removeDetalle(d._key); }}
-                            >✕</button>
                           </div>
                         </div>
                       );
@@ -609,7 +611,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                           {String(i + 1).padStart(2, "0")}
                         </span>
 
-                        <div className="detalle-fields" style={{ flex: 1, paddingRight: 32 }}>
+                        <div className="detalle-fields" style={{ flex: 1 }}>
                           <div className="field-wrap" style={{ gridColumn: "1 / -1" }}>
                             <div className="select-wrap">
                               <select

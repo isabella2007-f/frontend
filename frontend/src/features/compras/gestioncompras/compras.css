@@ -298,9 +298,6 @@
 }
 
 .detalle-remove-btn {
-  position: absolute;
-  top: 10px;
-  right: 10px;
   width: 26px;
   height: 26px;
   border-radius: 6px;
@@ -313,7 +310,6 @@
   align-items: center;
   justify-content: center;
   transition: all 0.12s;
-  z-index: 1;
   flex-shrink: 0;
 }
 .detalle-remove-btn:hover { background: #ffcdd2; }
