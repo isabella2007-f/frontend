@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import "./Proveedores.css";
 
 const fmtTel = raw => {
@@ -15,27 +15,23 @@ const fmtFecha = iso => {
   return d.toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
 };
 
-const VALLE_ABURRA = [
-  "Barbosa", "Bello", "Caldas", "Copacabana", "Envigado",
-  "Girardota", "Itagüí", "La Estrella", "Medellín", "Sabaneta",
+const DEPARTAMENTOS_CO = [
+  "Amazonas","Antioquia","Arauca","Atlántico","Bogotá D.C.","Bolívar","Boyacá",
+  "Caldas","Caquetá","Casanare","Cauca","Cesar","Chocó","Córdoba","Cundinamarca",
+  "Guainía","Guaviare","Huila","La Guajira","Magdalena","Meta","Nariño",
+  "Norte de Santander","Putumayo","Quindío","Risaralda","San Andrés y Providencia",
+  "Santander","Sucre","Tolima","Valle del Cauca","Vaupés","Vichada",
 ];
 
 function LocationSelects({ departamento, ciudad, onDepto, onCiudad, disabled }) {
-  useEffect(() => {
-    if (!departamento) onDepto("Antioquia");
-  }, []); // eslint-disable-line
-
-  const opciones = VALLE_ABURRA.includes(ciudad) || !ciudad
-    ? VALLE_ABURRA
-    : [...VALLE_ABURRA, ciudad].sort((a, b) => a.localeCompare(b));
-
-  const selStyle = {
+  const inputStyle = {
     width: "100%", border: "1.5px solid #e0e0e0", borderRadius: 9,
-    padding: "9px 32px 9px 11px", fontSize: 13, outline: "none",
-    background: disabled ? "#fafafa" : "white", appearance: "none",
+    padding: "9px 11px", fontSize: 13, outline: "none",
+    background: disabled ? "#fafafa" : "white",
     fontFamily: "inherit", color: "#1a1a1a", boxSizing: "border-box",
     pointerEvents: disabled ? "none" : "auto",
   };
+  const selStyle = { ...inputStyle, appearance: "none", paddingRight: 32 };
   const arrow = (
     <div style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" strokeWidth="2.5"><polyline points="6 9 12 15 18 9" /></svg>
@@ -47,24 +43,25 @@ function LocationSelects({ departamento, ciudad, onDepto, onCiudad, disabled }) 
       <div className="form-group">
         <label className="form-label">Departamento</label>
         <div style={{ position: "relative" }}>
-          <select value={departamento || "Antioquia"} onChange={e => { onDepto(e.target.value); onCiudad(""); }}
+          <select value={departamento || ""} onChange={e => onDepto(e.target.value)}
             style={selStyle} disabled={disabled}>
-            <option value="Antioquia">Antioquia</option>
+            <option value="">— Seleccionar —</option>
+            {DEPARTAMENTOS_CO.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
           {arrow}
         </div>
       </div>
 
       <div className="form-group">
-        <label className="form-label">Ciudad</label>
-        <div style={{ position: "relative" }}>
-          <select value={ciudad || ""} onChange={e => onCiudad(e.target.value)}
-            style={selStyle} disabled={disabled}>
-            <option value="">Seleccione…</option>
-            {opciones.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          {arrow}
-        </div>
+        <label className="form-label">Ciudad / Municipio</label>
+        <input
+          type="text"
+          value={ciudad || ""}
+          onChange={e => onCiudad(e.target.value)}
+          placeholder="Ej: Medellín, Bogotá…"
+          style={inputStyle}
+          disabled={disabled}
+        />
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import "./Proveedores.css";
 
 const fmtTel = raw => {
@@ -36,9 +36,12 @@ function StepsBar({ current }) {
   );
 }
 
-const VALLE_ABURRA = [
-  "Barbosa", "Bello", "Caldas", "Copacabana", "Envigado",
-  "Girardota", "Itagüí", "La Estrella", "Medellín", "Sabaneta",
+const DEPARTAMENTOS_CO = [
+  "Amazonas","Antioquia","Arauca","Atlántico","Bogotá D.C.","Bolívar","Boyacá",
+  "Caldas","Caquetá","Casanare","Cauca","Cesar","Chocó","Córdoba","Cundinamarca",
+  "Guainía","Guaviare","Huila","La Guajira","Magdalena","Meta","Nariño",
+  "Norte de Santander","Putumayo","Quindío","Risaralda","San Andrés y Providencia",
+  "Santander","Sucre","Tolima","Valle del Cauca","Vaupés","Vichada",
 ];
 
 const ARROW_SVG = (
@@ -48,14 +51,6 @@ const ARROW_SVG = (
 );
 
 function LocationSelects({ departamento, ciudad, onDepto, onCiudad, errDepto, errCiudad }) {
-  useEffect(() => {
-    if (!departamento) onDepto("Antioquia");
-  }, []); // eslint-disable-line
-
-  const opciones = VALLE_ABURRA.includes(ciudad) || !ciudad
-    ? VALLE_ABURRA
-    : [...VALLE_ABURRA, ciudad].sort((a, b) => a.localeCompare(b));
-
   const selStyle = { appearance: "none", paddingRight: 32 };
 
   return (
@@ -66,10 +61,11 @@ function LocationSelects({ departamento, ciudad, onDepto, onCiudad, errDepto, er
           <select
             className={`field-input${errDepto ? " error" : ""}`}
             style={selStyle}
-            value={departamento || "Antioquia"}
-            onChange={e => { onDepto(e.target.value); onCiudad(""); }}
+            value={departamento || ""}
+            onChange={e => onDepto(e.target.value)}
           >
-            <option value="Antioquia">Antioquia</option>
+            <option value="">— Seleccionar —</option>
+            {DEPARTAMENTOS_CO.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
           {ARROW_SVG}
         </div>
@@ -77,19 +73,14 @@ function LocationSelects({ departamento, ciudad, onDepto, onCiudad, errDepto, er
       </div>
 
       <div className="form-group">
-        <label className="form-label">Ciudad <span className="required">*</span></label>
-        <div style={{ position: "relative" }}>
-          <select
-            className={`field-input${errCiudad ? " error" : ""}`}
-            style={selStyle}
-            value={ciudad || ""}
-            onChange={e => onCiudad(e.target.value)}
-          >
-            <option value="">Seleccione…</option>
-            {opciones.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          {ARROW_SVG}
-        </div>
+        <label className="form-label">Ciudad / Municipio <span className="required">*</span></label>
+        <input
+          className={`field-input${errCiudad ? " error" : ""}`}
+          type="text"
+          value={ciudad || ""}
+          onChange={e => onCiudad(e.target.value)}
+          placeholder="Ej: Medellín, Bogotá…"
+        />
         {errCiudad && <span className="field-error">{errCiudad}</span>}
       </div>
     </div>
