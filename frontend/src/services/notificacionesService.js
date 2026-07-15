@@ -14,3 +14,9 @@ export const limpiarLeidasAPI = () =>
 
 export const getMisNotificacionesCliente = () =>
   apiFetch("/notificaciones/mis-notificaciones");
+
+export const crearNotificacionCliente = (idUsuario, tipo, titulo, mensaje) =>
+  apiFetch("/notificaciones/", {
+    method: "POST",
+    body: JSON.stringify({ ID_Usuario: idUsuario, tipo, Titulo: titulo, Mensaje: mensaje }),
+  });

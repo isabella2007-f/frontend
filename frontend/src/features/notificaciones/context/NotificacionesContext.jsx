@@ -211,12 +211,13 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
         const cliente = (data.notificaciones || []).map(n => ({
           id:             n.id_ref,
           clave:          n.id_ref,
+          id_backend:     n.ID_Notificacion || n.id_notificacion || null,
           tipo:           n.tipo,
           titulo:         n.titulo,
           mensaje:        n.mensaje || "",
           ruta:           n.ruta,
           fecha:          n.fecha,
-          leida:          vistas.includes(n.id_ref),
+          leida:          n.leida ?? n.Leida ?? vistas.includes(n.id_ref),
           idDestinatario: String(user.id),
         }));
         setNotificaciones(prev => [
@@ -410,9 +411,12 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
         });
       }
 
-      // Sincronizar lecturas de cliente con localStorage
+      // Sincronizar lecturas de cliente con el backend y localStorage
       const clienteUnread = prev.filter(n => TIPOS_CLIENTE.has(n.tipo) && !n.leida);
       if (clienteUnread.length > 0) {
+        clienteUnread.forEach(n => {
+          if (n.id_backend) marcarLeidaAPI(n.id_backend).catch(() => {});
+        });
         const vistas     = loadFromLS('notif_cliente_vistas', []);
         const nuevasVistas = [...new Set([...vistas, ...clienteUnread.map(n => n.id)])];
         localStorage.setItem('notif_cliente_vistas', JSON.stringify(nuevasVistas));

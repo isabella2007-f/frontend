@@ -244,7 +244,7 @@ const ReturnsPage = () => {
                     <p className="text-xs font-black uppercase tracking-widest">Información importante</p>
                  </div>
                  <p className="text-xs text-gray-400 leading-relaxed font-medium">
-                    Nuestro equipo revisará tu solicitud en un plazo máximo de <span className="text-green-400 font-bold">24 a 48 horas hábiles</span>. Te notificaremos por correo electrónico una vez se tome una decisión.
+                    Nuestro equipo revisará tu solicitud en un plazo máximo de <span className="text-green-400 font-bold">24 a 48 horas hábiles</span>. Recibirás una notificación en la aplicación una vez se tome una decisión.
                  </p>
                </div>
             </div>

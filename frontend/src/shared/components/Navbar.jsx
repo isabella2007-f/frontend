@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { getUser, logout } from "../../services/authService";
-import { crearPedido } from "../../services/pedidosService";
+import { crearPedido, getMiCredito } from "../../services/pedidosService";
 import { Menu, X, ShoppingCart, Bell } from "lucide-react";
 import "./Navbar.css";
 import { getCartCount, getCart, getTotal } from "../../features/sales/orders/services/cartService";
@@ -23,20 +23,35 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
   const [cartUpdateToggle, setCartUpdateToggle] = useState(false);
   const [showLogoutModal,  setShowLogoutModal]  = useState(false);
   const [notifOpen,        setNotifOpen]        = useState(false);
+  const [credito,          setCredito]          = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
 
   const { noLeidas, agregarNotificacion } = useNotificaciones();
 
   useEffect(() => {
-    setUser(getUser());
+    const u = getUser();
+    setUser(u);
     updateCartCount();
+
+    if (u?.tipo === 'cliente') {
+      getMiCredito().then(d => setCredito(d?.saldo || 0)).catch(() => {});
+    }
+
     const handleCartUpdate = () => {
       updateCartCount();
       setCartUpdateToggle(prev => !prev);
     };
+    const handleCreditoUpdate = () => {
+      getMiCredito().then(d => setCredito(d?.saldo || 0)).catch(() => {});
+    };
+
     window.addEventListener('cart-updated', handleCartUpdate);
-    return () => window.removeEventListener('cart-updated', handleCartUpdate);
+    window.addEventListener('credito-updated', handleCreditoUpdate);
+    return () => {
+      window.removeEventListener('cart-updated', handleCartUpdate);
+      window.removeEventListener('credito-updated', handleCreditoUpdate);
+    };
   }, []);
 
   const updateCartCount = () => setCartCount(getCartCount());
@@ -177,6 +192,17 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
               <button className="cart-btn" onClick={() => setIsCartOpen(true)} title="Ver carrito">
                 <ShoppingCart size={22} />
                 {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
+              </button>
+            )}
+
+            {/* Crédito disponible (solo clientes) */}
+            {!isLanding && user?.tipo === 'cliente' && credito > 0 && (
+              <button
+                className="credito-chip"
+                onClick={() => navigate('/cliente/perfil')}
+                title="Ver mi crédito disponible"
+              >
+                🎁 {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(credito)}
               </button>
             )}
 

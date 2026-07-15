@@ -30,6 +30,7 @@ const adaptPedido = (p) => {
     total:            p.Total             || p.total            || 0,
     notas:            p.Notas             || p.notas            || "",
     fecha_pedido:     p.Fecha_pedido      || p.Fecha_Pedido     || p.fecha_pedido || "",
+    fecha_actualizacion: p.Fecha_Actualizacion || p.fecha_actualizacion || null,
     idCliente:        p.ID_Usuario        || p.ID_Cliente       || p.id_cliente   || null,
     idEmpleado:          p.ID_Empleado          || p.id_empleado         || null,
     nombre_domiciliario: p.nombre_domiciliario  || null,

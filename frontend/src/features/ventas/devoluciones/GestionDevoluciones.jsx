@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import CrearDevolucion from "./CrearDevolucion.jsx";
 import { getDevoluciones, crearDevolucion, resolverDevolucion } from "../../../services/devolucionesService.js";
+import { crearNotificacionCliente } from "../../../services/notificacionesService.js";
+import { registrarSalida } from "../../../services/salidasService.js";
 import "./Devoluciones.css";
 
 function SkeletonRows({ cols = 8, rows = 5 }) {
@@ -310,7 +312,7 @@ function ModalRechazar({ dev, onClose, onConfirm }) {
           </p>
           <div className="info-box info-box--danger" style={{ marginTop: 12 }}>
             <span className="info-box__icon">⚠️</span>
-            <span className="info-box__text">Esta acción notificará al cliente que su devolución fue rechazada.</span>
+            <span className="info-box__text">El cliente recibirá una notificación en la aplicación informando el rechazo.</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 12 }}>
             <label className="form-label">Motivo del rechazo <span className="required">*</span></label>
@@ -408,7 +410,27 @@ export default function GestionDevoluciones() {
   const handleAprobar = async (id) => {
     setActionSaving(true);
     try {
-      await resolverDevolucion(id, "aprobar");
+      const dev = await resolverDevolucion(id, "aprobar");
+
+      // Registrar salida por cada producto devuelto
+      for (const prod of dev.productos || []) {
+        await registrarSalida({
+          tipo:       "Producto",
+          idProducto: prod.idProducto,
+          cantidad:   prod.cantidad,
+          motivo:     `Devolución aprobada ${dev.numero} — pedido ${dev.numeroPedido}`,
+        });
+      }
+
+      if (dev.idCliente) {
+        crearNotificacionCliente(
+          dev.idCliente,
+          "devolucion_aprobada",
+          "Devolución aprobada ✅",
+          `Tu solicitud de devolución ${dev.numero} fue aprobada. El reembolso se aplicó a tu crédito.`,
+        ).catch(() => {});
+      }
+      window.dispatchEvent(new Event('credito-updated'));
       await cargarDatos();
       showToast("Devolución aprobada y reembolso procesado");
       setModal(null);
@@ -422,7 +444,15 @@ export default function GestionDevoluciones() {
   const handleRechazar = async (id, motivo) => {
     setActionSaving(true);
     try {
-      await resolverDevolucion(id, "rechazar", motivo);
+      const dev = await resolverDevolucion(id, "rechazar", motivo);
+      if (dev.idCliente) {
+        crearNotificacionCliente(
+          dev.idCliente,
+          "devolucion_rechazada",
+          "Devolución rechazada ❌",
+          `Tu solicitud de devolución ${dev.numero} fue rechazada. Motivo: ${motivo}`,
+        ).catch(() => {});
+      }
       await cargarDatos();
       showToast("Devolución rechazada", "error");
       setModal(null);

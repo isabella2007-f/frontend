@@ -944,10 +944,8 @@ export default function GestionPedidos() {
     if (!ped) return;
     setActionSaving(true);
     try {
-      if (ped.id_domicilio) {
-        await asignarRepartidor(ped.id_domicilio, empId);
-      }
-      await cambiarEstadoVenta(pedidoId, 10);
+      if (!ped.id_domicilio) throw new Error("Este pedido no tiene domicilio asociado.");
+      await asignarRepartidor(ped.id_domicilio, empId);
       setPedidos(prev => prev.map(p => p.id === pedidoId ? { ...p, estado: "Asignado", idEmpleado: empId } : p));
       showToast(`Domiciliario asignado para ${ped.numero}`);
       setModal(null);

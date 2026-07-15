@@ -147,6 +147,15 @@ const ESTADO_CONFIG = {
   },
 };
 
+const DEVOLUCION_WINDOW_MS = 60 * 60 * 1000; // 1 hora
+
+const puedeDevolver = (pedido) => {
+  if (pedido.estado !== 'Entregado') return false;
+  const ref = pedido.fecha_actualizacion || pedido.fecha_pedido;
+  if (!ref) return false;
+  return Date.now() - new Date(ref).getTime() <= DEVOLUCION_WINDOW_MS;
+};
+
 const MOTIVOS_DEV = [
   "Producto en mal estado",
   "Producto incorrecto",
@@ -220,7 +229,7 @@ function SolicitarDevolucionModal({ pedido, onClose, onSuccess }) {
         <div style={{ overflowY: 'auto', flex: 1, padding: '18px 22px' }}>
           {/* Plazo info */}
           <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: '#f57f17', fontWeight: 600 }}>
-            ⏱ Tienes hasta <strong>7 días</strong> desde la entrega para solicitar una devolución.
+            ⏱ Tienes hasta <strong>1 hora</strong> desde la entrega para solicitar una devolución.
           </div>
 
           {/* Productos */}
@@ -788,7 +797,7 @@ const PedidosClientePage = () => {
                       🚫 Cancelar pedido
                     </button>
                   )}
-                  {selectedPedido.estado === 'Entregado' && (
+                  {puedeDevolver(selectedPedido) && (
                     <button className="btn-save" onClick={() => handleRequestReturn(selectedPedido)}>Solicitar devolución</button>
                   )}
                 </>

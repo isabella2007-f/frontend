@@ -1,28 +1,26 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  ShoppingBag, ArrowRight, Leaf, Utensils, Sparkles,
+import {
+  ShoppingBag, Leaf, Utensils, Sparkles,
   Plus, Minus, ShoppingCart, CheckCircle2,
-  ChevronRight, Zap, Edit3, Save, X as CloseIcon
+  Zap,
 } from 'lucide-react';
-import { API_URL } from '../config/api.js';
 import { getUser } from '../services/authService.js';
 import { crearPedido } from '../services/pedidosService.js';
 import { getProductos } from '../services/productosService.js';
 import { useNotificaciones, TIPOS } from '../features/notificaciones/context/NotificacionesContext.jsx';
 import Navbar from '../shared/components/Navbar.jsx';
 
-// Importar componentes centralizados y servicio
 import CartAside from '../features/sales/orders/components/CartAside';
 import CheckoutModal from '../features/sales/orders/components/CheckoutModal';
-import { 
-  addToCart as addToCartService, 
-  getCart, 
-  getCartCount, 
-  clearCart 
+import {
+  addToCart as addToCartService,
+  getCart,
+  getCartCount,
+  clearCart
 } from '../features/sales/orders/services/cartService';
 
-const DEFAULT_CONTENT = {
+const CONTENT = {
   heroBadge: "SABOR NATURAL 100%",
   heroTitle: "El poder del Plátano",
   heroDescription: "Descubre tostones, chips y delicias artesanales que redefinen el sabor de nuestra tierra. Crujientes, frescos y recolectados con amor.",
@@ -50,23 +48,6 @@ const LandingPage = ({ hideNavbar = false }) => {
   const [orderDetails, setOrderDetails] = useState(null);
   const [orderDone, setOrderDone] = useState(false);
 
-  // ── Edición Landing (Admin) ──
-  const [isEditing, setIsEditing] = useState(false);
-  const [content, setContent] = useState(() => {
-    const saved = localStorage.getItem('landing_content');
-    return saved ? JSON.parse(saved) : DEFAULT_CONTENT;
-  });
-
-  const handleSaveContent = () => {
-    localStorage.setItem('landing_content', JSON.stringify(content));
-    setIsEditing(false);
-    alert('Contenido guardado correctamente.');
-  };
-
-  const updateContent = (key, val) => {
-    setContent(prev => ({ ...prev, [key]: val }));
-  };
-
   // Sincronizar contador del carrito
   const syncCartInfo = useCallback(() => {
     setCartCount(getCartCount());
@@ -81,46 +62,24 @@ const LandingPage = ({ hideNavbar = false }) => {
 
   const cargarProductos = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token');
-      const [pData, catData] = await Promise.allSettled([
-        getProductos({ publicado: 1 }),
-        fetch(`${API_URL}/categoria-productos/?pagina=1&por_pagina=100`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        })
-          .then(r => r.ok ? r.json() : null)
-          .catch(() => null),
-      ]);
+      const data = await getProductos({ publicado: 1 });
+      const lista = data?.productos || [];
 
-      const lista = pData.status === 'fulfilled' ? (pData.value?.productos || []) : [];
-
-      // Construir mapa base desde categorías del endpoint (más completo)
+      // Construir mapa de categorías desde los datos de productos (ya incluyen nombre e icono)
       const map = {};
-      if (catData.status === 'fulfilled' && catData.value?.categorias) {
-        catData.value.categorias.forEach(c => {
-          if (c.ID_Categoria && c.Estado !== 0) {
-            map[c.ID_Categoria] = {
-              nombre: c.Nombre_Categoria || 'Sin categoría',
-              icon:   c.Icono ?? "📦",
-            };
-          }
-        });
-      }
-
-      // Completar/sobreescribir con datos de productos (tienen el icono por producto)
       lista.forEach(p => {
         if (p.ID_Categoria && p.nombre_categoria) {
           map[p.ID_Categoria] = {
             nombre: p.nombre_categoria,
-            icon:   p.icono_categoria || map[p.ID_Categoria]?.icon || "📦",
+            icon:   p.icono_categoria || "📦",
           };
         }
       });
-
       setCategoriasMap(map);
 
       setProductos(
         lista
-          .filter(p => p.Estado !== 0 && !p.lote_vencido && !p.Lote_Vencido)
+          .filter(p => p.Estado !== 0 && !p.lote_vencido && !p.Lote_Vencido && (p.Stock ?? 0) > 0)
           .map(p => ({
             id:               p.ID_Producto,
             nombre:           p.nombre,
@@ -196,19 +155,27 @@ const LandingPage = ({ hideNavbar = false }) => {
       municipio:      orderDetails?.municipio || '',
       departamento:   orderDetails?.departamento || '',
       date:           orderDetails?.date || '',
+      time:           '',
       observaciones:  orderDetails?.observaciones || '',
     };
 
+    const fechaEntrega = entrega.date
+      ? entrega.time
+        ? `${entrega.date}T${entrega.time}:00`
+        : `${entrega.date}T00:00:00`
+      : null;
+
     const payload = {
-      ID_Usuario:        currentUser?.id || null,
-      Metodo_Pago:       paymentMethod === 'digital' ? 'Transferencia 🏦' : 'Efectivo 💵',
-      productos:         currentCart.map(item => ({
+      ID_Usuario:              currentUser?.id || null,
+      Metodo_Pago:             paymentMethod === 'digital' ? 'Transferencia 🏦' : 'Efectivo 💵',
+      Fecha_entrega_esperada:  fechaEntrega,
+      productos:               currentCart.map(item => ({
         ID_Producto: Number(item.id),
         Cantidad:    Number(item.cantidad),
       })),
-      usar_credito:      usarCredito ?? false,
-      codigo_descuento:  null,
-      domicilio:         entrega.tieneDomicilio ? {
+      usar_credito:            usarCredito ?? false,
+      codigo_descuento:        null,
+      domicilio:               entrega.tieneDomicilio ? {
         Direccion_entrega:    entrega.address || '',
         Municipio_entrega:    entrega.municipio || '',
         Departamento_entrega: entrega.departamento || '',
@@ -246,44 +213,9 @@ const LandingPage = ({ hideNavbar = false }) => {
 
   const scrollToSection = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
-  const isAdmin = user?.tipo === 'empleado' && user?.rol === 'Admin';
-
   return (
     <div className="min-h-screen bg-[#f7faf8] text-[#1b5e20] font-sans overflow-x-hidden">
       {!hideNavbar && <Navbar isLanding={true} />}
-
-      {/* ── Admin Toolbar ── */}
-      {isAdmin && (
-        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 p-2 bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl border border-[#c8e6c9]">
-          {!isEditing ? (
-            <button 
-              onClick={() => setIsEditing(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-[#1b5e20] text-white rounded-xl font-bold text-sm hover:bg-[#0d3300] transition-all"
-            >
-              <Edit3 size={16} /> Editar Contenido
-            </button>
-          ) : (
-            <>
-              <button 
-                onClick={handleSaveContent}
-                className="flex items-center gap-2 px-4 py-2 bg-[#4caf50] text-white rounded-xl font-bold text-sm hover:bg-[#388e3c] transition-all"
-              >
-                <Save size={16} /> Guardar Cambios
-              </button>
-              <button 
-                onClick={() => {
-                  setIsEditing(false);
-                  const saved = localStorage.getItem('landing_content');
-                  setContent(saved ? JSON.parse(saved) : DEFAULT_CONTENT);
-                }}
-                className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-xl font-bold text-sm hover:bg-red-600 transition-all"
-              >
-                <CloseIcon size={16} /> Cancelar
-              </button>
-            </>
-          )}
-        </div>
-      )}
 
       {/* ── CSS animations ── */}
       <style>{`
@@ -292,13 +224,6 @@ const LandingPage = ({ hideNavbar = false }) => {
           to { transform: translateX(-50%) translateY(0); opacity: 1; }
         }
         .animate-slide-down-toast { animation: slide-down-toast 0.4s ease both; }
-        
-        .editable-focus:focus {
-          outline: 2px dashed #4caf50;
-          outline-offset: 4px;
-          background: rgba(76, 175, 80, 0.05);
-          border-radius: 8px;
-        }
       `}</style>
 
       {/* ── Toast de éxito ── */}
@@ -353,31 +278,13 @@ const LandingPage = ({ hideNavbar = false }) => {
             <div className="flex-1 text-center lg:text-left space-y-8 max-w-2xl">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#e8f5e9] text-[#1b5e20] rounded-full text-xs font-black tracking-widest shadow-sm border border-[#c8e6c9]">
                 <Sparkles className="w-4 h-4 text-[#4caf50]" />
-                <span 
-                  contentEditable={isEditing} 
-                  onBlur={(e) => updateContent('heroBadge', e.target.innerText)}
-                  className={isEditing ? 'editable-focus' : ''}
-                >
-                  {content.heroBadge}
-                </span>
+                {CONTENT.heroBadge}
               </div>
               <h1 className="text-6xl lg:text-8xl font-black text-[#1b5e20] leading-tight tracking-tighter">
-                <span 
-                  contentEditable={isEditing} 
-                  onBlur={(e) => updateContent('heroTitle', e.target.innerText)}
-                  className={isEditing ? 'editable-focus block' : 'block'}
-                >
-                  {content.heroTitle}
-                </span>
+                {CONTENT.heroTitle}
               </h1>
               <p className="text-xl text-[#388e3c] leading-relaxed max-w-xl mx-auto lg:mx-0 font-medium">
-                <span 
-                  contentEditable={isEditing} 
-                  onBlur={(e) => updateContent('heroDescription', e.target.innerText)}
-                  className={isEditing ? 'editable-focus block' : 'block'}
-                >
-                  {content.heroDescription}
-                </span>
+                {CONTENT.heroDescription}
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-5">
                 <button onClick={() => scrollToSection('productos')} className="group relative flex items-center gap-3 px-10 py-5 bg-[#1b5e20] text-white font-black rounded-2xl hover:bg-[#0d3300] shadow-[0_10px_30px_rgba(27,94,32,0.3)] transition-all hover:-translate-y-1 active:scale-95 w-full sm:w-auto justify-center overflow-hidden">
@@ -532,46 +439,18 @@ const LandingPage = ({ hideNavbar = false }) => {
               <div className="space-y-4">
                 <h2 className="text-[#81c784] font-black tracking-[0.4em] uppercase text-sm">El origen</h2>
                 <h3 className="text-5xl lg:text-7xl font-black leading-tight tracking-tighter">
-                  <span 
-                    contentEditable={isEditing} 
-                    onBlur={(e) => updateContent('historyTitle', e.target.innerText)}
-                    className={isEditing ? 'editable-focus block' : 'block'}
-                  >
-                    {content.historyTitle}
-                  </span>
+                  {CONTENT.historyTitle}
                 </h3>
               </div>
               <p className="text-xl text-[#c8e6c9] leading-relaxed font-medium">
-                <span 
-                  contentEditable={isEditing} 
-                  onBlur={(e) => updateContent('historyDescription', e.target.innerText)}
-                  className={isEditing ? 'editable-focus block' : 'block'}
-                >
-                  {content.historyDescription}
-                </span>
+                {CONTENT.historyDescription}
               </p>
             </div>
             <div className="flex-1">
               <div className="bg-[#0d3300]/30 rounded-[60px] p-20 text-center border-2 border-[#1b5e20] shadow-2xl backdrop-blur-sm">
                 <Leaf className="w-24 h-24 text-[#81c784] mx-auto mb-8 animate-pulse" />
-                <h4 className="text-3xl font-black mb-4">
-                  <span 
-                    contentEditable={isEditing} 
-                    onBlur={(e) => updateContent('ctaTitle', e.target.innerText)}
-                    className={isEditing ? 'editable-focus block' : 'block'}
-                  >
-                    {content.ctaTitle}
-                  </span>
-                </h4>
-                <p className="text-[#c8e6c9] mb-10">
-                  <span 
-                    contentEditable={isEditing} 
-                    onBlur={(e) => updateContent('ctaDescription', e.target.innerText)}
-                    className={isEditing ? 'editable-focus block' : 'block'}
-                  >
-                    {content.ctaDescription}
-                  </span>
-                </p>
+                <h4 className="text-3xl font-black mb-4">{CONTENT.ctaTitle}</h4>
+                <p className="text-[#c8e6c9] mb-10">{CONTENT.ctaDescription}</p>
                 {!user && (
                   <button onClick={() => navigate('/register')} className="w-full py-5 bg-white text-[#1b5e20] font-black rounded-3xl hover:bg-[#e8f5e9] transition-all shadow-xl">
                     Crear mi cuenta gratis

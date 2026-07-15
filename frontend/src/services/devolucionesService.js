@@ -15,6 +15,7 @@ const adaptDevolucion = (d) => {
     numero:          `DEV-${d.ID_Devolucion}`,
     numeroPedido:    d.ID_Venta ? `#${d.ID_Venta}` : "",
     idVenta:         d.ID_Venta         ?? null,
+    idCliente:       d.ID_Usuario       ?? null,
     estadoId,
     estado,
     motivo:          d.Motivo           || "",

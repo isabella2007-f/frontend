@@ -32,7 +32,7 @@ interface CheckoutModalProps {
     observaciones?: string;
     tieneDomicilio?: boolean;
   } | null;
-  onConfirm: (paymentMethod: string, onBehalfOf: string, comprobante?: File | null, usarCredito?: boolean, deliveryInfo?: { tieneDomicilio: boolean; address: string; municipio: string; departamento: string; date: string; observaciones: string }) => void;
+  onConfirm: (paymentMethod: string, onBehalfOf: string, comprobante?: File | null, usarCredito?: boolean, deliveryInfo?: { tieneDomicilio: boolean; address: string; municipio: string; departamento: string; date: string; time: string; observaciones: string }) => void;
 }
 
 const COSTO_DOMICILIO = 5000;
@@ -49,14 +49,18 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   const [address,            setAddress]            = useState('');
   const [municipio,          setMunicipio]          = useState('');
   const [date,               setDate]               = useState('');
+  const [time,               setTime]               = useState('');
   const [observaciones,      setObservaciones]      = useState('');
   // Teléfono
   const [telefono,           setTelefono]           = useState('');
+  const [telefonoTocado,     setTelefonoTocado]     = useState(false);
   const [telefonoRegistrado, setTelefonoRegistrado] = useState(false);
   const [guardarTelefono,    setGuardarTelefono]    = useState(true);
   // Dirección guardada
   const [direccionRegistrada, setDireccionRegistrada] = useState('');
   const [guardarDireccion,    setGuardarDireccion]    = useState(true);
+  const [addressTocada,       setAddressTocada]       = useState(false);
+  const [municipioTocado,     setMunicipioTocado]     = useState(false);
 
   useEffect(() => {
     if (!isOpen || !orderDetails) return;
@@ -66,8 +70,12 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
     setAddress(orderDetails.address || '');
     setMunicipio(orderDetails.municipio || '');
     setDate(orderDetails.date || '');
+    setTime('');
     setObservaciones(orderDetails.observaciones || '');
     setComprobante(null);
+    setTelefonoTocado(false);
+    setAddressTocada(false);
+    setMunicipioTocado(false);
 
     // Cargar perfil para verificar teléfono y dirección
     apiFetch('/auth/perfil')
@@ -95,28 +103,38 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
 
   if (!isOpen || !orderDetails) return null;
 
+  const soloDigitos = (tel: string) => tel.replace(/\D/g, '');
+  const telefonoValido = soloDigitos(telefono).length === 10;
+  const telefonoError = telefonoTocado && !telefonoValido
+    ? soloDigitos(telefono).length === 0 ? 'El teléfono es obligatorio' : 'Debe tener exactamente 10 dígitos'
+    : null;
+
+  const addressValida = address.trim().length >= 5 && /\d/.test(address);
+  const addressError = addressTocada && !addressValida
+    ? address.trim().length === 0 ? 'La dirección es obligatoria'
+      : address.trim().length < 5  ? 'La dirección es demasiado corta'
+      : 'Debe incluir un número (Ej: Calle 10 #20-30)'
+    : null;
+  const municipioValido = municipio.trim().length > 0;
+  const municipioError = municipioTocado && !municipioValido ? 'Selecciona el municipio de entrega' : null;
+
   const user = getUser();
   const costoDomicilio = tieneDomicilio ? COSTO_DOMICILIO : 0;
   const creditoAplicar = usarCredito ? Math.min(credito, orderDetails.total + costoDomicilio) : 0;
   const totalFinal     = Math.max(0, orderDetails.total + costoDomicilio - creditoAplicar);
 
   const handleFinalConfirm = async () => {
-    if (!telefono.trim()) {
-      alert('El número de teléfono es obligatorio para realizar el pedido');
-      return;
+    setTelefonoTocado(true);
+    if (tieneDomicilio) {
+      setAddressTocada(true);
+      setMunicipioTocado(true);
     }
-    if (telefono.replace(/\D/g, '').length < 7) {
-      alert('Ingresa un número de teléfono válido');
-      return;
-    }
+    if (!telefonoValido) return;
     if (!date) {
       alert('Indica la fecha en que necesitas el pedido');
       return;
     }
-    if (tieneDomicilio && (!address.trim() || !municipio)) {
-      alert('Completa la dirección y municipio de entrega');
-      return;
-    }
+    if (tieneDomicilio && (!addressValida || !municipioValido)) return;
 
     setIsConfirming(true);
 
@@ -137,7 +155,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
     }
 
     onConfirm(paymentMethod, onBehalfOf, comprobante, usarCredito, {
-      tieneDomicilio, address, municipio, departamento: orderDetails.departamento || 'Antioquia', date, observaciones,
+      tieneDomicilio, address, municipio, departamento: orderDetails.departamento || 'Antioquia', date, time, observaciones,
     });
     setIsConfirming(false);
   };
@@ -191,13 +209,13 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
           </div>
 
           {/* Teléfono de contacto */}
-          <div className={`bg-white rounded-2xl border px-3 py-3 space-y-2 ${!telefono.trim() ? 'border-red-200' : 'border-gray-100'}`}>
+          <div className={`bg-white rounded-2xl border px-3 py-3 space-y-2 ${telefonoError ? 'border-red-200' : telefonoValido ? 'border-green-200' : 'border-gray-100'}`}>
             <div className="flex items-center justify-between">
               <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
                 <Phone size={10} /> Teléfono de contacto
                 <span className="text-red-400">*</span>
               </p>
-              {telefonoRegistrado && (
+              {telefonoRegistrado && telefonoValido && (
                 <span className="text-[9px] font-bold text-green-600 flex items-center gap-1">
                   <CheckCircle2 size={10} /> Registrado
                 </span>
@@ -209,11 +227,18 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                 type="tel"
                 placeholder="Ej: 300 123 4567"
                 value={telefono}
-                onChange={e => setTelefono(e.target.value)}
+                onChange={e => {
+                  setTelefono(e.target.value);
+                  setTelefonoTocado(true);
+                }}
+                onBlur={() => setTelefonoTocado(true)}
                 className={inputCls + " pl-8"}
               />
             </div>
-            {!telefonoRegistrado && telefono.trim() && (
+            {telefonoError && (
+              <p className="text-[10px] font-bold text-red-500">{telefonoError}</p>
+            )}
+            {!telefonoError && telefonoValido && !telefonoRegistrado && telefono.trim() && (
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
                   type="checkbox"
@@ -225,9 +250,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                   <Save size={11} className="text-green-600" /> Guardar como teléfono principal
                 </span>
               </label>
-            )}
-            {!telefono.trim() && (
-              <p className="text-[10px] font-bold text-red-500">Requerido para realizar el pedido</p>
             )}
           </div>
 
@@ -249,26 +271,60 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
               </button>
             </div>
 
-            {/* Fecha siempre visible */}
-            <div className="relative">
-              <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input type="date" min={hoyISO()} value={date} onChange={e => setDate(e.target.value)}
-                placeholder="¿Cuándo lo necesitas?"
-                className={inputCls + " pl-8"} />
+            {/* Fecha y hora de entrega */}
+            <div className="space-y-1.5">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="relative">
+                  <Calendar size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="date"
+                    min={hoyISO()}
+                    value={date}
+                    onChange={e => setDate(e.target.value)}
+                    className={inputCls + " pl-8"}
+                  />
+                </div>
+                <input
+                  type="time"
+                  value={time}
+                  onChange={e => setTime(e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+              <p className="text-[10px] font-bold text-amber-600 flex items-center gap-1 pl-1">
+                ⏰ La hora es aproximada — pueden existir otros pedidos programados para ese momento.
+              </p>
             </div>
 
             {tieneDomicilio && (
               <div className="space-y-2">
-                <div className="relative">
-                  <MapPin size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input type="text" placeholder="Dirección (Ej: Calle 10 #20-30)" value={address} onChange={e => setAddress(e.target.value)}
-                    className={inputCls + " pl-8"} />
+                <div>
+                  <div className={`relative ${addressError ? 'ring-1 ring-red-300 rounded-xl' : ''}`}>
+                    <MapPin size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Dirección (Ej: Calle 10 #20-30)"
+                      value={address}
+                      onChange={e => { setAddress(e.target.value); setAddressTocada(true); }}
+                      onBlur={() => setAddressTocada(true)}
+                      className={inputCls + " pl-8"}
+                    />
+                  </div>
+                  {addressError && <p className="text-[10px] font-bold text-red-500 mt-1 pl-1">{addressError}</p>}
                 </div>
-                <select value={municipio} onChange={e => setMunicipio(e.target.value)} className={inputCls}>
-                  <option value="">— Municipio —</option>
-                  {MUNICIPIOS_VALLE_ABURRA.map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-                {address.trim() && address.trim() !== direccionRegistrada.trim() && (
+                <div>
+                  <select
+                    value={municipio}
+                    onChange={e => { setMunicipio(e.target.value); setMunicipioTocado(true); }}
+                    onBlur={() => setMunicipioTocado(true)}
+                    className={inputCls + (municipioError ? ' border-red-300 ring-1 ring-red-200' : '')}
+                  >
+                    <option value="">— Municipio —</option>
+                    {MUNICIPIOS_VALLE_ABURRA.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                  {municipioError && <p className="text-[10px] font-bold text-red-500 mt-1 pl-1">{municipioError}</p>}
+                </div>
+                {addressValida && address.trim() !== direccionRegistrada.trim() && (
                   <label className="flex items-center gap-2 cursor-pointer select-none">
                     <input type="checkbox" checked={guardarDireccion} onChange={e => setGuardarDireccion(e.target.checked)}
                       className="w-3.5 h-3.5 rounded accent-green-600" />
