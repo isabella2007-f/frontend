@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   ShoppingBag, Leaf, Sparkles,
   Plus, Minus, ShoppingCart, CheckCircle2,
-  Zap,
 } from 'lucide-react';
 import { getUser } from '../services/authService.js';
 import { crearPedido } from '../services/pedidosService.js';
@@ -307,15 +306,6 @@ const LandingPage = ({ hideNavbar = false }) => {
                       alt="Producto Tostón App"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                     />
-                    <div className="absolute top-1/2 -right-12 translate-y-12 bg-white p-5 rounded-3xl shadow-2xl border border-[#f1f8f1] flex items-center gap-4">
-                      <div className="w-12 h-12 bg-[#e8f5e9] rounded-2xl flex items-center justify-center">
-                        <Zap className="w-6 h-6 text-[#1b5e20]" />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black text-[#4caf50] uppercase">Entrega en</p>
-                        <p className="text-lg font-black text-[#1b5e20]">25 Min</p>
-                      </div>
-                    </div>
                   </div>
                 </div>
               </div>
