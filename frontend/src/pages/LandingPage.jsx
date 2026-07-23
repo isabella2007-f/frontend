@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  ShoppingBag, Leaf, Utensils, Sparkles,
+  ShoppingBag, Leaf, Sparkles,
   Plus, Minus, ShoppingCart, CheckCircle2,
   Zap,
 } from 'lucide-react';
@@ -301,12 +301,12 @@ const LandingPage = ({ hideNavbar = false }) => {
               <div className="relative z-10 w-full aspect-square max-w-[550px] mx-auto">
                 <div className="absolute -top-10 -right-10 w-32 h-32 bg-[#a5d6a7] rounded-3xl rotate-12 -z-10 opacity-40" />
                 <div className="w-full h-full bg-gradient-to-br from-[#1b5e20] to-[#4caf50] rounded-[60px] p-1 shadow-[0_30px_60px_rgba(27,94,32,0.2)] rotate-2 hover:rotate-0 transition-transform duration-700 overflow-hidden group">
-                  <div className="w-full h-full bg-white rounded-[58px] overflow-hidden flex flex-col items-center justify-center p-12 relative">
-                    <Utensils className="w-32 h-32 text-[#e8f5e9] mb-4 group-hover:scale-110 transition-transform duration-500" />
-                    <div className="text-center space-y-2">
-                      <h4 className="text-2xl font-black text-[#1b5e20]">TOSTÓN APP</h4>
-                      <p className="text-[#4caf50] font-bold tracking-[0.2em] text-xs uppercase">Sabor de Origen</p>
-                    </div>
+                  <div className="w-full h-full bg-white rounded-[58px] overflow-hidden relative">
+                    <img
+                      src="/torta-platano.jpg"
+                      alt="Producto Tostón App"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                    />
                     <div className="absolute top-1/2 -right-12 translate-y-12 bg-white p-5 rounded-3xl shadow-2xl border border-[#f1f8f1] flex items-center gap-4">
                       <div className="w-12 h-12 bg-[#e8f5e9] rounded-2xl flex items-center justify-center">
                         <Zap className="w-6 h-6 text-[#1b5e20]" />
