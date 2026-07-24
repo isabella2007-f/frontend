@@ -174,28 +174,22 @@ function ProductDetailModal({ product, cat, onClose, onAddToCart }) {
 
           {/* Selector de cantidad + botón */}
           <div className="mt-auto pt-2">
-            {agotado ? (
-              <div className="w-full py-4 bg-[#f5f5f5] text-[#bdbdbd] font-black rounded-2xl text-center">
-                Producto agotado
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 bg-[#f7faf8] rounded-2xl border border-[#e8f5e9] p-1.5 flex-shrink-0">
+                <button onClick={() => setQty(q => Math.max(1, q - 1))}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[#e8f5e9] transition-colors active:scale-90 text-[#1b5e20] font-bold text-lg">−</button>
+                <span className="w-10 text-center font-black text-[#1b5e20] text-sm">{qty}</span>
+                <button onClick={() => setQty(q => q + 1)}
+                  className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[#e8f5e9] transition-colors active:scale-90 text-[#1b5e20] font-bold text-lg">+</button>
               </div>
-            ) : (
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1 bg-[#f7faf8] rounded-2xl border border-[#e8f5e9] p-1.5 flex-shrink-0">
-                  <button onClick={() => setQty(q => Math.max(1, q - 1))}
-                    className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[#e8f5e9] transition-colors active:scale-90 text-[#1b5e20] font-bold text-lg">−</button>
-                  <span className="w-10 text-center font-black text-[#1b5e20] text-sm">{qty}</span>
-                  <button onClick={() => setQty(q => Math.min(q + 1, product.stock || 99))}
-                    className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[#e8f5e9] transition-colors active:scale-90 text-[#1b5e20] font-bold text-lg">+</button>
-                </div>
-                <button
-                  onClick={handleAdd}
-                  className="flex-1 py-4 bg-[#1b5e20] text-white font-black rounded-2xl hover:bg-[#0d3300] active:scale-95 transition-all shadow-lg flex items-center justify-center gap-2"
-                >
-                  <ShoppingCart className="w-4 h-4" />
-                  Agregar al carrito
-                </button>
-              </div>
-            )}
+              <button
+                onClick={handleAdd}
+                className="flex-1 py-4 bg-[#1b5e20] text-white font-black rounded-2xl hover:bg-[#0d3300] active:scale-95 transition-all shadow-lg flex items-center justify-center gap-2"
+              >
+                <ShoppingCart className="w-4 h-4" />
+                Agregar al carrito
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -569,7 +563,7 @@ const LandingPage = ({ hideNavbar = false }) => {
                     <div className="absolute top-6 right-6 bg-white/95 backdrop-blur-sm px-5 py-2.5 rounded-2xl font-black text-[#1b5e20] shadow-lg">
                       ${p.precio?.toLocaleString('es-CO')}
                     </div>
-                    {!agotado && inCartItem && (
+                    {inCartItem && (
                       <div className="absolute top-6 left-6 bg-[#1b5e20] text-white px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-lg border border-white/20">
                         <ShoppingCart className="w-3 h-3" />
                         {inCartItem.cantidad} en carrito
@@ -583,26 +577,21 @@ const LandingPage = ({ hideNavbar = false }) => {
                     </div>
                     <p className="text-[#555] font-medium text-sm mb-6 flex-1 leading-relaxed">{cat.descripcion || 'Sabor auténtico y natural en cada bocado.'}</p>
                     <div className="flex items-center gap-3">
-                      <div className={`flex items-center gap-1 bg-[#f7faf8] rounded-2xl border border-[#e8f5e9] p-1.5 ${agotado ? 'opacity-40 pointer-events-none' : ''}`}>
+                      <div className="flex items-center gap-1 bg-[#f7faf8] rounded-2xl border border-[#e8f5e9] p-1.5">
                         <button onClick={() => setQty(p.id, qty - 1)} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-[#e8f5e9] transition-colors active:scale-90">
                           <Minus className="w-3.5 h-3.5 text-[#1b5e20]" />
                         </button>
                         <span className="w-8 text-center font-black text-[#1b5e20] text-sm">{qty}</span>
-                        <button onClick={() => setQty(p.id, Math.min(qty + 1, p.stock || 999))} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-[#e8f5e9] transition-colors active:scale-90">
+                        <button onClick={() => setQty(p.id, qty + 1)} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-[#e8f5e9] transition-colors active:scale-90">
                           <Plus className="w-3.5 h-3.5 text-[#1b5e20]" />
                         </button>
                       </div>
                       <button
-                        onClick={() => !agotado && handleAddToCart(p)}
-                        disabled={agotado}
-                        className={`flex-1 flex items-center justify-center gap-2 py-4 font-black rounded-2xl transition-all shadow-sm ${
-                          agotado
-                            ? 'bg-[#f5f5f5] text-[#bdbdbd] cursor-not-allowed'
-                            : 'bg-[#f1f8f1] text-[#1b5e20] group-hover:bg-[#1b5e20] group-hover:text-white active:scale-95'
-                        }`}
+                        onClick={() => handleAddToCart(p)}
+                        className="flex-1 flex items-center justify-center gap-2 py-4 font-black rounded-2xl transition-all shadow-sm bg-[#f1f8f1] text-[#1b5e20] group-hover:bg-[#1b5e20] group-hover:text-white active:scale-95"
                       >
                         <ShoppingCart className="w-4 h-4" />
-                        {agotado ? 'Sin stock' : 'Agregar'}
+                        Agregar
                       </button>
                     </div>
                   </div>
