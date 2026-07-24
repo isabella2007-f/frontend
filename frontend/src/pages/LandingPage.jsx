@@ -246,7 +246,7 @@ const LandingPage = ({ hideNavbar = false }) => {
 
   const cargarProductos = useCallback(async () => {
     try {
-      const data = await getProductos({ publicado: 1 });
+      const data = await getProductos();
       const lista = data?.productos || [];
 
       // Construir mapa de categorías desde los datos de productos (ya incluyen nombre e icono)
@@ -263,7 +263,7 @@ const LandingPage = ({ hideNavbar = false }) => {
 
       setProductos(
         lista
-          .filter(p => p.Estado !== 0 && !p.lote_vencido && !p.Lote_Vencido && (p.Stock ?? 0) > 0)
+          .filter(p => p.Estado !== 0 && !p.lote_vencido && !p.Lote_Vencido)
           .map(p => ({
             id:               p.ID_Producto,
             nombre:           p.nombre,
