@@ -80,7 +80,7 @@ function adaptarProducto(p) {
     id:                p.ID_Producto,
     nombre:            p.nombre,
     idCategoria:       p.ID_Categoria ?? null,
-    fechaCreacion:     p.Fecha_Creacion ? String(p.Fecha_Creacion).split("T")[0] : (p.fecha || ""),
+    fechaCreacion:     fmtFecha(p.Fecha_Creacion ?? p.Fecha_creacion),
     precio:            parseFloat(p.Precio_venta ?? 0),
     stock:             p.Stock ?? 0,
     stockMinimo:       p.Stock_Minimo ?? 10,

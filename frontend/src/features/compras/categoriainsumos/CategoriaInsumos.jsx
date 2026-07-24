@@ -21,7 +21,7 @@ const ADAPT = raw => ({
   descripcion:  raw.Descripcion ?? "",
   icon:         raw.Icono ?? "🧺",
   estado:       raw.Estado === 1,
-  fecha:        fmtFecha(raw.Fecha_creacion),
+  fecha:        fmtFecha(raw.Fecha_Creacion ?? raw.Fecha_creacion),
   totalInsumos: raw.total_insumos ?? 0,
 });
 
