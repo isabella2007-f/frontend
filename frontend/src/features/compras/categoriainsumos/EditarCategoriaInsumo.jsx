@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { ModalOverlay } from "./ui.jsx";
 import EmojiPicker from "../../../shared/components/EmojiPicker";
+import CharCount from "../../../shared/components/CharCount";
 import "./CategoriaInsumos.css";
 import { soloLetras, tieneLetras } from "../../../utils/inputFilters";
 
@@ -74,12 +75,14 @@ export default function EditarCategoriaInsumo({ cat, onClose, onSave }) {
         <EmojiPicker value={form.icon} onChange={ic => set("icon", ic)} />
 
         <div className="form-group">
-          <label className="form-label">
-            Nombre <span style={{ color: "#e53935", fontWeight: 800 }}>*</span>
+          <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
+            <span>Nombre <span style={{ color: "#e53935", fontWeight: 800 }}>*</span></span>
+            <CharCount value={form.nombre} max={100} min={2} />
           </label>
           <input
             className={`field-input${errors.nombre ? " field-input--error" : ""}`}
             value={form.nombre}
+            maxLength={100}
             onChange={e => set("nombre", soloLetras(e.target.value))}
             placeholder="Ej. Vegetales"
             onFocus={e  => (e.target.style.borderColor = "#4caf50")}
@@ -91,9 +94,7 @@ export default function EditarCategoriaInsumo({ cat, onClose, onSave }) {
         <div className="form-group">
           <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
             <span style={{ color: "inherit" }}>Descripción <span style={{ color: "#e53935", fontWeight: 800 }}>*</span></span>
-            <span style={{ fontSize: 11, color: form.descripcion.length >= 180 ? "#e65100" : "#9e9e9e", fontWeight: 400, letterSpacing: 0 }}>
-              {form.descripcion.length}/200
-            </span>
+            <CharCount value={form.descripcion} max={200} min={5} />
           </label>
           <textarea
             className={`field-input${errors.descripcion ? " field-input--error" : ""}`}

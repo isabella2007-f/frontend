@@ -9,6 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useRef } from "react";
 import { tieneLetras } from "../../../utils/inputFilters";
+import CharCount from "../../../shared/components/CharCount";
 import CrearFicha from "./ficha_tecnica/CrearFicha.jsx";
 import {
   crearProducto as apiCrearProducto,
@@ -243,12 +244,14 @@ export default function CrearProducto({ categorias = [], onClose, onSave }) {
             {step === 1 && (
               <div>
                 <div className="form-group">
-                  <label className="form-label">
-                    Nombre <span className="required">*</span>
+                  <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>Nombre <span className="required">*</span></span>
+                    <CharCount value={form.nombre} max={100} min={2} />
                   </label>
                   <input
                     className={`field-input${errors.nombre ? " error" : ""}`}
                     value={form.nombre}
+                    maxLength={100}
                     onChange={(e) => set("nombre", e.target.value)}
                     placeholder="Ej. Tostones de plátano verde"
                   />
@@ -277,11 +280,9 @@ export default function CrearProducto({ categorias = [], onClose, onSave }) {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">
-                    Descripción corta{" "}
-                    <span style={{ color: "#9e9e9e", fontWeight: 400, fontSize: 11 }}>
-                      ({form.descripcion_corta.length}/150)
-                    </span>
+                  <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>Descripción corta</span>
+                    <CharCount value={form.descripcion_corta} max={150} />
                   </label>
                   <input
                     className={`field-input${errors.descripcion_corta ? " field-input--error" : ""}`}
@@ -294,10 +295,14 @@ export default function CrearProducto({ categorias = [], onClose, onSave }) {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Descripción larga</label>
+                  <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>Descripción larga</span>
+                    <CharCount value={form.descripcion_larga} max={1000} />
+                  </label>
                   <textarea
                     className={`field-input${errors.descripcion_larga ? " field-input--error" : ""}`}
                     rows={2}
+                    maxLength={1000}
                     value={form.descripcion_larga}
                     onChange={(e) => set("descripcion_larga", e.target.value)}
                     placeholder="Descripción detallada del producto para la tienda..."
