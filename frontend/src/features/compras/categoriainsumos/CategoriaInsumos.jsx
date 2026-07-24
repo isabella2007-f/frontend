@@ -419,8 +419,8 @@ export default function CategoriaInsumos() {
         </div>
       </div>
 
-      {modal?.type === "crear"    && <CrearCategoriaInsumo onClose={() => setModal(null)} onSave={handleCreate} />}
-      {modal?.type === "editar"   && <EditarCategoriaInsumo cat={modal.cat} onClose={() => setModal(null)} onSave={handleEdit} />}
+      {modal?.type === "crear"    && <CrearCategoriaInsumo existingCategories={categorias} onClose={() => setModal(null)} onSave={handleCreate} />}
+      {modal?.type === "editar"   && <EditarCategoriaInsumo existingCategories={categorias} cat={modal.cat} onClose={() => setModal(null)} onSave={handleEdit} />}
       {modal?.type === "ver"      && <VerCategoria cat={modal.cat} onClose={() => setModal(null)} />}
       {modal?.type === "desactivar" && (
         <ModalDesactivarCategoriaInsumo

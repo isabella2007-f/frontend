@@ -78,7 +78,7 @@ function Toggle({ value, onChange }) {
 /* ══════════════════════════════════════════════════════════
    COMPONENTE PRINCIPAL
 ══════════════════════════════════════════════════════════ */
-export default function EditarProducto({ product, categorias = [], onClose, onSave }) {
+export default function EditarProducto({ product, categorias = [], onClose, onSave, existingProducts = [] }) {
   const calcularCostoProduccion = null;
   const sugerirPrecioConGanancia = null;
 
@@ -180,7 +180,10 @@ export default function EditarProducto({ product, categorias = [], onClose, onSa
   const validateStep = (s) => {
     const e = {};
     if (s === 1) {
-      if (!form.nombre?.trim())  e.nombre      = "Campo requerido";
+      const nom = form.nombre?.trim().toLowerCase() ?? "";
+      if (!form.nombre?.trim())  e.nombre = "Campo requerido";
+      else if (existingProducts.some(p => p.nombre.trim().toLowerCase() === nom && p.id !== product?.id))
+        e.nombre = "Ya existe un producto con este nombre";
       if (!form.idCategoria)     e.idCategoria = "Selecciona una categoría";
       if (form.descripcion_corta?.trim() && !tieneLetras(form.descripcion_corta))
         e.descripcion_corta = "La descripción debe contener letras";

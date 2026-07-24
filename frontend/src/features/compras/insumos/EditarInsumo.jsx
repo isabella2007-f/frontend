@@ -29,7 +29,7 @@ function StepsBar({ current }) {
   );
 }
 
-export default function EditarInsumo({ ins, onClose, onSave, categorias, unidades }) {
+export default function EditarInsumo({ ins, onClose, onSave, categorias, unidades, existingInsumos = [] }) {
   const [form, setForm] = useState({
     nombre:       ins.nombre,
     idCategoria:  ins.idCategoria,
@@ -48,7 +48,10 @@ export default function EditarInsumo({ ins, onClose, onSave, categorias, unidade
   const validateStep = (s) => {
     const e = {};
     if (s === 1) {
-      if (!form.nombre.trim()) e.nombre      = "Campo requerido";
+      const nom = form.nombre.trim().toLowerCase();
+      if (!form.nombre.trim()) e.nombre = "Campo requerido";
+      else if (existingInsumos.some(i => i.nombre.trim().toLowerCase() === nom && i.id !== ins?.id))
+        e.nombre = "Ya existe un insumo con este nombre";
       if (!form.idCategoria)   e.idCategoria = "Selecciona una categoría";
       if (!form.idUnidad)      e.idUnidad    = "Selecciona una unidad";
     }

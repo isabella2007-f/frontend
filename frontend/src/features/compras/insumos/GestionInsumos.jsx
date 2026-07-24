@@ -479,11 +479,11 @@ export default function GestionInsumos() {
 
       {modal?.type === "crear"  && (
         <CrearInsumo onClose={() => setModal(null)} onSave={handleCreate}
-          categorias={categoriasActivas} unidades={UNIDADES} />
+          categorias={categoriasActivas} unidades={UNIDADES} existingInsumos={insumos} />
       )}
       {modal?.type === "editar" && (
         <EditarInsumo ins={modal.ins} onClose={() => setModal(null)} onSave={handleEdit}
-          categorias={categoriasActivas} unidades={UNIDADES} />
+          categorias={categoriasActivas} unidades={UNIDADES} existingInsumos={insumos} />
       )}
       {modal?.type === "ver" && (
         <VerInsumo ins={modal.ins} categorias={categorias} unidades={UNIDADES} onClose={() => setModal(null)} />

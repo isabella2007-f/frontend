@@ -57,7 +57,7 @@ function StepsBar({ current }) {
 /* ══════════════════════════════════════════════════════════
    COMPONENTE PRINCIPAL
 ══════════════════════════════════════════════════════════ */
-export default function CrearProducto({ categorias = [], onClose, onSave }) {
+export default function CrearProducto({ categorias = [], onClose, onSave, existingProducts = [] }) {
   const calcularCostoProduccion = () => 0;
   const sugerirPrecioConGanancia = () => 0;
 
@@ -117,7 +117,10 @@ export default function CrearProducto({ categorias = [], onClose, onSave }) {
   const validateStep = (s) => {
     const e = {};
     if (s === 1) {
+      const nom = form.nombre.trim().toLowerCase();
       if (!form.nombre.trim()) e.nombre = "El nombre es obligatorio";
+      else if (existingProducts.some(p => p.nombre.trim().toLowerCase() === nom))
+        e.nombre = "Ya existe un producto con este nombre";
       if (!form.idCategoria)   e.idCategoria = "Selecciona una categoría";
       if (form.descripcion_corta.trim() && !tieneLetras(form.descripcion_corta))
         e.descripcion_corta = "La descripción debe contener letras";

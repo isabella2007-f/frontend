@@ -25,7 +25,7 @@ function Toggle({ value, onChange }) {
   );
 }
 
-export default function EditarCategoriaInsumo({ cat, onClose, onSave }) {
+export default function EditarCategoriaInsumo({ cat, onClose, onSave, existingCategories = [] }) {
   const [form, setForm]     = useState({ nombre: cat.nombre, descripcion: cat.descripcion, icon: cat.icon, estado: cat.estado });
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -41,9 +41,14 @@ export default function EditarCategoriaInsumo({ cat, onClose, onSave }) {
 
   const validate = () => {
     const e = {};
-    if (!form.nombre.trim())               e.nombre      = "Campo requerido";
-    if (!form.descripcion.trim())          e.descripcion = "Campo requerido";
+    const nom = form.nombre.trim().toLowerCase();
+    if (!form.nombre.trim())                 e.nombre = "Campo requerido";
+    else if (existingCategories.some(c => c.nombre.trim().toLowerCase() === nom && c.id !== cat?.id))
+      e.nombre = "Ya existe una categoría con este nombre";
+    if (!form.descripcion.trim())            e.descripcion = "Campo requerido";
     else if (!tieneLetras(form.descripcion)) e.descripcion = "La descripción debe contener letras";
+    if (existingCategories.some(c => c.icon === form.icon && c.id !== cat?.id))
+      e.icon = "Este icono ya está en uso por otra categoría";
     return e;
   };
 
@@ -73,6 +78,7 @@ export default function EditarCategoriaInsumo({ cat, onClose, onSave }) {
 
       <div className="modal-body">
         <EmojiPicker value={form.icon} onChange={ic => set("icon", ic)} />
+        {errors.icon && <p className="field-error" style={{ marginTop: -6, marginBottom: 8 }}>{errors.icon}</p>}
 
         <div className="form-group">
           <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>

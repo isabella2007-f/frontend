@@ -29,7 +29,7 @@ function StepsBar({ current }) {
   );
 }
 
-export default function CrearInsumo({ onClose, onSave, categorias, unidades }) {
+export default function CrearInsumo({ onClose, onSave, categorias, unidades, existingInsumos = [] }) {
   const [form, setForm] = useState({
     nombre: "", idCategoria: "", idUnidad: "", stockMinimo: "",
   });
@@ -45,7 +45,10 @@ export default function CrearInsumo({ onClose, onSave, categorias, unidades }) {
   const validateStep = (s) => {
     const e = {};
     if (s === 1) {
-      if (!form.nombre.trim()) e.nombre      = "El nombre es obligatorio";
+      const nom = form.nombre.trim().toLowerCase();
+      if (!form.nombre.trim()) e.nombre = "El nombre es obligatorio";
+      else if (existingInsumos.some(i => i.nombre.trim().toLowerCase() === nom))
+        e.nombre = "Ya existe un insumo con este nombre";
       if (!form.idCategoria)   e.idCategoria = "Selecciona una categoría";
       if (!form.idUnidad)      e.idUnidad    = "Selecciona una unidad";
     }

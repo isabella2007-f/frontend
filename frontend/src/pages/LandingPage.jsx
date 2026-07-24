@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   ShoppingBag, Leaf, Sparkles,
   Plus, Minus, ShoppingCart, CheckCircle2, X, ChevronLeft, ChevronRight, Eye,
+  Phone, MapPin, ExternalLink,
 } from 'lucide-react';
 import { getUser } from '../services/authService.js';
 import { crearPedido } from '../services/pedidosService.js';
@@ -669,6 +670,7 @@ const LandingPage = ({ hideNavbar = false }) => {
       <footer className="bg-white text-[#1b5e20] pt-32 pb-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col lg:flex-row justify-between items-start gap-20 mb-20">
+            {/* Brand */}
             <div className="max-w-md space-y-8">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 bg-[#1b5e20] rounded-2xl flex items-center justify-center shadow-lg">
@@ -678,7 +680,48 @@ const LandingPage = ({ hideNavbar = false }) => {
               </div>
               <p className="text-[#388e3c] font-medium leading-relaxed">Calidad premium y frescura garantizada para los amantes del buen sabor.</p>
             </div>
+
+            {/* Contact */}
+            <div className="space-y-6 min-w-[240px]">
+              <p className="text-xs font-black uppercase tracking-widest text-[#a5d6a7]">Contáctanos</p>
+
+              <div className="space-y-3">
+                <a href="tel:3217543305" className="flex items-center gap-3 group">
+                  <div className="w-9 h-9 rounded-xl bg-[#e8f5e9] flex items-center justify-center group-hover:bg-[#1b5e20] transition-colors duration-200">
+                    <Phone size={15} className="text-[#1b5e20] group-hover:text-white transition-colors duration-200" />
+                  </div>
+                  <span className="text-sm font-bold text-[#2e7d32] group-hover:text-[#1b5e20] transition-colors duration-200">321 754 3305</span>
+                </a>
+
+                <a href="tel:3137899946" className="flex items-center gap-3 group">
+                  <div className="w-9 h-9 rounded-xl bg-[#e8f5e9] flex items-center justify-center group-hover:bg-[#1b5e20] transition-colors duration-200">
+                    <Phone size={15} className="text-[#1b5e20] group-hover:text-white transition-colors duration-200" />
+                  </div>
+                  <span className="text-sm font-bold text-[#2e7d32] group-hover:text-[#1b5e20] transition-colors duration-200">313 789 9946</span>
+                </a>
+
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-[#e8f5e9] flex items-center justify-center shrink-0 mt-0.5">
+                    <MapPin size={15} className="text-[#1b5e20]" />
+                  </div>
+                  <span className="text-sm font-bold text-[#2e7d32] leading-snug">CARRERA 38 A NO. 80 12</span>
+                </div>
+
+                <a
+                  href="https://www.instagram.com/tostonesbroms?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw=="
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 group"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-[#e8f5e9] flex items-center justify-center group-hover:bg-[#1b5e20] transition-colors duration-200">
+                    <ExternalLink size={15} className="text-[#1b5e20] group-hover:text-white transition-colors duration-200" />
+                  </div>
+                  <span className="text-sm font-bold text-[#2e7d32] group-hover:text-[#1b5e20] transition-colors duration-200">@tostonesbroms</span>
+                </a>
+              </div>
+            </div>
           </div>
+
           <div className="pt-12 border-t border-[#e8f5e9] text-center">
             <p className="font-bold text-sm text-[#81c784]">© 2026 Tostón App — Hecho con Pasión.</p>
           </div>

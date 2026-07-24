@@ -1249,6 +1249,7 @@ export default function GestionProductos() {
       {modal?.type === "crear" && (
         <CrearProducto
           categorias={categorias}
+          existingProducts={productos}
           onClose={() => setModal(null)}
           onSave={handleCreate}
         />
@@ -1257,6 +1258,7 @@ export default function GestionProductos() {
         <EditarProducto
           product={modal.product}
           categorias={categorias}
+          existingProducts={productos}
           onClose={() => setModal(null)}
           onSave={handleEdit}
         />

@@ -494,8 +494,8 @@ export default function CategoriaProductos() {
         </div>
       </div>
 
-      {modal?.type === "crear"    && <CrearCategoria onClose={() => setModal(null)} onSave={handleCreate} />}
-      {modal?.type === "editar"   && <EditarCategoria category={modal.category} onClose={() => setModal(null)} onSave={handleEdit} />}
+      {modal?.type === "crear"    && <CrearCategoria existingCategories={categorias} onClose={() => setModal(null)} onSave={handleCreate} />}
+      {modal?.type === "editar"   && <EditarCategoria existingCategories={categorias} category={modal.category} onClose={() => setModal(null)} onSave={handleEdit} />}
       {modal?.type === "ver"      && <VerCategoria category={modal.category} onClose={() => setModal(null)} />}
       {modal?.type === "eliminar" && (
         <ModalEliminarValidado

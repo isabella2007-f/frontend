@@ -271,6 +271,16 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
               </button>
             </div>
 
+            {!tieneDomicilio && (
+              <div className="flex items-start gap-2 bg-green-50 border border-green-100 rounded-xl px-3 py-2.5">
+                <MapPin size={14} className="text-green-700 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-[10px] font-black text-green-700 uppercase tracking-widest mb-0.5">Dirección de recogida</p>
+                  <p className="text-xs font-bold text-gray-700">CARRERA 38 A NO. 80 12</p>
+                </div>
+              </div>
+            )}
+
             {/* Fecha y hora de entrega */}
             <div className="space-y-1.5">
               <div className="grid grid-cols-2 gap-2">
