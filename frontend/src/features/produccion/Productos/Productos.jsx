@@ -531,6 +531,22 @@ function VerProducto({ product, catObj, onClose, onOpenFicha }) {
                 </div>
               </div>
 
+              {(product.descripcion_corta || product.descripcion_larga) && (
+                <>
+                  <p className="ver-ins-section-label" style={{ textTransform: "none" }}>Descripción</p>
+                  {product.descripcion_corta && (
+                    <p style={{ fontSize: 13.5, color: "#424242", margin: "0 0 8px", lineHeight: 1.5 }}>
+                      {product.descripcion_corta}
+                    </p>
+                  )}
+                  {product.descripcion_larga && (
+                    <p style={{ fontSize: 13, color: "#616161", margin: "0 0 16px", lineHeight: 1.6 }}>
+                      {product.descripcion_larga}
+                    </p>
+                  )}
+                </>
+              )}
+
               <p className="ver-ins-section-label" style={{ textTransform: "none" }}>Stock</p>
               <div
                 style={{
