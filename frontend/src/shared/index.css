@@ -719,6 +719,14 @@ button, label, input, p, span {
   padding: 0 !important;
 }
 
+/* Oculta el botón de autocompletado del navegador en todos los buscadores */
+.search-input::-webkit-contacts-auto-fill-button,
+.search-input::-webkit-credentials-auto-fill-button {
+  visibility: hidden;
+  pointer-events: none;
+  position: absolute;
+}
+
 .filter-icon-btn {
   width: 40px;
   height: 40px;
