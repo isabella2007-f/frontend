@@ -507,3 +507,7 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; color: #1a1a1a; }
   box-shadow: 0 2px 8px rgba(46,125,50,0.15);
 }
 
+@media (max-width: 500px) {
+  .form-row, .detail-grid, .lote-section__body { grid-template-columns: 1fr; }
+}
+

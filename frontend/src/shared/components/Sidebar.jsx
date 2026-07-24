@@ -14,7 +14,8 @@ const adminMenuItems = [
     section: "Sitio Web",
     icon: "🌐",
     items: [
-      { label: "Ver Landing Page", icon: "🏠", link: "/", privilegioKey: "LandingPage" },
+      { label: "Ver Landing Page",   icon: "🏠", link: "/",              privilegioKey: "LandingPage" },
+      { label: "Editar Landing Page", icon: "✏️", link: "/admin/landing", privilegioKey: "LandingPage" },
     ],
   },
   {

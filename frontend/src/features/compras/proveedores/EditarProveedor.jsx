@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { esUbicacionValida } from "../../../utils/inputFilters";
+import { fmtFecha } from "../../../utils/dateUtils";
 import "./Proveedores.css";
 
 const fmtTel = raw => {
@@ -8,12 +10,6 @@ const fmtTel = raw => {
   return `${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}`;
 };
 
-const fmtFecha = iso => {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (isNaN(d)) return null;
-  return d.toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" });
-};
 
 const DEPARTAMENTOS_CO = [
   "Amazonas","Antioquia","Arauca","Atlántico","Bogotá D.C.","Bolívar","Boyacá",
@@ -192,6 +188,8 @@ export default function EditarProveedor({ proveedor, mode = "edit", onClose, onS
     if (!form.responsable?.trim()) e.responsable = "Campo obligatorio";
     if (form.celular?.trim() && form.celular.replace(/\D/g, "").length !== 10) e.celular = "El celular debe tener 10 dígitos";
     if (form.correo?.trim() && !/\S+@\S+\.\S+/.test(form.correo)) e.correo = "Correo inválido";
+    if (form.direccion?.trim() && !esUbicacionValida(form.direccion))
+      e.direccion = "La dirección debe tener letras y números (mín. 5 caracteres)";
     return e;
   };
 

@@ -9,6 +9,7 @@
 //   5. Llamar onSave() para que GestionProductos recargue
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useRef } from "react";
+import { tieneLetras } from "../../../utils/inputFilters";
 import { ModalOverlay } from "./ui.jsx";
 import {
   editarProducto as apiEditarProducto,
@@ -180,16 +181,18 @@ export default function EditarProducto({ product, categorias = [], onClose, onSa
     if (s === 1) {
       if (!form.nombre?.trim())  e.nombre      = "Campo requerido";
       if (!form.idCategoria)     e.idCategoria = "Selecciona una categoría";
+      if (form.descripcion_corta?.trim() && !tieneLetras(form.descripcion_corta))
+        e.descripcion_corta = "La descripción debe contener letras";
+      if (form.descripcion_larga?.trim() && !tieneLetras(form.descripcion_larga))
+        e.descripcion_larga = "La descripción debe contener letras";
     }
     if (s === 2) {
       if (!form.precio || isNaN(form.precio) || Number(form.precio) <= 0)
         e.precio = "Precio válido requerido";
-      if (
-        form.stockMinimo === "" ||
-        isNaN(form.stockMinimo) ||
-        Number(form.stockMinimo) < 0
-      )
+      if (form.stockMinimo === "" || isNaN(form.stockMinimo) || Number(form.stockMinimo) < 0)
         e.stockMinimo = "Valor válido requerido";
+      else if (Number(form.stockMinimo) > 99999)
+        e.stockMinimo = "Máximo 99 999 unidades";
     }
     return e;
   };
@@ -344,24 +347,26 @@ export default function EditarProducto({ product, categorias = [], onClose, onSa
                 </span>
               </label>
               <input
-                className="field-input"
+                className={`field-input${errors.descripcion_corta ? " field-input--error" : ""}`}
                 maxLength={150}
                 value={form.descripcion_corta}
                 onChange={(e) => set("descripcion_corta", e.target.value)}
                 placeholder="Ej. Chips crocantes de plátano verde, perfectos para snack."
               />
+              {errors.descripcion_corta && <p className="field-error">{errors.descripcion_corta}</p>}
             </div>
 
             <div className="form-group" style={{ marginBottom: 0 }}>
               <label className="form-label">Descripción larga</label>
               <textarea
-                className="field-input"
+                className={`field-input${errors.descripcion_larga ? " field-input--error" : ""}`}
                 rows={2}
                 value={form.descripcion_larga}
                 onChange={(e) => set("descripcion_larga", e.target.value)}
                 placeholder="Descripción detallada del producto para la tienda..."
                 style={{ resize: "none" }}
               />
+              {errors.descripcion_larga && <p className="field-error">{errors.descripcion_larga}</p>}
             </div>
           </div>
         )}

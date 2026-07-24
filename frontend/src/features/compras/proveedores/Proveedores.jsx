@@ -211,9 +211,9 @@ export default function GestionProveedores() {
               <thead>
                 <tr>
                   <th style={{ width: 48 }}>Nº</th>
-                  <th>Responsable</th>
-                  <th>Dirección / Ciudad</th>
-                  <th>Contacto</th>
+                  <th>Proveedor</th>
+                  <th>Teléfono</th>
+                  <th>Ubicación</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
@@ -241,37 +241,33 @@ export default function GestionProveedores() {
                     </td>
 
                     <td>
-                      <div className="prov-cell">
-                        <div className="prov-avatar">🏭</div>
+                      <div className="client-cell">
+                        <div style={{ width: 38, height: 38, borderRadius: 10, background: "#e8f5e9", border: "2px solid #c8e6c9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+                          🏭
+                        </div>
                         <div>
-                          <div className="prov-name">{p.responsable}</div>
-                          <div className="prov-id">ID: {p.id}</div>
+                          <div className="client-name">{p.responsable}</div>
+                          {p.correo
+                            ? <a href={`mailto:${p.correo}`} className="client-email" style={{ textDecoration: "none" }}>{p.correo}</a>
+                            : <span className="client-email" style={{ color: "#bdbdbd" }}>Sin correo</span>
+                          }
                         </div>
                       </div>
                     </td>
 
                     <td>
-                      <div style={{ display: "flex", flexDirection: "column" }}>
-                        <span style={{ fontSize: 13, color: "#424242" }}>{p.direccion || "—"}</span>
-                        <span style={{ fontSize: 11, color: "#9e9e9e", fontWeight: 600 }}>{p.ciudad || ""}</span>
-                      </div>
+                      {p.celular
+                        ? <a href={`https://wa.me/${p.celular.replace(/\D/g, "")}`} className="phone-cell" style={{ textDecoration: "none" }} target="_blank" rel="noopener noreferrer">
+                            <span className="phone-icon">📞</span>
+                            {p.celular}
+                          </a>
+                        : <span className="phone-cell" style={{ color: "#bdbdbd" }}>—</span>
+                      }
                     </td>
 
                     <td>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                        {p.celular
-                          ? <a href={`https://wa.me/${p.celular.replace(/\D/g, "")}`} className="prov-contact-link prov-contact-link--tel" target="_blank" rel="noopener noreferrer">
-                              📞 {p.celular}
-                            </a>
-                          : <span style={{ fontSize: 12, color: "#bdbdbd" }}>—</span>
-                        }
-                        {p.correo
-                          ? <a href={`mailto:${p.correo}`} className="prov-contact-link prov-contact-link--mail">
-                              ✉ {p.correo}
-                            </a>
-                          : <span style={{ fontSize: 12, color: "#bdbdbd" }}>—</span>
-                        }
-                      </div>
+                      <div className="location-city">{p.ciudad || "—"}</div>
+                      <div className="location-dept">{p.departamento || ""}</div>
                     </td>
 
                     <td>

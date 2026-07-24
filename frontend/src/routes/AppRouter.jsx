@@ -44,6 +44,9 @@ import GestionInsumos from "../features/compras/insumos/GestionInsumos";
 import GestionCompras from "../features/compras/gestioncompras/GestionCompras";
 import Proveedores from "../features/compras/proveedores/Proveedores";
 
+/* ─── SITIO WEB ─── */
+import EditarLanding from "../features/configuracion/landing/EditarLanding";
+
 /* ─── AUTH ─── */
 import Login from "../pages/Login";
 import Register from "../pages/Register";
@@ -98,6 +101,9 @@ const AppRouter = () => {
           <Route path="/admin" element={<MainLayout />}>
 
             <Route index element={<DashboardIndex />} />
+
+            {/* Sitio Web */}
+            <Route path="landing"    element={<PR clave="LandingPage_ver"   el={<EditarLanding />} />} />
 
             {/* Configuración */}
             <Route path="usuarios"   element={<PR clave="Usuarios_ver"      el={<GestionUsuarios />} />} />

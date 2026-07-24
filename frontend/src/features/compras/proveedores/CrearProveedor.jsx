@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { esUbicacionValida } from "../../../utils/inputFilters";
 import "./Proveedores.css";
 
 const fmtTel = raw => {
@@ -136,6 +137,8 @@ export default function CrearProveedor({ onClose, onSave }) {
       else if (!/\S+@\S+\.\S+/.test(form.correo)) e.correo = "Formato de correo inválido";
       if (!form.departamento)    e.departamento = "Selecciona un departamento";
       if (!form.ciudad)          e.ciudad       = "Selecciona una ciudad";
+      if (form.direccion?.trim() && !esUbicacionValida(form.direccion))
+        e.direccion = "La dirección debe tener letras y números (mín. 5 caracteres)";
     }
     return e;
   };

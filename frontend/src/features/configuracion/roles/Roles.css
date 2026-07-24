@@ -570,3 +570,10 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; color: #1a1a1a; }
 .date-badge {
   font-size: 12px; color: #757575;
 }
+
+@media (max-width: 768px) { .page-inner { padding: 0 16px; } }
+@media (max-width: 480px) { .page-inner { padding: 0 10px; } }
+
+@media (max-width: 600px) {
+  .pmod-acciones-grid { grid-template-columns: repeat(2, 1fr); }
+}

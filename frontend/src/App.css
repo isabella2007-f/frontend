@@ -99,6 +99,16 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; }
   overflow-x: auto;
 }
 
+/* ─── RESPONSIVE ─────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .page-inner { padding: 0 16px 24px; }
+}
+
+@media (max-width: 480px) {
+  .page-inner { padding: 0 10px 16px; }
+  .page-header { padding: 14px 10px 12px; }
+}
+
 /* ─── TOAST — siempre por encima de modales ──────────────── */
 .toast {
   z-index: 40000 !important;

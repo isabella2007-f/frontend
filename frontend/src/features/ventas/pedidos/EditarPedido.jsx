@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { getUsuarios, editarUsuario } from "../../../services/usuariosService.js";
+import { soloLetras, soloDigitos } from "../../../utils/inputFilters";
 import { getProductos } from "../../../services/productosService.js";
 import { MUNICIPIOS_VALLE_ABURRA } from "../../../utils/departamentosYCiudades.js";
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
@@ -562,7 +563,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
                     ].map(({ k, label, ph }) => (
                       <div key={k} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                         <label className="form-label">{label}</label>
-                        <input className="field-input" value={datosCliente[k] || ""} onChange={e => setDato(k, e.target.value)} placeholder={ph} />
+                        <input className="field-input" value={datosCliente[k] || ""} onChange={e => setDato(k, soloLetras(e.target.value))} placeholder={ph} />
                       </div>
                     ))}
                     <div style={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 4 }}>
@@ -571,7 +572,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                       <label className="form-label">Teléfono</label>
-                      <input className="field-input" value={datosCliente.telefono || ""} onChange={e => setDato("telefono", e.target.value)} placeholder="300 000 0000" />
+                      <input className="field-input" value={datosCliente.telefono || ""} onChange={e => setDato("telefono", soloDigitos(e.target.value, 10))} placeholder="300 000 0000" inputMode="numeric" />
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                       <label className="form-label">Municipio</label>

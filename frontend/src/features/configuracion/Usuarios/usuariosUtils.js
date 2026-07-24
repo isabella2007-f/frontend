@@ -87,19 +87,10 @@ export function validateTelefono(telefono) {
     return "El teléfono debe contener solo números";
   }
   
-  // Validar rango de dígitos (7-15 caracteres es estándar internacional)
-  if (telefonoLimpio.length < 7 || telefonoLimpio.length > 15) {
-    return "El teléfono debe tener entre 7 y 15 dígitos";
+  if (telefonoLimpio.length !== 10) {
+    return "El teléfono debe tener exactamente 10 dígitos";
   }
-  
-  // Para Colombia específicamente, validar que empiece con 3 (móvil) o 1-8 (fijo)
-  if (telefonoLimpio.startsWith("57")) {
-    // Si empieza con +57 o 57
-    if (telefonoLimpio.length < 11) {
-      return "Formato de teléfono Colombia inválido";
-    }
-  }
-  
+
   return null;
 }
 

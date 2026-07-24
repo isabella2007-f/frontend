@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { TIPOS_DOC, ROLES_EMPLEADO, fmtTel, toInputDate, fromInputDate } from "./empleadosUtils.js";
+import { soloLetras, soloDigitos } from "../../../utils/inputFilters";
 import { RolBadge, LocationSelects } from "./CrearEmpleado.jsx";
 import { validatePassword } from "../Usuarios/usuariosUtils.js";
 import "./Empleados.css";
@@ -229,7 +230,13 @@ export default function EditarEmpleado({ empleado, onClose, onSave }) {
 
   useEffect(() => { if (empleado) setForm({ ...empleado, contrasena:"", confirmar:"" }); }, [empleado]);
 
-  const set = (k, v) => { setForm(p => ({ ...p, [k]: v })); setErrors(p => ({ ...p, [k]: "" })); };
+  const set = (k, v) => {
+    let val = v;
+    if ((k === "nombre" || k === "apellidos") && typeof v === "string") val = soloLetras(v);
+    if (k === "numDoc" && typeof v === "string") val = soloDigitos(v);
+    setForm(p => ({ ...p, [k]: val }));
+    setErrors(p => ({ ...p, [k]: "" }));
+  };
 
   const handleFoto = e => {
     const file = e.target.files[0]; if (!file) return;

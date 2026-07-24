@@ -1,5 +1,6 @@
 import { useState } from "react";
 import "./GestionInsumos.css";
+import { soloLetras } from "../../../utils/inputFilters";
 
 const STEPS = ["Identificación", "Stock"];
 
@@ -102,7 +103,7 @@ export default function CrearInsumo({ onClose, onSave, categorias, unidades }) {
                 <label className="form-label">Nombre <span className="required">*</span></label>
                 <input
                   className={`field-input${errors.nombre ? " error" : ""}`}
-                  value={form.nombre} onChange={e => set("nombre", e.target.value)}
+                  value={form.nombre} onChange={e => set("nombre", soloLetras(e.target.value))}
                   placeholder="Ej. Plátano verde"
                 />
                 {errors.nombre && <p className="field-error">{errors.nombre}</p>}

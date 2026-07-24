@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
+import { soloLetras, soloDigitos, esUbicacionValida } from "../../../utils/inputFilters";
 import { GB, getRolStyle, EMPTY_FORM, TIPO_DOC, validatePassword, validateCedula, validateTelefono } from "./usuariosUtils.js";
 import { Ic } from "./usuariosIcons.jsx";
 import { crearEmpleado, crearCliente, editarUsuario } from "../../../services/usuariosService.js";
@@ -219,7 +220,9 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
 
   const set = (k, v) => {
     let val = v;
-    if (k === "cedula" && typeof v === "string") val = v.replace(/\D/g, "");
+    if (k === "cedula"   && typeof v === "string") val = soloDigitos(v);
+    if (k === "telefono" && typeof v === "string") val = soloDigitos(v, 10);
+    if ((k === "nombre" || k === "apellidos") && typeof v === "string") val = soloLetras(v);
     setForm(f => ({ ...f, [k]: val }));
     setErrors(e => ({ ...e, [k]: "" }));
   };
@@ -251,6 +254,7 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
         if (!form.departamento)      e.departamento = "Selecciona un departamento";
         if (!form.municipio)         e.municipio    = "Selecciona un municipio";
         if (!form.direccion?.trim()) e.direccion    = "La dirección es obligatoria";
+        else if (!esUbicacionValida(form.direccion)) e.direccion = "La dirección debe tener letras y números (mín. 5 caracteres)";
       }
     }
 

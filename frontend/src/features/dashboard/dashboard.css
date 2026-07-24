@@ -246,3 +246,8 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; color: #1a1a1a; }
   .inventory-alerts-row { grid-template-columns: 1fr 1fr; }
   .critical-list-box { grid-column: 1 / -1; }
 }
+
+@media (max-width: 600px) {
+  .inventory-alerts-row { grid-template-columns: 1fr; }
+  .dash-inner { padding: 0 12px; }
+}

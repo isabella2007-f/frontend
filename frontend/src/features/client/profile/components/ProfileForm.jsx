@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { MUNICIPIOS_VALLE_ABURRA } from '../../../../utils/departamentosYCiudades';
 import { Mail, Phone, MapPin, Camera, Save, X, CreditCard, Lock } from 'lucide-react';
 import { apiFetch } from '../../../../utils/api';
+import { soloDigitos, esUbicacionValida } from '../../../../utils/inputFilters';
 
 const TIPO_DOC_OPTS = ['CC', 'CE', 'TI', 'NIT', 'PP'];
 
@@ -110,7 +111,10 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
   }, []);
 
   const set = (k) => (e) => {
-    setForm(p => ({ ...p, [k]: e.target.value }));
+    let val = e.target.value;
+    if (k === 'cedula') val = soloDigitos(val);
+    if (k === 'telefono') val = soloDigitos(val, 10);
+    setForm(p => ({ ...p, [k]: val }));
     setErrors(p => { const n = { ...p }; delete n[k]; return n; });
   };
   const setVal = (k, v) => {
@@ -132,7 +136,10 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
   const validate = () => {
     const e = {};
     if (!form.telefono.trim()) e.telefono = 'El teléfono es obligatorio';
-    else if (form.telefono.replace(/\D/g, '').length < 7) e.telefono = 'Número de teléfono inválido';
+    else if (form.telefono.replace(/\D/g, '').length !== 10) e.telefono = 'El teléfono debe tener 10 dígitos';
+
+    if (form.direccion?.trim() && !esUbicacionValida(form.direccion))
+      e.direccion = 'La dirección debe tener letras y números (mín. 5 caracteres)';
 
     // Cedula: si intenta establecerla por primera vez, debe poner tipo también
     if (!cedulaYaEstablecida && form.cedula.trim() && !form.tipo_documento)

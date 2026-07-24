@@ -138,7 +138,8 @@ export default function CrearCompra({ onClose, onSave }) {
     if (detalles.length === 0) e.detalles = "Agrega al menos un insumo";
     detalles.forEach((d, i) => {
       if (!d.idInsumo)                              e[`ins_${i}`]    = "Selecciona un insumo";
-      if (!d.cantidad || Number(d.cantidad) <= 0)   e[`cant_${i}`]   = "Cantidad inválida";
+      if (!d.cantidad || Number(d.cantidad) <= 0)    e[`cant_${i}`]   = "Cantidad inválida";
+      else if (Number(d.cantidad) > 99999)           e[`cant_${i}`]   = "Máximo 99 999 por línea";
       if (!d.precioUnd || Number(d.precioUnd) <= 0) e[`precio_${i}`] = "Precio inválido";
       if (d.vencimientoTipo === "fecha" && !d.fechaVencimiento)
         e[`venc_${i}`] = "Ingresa la fecha";
@@ -376,6 +377,8 @@ export default function CrearCompra({ onClose, onSave }) {
                         type="number"
                         className={`field-input ${errors[`cant_${i}`] ? "error" : ""}`}
                         placeholder="0"
+                        min="1"
+                        max="99999"
                         value={d.cantidad}
                         onChange={e => setDetalle(d._key, "cantidad", e.target.value)}
                       />

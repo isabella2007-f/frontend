@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { getUsuarios } from "../../../services/usuariosService.js";
 import "./clientes.css";
+import { soloLetras } from "../../../utils/inputFilters";
 
 const TIPOS_DOC = ["CC", "TI", "CE", "Pasaporte", "NIT", "PPT"];
 const fmtTel = raw => {
@@ -115,9 +116,8 @@ export default function CrearCliente({ onClose, onSave }) {
 
   const set = (k, v) => {
     let val = v;
-    if (k === 'numDoc') {
-      val = v.replace(/\D/g, '');
-    }
+    if (k === 'numDoc') val = v.replace(/\D/g, '');
+    if ((k === 'nombre' || k === 'apellidos') && typeof v === 'string') val = soloLetras(v);
     setForm(p => ({ ...p, [k]: val }));
     setErrors(p => ({ ...p, [k]: "" }));
   };
@@ -147,6 +147,7 @@ export default function CrearCliente({ onClose, onSave }) {
       else if (users.some(u => u.correo.toLowerCase() === form.correo.toLowerCase())) e.correo = "Este correo ya está en uso";
 
       if (!form.telefono.trim())  e.telefono  = "El teléfono es obligatorio";
+      else if (form.telefono.replace(/\D/g, "").length !== 10) e.telefono = "El teléfono debe tener 10 dígitos";
       if (!form.fechaCreacion)    e.fechaCreacion = "La fecha de registro es obligatoria";
       if (!form.departamento)     e.departamento  = "Selecciona un departamento";
       if (!form.municipio)        e.municipio     = "Selecciona un municipio";

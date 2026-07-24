@@ -5,7 +5,7 @@ import Sidebar from "../shared/components/Sidebar";
 import "../App.css";
 
 const MainLayout = () => {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 768);
   const location = useLocation();
   useEffect(() => {
     if (window.innerWidth <= 768) {

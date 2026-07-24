@@ -1,18 +1,13 @@
 import { useState } from "react";
 import { ModalOverlay } from "./ui.jsx";
+import EmojiPicker from "../../../shared/components/EmojiPicker";
 import "./CategoriaInsumos.css";
-
-const ICON_OPTIONS = [
-  "🥬","🥩","🧀","🌾","🧂","🛢️","🥫","📦",
-  "🫙","🧈","🥚","🌽","🍋","🧄","🫚","🍅",
-  "🥕","🧅","🌶️","🫑",
-];
+import { soloLetras, tieneLetras } from "../../../utils/inputFilters";
 
 export default function CrearCategoriaInsumo({ onClose, onSave }) {
-  const [form, setForm]               = useState({ nombre: "", descripcion: "", icon: "🥬" });
-  const [errors, setErrors]           = useState({});
-  const [saving, setSaving]           = useState(false);
-  const [pickingIcon, setPickingIcon] = useState(false);
+  const [form, setForm]   = useState({ nombre: "", descripcion: "", icon: "🥬" });
+  const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
 
   const set = (k, v) => {
     setForm(p => ({ ...p, [k]: v }));
@@ -21,8 +16,9 @@ export default function CrearCategoriaInsumo({ onClose, onSave }) {
 
   const validate = () => {
     const e = {};
-    if (!form.nombre.trim())      e.nombre      = "Campo requerido";
-    if (!form.descripcion.trim()) e.descripcion = "Campo requerido";
+    if (!form.nombre.trim())                                      e.nombre      = "Campo requerido";
+    if (!form.descripcion.trim())                                 e.descripcion = "Campo requerido";
+    else if (!tieneLetras(form.descripcion))                      e.descripcion = "La descripción debe contener letras";
     return e;
   };
 
@@ -52,33 +48,7 @@ export default function CrearCategoriaInsumo({ onClose, onSave }) {
       </div>
 
       <div className="modal-body">
-        <div className="form-group">
-          <label className="form-label">Ícono</label>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <button
-              className={`icon-picker-trigger${pickingIcon ? " open" : ""}`}
-              onClick={() => setPickingIcon(v => !v)}
-            >
-              {form.icon}
-            </button>
-            <span style={{ fontSize: 12, color: "#9e9e9e" }}>
-              {pickingIcon ? "Selecciona un emoji de la lista" : "Haz clic para cambiar el ícono"}
-            </span>
-          </div>
-          {pickingIcon && (
-            <div className="icon-picker-grid">
-              {ICON_OPTIONS.map(ic => (
-                <button
-                  key={ic}
-                  className={`icon-option${form.icon === ic ? " selected" : ""}`}
-                  onClick={() => { set("icon", ic); setPickingIcon(false); }}
-                >
-                  {ic}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <EmojiPicker value={form.icon} onChange={ic => set("icon", ic)} />
 
         <div className="form-group">
           <label className="form-label">
@@ -87,7 +57,7 @@ export default function CrearCategoriaInsumo({ onClose, onSave }) {
           <input
             className={`field-input${errors.nombre ? " field-input--error" : ""}`}
             value={form.nombre}
-            onChange={e => set("nombre", e.target.value)}
+            onChange={e => set("nombre", soloLetras(e.target.value))}
             placeholder="Ej. Vegetales"
             onFocus={e  => (e.target.style.borderColor = "#4caf50")}
             onBlur={e   => (e.target.style.borderColor = errors.nombre ? "#e53935" : "#e0e0e0")}

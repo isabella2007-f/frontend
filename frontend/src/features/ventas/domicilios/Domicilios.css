@@ -290,3 +290,6 @@
 
 @keyframes skeletonPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 .skeleton-cell { height:14px; background:#e0e0e0; border-radius:4px; animation:skeletonPulse 1.4s ease-in-out infinite; }
+
+@media (max-width: 768px) { .page-inner { padding: 0 16px; } }
+@media (max-width: 480px) { .page-inner { padding: 0 10px; } }

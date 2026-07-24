@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { getProveedores } from "../../../services/proveedoresService.js";
 import { getInsumos } from "../../../services/insumosService.js";
+import { fmtFecha } from "../../../utils/dateUtils";
 import "./compras.css";
 
 const METODOS_PAGO = [
@@ -225,6 +226,12 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
 
   const handleSave = async () => {
     if (saving) return;
+    const errCant = {};
+    detalles.forEach((d, i) => {
+      if (!d.cantidad || Number(d.cantidad) <= 0) errCant[`cant_${i}`] = "Cantidad inválida";
+      else if (Number(d.cantidad) > 99999)        errCant[`cant_${i}`] = "Máximo 99 999 por línea";
+    });
+    if (Object.keys(errCant).length) { setErrors(errCant); return; }
     setSaving(true);
     await new Promise(r => setTimeout(r, 400));
     const detallesLimpios = detalles.map(d => ({
@@ -280,9 +287,9 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 18 }}>
               {[
                 { label: "Proveedor",     value: `🏭 ${provNombre}` },
-                { label: "Fecha compra",  value: `📅 ${compra.fecha || "—"}` },
+                { label: "Fecha compra",  value: `📅 ${fmtFecha(compra.fecha)}` },
                 { label: "Método de pago",value: `${METODOS_PAGO.find(m => m.value === compra.metodoPago)?.icon || ""} ${compra.metodoPago || "—"}` },
-                compra.fecha_llegada ? { label: "Fecha llegada", value: `📦 ${compra.fecha_llegada}` } : null,
+                compra.fecha_llegada ? { label: "Fecha llegada", value: `📦 ${fmtFecha(compra.fecha_llegada)}` } : null,
                 compra.departamento   ? { label: "Departamento",  value: `📍 ${compra.departamento}` } : null,
                 compra.ciudad         ? { label: "Ciudad",        value: compra.ciudad } : null,
               ].filter(Boolean).map(({ label, value }) => (
@@ -318,7 +325,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                           <div className="insumo-notes">{d.cantidad} {ins?.unidad || ""} · {COP(d.precioUnd)} c/u</div>
                           {d.fechaVencimiento && (
                             <div className={`insumo-venc${dias !== null && dias < 0 ? " venc-danger" : dias !== null && dias <= 7 ? " venc-warn" : ""}`}>
-                              📅 Vence: {d.fechaVencimiento}
+                              📅 Vence: {fmtFecha(d.fechaVencimiento)}
                               {dias !== null && dias < 0 && " ⚠️ Vencido"}
                               {dias !== null && dias >= 0 && dias <= 7 && ` (${dias}d)`}
                             </div>
@@ -653,6 +660,8 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                               type="number"
                               className={`field-input ${errors[`cant_${i}`] ? "error" : ""}`}
                               placeholder="0"
+                              min="1"
+                              max="99999"
                               value={d.cantidad}
                               onChange={e => setDetalle(d._key, "cantidad", e.target.value)}
                             />

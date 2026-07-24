@@ -18,16 +18,7 @@ import {
   getCartCount,
   clearCart
 } from '../features/sales/orders/services/cartService';
-
-const CONTENT = {
-  heroBadge: "SABOR NATURAL 100%",
-  heroTitle: "El poder del Plátano",
-  heroDescription: "Descubre tostones, chips y delicias artesanales que redefinen el sabor de nuestra tierra. Crujientes, frescos y recolectados con amor.",
-  historyTitle: "Desde el campo hasta tu mesa",
-  historyDescription: "En Tostón App celebramos la tierra. Cada plátano es seleccionado para garantizar una experiencia épica y natural.",
-  ctaTitle: "Únete a la Revolución",
-  ctaDescription: "Estamos transformando la forma en que el mundo ve al plátano."
-};
+import { getLandingConfig } from '../services/landingConfigService';
 
 /* ═══════════════════════════════════════════
    LANDING PAGE
@@ -35,6 +26,7 @@ const CONTENT = {
 const LandingPage = ({ hideNavbar = false }) => {
   const navigate = useNavigate();
   const { agregarNotificacion } = useNotificaciones();
+  const [content, setContent] = useState(() => getLandingConfig());
   const [activeTab, setActiveTab] = useState('Todos');
   const [user, setUser] = useState(null);
   const [productos, setProductos] = useState([]);
@@ -58,6 +50,15 @@ const LandingPage = ({ hideNavbar = false }) => {
     window.addEventListener('cart-updated', syncCartInfo);
     return () => window.removeEventListener('cart-updated', syncCartInfo);
   }, [syncCartInfo]);
+
+  // Recarga el contenido si el admin lo edita en otra pestaña
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === 'toston_landing_config') setContent(getLandingConfig());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   const cargarProductos = useCallback(async () => {
     try {
@@ -207,8 +208,8 @@ const LandingPage = ({ hideNavbar = false }) => {
   const getCat = (id) => categoriasMap[id] || { nombre: 'Sin categoría', descripcion: '', icon: '🍌' };
   const categories = ['Todos', ...Object.values(categoriasMap).map(c => c.nombre)];
   const filteredProducts = activeTab === 'Todos'
-    ? productos.slice(0, 6)
-    : productos.filter(p => getCat(p.idCategoria).nombre === activeTab).slice(0, 6);
+    ? productos
+    : productos.filter(p => getCat(p.idCategoria).nombre === activeTab);
 
   const scrollToSection = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
@@ -277,13 +278,13 @@ const LandingPage = ({ hideNavbar = false }) => {
             <div className="flex-1 text-center lg:text-left space-y-8 max-w-2xl">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#e8f5e9] text-[#1b5e20] rounded-full text-xs font-black tracking-widest shadow-sm border border-[#c8e6c9]">
                 <Sparkles className="w-4 h-4 text-[#4caf50]" />
-                {CONTENT.heroBadge}
+                {content.heroBadge}
               </div>
               <h1 className="text-6xl lg:text-8xl font-black text-[#1b5e20] leading-tight tracking-tighter">
-                {CONTENT.heroTitle}
+                {content.heroTitle}
               </h1>
               <p className="text-xl text-[#388e3c] leading-relaxed max-w-xl mx-auto lg:mx-0 font-medium">
-                {CONTENT.heroDescription}
+                {content.heroDescription}
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-5">
                 <button onClick={() => scrollToSection('productos')} className="group relative flex items-center gap-3 px-10 py-5 bg-[#1b5e20] text-white font-black rounded-2xl hover:bg-[#0d3300] shadow-[0_10px_30px_rgba(27,94,32,0.3)] transition-all hover:-translate-y-1 active:scale-95 w-full sm:w-auto justify-center overflow-hidden">
@@ -429,18 +430,18 @@ const LandingPage = ({ hideNavbar = false }) => {
               <div className="space-y-4">
                 <h2 className="text-[#81c784] font-black tracking-[0.4em] uppercase text-sm">El origen</h2>
                 <h3 className="text-5xl lg:text-7xl font-black leading-tight tracking-tighter">
-                  {CONTENT.historyTitle}
+                  {content.historyTitle}
                 </h3>
               </div>
               <p className="text-xl text-[#c8e6c9] leading-relaxed font-medium">
-                {CONTENT.historyDescription}
+                {content.historyDescription}
               </p>
             </div>
             <div className="flex-1">
               <div className="bg-[#0d3300]/30 rounded-[60px] p-20 text-center border-2 border-[#1b5e20] shadow-2xl backdrop-blur-sm">
                 <Leaf className="w-24 h-24 text-[#81c784] mx-auto mb-8 animate-pulse" />
-                <h4 className="text-3xl font-black mb-4">{CONTENT.ctaTitle}</h4>
-                <p className="text-[#c8e6c9] mb-10">{CONTENT.ctaDescription}</p>
+                <h4 className="text-3xl font-black mb-4">{content.ctaTitle}</h4>
+                <p className="text-[#c8e6c9] mb-10">{content.ctaDescription}</p>
                 {!user && (
                   <button onClick={() => navigate('/register')} className="w-full py-5 bg-white text-[#1b5e20] font-black rounded-3xl hover:bg-[#e8f5e9] transition-all shadow-xl">
                     Crear mi cuenta gratis

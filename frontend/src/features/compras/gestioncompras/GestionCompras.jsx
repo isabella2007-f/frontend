@@ -3,6 +3,7 @@ import { getCompras, crearCompra as apiCrearCompra, editarCompra, completarCompr
 import { getProveedores } from "../../../services/proveedoresService.js";
 import CrearCompra from "./CrearCompra.jsx";
 import EditarCompra, { AnularCompraModal } from "./EditarCompra.jsx";
+import { fmtFecha } from "../../../utils/dateUtils";
 import "./compras.css";
 
 const ITEMS_PER_PAGE = 10;
@@ -389,7 +390,7 @@ export default function GestionCompras() {
                       {/* Fecha llegada */}
                       <td>
                         {c.fecha_llegada
-                          ? <span className="date-badge">📦 {c.fecha_llegada}</span>
+                          ? <span className="date-badge">📦 {fmtFecha(c.fecha_llegada)}</span>
                           : <span style={{ fontSize: 11, color: "#bdbdbd", fontWeight: 600 }}>Pendiente</span>
                         }
                       </td>

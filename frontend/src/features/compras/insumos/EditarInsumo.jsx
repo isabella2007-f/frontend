@@ -1,5 +1,6 @@
 import { useState } from "react";
 import "./GestionInsumos.css";
+import { soloLetras } from "../../../utils/inputFilters";
 
 const STEPS = ["Identificación", "Stock"];
 
@@ -103,7 +104,7 @@ export default function EditarInsumo({ ins, onClose, onSave, categorias, unidade
                 <label className="form-label">Nombre <span>*</span></label>
                 <input
                   className={`field-input${errors.nombre ? " field-input--error" : ""}`}
-                  value={form.nombre} onChange={e => set("nombre", e.target.value)}
+                  value={form.nombre} onChange={e => set("nombre", soloLetras(e.target.value))}
                   placeholder="Ej. Plátano verde"
                   onFocus={e => (e.target.style.borderColor = "#4caf50")}
                   onBlur={e  => (e.target.style.borderColor = errors.nombre ? "#e53935" : "#e0e0e0")}

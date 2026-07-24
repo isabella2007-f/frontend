@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { apiFetch } from '../utils/api';
+import { soloLetras } from '../utils/inputFilters';
 import { User, Mail, Lock, Eye, EyeOff, Check, Leaf, ChevronRight } from 'lucide-react';
 import './Auth.css';
 
@@ -22,7 +23,9 @@ const Register = () => {
   });
 
   const set = (k) => (e) => {
-    setForm(p => ({ ...p, [k]: e.target.value }));
+    let val = e.target.value;
+    if (k === 'Nombre' || k === 'Apellidos') val = soloLetras(val);
+    setForm(p => ({ ...p, [k]: val }));
     setErrors(p => { const n = { ...p }; delete n[k]; return n; });
   };
 

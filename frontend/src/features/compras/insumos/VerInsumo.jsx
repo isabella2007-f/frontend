@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getLotesInsumo } from "../../../services/insumosService.js";
+import { fmtFecha } from "../../../utils/dateUtils";
 import "./GestionInsumos.css";
 
 function BadgeVenc({ color, bg, border, icon, label, tooltip }) {
@@ -127,11 +128,11 @@ function LotesTab({ lotes, loading, tipo, unidad }) {
                 {l.numero_lote && <span style={{ fontWeight: 400, fontSize: 11, color: "#9e9e9e", marginLeft: 8 }}>{l.numero_lote}</span>}
               </div>
               <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 2 }}>
-                {l.fecha_produccion && `Producción: ${l.fecha_produccion} · `}
+                {l.fecha_produccion && `Producción: ${fmtFecha(l.fecha_produccion)} · `}
                 {fv
                   ? (l.vencido
-                      ? `Venció: ${fv}${dias !== null ? ` · hace ${Math.abs(dias)} días` : ""}`
-                      : `Vence: ${fv}`)
+                      ? `Venció: ${fmtFecha(fv)}${dias !== null ? ` · hace ${Math.abs(dias)} días` : ""}`
+                      : `Vence: ${fmtFecha(fv)}`)
                   : "Sin fecha de vencimiento"}
               </div>
             </div>

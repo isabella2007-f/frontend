@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { createPortal } from "react-dom";
+import { soloLetras } from "../../../utils/inputFilters";
 import "./Roles.css";
 import { crearRol, gestionarPermisos } from "../../../services/rolesService.js";
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
@@ -100,7 +101,7 @@ export default function CrearRol({ onClose, onSave }) {
               <input
                 className={`field-input${errors.nombre ? " field-input--error" : ""}`}
                 value={form.nombre}
-                onChange={e => set("nombre", e.target.value)}
+                onChange={e => set("nombre", soloLetras(e.target.value))}
                 placeholder="Ej. Supervisor"
                 onFocus={e => (e.target.style.borderColor = "#4caf50")}
                 onBlur={e  => (e.target.style.borderColor = errors.nombre ? "#e53935" : "#e0e0e0")}
