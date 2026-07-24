@@ -111,11 +111,6 @@ function ProductDetailModal({ product, cat, onClose, onAddToCart }) {
               </>
             )}
 
-            {agotado && (
-              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                <span className="bg-red-600 text-white font-black text-sm px-6 py-2.5 rounded-2xl uppercase tracking-wide">Agotado</span>
-              </div>
-            )}
           </div>
 
           {/* Thumbnails */}
