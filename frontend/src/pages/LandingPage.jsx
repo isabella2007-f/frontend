@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ShoppingBag, Leaf, Sparkles,
-  Plus, Minus, ShoppingCart, CheckCircle2,
+  Plus, Minus, ShoppingCart, CheckCircle2, X, ChevronLeft, ChevronRight, Eye,
 } from 'lucide-react';
 import { getUser } from '../services/authService.js';
 import { crearPedido } from '../services/pedidosService.js';
@@ -21,6 +21,188 @@ import {
 import { getLandingConfig } from '../services/landingConfigService';
 
 /* ═══════════════════════════════════════════
+   PRODUCT DETAIL MODAL
+═══════════════════════════════════════════ */
+function ProductDetailModal({ product, cat, onClose, onAddToCart }) {
+  const [imgIdx, setImgIdx] = useState(0);
+  const [qty, setQty]       = useState(1);
+
+  const imgs    = product.imagenes?.length > 0 ? product.imagenes : (product.imagen ? [product.imagen] : []);
+  const agotado = product.stock === 0;
+
+  // Cerrar con Escape
+  useEffect(() => {
+    const h = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [onClose]);
+
+  // Bloquear scroll del fondo
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+
+  const prev = () => setImgIdx(i => (i - 1 + imgs.length) % imgs.length);
+  const next = () => setImgIdx(i => (i + 1) % imgs.length);
+
+  const handleAdd = () => {
+    onAddToCart(product, qty);
+    onClose();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4"
+      onClick={onClose}
+    >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+
+      {/* Panel */}
+      <div
+        className="relative bg-white w-full sm:max-w-4xl sm:rounded-[32px] rounded-t-[36px] overflow-hidden shadow-2xl flex flex-col md:flex-row pdm-animate"
+        style={{ maxHeight: '92vh' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Cerrar */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 z-20 w-10 h-10 bg-black/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white hover:bg-black/35 transition-colors"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* ── Galería ── */}
+        <div className="md:w-[44%] flex-shrink-0 bg-[#f7faf8] flex flex-col">
+          {/* Imagen principal */}
+          <div className="relative flex-1" style={{ minHeight: 280, maxHeight: 420 }}>
+            {imgs.length > 0 ? (
+              <img
+                src={imgs[imgIdx]}
+                alt={product.nombre}
+                className="w-full h-full object-cover"
+                style={{ maxHeight: 420 }}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center" style={{ minHeight: 280 }}>
+                <span className="text-9xl">{cat?.icon || '🍌'}</span>
+              </div>
+            )}
+
+            {/* Flechas */}
+            {imgs.length > 1 && (
+              <>
+                <button onClick={prev} className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg hover:bg-white transition-colors text-[#1b5e20]">
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <button onClick={next} className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/90 backdrop-blur-sm rounded-full flex items-center justify-center shadow-lg hover:bg-white transition-colors text-[#1b5e20]">
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+                {/* Dots */}
+                <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
+                  {imgs.map((_, i) => (
+                    <button key={i} onClick={() => setImgIdx(i)}
+                      className={`rounded-full transition-all ${i === imgIdx ? 'bg-white w-5 h-2' : 'bg-white/50 w-2 h-2'}`}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {agotado && (
+              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                <span className="bg-red-600 text-white font-black text-sm px-6 py-2.5 rounded-2xl uppercase tracking-wide">Agotado</span>
+              </div>
+            )}
+          </div>
+
+          {/* Thumbnails */}
+          {imgs.length > 1 && (
+            <div className="flex gap-2 p-3 overflow-x-auto bg-white border-t border-[#f0f0f0]">
+              {imgs.map((url, i) => (
+                <button
+                  key={i}
+                  onClick={() => setImgIdx(i)}
+                  className={`flex-shrink-0 w-14 h-14 rounded-xl overflow-hidden border-2 transition-all ${
+                    i === imgIdx ? 'border-[#1b5e20] scale-95' : 'border-transparent opacity-50 hover:opacity-80'
+                  }`}
+                >
+                  <img src={url} alt="" className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* ── Info ── */}
+        <div className="flex-1 overflow-y-auto flex flex-col p-7 gap-5 min-w-0">
+          {/* Badges */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-3 py-1 bg-[#e8f5e9] text-[#1b5e20] rounded-lg text-xs font-black uppercase tracking-widest">
+              {cat?.icon} {cat?.nombre || 'Producto'}
+            </span>
+            {!agotado && product.stock <= 10 && (
+              <span className="px-3 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs font-black border border-amber-100">
+                ¡Solo {product.stock} disponibles!
+              </span>
+            )}
+          </div>
+
+          {/* Nombre + Precio */}
+          <div>
+            <h2 className="text-3xl font-black text-[#1b5e20] leading-tight mb-2">{product.nombre}</h2>
+            <p className="text-4xl font-black text-[#4caf50]">
+              ${product.precio?.toLocaleString('es-CO')}
+            </p>
+          </div>
+
+          {/* Descripciones */}
+          {(product.descripcion_corta || product.descripcion_larga) ? (
+            <div className="space-y-3">
+              {product.descripcion_corta && (
+                <p className="text-[#424242] font-medium leading-relaxed">{product.descripcion_corta}</p>
+              )}
+              {product.descripcion_larga && (
+                <p className="text-[#757575] text-sm leading-relaxed">{product.descripcion_larga}</p>
+              )}
+            </div>
+          ) : (
+            <p className="text-[#9e9e9e] text-sm">Sabor auténtico y natural en cada bocado.</p>
+          )}
+
+          {/* Selector de cantidad + botón */}
+          <div className="mt-auto pt-2">
+            {agotado ? (
+              <div className="w-full py-4 bg-[#f5f5f5] text-[#bdbdbd] font-black rounded-2xl text-center">
+                Producto agotado
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1 bg-[#f7faf8] rounded-2xl border border-[#e8f5e9] p-1.5 flex-shrink-0">
+                  <button onClick={() => setQty(q => Math.max(1, q - 1))}
+                    className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[#e8f5e9] transition-colors active:scale-90 text-[#1b5e20] font-bold text-lg">−</button>
+                  <span className="w-10 text-center font-black text-[#1b5e20] text-sm">{qty}</span>
+                  <button onClick={() => setQty(q => Math.min(q + 1, product.stock || 99))}
+                    className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[#e8f5e9] transition-colors active:scale-90 text-[#1b5e20] font-bold text-lg">+</button>
+                </div>
+                <button
+                  onClick={handleAdd}
+                  className="flex-1 py-4 bg-[#1b5e20] text-white font-black rounded-2xl hover:bg-[#0d3300] active:scale-95 transition-all shadow-lg flex items-center justify-center gap-2"
+                >
+                  <ShoppingCart className="w-4 h-4" />
+                  Agregar al carrito
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════
    LANDING PAGE
 ═══════════════════════════════════════════ */
 const LandingPage = ({ hideNavbar = false }) => {
@@ -36,6 +218,7 @@ const LandingPage = ({ hideNavbar = false }) => {
   const [cartOpen, setCartOpen] = useState(false);
   const [quantities, setQuantities] = useState({});
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
   const [orderDetails, setOrderDetails] = useState(null);
   const [orderDone, setOrderDone] = useState(false);
 
@@ -87,7 +270,9 @@ const LandingPage = ({ hideNavbar = false }) => {
             stock:            p.Stock ?? 0,
             idCategoria:      p.ID_Categoria,
             imagen:           p.imagenes?.[0]?.url || null,
+            imagenes:         p.imagenes?.map(i => i.url) || [],
             descripcion_corta: p.Descripcion_Corta ?? "",
+            descripcion_larga: p.Descripcion_Larga ?? "",
           }))
       );
     } catch {
@@ -123,11 +308,15 @@ const LandingPage = ({ hideNavbar = false }) => {
 
   const handleAddToCart = (product) => {
     const qty = getQty(product.id);
-    // Agregamos la cantidad seleccionada
     for(let i=0; i<qty; i++) {
       addToCartService(product);
     }
     setQuantities(prev => ({ ...prev, [product.id]: 1 }));
+    setCartOpen(true);
+  };
+
+  const handleAddFromModal = (product, qty) => {
+    for (let i = 0; i < qty; i++) addToCartService(product);
     setCartOpen(true);
   };
 
@@ -224,6 +413,11 @@ const LandingPage = ({ hideNavbar = false }) => {
           to { transform: translateX(-50%) translateY(0); opacity: 1; }
         }
         .animate-slide-down-toast { animation: slide-down-toast 0.4s ease both; }
+        @keyframes pdm-in {
+          from { opacity: 0; transform: translateY(40px) scale(0.97); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .pdm-animate { animation: pdm-in 0.35s cubic-bezier(0.16,1,0.3,1) both; }
       `}</style>
 
       {/* ── Toast de éxito ── */}
@@ -241,6 +435,16 @@ const LandingPage = ({ hideNavbar = false }) => {
         orderDetails={orderDetails}
         onConfirm={handleConfirmOrder}
       />
+
+      {/* ── Product Detail Modal ── */}
+      {selectedProduct && (
+        <ProductDetailModal
+          product={selectedProduct}
+          cat={getCat(selectedProduct.idCategoria)}
+          onClose={() => setSelectedProduct(null)}
+          onAddToCart={(p, qty) => handleAddFromModal(p, qty)}
+        />
+      )}
 
       {/* ── Cart Drawer Premium ── */}
       <CartAside
@@ -363,11 +567,19 @@ const LandingPage = ({ hideNavbar = false }) => {
               const agotado = p.stock === 0;
               return (
                 <div key={p.id} className="group bg-white rounded-[40px] overflow-hidden border border-[#f1f8f1] hover:border-[#c8e6c9] hover:shadow-[0_30px_60px_rgba(27,94,32,0.1)] transition-all duration-500 flex flex-col">
-                  <div className="relative h-72 overflow-hidden">
+                  <div className="relative h-72 overflow-hidden cursor-pointer" onClick={() => setSelectedProduct(p)}>
                     {p.imagenPreview || p.imagen
                       ? <img src={p.imagenPreview || p.imagen} alt={p.nombre} className={`w-full h-full object-cover transition-transform duration-700 ${agotado ? 'grayscale opacity-70' : 'group-hover:scale-110'}`} />
                       : <div className={`w-full h-full bg-[#f7faf8] flex items-center justify-center ${agotado ? 'opacity-50' : ''}`}><span className="text-7xl group-hover:scale-125 transition-transform duration-500">{cat.icon || '🍌'}</span></div>
                     }
+                    {/* Overlay Ver detalles */}
+                    {!agotado && (
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300 flex items-center justify-center">
+                        <div className="flex items-center gap-2 bg-white/90 backdrop-blur-sm text-[#1b5e20] font-black text-sm px-5 py-2.5 rounded-2xl shadow-xl opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300">
+                          <Eye className="w-4 h-4" /> Ver detalles
+                        </div>
+                      </div>
+                    )}
                     {agotado && (
                       <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
                         <span className="bg-red-600 text-white font-black text-sm px-6 py-2.5 rounded-2xl shadow-xl tracking-wide uppercase">
