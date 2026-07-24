@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { getUsuarios } from "../../../services/usuariosService.js";
 import "./clientes.css";
+import { soloLetras } from "../../../utils/inputFilters";
+import CharCount from "../../../shared/components/CharCount";
 
 const TIPOS_DOC = ["CC", "TI", "CE", "Pasaporte", "NIT", "PPT"];
 const fmtTel = raw => {
@@ -115,9 +117,8 @@ export default function CrearCliente({ onClose, onSave }) {
 
   const set = (k, v) => {
     let val = v;
-    if (k === 'numDoc') {
-      val = v.replace(/\D/g, '');
-    }
+    if (k === 'numDoc') val = v.replace(/\D/g, '');
+    if ((k === 'nombre' || k === 'apellidos') && typeof v === 'string') val = soloLetras(v);
     setForm(p => ({ ...p, [k]: val }));
     setErrors(p => ({ ...p, [k]: "" }));
   };
@@ -147,6 +148,7 @@ export default function CrearCliente({ onClose, onSave }) {
       else if (users.some(u => u.correo.toLowerCase() === form.correo.toLowerCase())) e.correo = "Este correo ya está en uso";
 
       if (!form.telefono.trim())  e.telefono  = "El teléfono es obligatorio";
+      else if (form.telefono.replace(/\D/g, "").length !== 10) e.telefono = "El teléfono debe tener 10 dígitos";
       if (!form.fechaCreacion)    e.fechaCreacion = "La fecha de registro es obligatoria";
       if (!form.departamento)     e.departamento  = "Selecciona un departamento";
       if (!form.municipio)        e.municipio     = "Selecciona un municipio";
@@ -237,13 +239,17 @@ export default function CrearCliente({ onClose, onSave }) {
               <p className="section-label" style={{ marginTop: 0 }}>Datos personales</p>
               <div className="form-grid-2">
                 {[
-                  { k: "nombre",    label: "Nombre",    ph: "Ej. Ana" },
-                  { k: "apellidos", label: "Apellidos", ph: "Ej. García López" },
-                ].map(({ k, label, ph }) => (
+                  { k: "nombre",    label: "Nombre",    ph: "Ej. Ana",          max: 50 },
+                  { k: "apellidos", label: "Apellidos", ph: "Ej. García López", max: 50 },
+                ].map(({ k, label, ph, max }) => (
                   <div key={k} className="form-group">
-                    <label className="form-label">{label} <span className="required">*</span></label>
+                    <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
+                      <span>{label} <span className="required">*</span></span>
+                      <CharCount value={form[k] || ""} max={max} min={2} />
+                    </label>
                     <input className={"field-input" + (errors[k] ? " field-input--error" : "")}
-                      type="text" value={form[k] || ""} onChange={e => set(k, e.target.value)} placeholder={ph}
+                      type="text" value={form[k] || ""} maxLength={max}
+                      onChange={e => set(k, e.target.value)} placeholder={ph}
                       onFocus={e => e.target.style.borderColor = "#4caf50"}
                       onBlur={e  => e.target.style.borderColor = errors[k] ? "#e53935" : "#e0e0e0"} />
                     {errors[k] && <p className="field-error">{errors[k]}</p>}
@@ -281,8 +287,12 @@ export default function CrearCliente({ onClose, onSave }) {
                 </div>
 
                 <div className="form-group" style={{ gridColumn: "1 / -1" }}>
-                  <label className="form-label">Dirección</label>
+                  <label className="form-label" style={{ display: "flex", justifyContent: "space-between" }}>
+                    <span>Dirección</span>
+                    <CharCount value={form.direccion || ""} max={200} min={5} />
+                  </label>
                   <input className="field-input" type="text" value={form.direccion || ""}
+                    maxLength={200}
                     onChange={e => set("direccion", e.target.value)} placeholder="Ej. Cra 5 #12-34, Apto 201"
                     onFocus={e => e.target.style.borderColor = "#4caf50"}
                     onBlur={e  => e.target.style.borderColor = "#e0e0e0"} />

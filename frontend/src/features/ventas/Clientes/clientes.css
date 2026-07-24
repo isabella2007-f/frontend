@@ -135,6 +135,13 @@
 .field-input--disabled { background: #fafafa; color: #424242; cursor: default; }
 .field-error { margin: 4px 0 0; font-size: 11px; color: #e53935; }
 
+@media (max-width: 768px) { .page-inner { padding: 0 16px; } }
+@media (max-width: 480px) { .page-inner { padding: 0 10px; } }
+
+@media (max-width: 600px) {
+  .form-grid-2 { grid-template-columns: 1fr; }
+}
+
 /* ─── Section label (separador de secciones en modal) ────── */
 .section-label {
   margin: 16px 0 10px;

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { validatePassword } from "../../configuracion/Usuarios/usuariosUtils.js";
 import "./clientes.css";
+import { soloLetras, soloDigitos } from "../../../utils/inputFilters";
 
 const TIPOS_DOC = ["CC", "TI", "CE", "Pasaporte", "NIT", "PPT"];
 const fmtTel = raw => {
@@ -204,11 +205,19 @@ function ModalVerCliente({ cliente, onClose }) {
                   </div>
                   <div className="form-group" style={{ gridColumn: "1 / -1" }}>
                     <label className="form-label">Correo electrónico</label>
-                    <div className="field-input field-input--disabled">{cliente.correo || "—"}</div>
+                    <div className="field-input field-input--disabled">
+                      {cliente.correo
+                        ? <a href={`mailto:${cliente.correo}`} style={{ color: "#1565c0", textDecoration: "none", fontWeight: 600 }}>✉ {cliente.correo}</a>
+                        : "—"}
+                    </div>
                   </div>
                   <div className="form-group">
                     <label className="form-label">Teléfono</label>
-                    <div className="field-input field-input--disabled">{cliente.telefono || "—"}</div>
+                    <div className="field-input field-input--disabled">
+                      {cliente.telefono
+                        ? <a href={`https://wa.me/${cliente.telefono.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" style={{ color: "#2e7d32", textDecoration: "none", fontWeight: 600 }}>📞 {cliente.telefono}</a>
+                        : "—"}
+                    </div>
                   </div>
                   <div className="form-group">
                     <label className="form-label">Fecha de registro</label>
@@ -287,7 +296,13 @@ function ModalEditarCliente({ cliente, onClose, onSave }) {
 
   useEffect(() => { if (cliente) setForm({ ...cliente, contrasena: "", confirmar: "" }); }, [cliente]);
 
-  const set = (k, v) => { setForm(p => ({ ...p, [k]: v })); setErrors(p => ({ ...p, [k]: "" })); };
+  const set = (k, v) => {
+    let val = v;
+    if (k === 'numDoc' && typeof v === 'string') val = soloDigitos(v);
+    if ((k === 'nombre' || k === 'apellidos') && typeof v === 'string') val = soloLetras(v);
+    setForm(p => ({ ...p, [k]: val }));
+    setErrors(p => ({ ...p, [k]: "" }));
+  };
 
   const handleFoto = e => {
     const file = e.target.files[0]; if (!file) return;
@@ -307,6 +322,7 @@ function ModalEditarCliente({ cliente, onClose, onSave }) {
       if (!form.apellidos?.trim()) e.apellidos = "Requerido";
       if (!form.correo?.trim() || !/\S+@\S+\.\S+/.test(form.correo)) e.correo = "Correo inválido";
       if (!form.telefono?.trim())  e.telefono  = "Requerido";
+      else if (form.telefono.replace(/\D/g, "").length !== 10) e.telefono = "El teléfono debe tener 10 dígitos";
       if (!form.fechaCreacion)     e.fechaCreacion = "Requerido";
       if (!form.departamento)      e.departamento  = "Requerido";
       if (!form.municipio)         e.municipio     = "Requerido";
