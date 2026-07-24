@@ -990,12 +990,13 @@ export default function GestionProductos() {
         cantidad:   payload.cantidad,
         motivo:     payload.motivo,
       });
-      await cargarDatos();
       showToast("Salida registrada y stock actualizado");
+      setModal(null);
+      cargarDatos().catch(() => {});
     } catch (e) {
       showToast(e.message || "Error en la salida", "error");
+      setModal(null);
     }
-    setModal(null);
   };
 
   /* ══════════════════════════════════════════════════════

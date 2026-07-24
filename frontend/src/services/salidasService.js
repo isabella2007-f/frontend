@@ -3,7 +3,7 @@ import { apiFetch } from "../utils/api";
 export async function registrarSalida({ tipo, idInsumo, idProducto, cantidad, motivo }) {
   return apiFetch("/salidas/", {
     method: "POST",
-    timeout: 90000,
+    timeout: 150000,
     body: JSON.stringify({
       Tipo:        tipo,
       ID_Insumo:   idInsumo   ?? null,

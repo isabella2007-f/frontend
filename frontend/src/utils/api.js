@@ -78,9 +78,9 @@ export async function apiFetch(endpoint, options = {}) {
       (err instanceof TypeError && err.message.toLowerCase().includes("fetch"))
     ) {
       throw new Error(
-        "No se pudo conectar con el servidor. " +
-        "Si es la primera solicitud del día, el servidor puede estar iniciando (espera ~60 seg). " +
-        "Intenta de nuevo en un momento."
+        "El servidor tardó demasiado en responder. " +
+        "Puede estar iniciando (primera solicitud del día) o bajo carga. " +
+        "Intenta de nuevo en unos segundos."
       );
     }
     throw err;
