@@ -521,37 +521,15 @@ const LandingPage = ({ hideNavbar = false }) => {
       </section>
 
       {/* ─── CATEGORÍAS ─── */}
-      {Object.keys(categoriasMap).length > 0 && (
-        <section id="categorias" className="py-10 bg-[#f7faf8]">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center space-y-2 mb-7">
-              <h2 className="text-[#4caf50] font-black tracking-[0.3em] uppercase text-xs">Explora</h2>
-              <h3 className="text-2xl lg:text-3xl font-black text-[#1b5e20]">Nuestras Categorías</h3>
-            </div>
-            <div className="flex flex-wrap justify-center gap-3">
-              {Object.values(categoriasMap).map((cat) => (
-                <button
-                  key={cat.nombre}
-                  onClick={() => { setActiveTab(cat.nombre); scrollToSection('productos'); }}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-white rounded-2xl border border-[#e8f5e9] hover:border-[#a5d6a7] hover:shadow-md hover:bg-[#f1f8f1] transition-all text-[#1b5e20] font-bold text-sm"
-                >
-                  <span className="text-xl">{cat.icon || '📦'}</span>
-                  <span>{cat.nombre}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
       {/* ─── PRODUCTOS ─── */}
-      <section id="productos" className="py-32 bg-white relative">
+      <section id="productos" className="py-20 bg-white relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center space-y-4 mb-20">
+          <div className="text-center space-y-4 mb-10">
             <h2 className="text-[#4caf50] font-black tracking-[0.3em] uppercase text-sm">Nuestro Menú</h2>
-            <h3 className="text-5xl lg:text-6xl font-black text-[#1b5e20]">Selección Premium</h3>
+            <h3 className="text-5xl lg:text-6xl font-black text-[#1b5e20]">Nuestros Productos</h3>
             <div className="w-24 h-2 bg-[#1b5e20] mx-auto rounded-full" />
           </div>
+          <p className="text-center text-xs font-black uppercase tracking-[0.25em] text-[#4caf50] mb-4">Categorías</p>
           <div className="flex flex-wrap justify-center gap-3 mb-16">
             {categories.map(cat => (
               <button key={cat} onClick={() => setActiveTab(cat)}
