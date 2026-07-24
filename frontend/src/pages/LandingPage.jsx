@@ -542,24 +542,15 @@ const LandingPage = ({ hideNavbar = false }) => {
                 <div key={p.id} className="group bg-white rounded-[40px] overflow-hidden border border-[#f1f8f1] hover:border-[#c8e6c9] hover:shadow-[0_30px_60px_rgba(27,94,32,0.1)] transition-all duration-500 flex flex-col">
                   <div className="relative h-72 overflow-hidden cursor-pointer" onClick={() => setSelectedProduct(p)}>
                     {p.imagenPreview || p.imagen
-                      ? <img src={p.imagenPreview || p.imagen} alt={p.nombre} className={`w-full h-full object-cover transition-transform duration-700 ${agotado ? 'grayscale opacity-70' : 'group-hover:scale-110'}`} />
-                      : <div className={`w-full h-full bg-[#f7faf8] flex items-center justify-center ${agotado ? 'opacity-50' : ''}`}><span className="text-7xl group-hover:scale-125 transition-transform duration-500">{cat.icon || '🍌'}</span></div>
+                      ? <img src={p.imagenPreview || p.imagen} alt={p.nombre} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                      : <div className="w-full h-full bg-[#f7faf8] flex items-center justify-center"><span className="text-7xl group-hover:scale-125 transition-transform duration-500">{cat.icon || '🍌'}</span></div>
                     }
                     {/* Overlay Ver detalles */}
-                    {!agotado && (
-                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300 flex items-center justify-center">
-                        <div className="flex items-center gap-2 bg-white/90 backdrop-blur-sm text-[#1b5e20] font-black text-sm px-5 py-2.5 rounded-2xl shadow-xl opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300">
-                          <Eye className="w-4 h-4" /> Ver detalles
-                        </div>
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300 flex items-center justify-center">
+                      <div className="flex items-center gap-2 bg-white/90 backdrop-blur-sm text-[#1b5e20] font-black text-sm px-5 py-2.5 rounded-2xl shadow-xl opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300">
+                        <Eye className="w-4 h-4" /> Ver detalles
                       </div>
-                    )}
-                    {agotado && (
-                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                        <span className="bg-red-600 text-white font-black text-sm px-6 py-2.5 rounded-2xl shadow-xl tracking-wide uppercase">
-                          Agotado
-                        </span>
-                      </div>
-                    )}
+                    </div>
                     <div className="absolute top-6 right-6 bg-white/95 backdrop-blur-sm px-5 py-2.5 rounded-2xl font-black text-[#1b5e20] shadow-lg">
                       ${p.precio?.toLocaleString('es-CO')}
                     </div>
