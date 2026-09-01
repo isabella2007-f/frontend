@@ -305,8 +305,12 @@ def _sync_venta_por_ordenes(
             venta.Estado = (
                 ESTADO_VENTA_LISTO if alguna_completada else ESTADO_VENTA_CONFIRMADO
             )
-    elif venta.Estado not in {ESTADO_EN_PROCESO}:
-        # Hay órdenes activas y el pedido aún no refleja "En producción"
+    elif (venta.Estado in _ESTADOS_VENTA_PRODUCIENDO
+          and venta.Estado != ESTADO_EN_PROCESO):
+        # Hay órdenes activas y el pedido aún no refleja "En producción".
+        # Solo se mueve el pedido que ya está confirmado: la orden de un pedido
+        # que sigue Pendiente (se abrió al dejar el anticipo) no puede saltarse
+        # la confirmación del admin.
         venta.Estado = ESTADO_EN_PROCESO
 
 

@@ -38,12 +38,16 @@ from src.features.ventas.gestion_ventas.services.schemas import (
 )
 from src.features.ventas.gestion_ventas.services.service import (
     COSTO_DOMICILIO,
+    cambiar_estado,
     crear_venta,
 )
+from src.features.ventas.pedidos.services.estados import EstadoPedido
 from src.shared.services.models import (
     Base,
     CreditoCliente,
     Domicilio,
+    FichaTecnica,
+    OrdenProduccion,
     Producto,
     Usuario,
     Venta,
@@ -581,6 +585,197 @@ class PedidoDelPersonalTests(CrearVentaBase):
             domicilio=self.domicilio(ID_Empleado=4),
         ))
         self.assertEqual(self.db.query(Domicilio).first().Estado, 10)
+
+
+# ═════════════════════════════════════════════════════════════════════════
+# 7. Orden de producción del faltante
+# ═════════════════════════════════════════════════════════════════════════
+class OrdenProduccionDelFaltanteTests(CrearVentaBase):
+    """La torta tiene 2 en stock; pedir 5 debe fabricar 3, no 5.
+
+    Y mientras esa orden siga abierta el pedido no puede darse por Listo: no
+    existe el producto que se entregaría.
+    """
+
+    def con_anticipo(self, cantidad=5, **kwargs):
+        self.marcar_por_encargo(ID_TORTA)
+        base = dict(
+            productos=[ProductoVentaInput(ID_Producto=ID_TORTA, Cantidad=cantidad)],
+            Metodo_Pago="Transferencia",
+            requiere_anticipo=True,
+            anticipo_monto=25000.0,
+            anticipo_metodo_pago="Transferencia",
+            anticipo_comprobante_url="https://cloudinary.test/ant.jpg",
+            anticipo_registrado=True,
+        )
+        base.update(kwargs)
+        return self.pedido(**base)
+
+    def sin_receta(self, cantidad=5):
+        """Sobre stock, pero el producto no se puede fabricar.
+
+        Ni ficha técnica ni `Requiere_Produccion`: no hay orden que abrir, así
+        que el faltante solo se cubre reponiendo stock.
+        """
+        return self.pedido(
+            productos=[ProductoVentaInput(ID_Producto=ID_TORTA, Cantidad=cantidad)],
+            Metodo_Pago="Transferencia",
+            requiere_anticipo=True,
+            anticipo_monto=25000.0,
+            anticipo_metodo_pago="Transferencia",
+            anticipo_comprobante_url="https://cloudinary.test/ant.jpg",
+            anticipo_registrado=True,
+        )
+
+    def reponer(self, id_producto, stock):
+        prod = self.db.query(Producto).filter(
+            Producto.ID_Producto == id_producto
+        ).first()
+        prod.Stock = stock
+        self.db.commit()
+
+    def anticipo_sin_validar(self, cantidad=5):
+        """Sobre stock con comprobante adjunto pero aún sin registrar el pago.
+
+        Es el pedido que entra al panel esperando que el admin valide la
+        transferencia: no hay anticipo confirmado, así que la producción espera
+        a la confirmación.
+        """
+        return self.con_anticipo(cantidad, anticipo_registrado=False)
+
+    def ordenes(self):
+        return self.db.query(OrdenProduccion).all()
+
+    def test_el_anticipo_abre_la_orden_por_el_faltante(self):
+        self.crear(self.con_anticipo())
+        ordenes = self.ordenes()
+        self.assertEqual(len(ordenes), 1)
+        self.assertEqual(ordenes[0].ID_Producto, ID_TORTA)
+        self.assertEqual(ordenes[0].Cantidad, 3)      # 5 pedidas − 2 en stock
+        self.assertEqual(ordenes[0].Estado, 1)        # nace Pendiente
+        self.assertEqual(ordenes[0].ID_Venta, self.venta_creada().ID_Venta)
+
+    def test_el_pedido_del_cliente_sigue_esperando_confirmacion(self):
+        # La orden se abre, pero el pedido no se autoconfirma.
+        self.crear(self.con_anticipo())
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.PENDIENTE)
+
+    def test_dentro_del_stock_no_abre_ninguna_orden(self):
+        self.crear(self.con_anticipo(cantidad=2))
+        self.assertEqual(self.ordenes(), [])
+
+    def test_confirmar_abre_la_orden_y_deja_el_pedido_en_produccion(self):
+        # Sin anticipo registrado la orden espera; al confirmar se abre.
+        self.crear(self.anticipo_sin_validar())
+        self.assertEqual(self.ordenes(), [])
+
+        id_venta = self.venta_creada().ID_Venta
+        cambiar_estado(self.db, id_venta, EstadoPedido.CONFIRMADO)
+
+        ordenes = self.ordenes()
+        self.assertEqual(len(ordenes), 1)
+        self.assertEqual(ordenes[0].Cantidad, 3)
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.PREPARANDO)
+
+    def test_confirmar_no_duplica_la_orden_que_abrio_el_anticipo(self):
+        self.crear(self.con_anticipo())
+        cambiar_estado(self.db, self.venta_creada().ID_Venta, EstadoPedido.CONFIRMADO)
+        self.assertEqual(len(self.ordenes()), 1)
+
+    def test_no_pasa_a_listo_con_la_orden_abierta(self):
+        self.crear(self.con_anticipo())
+        id_venta = self.venta_creada().ID_Venta
+        cambiar_estado(self.db, id_venta, EstadoPedido.CONFIRMADO)
+
+        with self.assertRaises(HTTPException) as ctx:
+            cambiar_estado(self.db, id_venta, EstadoPedido.LISTO)
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("producción", ctx.exception.detail.lower())
+
+    def test_con_la_orden_completada_ya_puede_pasar_a_listo(self):
+        self.crear(self.con_anticipo())
+        id_venta = self.venta_creada().ID_Venta
+        cambiar_estado(self.db, id_venta, EstadoPedido.CONFIRMADO)
+
+        orden = self.ordenes()[0]
+        orden.Estado = 11          # Completada
+        self.db.commit()
+
+        cambiar_estado(self.db, id_venta, EstadoPedido.LISTO)
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.LISTO)
+
+    def test_la_ficha_tecnica_basta_aunque_falte_el_flag(self):
+        """El producto que se fabrica pero al que nadie le marcó el flag."""
+        self.db.add(FichaTecnica(ID_Ficha=1, ID_Producto=ID_TORTA, Estado=1))
+        self.db.commit()
+        # Ojo: sin marcar_por_encargo, el producto no tiene Requiere_Produccion.
+        self.crear(self.pedido(
+            productos=[ProductoVentaInput(ID_Producto=ID_TORTA, Cantidad=5)],
+            Metodo_Pago="Transferencia",
+            requiere_anticipo=True,
+            anticipo_monto=25000.0,
+            anticipo_metodo_pago="Transferencia",
+            anticipo_comprobante_url="https://cloudinary.test/ant.jpg",
+            anticipo_registrado=True,
+        ))
+        ordenes = self.ordenes()
+        self.assertEqual(len(ordenes), 1)
+        self.assertEqual(ordenes[0].Cantidad, 3)
+        self.assertEqual(ordenes[0].ID_Ficha, 1)
+
+    # ── Producto que no se puede fabricar ───────────────────────────
+
+    def test_sin_ficha_ni_flag_no_se_abre_ninguna_orden(self):
+        self.crear(self.sin_receta())
+        self.assertEqual(self.ordenes(), [])
+        self.assertEqual(self.venta_creada().Sobre_Stock, 1)
+
+    def test_sin_ficha_ni_flag_el_pedido_no_llega_a_listo(self):
+        """El hueco que quedaba: sin orden, nada bloqueaba el paso a Listo."""
+        self.crear(self.sin_receta())
+        id_venta = self.venta_creada().ID_Venta
+        cambiar_estado(self.db, id_venta, EstadoPedido.CONFIRMADO)
+        # No hay produccion que arrancar: el pedido queda Confirmado.
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.CONFIRMADO)
+
+        with self.assertRaises(HTTPException) as ctx:
+            cambiar_estado(self.db, id_venta, EstadoPedido.LISTO)
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("Torta Tropical", ctx.exception.detail)
+
+    def test_al_reponer_el_stock_el_pedido_ya_puede_estar_listo(self):
+        """La salida del bloqueo cuando el producto no se fabrica: comprarlo."""
+        self.crear(self.sin_receta())
+        id_venta = self.venta_creada().ID_Venta
+        cambiar_estado(self.db, id_venta, EstadoPedido.CONFIRMADO)
+        # Pickup: al confirmar se descontaron las 2 que había y quedan
+        # debiendo 3. Con esas 3 repuestas ya hay qué entregar.
+        self.reponer(ID_TORTA, 3)
+
+        cambiar_estado(self.db, id_venta, EstadoPedido.LISTO)
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.LISTO)
+
+    def test_la_orden_cancelada_tampoco_deja_pasar_a_listo(self):
+        """Cancelar la orden no es fabricar: sigue faltando el producto."""
+        self.crear(self.con_anticipo())
+        id_venta = self.venta_creada().ID_Venta
+        cambiar_estado(self.db, id_venta, EstadoPedido.CONFIRMADO)
+
+        orden = self.ordenes()[0]
+        orden.Estado = 5          # Cancelada
+        self.db.commit()
+
+        with self.assertRaises(HTTPException) as ctx:
+            cambiar_estado(self.db, id_venta, EstadoPedido.LISTO)
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("Torta Tropical", ctx.exception.detail)
+
+    def test_el_pedido_dentro_del_stock_no_se_bloquea(self):
+        """Sin preorden no hay nada que cubrir: el control no se mete."""
+        self.crear(self.pedido(creado_por_admin=True))
+        id_venta = self.venta_creada().ID_Venta
+        cambiar_estado(self.db, id_venta, EstadoPedido.LISTO)
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.LISTO)
 
 
 if __name__ == "__main__":

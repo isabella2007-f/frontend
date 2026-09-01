@@ -8,10 +8,12 @@ from zoneinfo import ZoneInfo
 
 from src.shared.services.models import (
     Domicilio, Venta, Usuario, Estado, Producto, ProductoImagen,
-    VentaXProducto, Rol, MensajeChat,
+    VentaXProducto, Rol, MensajeChat, OrdenProduccion,
 )
 from src.shared.services.notificaciones_utils import notificar, notificar_stock_producto
-from src.features.ventas.gestion_ventas.services.service import _actualizar_estado_producto, _descontar_fefo_producto
+from src.features.ventas.gestion_ventas.services.service import (
+    _actualizar_estado_producto, _descontar_fefo_producto, _faltantes_sin_cubrir,
+)
 from src.shared.services.observaciones_utils import observaciones_limpias
 from .estados import (
     EstadoDomicilio, ESTADO_DOM_A_VENTA, normalizar_estado, puede_reasignarse,
@@ -599,6 +601,33 @@ def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observacio
         "efectivo_recibido", "pagado_completo", "anticipo_pagado",
         "no_recibido", "pendiente_validacion",
     }
+
+    # No sale a la calle lo que todavía se está fabricando. El pedido pasa por
+    # Listo cuando su producción termina; despacharlo antes desde el módulo de
+    # domicilios se saltaba ese control por la puerta de atrás, porque "En
+    # camino" mueve la venta directo al estado 9.
+    if nuevo_estado in (EstadoDomicilio.EN_CAMINO, EstadoDomicilio.ENTREGADO) and dom.ID_Venta:
+        ordenes_abiertas = db.query(OrdenProduccion).filter(
+            OrdenProduccion.ID_Venta == dom.ID_Venta,
+            OrdenProduccion.Estado.notin_([11, 5]),
+        ).count()
+        if ordenes_abiertas > 0:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "La producción de este pedido aún no está completada. "
+                    "Completá la orden de producción antes de despacharlo."
+                ),
+            )
+        faltantes = _faltantes_sin_cubrir(db, dom.ID_Venta, True)
+        if faltantes:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Falta producto de {', '.join(faltantes)}: el pedido pidió más de lo "
+                    "que había y ese faltante todavía no se fabricó ni se repuso."
+                ),
+            )
 
     if nuevo_estado == EstadoDomicilio.ENTREGADO and dom.ID_Venta:
         venta_check = db.query(Venta).filter(Venta.ID_Venta == dom.ID_Venta).first()

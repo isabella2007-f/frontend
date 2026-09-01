@@ -5,7 +5,9 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from src.features.ventas.gestion_ventas.services.service import _crear_ordenes_produccion_para_venta
-from src.shared.services.models import OrdenProduccion, VentaXProducto, Producto
+from src.shared.services.models import (
+    FichaTecnica, OrdenProduccion, Producto, VentaXProducto,
+)
 
 
 class FakeQuery:
@@ -21,6 +23,9 @@ class FakeQuery:
     def order_by(self, *args, **kwargs):
         return self
 
+    def distinct(self):
+        return self
+
     def all(self):
         return list(self.rows)
 
@@ -29,19 +34,39 @@ class FakeQuery:
 
 
 class FakeDB:
-    def __init__(self, venta_productos, productos, ordenes=None):
-        self.venta_productos = venta_productos
-        self.productos = productos
-        self.ordenes = ordenes or []
-        self.added = []
+    """Resuelve consultas por modelo y por columna suelta.
 
-    def query(self, model):
+    El service solo pide el id cuando le basta con saber qué productos son
+    fabricables, así que esas ramas devuelven tuplas de una columna.
+    """
+
+    def __init__(self, venta_productos, productos, ordenes=None, fichas=None):
+        self.venta_productos = venta_productos
+        self.productos       = productos
+        self.ordenes         = ordenes or []
+        self.fichas          = fichas or []
+        self.added           = []
+
+    def query(self, model, *_):
         if model is VentaXProducto:
             return FakeQuery(self.venta_productos)
         if model is Producto:
             return FakeQuery(self.productos)
+        if model is FichaTecnica:
+            return FakeQuery(self.fichas)
         if model is OrdenProduccion:
             return FakeQuery(self.ordenes)
+        if model is Producto.ID_Producto:
+            return FakeQuery([
+                (p.ID_Producto,) for p in self.productos
+                if getattr(p, "Requiere_Produccion", 0)
+            ])
+        if model is FichaTecnica.ID_Producto:
+            return FakeQuery([(f.ID_Producto,) for f in self.fichas])
+        if model is OrdenProduccion.ID_Producto:
+            return FakeQuery([
+                (o.ID_Producto,) for o in self.ordenes if o.Estado != 5
+            ])
         return FakeQuery([])
 
     def add(self, obj):
@@ -74,6 +99,21 @@ class OrdenesProduccionTests(unittest.TestCase):
         self.assertEqual(orden.ID_Producto, 6)
         self.assertEqual(orden.Cantidad, 2)
         self.assertEqual(orden.Estado, 1)
+
+    def test_la_orden_cubre_solo_el_faltante(self):
+        """5 en stock y 10 pedidos → se manda a producir 5, no 10."""
+        venta_producto = type("VentaProducto", (), {
+            "ID_Venta": 11, "ID_Producto": 6,
+            "Cantidad": 10, "Cantidad_Preorden": 5,
+        })()
+        producto = type("Producto", (), {"ID_Producto": 6, "Requiere_Produccion": 1, "Stock": 5})()
+        db = FakeDB([venta_producto], [producto])
+
+        creadas = _crear_ordenes_produccion_para_venta(db, 11, "2026-01-01")
+
+        self.assertEqual(creadas, 1)
+        self.assertEqual(db.added[0].Cantidad, 5)
+        self.assertEqual(db.added[0].Estado, 1)  # nace Pendiente
 
 
 if __name__ == "__main__":
