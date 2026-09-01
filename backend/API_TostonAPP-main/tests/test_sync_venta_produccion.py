@@ -111,6 +111,15 @@ class SyncVentaPorOrdenesTests(unittest.TestCase):
         _sync_venta_por_ordenes(db, 1, 10, ESTADO_COMPLETADA)
         self.assertEqual(v.Estado, ESTADO_EN_PROCESO)
 
+    def test_pedido_pendiente_no_se_marca_en_produccion(self):
+        # La orden se abre al dejar el anticipo, con el pedido todavía
+        # Pendiente. Arrancar a fabricar no puede darlo por confirmado: eso lo
+        # decide el admin.
+        v = venta(ESTADO_PENDIENTE)
+        db = FakeDB(v, otras_ordenes=[orden(ESTADO_EN_PROCESO)])
+        _sync_venta_por_ordenes(db, 1, 10, ESTADO_EN_PROCESO)
+        self.assertEqual(v.Estado, ESTADO_PENDIENTE)
+
     def test_no_toca_pedidos_ya_finalizados(self):
         v = venta(ESTADO_ENTREGADO)
         _sync_venta_por_ordenes(FakeDB(v), 1, 10, ESTADO_COMPLETADA)

@@ -164,8 +164,10 @@ def confirmar_pedido(db: Session, id_venta: int) -> dict:
     """
     Confirma el pedido → cambia estado a Confirmado (ID=4).
     Solo se puede confirmar desde Pendiente (1).
-    Un pedido En producción (13) debe esperar a que las órdenes de producción
-    se completen — el sistema lo devuelve automáticamente a Pendiente cuando terminan.
+
+    Si el pedido pide más unidades de las que hay en stock, al confirmarlo se
+    abren las órdenes de producción del faltante y queda En producción (13) en
+    vez de Confirmado: pasa a Listo cuando esas órdenes se completan.
     """
     pedido = db.query(Venta).filter(
         Venta.ID_Venta == id_venta,

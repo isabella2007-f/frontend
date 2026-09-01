@@ -17,7 +17,9 @@ from src.features.ventas.gestion_ventas.services.service import (
     _crear_ordenes_produccion_para_venta,
 )
 from src.features.ventas.pedidos.services.estados import EstadoPedido
-from src.shared.services.models import OrdenProduccion, Producto, VentaXProducto
+from src.shared.services.models import (
+    FichaTecnica, OrdenProduccion, Producto, VentaXProducto,
+)
 
 
 class FakeQuery:
@@ -30,26 +32,56 @@ class FakeQuery:
     def order_by(self, *_):
         return self
 
+    def distinct(self):
+        return self
+
     def first(self):
         return self.rows[0] if self.rows else None
 
     def all(self):
         return list(self.rows)
 
+    def count(self):
+        return len(self.rows)
+
 
 class FakeDB:
-    def __init__(self, items, productos):
-        self.items = items
-        self.productos = productos
-        self.added = []
+    """DB mínima que resuelve tanto por modelo como por columna.
 
-    def query(self, modelo):
-        if modelo is VentaXProducto:
+    El service pide solo el id cuando le basta con saber qué productos son
+    fabricables (`db.query(Producto.ID_Producto)`), así que el fake tiene que
+    devolver tuplas de una columna en esos casos. El `filter` no se interpreta:
+    cada rama ya entrega las filas que la consulta real dejaría pasar.
+    """
+
+    def __init__(self, items, productos, fichas=None, ordenes=None):
+        self.items     = items
+        self.productos = productos
+        self.fichas    = fichas or []
+        self.ordenes   = ordenes or []
+        self.added     = []
+
+    def query(self, entidad, *_):
+        if entidad is VentaXProducto:
             return FakeQuery(self.items)
-        if modelo is Producto:
+        if entidad is Producto:
             return FakeQuery(self.productos)
-        if modelo is OrdenProduccion:
-            return FakeQuery([])
+        if entidad is FichaTecnica:
+            return FakeQuery(self.fichas)
+        if entidad is OrdenProduccion:
+            return FakeQuery(self.ordenes)
+        # Consultas de una sola columna
+        if entidad is Producto.ID_Producto:
+            return FakeQuery([
+                (p.ID_Producto,) for p in self.productos
+                if getattr(p, "Requiere_Produccion", 0)
+            ])
+        if entidad is FichaTecnica.ID_Producto:
+            return FakeQuery([(f.ID_Producto,) for f in self.fichas])
+        if entidad is OrdenProduccion.ID_Producto:
+            return FakeQuery([
+                (o.ID_Producto,) for o in self.ordenes if o.Estado != 5
+            ])
         return FakeQuery([])
 
     def add(self, obj):
@@ -79,6 +111,23 @@ def producto(id_producto, requiere_produccion):
         "ID_Producto": id_producto,
         "nombre": "Tostón",
         "Requiere_Produccion": requiere_produccion,
+    })()
+
+
+def ficha(id_producto, id_ficha=1):
+    return type("Ficha", (), {
+        "ID_Producto": id_producto,
+        "ID_Ficha": id_ficha,
+        "Estado": 1,
+    })()
+
+
+def orden(id_producto, estado=1):
+    return type("OP", (), {
+        "ID_Producto": id_producto,
+        "ID_Ficha": None,
+        "ID_Insumo": None,
+        "Estado": estado,
     })()
 
 
@@ -118,6 +167,39 @@ class CrearOrdenesTests(unittest.TestCase):
             [producto(1, 1), producto(2, 0), producto(3, 1)],
         )
         self.assertEqual(_crear_ordenes_produccion_para_venta(db, 10, None), 2)
+
+    def test_producto_con_ficha_se_fabrica_sin_el_flag(self):
+        """El pan de plátano con receta cargada pero sin marcar `Requiere_Produccion`.
+
+        Es el caso que dejaba el faltante sin orden: el producto se fabrica —
+        tiene ficha técnica — pero nadie le puso el flag al cargar el catálogo.
+        """
+        db = FakeDB(
+            [item(1, 10, preorden=5)],
+            [producto(1, requiere_produccion=0)],
+            fichas=[ficha(1, id_ficha=7)],
+        )
+        self.assertEqual(_crear_ordenes_produccion_para_venta(db, 10, None), 1)
+        self.assertEqual(db.added[0].Cantidad, 5)
+        self.assertEqual(db.added[0].ID_Ficha, 7)
+
+    def test_no_duplica_la_orden_ya_abierta(self):
+        """Se puede llamar en cada paso del pedido sin fabricar dos veces."""
+        db = FakeDB(
+            [item(1, 10, preorden=5)],
+            [producto(1, requiere_produccion=1)],
+            ordenes=[orden(1, estado=1)],
+        )
+        self.assertEqual(_crear_ordenes_produccion_para_venta(db, 10, None), 0)
+        self.assertEqual(db.added, [])
+
+    def test_la_orden_cancelada_no_bloquea_una_nueva(self):
+        db = FakeDB(
+            [item(1, 10, preorden=5)],
+            [producto(1, requiere_produccion=1)],
+            ordenes=[orden(1, estado=5)],
+        )
+        self.assertEqual(_crear_ordenes_produccion_para_venta(db, 10, None), 1)
 
 
 class EstadoSegunProduccionTests(unittest.TestCase):

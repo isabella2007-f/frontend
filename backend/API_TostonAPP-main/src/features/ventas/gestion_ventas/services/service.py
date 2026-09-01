@@ -855,13 +855,14 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
             Cantidad_Preorden = preorden_por_producto.get(p.ID_Producto, 0),
         ))
 
-    # Detectar productos de producción con déficit (la orden se crea cuando el cliente acepta la fecha)
-    necesita_produccion = False
-    for p in datos.productos:
-        prod = db.query(Producto).filter(Producto.ID_Producto == p.ID_Producto).first()
-        if getattr(prod, "Requiere_Produccion", 0) and p.Cantidad > (prod.Stock or 0):
-            necesita_produccion = True
-            break
+    # Detectar productos fabricables con déficit. Mismo criterio que usan las
+    # órdenes de producción: antes esto miraba solo `Requiere_Produccion` y el
+    # snapshot decía "no necesita producción" en pedidos a los que después se
+    # les abría una orden por el faltante.
+    _producibles = _productos_producibles(db, [p.ID_Producto for p in datos.productos])
+    necesita_produccion = any(
+        l["ID_Producto"] in _producibles and l["preorden"] > 0 for l in lineas
+    )
 
     nueva_venta.Necesita_Produccion = 1 if necesita_produccion else 0
     if necesita_produccion:
@@ -1065,16 +1066,22 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
     db.commit()
     db.refresh(nueva_venta)
 
-    # Crear órdenes de producción cuando el admin confirma directamente
-    if datos.creado_por_admin:
+    # Órdenes de producción del faltante. Se abren en cuanto el pedido está
+    # comprometido: el admin lo creó ya confirmado, o el cliente dejó el
+    # anticipo. El anticipo es justamente la garantía que permite mandar a
+    # fabricar antes de entregar; sin él se espera a que el pedido se confirme.
+    _anticipo_cubierto = bool(getattr(nueva_venta, "Anticipo_Registrado", 0))
+    if datos.creado_por_admin or _anticipo_cubierto:
         _ordenes = _crear_ordenes_produccion_para_venta(
             db, nueva_venta.ID_Venta, nueva_venta.Fecha_entrega_esperada
         )
         # Con producción pendiente el pedido NO está listo para despachar:
         # queda "En producción" hasta que se completen sus órdenes, momento en
         # que el módulo de producción lo pasa a Listo. Antes nacía "Confirmado"
-        # aunque no se hubiera fabricado nada.
-        if _ordenes > 0:
+        # aunque no se hubiera fabricado nada. El pedido del cliente que todavía
+        # espera confirmación no se mueve: su orden queda Pendiente y él sigue
+        # Pendiente hasta que el admin lo confirme.
+        if _ordenes > 0 and nueva_venta.Estado == EstadoPedido.CONFIRMADO:
             nueva_venta.Estado = EstadoPedido.PREPARANDO
         db.commit()
 
@@ -1148,6 +1155,27 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
 
     # Valida que la transición esté permitida por la máquina de estados
     validar_transicion(venta.Estado, nuevo_estado, tiene_domicilio)
+
+    # El estado que se guarda al final. Casi siempre es el pedido, pero al
+    # confirmar un pedido con faltante se desvía a "En producción": no se puede
+    # dar por confirmado y listo algo que todavía hay que hornear.
+    estado_a_guardar = nuevo_estado
+
+    # Al confirmar: abrir la producción del faltante. Un pedido por encima del
+    # stock (5 panes en bodega, 10 pedidos) tiene que fabricar la diferencia, y
+    # hasta ahora eso solo ocurría si el cliente aceptaba una fecha propuesta:
+    # confirmando el pedido derecho, el faltante nunca se mandaba a producir y
+    # el pedido llegaba a Listo sin que existiera el producto.
+    if nuevo_estado == EstadoPedido.CONFIRMADO:
+        _creadas = _crear_ordenes_produccion_para_venta(
+            db, id_venta, venta.Fecha_entrega_esperada
+        )
+        _abiertas = db.query(OrdenProduccion).filter(
+            OrdenProduccion.ID_Venta == id_venta,
+            OrdenProduccion.Estado.notin_([11, 5]),
+        ).count()
+        if _creadas > 0 or _abiertas > 0:
+            estado_a_guardar = EstadoPedido.PREPARANDO
 
     # Bloquear paso a LISTO si hay órdenes de producción sin completar
     if nuevo_estado == EstadoPedido.LISTO:
@@ -1281,7 +1309,8 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
     if venta.Estado == EstadoPedido.PENDIENTE:
         descartar_notificacion(db, "pedido_nuevo", id_venta)
     if nuevo_estado == EstadoPedido.CANCELADO:
-        descartar_notificacion(db, "domicilio_pendiente", id_venta)
+        descartar_notificacion(db, "domicilio_pendiente",  id_venta)
+        descartar_notificacion(db, "produccion_requerida", id_venta)
         # Cerrar el domicilio pendiente si la venta se cancela
         domicilio_abierto = db.query(Domicilio).filter(
             Domicilio.ID_Venta == id_venta,
@@ -1303,7 +1332,7 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
             if not domicilio_pendiente.Fecha_entrega:
                 domicilio_pendiente.Fecha_entrega = _now()
 
-    venta.Estado = nuevo_estado
+    venta.Estado = estado_a_guardar
     db.commit()
     db.refresh(venta)
     try:
@@ -1311,7 +1340,9 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
         notificar_cambio_pedido_push(
             id_usuario_cliente=venta.ID_Usuario,
             id_venta=id_venta,
-            nuevo_estado=nuevo_estado,
+            # El estado real que quedó: Confirmado, o En producción si el pedido
+            # arrancó fabricación al confirmarse.
+            nuevo_estado=estado_a_guardar,
             db=db,
         )
     except Exception:
@@ -1439,8 +1470,42 @@ def proponer_fecha(db: Session, id_venta: int, fecha_entrega) -> dict:
     return _formato_venta(venta, db)
 
 
+def _productos_producibles(db: Session, prod_ids: list[int]) -> set[int]:
+    """IDs de los productos que la panadería sí puede fabricar.
+
+    Cuenta como producible el marcado con `Requiere_Produccion` y también el que
+    tiene ficha técnica aunque nadie le haya puesto el flag: la ficha es la
+    receta, y sin receta la orden ni siquiera se puede iniciar. Se mira la ficha
+    además del flag porque al cargar el catálogo se olvida, y sin él el faltante
+    de un pedido nunca llegaba a generar orden de producción.
+    """
+    if not prod_ids:
+        return set()
+    marcados = {
+        pid for (pid,) in db.query(Producto.ID_Producto).filter(
+            Producto.ID_Producto.in_(prod_ids),
+            Producto.Requiere_Produccion != 0,
+        ).all()
+    }
+    con_ficha = {
+        pid for (pid,) in db.query(FichaTecnica.ID_Producto).filter(
+            FichaTecnica.ID_Producto.in_(prod_ids)
+        ).distinct().all()
+    }
+    return marcados | con_ficha
+
+
 def _crear_ordenes_produccion_para_venta(db: Session, id_venta: int, fecha_entrega) -> int:
-    """Crea órdenes de producción para los productos que requieren producción.
+    """Abre las órdenes de producción del faltante de un pedido.
+
+    Por cada línea que pide más unidades de las que hay en stock
+    (`Cantidad_Preorden`) se abre una orden por exactamente ese faltante: si hay
+    5 panes de plátano y el cliente pide 10, la orden es por 5. Nace Pendiente y
+    el pedido no puede pasar a Listo mientras siga abierta.
+
+    Es idempotente: se puede llamar en cada punto del recorrido del pedido (al
+    crearlo con el anticipo cubierto, al confirmarlo, al aceptar la fecha
+    propuesta) y solo abre las que falten, nunca duplica la producción.
 
     Devuelve cuántas creó, para que quien llama deje el pedido en el estado que
     corresponde: con producción pendiente el pedido no está listo para
@@ -1450,29 +1515,41 @@ def _crear_ordenes_produccion_para_venta(db: Session, id_venta: int, fecha_entre
     if not items_venta:
         return 0
 
-    # Batch: precargar productos, fichas y templates en 3 queries
-    prod_ids     = [item.ID_Producto for item in items_venta]
-    productos_m  = {p.ID_Producto: p for p in db.query(Producto).filter(Producto.ID_Producto.in_(prod_ids)).all()}
-    req_ids      = [pid for pid, p in productos_m.items() if getattr(p, "Requiere_Produccion", 0)]
+    prod_ids = [item.ID_Producto for item in items_venta]
+    req_ids  = _productos_producibles(db, prod_ids)
+    if not req_ids:
+        return 0
 
+    # Productos que ya tienen orden viva (pendiente, en proceso o completada)
+    # para este pedido: llamar dos veces no puede duplicar la producción.
+    ya_con_orden = {
+        pid for (pid,) in db.query(OrdenProduccion.ID_Producto).filter(
+            OrdenProduccion.ID_Venta == id_venta,
+            OrdenProduccion.Estado != 5,          # 5 = Cancelada
+        ).all()
+    }
+
+    req_lista = list(req_ids)
     fichas_m: dict = {}
     templates_m: dict = {}
-    if req_ids:
-        for f in (db.query(FichaTecnica)
-                    .filter(FichaTecnica.ID_Producto.in_(req_ids), FichaTecnica.Estado == 1)
-                    .order_by(FichaTecnica.ID_Ficha.desc()).all()):
+    # Se prefiere la ficha activa; si no hay, sirve la última registrada, que es
+    # la misma que el módulo de producción resuelve al iniciar la orden.
+    for estado_ficha in (1, None):
+        q = db.query(FichaTecnica).filter(FichaTecnica.ID_Producto.in_(req_lista))
+        if estado_ficha is not None:
+            q = q.filter(FichaTecnica.Estado == estado_ficha)
+        for f in q.order_by(FichaTecnica.ID_Ficha.desc()).all():
             fichas_m.setdefault(f.ID_Producto, f)
-        for t in (db.query(OrdenProduccion)
-                    .filter(OrdenProduccion.ID_Producto.in_(req_ids),
-                            OrdenProduccion.ID_Insumo != None,
-                            OrdenProduccion.Estado != 5)
-                    .order_by(OrdenProduccion.ID_Orden_Produccion.desc()).all()):
-            templates_m.setdefault(t.ID_Producto, t)
+    for t in (db.query(OrdenProduccion)
+                .filter(OrdenProduccion.ID_Producto.in_(req_lista),
+                        OrdenProduccion.ID_Insumo != None,
+                        OrdenProduccion.Estado != 5)
+                .order_by(OrdenProduccion.ID_Orden_Produccion.desc()).all()):
+        templates_m.setdefault(t.ID_Producto, t)
 
     creadas = 0
     for item in items_venta:
-        prod = productos_m.get(item.ID_Producto)
-        if not prod or not getattr(prod, "Requiere_Produccion", 0):
+        if item.ID_Producto not in req_ids or item.ID_Producto in ya_con_orden:
             continue
         cantidad = item.Cantidad_Preorden or 0
         if cantidad <= 0:
@@ -1492,6 +1569,9 @@ def _crear_ordenes_produccion_para_venta(db: Session, id_venta: int, fecha_entre
             Estado        = 1,
             Costo         = Decimal("0"),
         ))
+        # El producto ya quedó cubierto: si la venta trae la misma línea dos
+        # veces no se abren dos órdenes por lo mismo.
+        ya_con_orden.add(item.ID_Producto)
         creadas += 1
 
     return creadas
