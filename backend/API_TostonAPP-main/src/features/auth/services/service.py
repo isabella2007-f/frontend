@@ -475,16 +475,21 @@ def _enviar_email_codigo(correo_destino: str, codigo: str, nombre: str = "") -> 
 def solicitar_recuperacion(db: Session, correo: str) -> None:
     """
     Genera un código de 6 dígitos, lo guarda en BD con expiración de 10 minutos
-    y lo envía al correo. Silencioso si el correo no existe.
+    y lo envía al correo.
     """
     registro, _ = buscar_por_correo(db, correo)
-    # No revelar si el correo existe o no — siempre responder con éxito silencioso
     if not registro:
-        return
+        raise HTTPException(
+            status_code=404,
+            detail="No encontramos una cuenta con ese correo electrónico. Verifica e intenta de nuevo.",
+        )
 
     # No permitir recuperar contraseña si el correo no fue verificado.
     if getattr(registro, "Correo_Verificado", 1) != 1:
-        return  # Silencioso también — no revelar estado de la cuenta
+        raise HTTPException(
+            status_code=403,
+            detail="Debes verificar tu correo electrónico antes de recuperar la contraseña. Revisa tu bandeja de entrada.",
+        )
 
     # Invalidar códigos anteriores del mismo correo
     db.query(CodigoReset).filter(
