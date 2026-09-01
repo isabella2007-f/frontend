@@ -640,13 +640,15 @@ const PedidosClientePage = () => {
                 ? 'No encontramos pedidos con estos filtros.'
                 : 'Aún no has realizado pedidos deliciosos.'}
             </p>
-            <button
-              className="btn-primary"
-              style={{ padding: '16px 32px' }}
-              onClick={() => { setSearchTerm(''); setFilterEstado('todos'); }}
-            >
-              Ver todos los pedidos
-            </button>
+            {(searchTerm || filterEstado !== 'todos') && (
+              <button
+                className="btn-primary"
+                style={{ padding: '16px 32px' }}
+                onClick={() => { setSearchTerm(''); setFilterEstado('todos'); }}
+              >
+                Ver todos los pedidos
+              </button>
+            )}
           </div>
         )}
       </main>
