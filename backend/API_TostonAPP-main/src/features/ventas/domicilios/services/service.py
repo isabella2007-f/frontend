@@ -15,6 +15,7 @@ from src.features.ventas.gestion_ventas.services.service import (
     _actualizar_estado_producto, _descontar_fefo_producto, _faltantes_sin_cubrir,
 )
 from src.shared.services.observaciones_utils import observaciones_limpias
+from src.shared.services.pagos_utils import cobro_efectivo_pendiente
 from .estados import (
     EstadoDomicilio, ESTADO_DOM_A_VENTA, normalizar_estado, puede_reasignarse,
     validar_cambio,
@@ -637,6 +638,18 @@ def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observacio
                 raise HTTPException(
                     status_code=400,
                     detail="Debes registrar el cobro antes de marcar el pedido como entregado",
+                )
+            # El filtro de arriba deja pasar "anticipo_pagado" y
+            # "pendiente_validacion", que en un pedido mixto solo dicen que
+            # entró la mitad transferida: la plata en mano seguía sin cobrarse y
+            # el pedido se entregaba igual.
+            if cobro_efectivo_pendiente(venta_check):
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Registrá el cobro en efectivo antes de entregar: este pedido "
+                        "se paga (total o en parte) en mano."
+                    ),
                 )
 
     if nuevo_estado == EstadoDomicilio.ENTREGADO:

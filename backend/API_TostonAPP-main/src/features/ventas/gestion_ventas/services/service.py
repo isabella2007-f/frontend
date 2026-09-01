@@ -31,6 +31,9 @@ from src.features.ventas.pedidos.services.estados import (
 )
 from .schemas import VentaCreate, DomicilioVentaInput
 from src.shared.services.observaciones_utils import observaciones_limpias
+from src.shared.services.pagos_utils import (
+    cobro_efectivo_pendiente, comprobante_sin_aprobar,
+)
 
 # Costo fijo de domicilio (COP)
 COSTO_DOMICILIO = Decimal("5000")
@@ -1156,6 +1159,27 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
     # Valida que la transición esté permitida por la máquina de estados
     validar_transicion(venta.Estado, nuevo_estado, tiene_domicilio)
 
+    # Confirmar es aceptar el pedido: no se acepta un pago que nadie revisó.
+    # El comprobante lo sube el cliente y lo aprueba el admin; si se confirma
+    # antes, el pedido entra a producción y se despacha contra una imagen que
+    # después puede resultar falsa o de otro monto.
+    if nuevo_estado == EstadoPedido.CONFIRMADO and comprobante_sin_aprobar(venta):
+        _estado_pago = (getattr(venta, "Estado_Pago", None) or "pendiente").strip()
+        if _estado_pago == "comprobante_rechazado":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "El comprobante de este pedido fue rechazado. El cliente tiene que "
+                    "enviar uno nuevo antes de poder confirmarlo."
+                ),
+            )
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Aprobá el comprobante de pago antes de confirmar el pedido."
+            ),
+        )
+
     # El estado que se guarda al final. Casi siempre es el pedido, pero al
     # confirmar un pedido con faltante se desvía a "En producción": no se puede
     # dar por confirmado y listo algo que todavía hay que hornear.
@@ -1204,6 +1228,20 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
                     "cargala primero para poder abrirla— o reponé el stock."
                 ),
             )
+
+    # Con domicilio, la plata la recibe el repartidor al entregar: marcar el
+    # pedido como entregado sin haber registrado ese cobro deja la venta cerrada
+    # y el efectivo sin rastro. Registrarlo también es declarar que NO se pudo
+    # cobrar (con motivo): lo que no vale es entregar sin decir qué pasó.
+    if (nuevo_estado == EstadoPedido.ENTREGADO and tiene_domicilio
+            and cobro_efectivo_pendiente(venta)):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Registrá el cobro en efectivo antes de marcar el pedido como "
+                "entregado: este pedido se paga (total o en parte) en mano."
+            ),
+        )
 
     # Bloquear paso a ENTREGADO si el pedido requiere anticipo y el saldo no fue registrado.
     # No afecta pedidos donde Requiere_Anticipo == 0 (flujo normal sin anticipo).

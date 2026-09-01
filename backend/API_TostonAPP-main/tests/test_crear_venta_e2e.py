@@ -41,7 +41,16 @@ from src.features.ventas.gestion_ventas.services.service import (
     cambiar_estado,
     crear_venta,
 )
+from src.features.ventas.domicilios.services.service import (
+    cambiar_estado as cambiar_estado_domicilio,
+)
 from src.features.ventas.pedidos.services.estados import EstadoPedido
+from src.features.ventas.pedidos.services.schemas import RegistroCobro
+from src.features.ventas.pedidos.services.service import (
+    aprobar_comprobante,
+    rechazar_comprobante,
+    registrar_cobro_pedido,
+)
 from src.shared.services.models import (
     Base,
     CreditoCliente,
@@ -59,6 +68,7 @@ PRECIO = Decimal("10000")
 ID_CLIENTE = 1
 ID_TOSTON = 1       # stock 10
 ID_TORTA = 2        # stock 2, para forzar el pedido sobre stock
+ESTADO_DOM_ENTREGADO = 8
 
 
 class CrearVentaBase(unittest.TestCase):
@@ -776,6 +786,197 @@ class OrdenProduccionDelFaltanteTests(CrearVentaBase):
         id_venta = self.venta_creada().ID_Venta
         cambiar_estado(self.db, id_venta, EstadoPedido.LISTO)
         self.assertEqual(self.venta_creada().Estado, EstadoPedido.LISTO)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 8. El pago manda en el flujo del pedido
+# ══════════════════════════════════════════════════════════════════════════
+class FlujoPagosTests(CrearVentaBase):
+    """Cada paso del pedido exige que el pago de ese paso esté resuelto.
+
+    Confirmar es aceptar el pedido: no se acepta contra un comprobante que
+    nadie miró. Y entregar un domicilio es cerrar la venta: no se cierra sin
+    haber registrado qué pasó con la plata que se cobra en mano.
+    """
+
+    ADMIN = 1  # quien aprueba o rechaza, para la auditoría
+
+    def transferencia(self, **kwargs):
+        base = dict(
+            Metodo_Pago="Transferencia",
+            comprobante_pago="https://cloudinary.test/comp.jpg",
+        )
+        base.update(kwargs)
+        return self.pedido(**base)
+
+    def mixto(self, efectivo=5000.0, **kwargs):
+        base = dict(
+            Metodo_Pago="Mixto",
+            pago_efectivo_monto=efectivo,
+            comprobante_pago="https://cloudinary.test/comp.jpg",
+        )
+        base.update(kwargs)
+        return self.pedido(**base)
+
+    def avanzar(self, id_venta, *estados):
+        for estado in estados:
+            cambiar_estado(self.db, id_venta, estado)
+
+    def cobrar(self, id_venta, recibido=True, motivo=None):
+        return registrar_cobro_pedido(
+            self.db, id_venta,
+            RegistroCobro(recibido=recibido, monto=None, motivo=motivo),
+            self.ADMIN,
+        )
+
+    # ────────────────────── Confirmar exige el comprobante aprobado ──────────────────────
+
+    def test_no_se_confirma_con_el_comprobante_sin_revisar(self):
+        self.crear(self.transferencia())
+        v = self.venta_creada()
+        self.assertEqual(v.Estado_Pago, "pendiente_validacion")
+
+        with self.assertRaises(HTTPException) as ctx:
+            cambiar_estado(self.db, v.ID_Venta, EstadoPedido.CONFIRMADO)
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("comprobante", ctx.exception.detail.lower())
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.PENDIENTE)
+
+    def test_aprobado_el_comprobante_el_pedido_se_confirma(self):
+        self.crear(self.transferencia())
+        id_venta = self.venta_creada().ID_Venta
+        aprobar_comprobante(self.db, id_venta)
+
+        cambiar_estado(self.db, id_venta, EstadoPedido.CONFIRMADO)
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.CONFIRMADO)
+
+    def test_el_comprobante_rechazado_tampoco_deja_confirmar(self):
+        self.crear(self.transferencia())
+        id_venta = self.venta_creada().ID_Venta
+        rechazar_comprobante(self.db, id_venta, "La imagen no se ve", self.ADMIN)
+
+        with self.assertRaises(HTTPException) as ctx:
+            cambiar_estado(self.db, id_venta, EstadoPedido.CONFIRMADO)
+        self.assertIn("rechazado", ctx.exception.detail.lower())
+
+    def test_el_pedido_en_efectivo_se_confirma_sin_comprobante(self):
+        """No hay nada que aprobar: la puerta no se le aplica."""
+        self.crear(self.pedido())
+        id_venta = self.venta_creada().ID_Venta
+
+        cambiar_estado(self.db, id_venta, EstadoPedido.CONFIRMADO)
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.CONFIRMADO)
+
+    # ────────────────────── Entregar un domicilio exige el cobro ──────────────────────
+
+    def _domicilio_en_camino(self, datos):
+        self.crear(datos)
+        id_venta = self.venta_creada().ID_Venta
+        self.avanzar(
+            id_venta,
+            EstadoPedido.CONFIRMADO, EstadoPedido.LISTO, EstadoPedido.EN_CAMINO,
+        )
+        return id_venta
+
+    def test_no_se_entrega_el_domicilio_sin_registrar_el_cobro(self):
+        id_venta = self._domicilio_en_camino(self.pedido(domicilio=self.domicilio()))
+
+        with self.assertRaises(HTTPException) as ctx:
+            cambiar_estado(self.db, id_venta, EstadoPedido.ENTREGADO)
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("efectivo", ctx.exception.detail.lower())
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.EN_CAMINO)
+
+    def test_registrado_el_cobro_el_domicilio_se_entrega(self):
+        id_venta = self._domicilio_en_camino(self.pedido(domicilio=self.domicilio()))
+        self.cobrar(id_venta)
+
+        cambiar_estado(self.db, id_venta, EstadoPedido.ENTREGADO)
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.ENTREGADO)
+
+    def test_declarar_que_no_se_cobro_tambien_deja_cerrar_la_entrega(self):
+        """Con motivo auditado: lo que no vale es entregar sin decir qué pasó."""
+        id_venta = self._domicilio_en_camino(self.pedido(domicilio=self.domicilio()))
+        self.cobrar(id_venta, recibido=False, motivo="el cliente no tenia el efectivo")
+
+        cambiar_estado(self.db, id_venta, EstadoPedido.ENTREGADO)
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.ENTREGADO)
+
+    def test_el_mixto_no_se_entrega_solo_con_el_comprobante_aprobado(self):
+        """La regresión que cerraba en falso: "anticipo_pagado" es media paga.
+
+        Aprobar el comprobante salda la parte transferida; la plata en mano
+        sigue sin cobrarse y el pedido se entregaba igual.
+        """
+        self.crear(self.mixto(domicilio=self.domicilio()))
+        id_venta = self.venta_creada().ID_Venta
+        aprobar_comprobante(self.db, id_venta)
+        self.assertEqual(self.venta_creada().Estado_Pago, "anticipo_pagado")
+        self.avanzar(
+            id_venta,
+            EstadoPedido.CONFIRMADO, EstadoPedido.LISTO, EstadoPedido.EN_CAMINO,
+        )
+
+        with self.assertRaises(HTTPException) as ctx:
+            cambiar_estado(self.db, id_venta, EstadoPedido.ENTREGADO)
+        self.assertIn("efectivo", ctx.exception.detail.lower())
+
+        # Cobrada la otra mitad, el pedido sí se entrega.
+        self.cobrar(id_venta)
+        cambiar_estado(self.db, id_venta, EstadoPedido.ENTREGADO)
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.ENTREGADO)
+
+    def test_el_domicilio_por_transferencia_no_espera_ningun_cobro(self):
+        """No hay plata en mano: exigir el cobro dejaría el pedido trabado."""
+        self.crear(self.transferencia(domicilio=self.domicilio()))
+        id_venta = self.venta_creada().ID_Venta
+        aprobar_comprobante(self.db, id_venta)
+        self.avanzar(
+            id_venta,
+            EstadoPedido.CONFIRMADO, EstadoPedido.LISTO, EstadoPedido.EN_CAMINO,
+            EstadoPedido.ENTREGADO,
+        )
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.ENTREGADO)
+
+    def test_el_domiciliario_tampoco_entrega_sin_registrar_el_cobro(self):
+        """La misma regla por el otro camino: el módulo de domicilios.
+
+        Es el camino real —quien recibe la plata es el repartidor— y mueve la
+        venta directo al estado 8 sin pasar por gestión de pedidos.
+        """
+        self.crear(self.pedido(domicilio=self.domicilio()))
+        dom = self.db.query(Domicilio).first()
+
+        with self.assertRaises(HTTPException) as ctx:
+            cambiar_estado_domicilio(self.db, dom.ID_Domicilio, ESTADO_DOM_ENTREGADO)
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("cobro", ctx.exception.detail.lower())
+
+    def test_el_domiciliario_no_entrega_un_mixto_con_solo_la_transferencia(self):
+        """El agujero que veía el filtro viejo: "anticipo_pagado" lo dejaba pasar."""
+        self.crear(self.mixto(domicilio=self.domicilio()))
+        id_venta = self.venta_creada().ID_Venta
+        aprobar_comprobante(self.db, id_venta)
+        dom = self.db.query(Domicilio).first()
+
+        with self.assertRaises(HTTPException) as ctx:
+            cambiar_estado_domicilio(self.db, dom.ID_Domicilio, ESTADO_DOM_ENTREGADO)
+        self.assertIn("efectivo", ctx.exception.detail.lower())
+
+        # Cobrada la parte en mano, el repartidor sí puede cerrar la entrega.
+        self.cobrar(id_venta)
+        cambiar_estado_domicilio(self.db, dom.ID_Domicilio, ESTADO_DOM_ENTREGADO)
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.ENTREGADO)
+
+    def test_el_pedido_para_recoger_en_tienda_no_pasa_por_esa_puerta(self):
+        """La regla es del domicilio: en tienda el cobro se hace en el mostrador."""
+        self.crear(self.pedido())
+        id_venta = self.venta_creada().ID_Venta
+        self.avanzar(
+            id_venta,
+            EstadoPedido.CONFIRMADO, EstadoPedido.LISTO, EstadoPedido.ENTREGADO,
+        )
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.ENTREGADO)
 
 
 if __name__ == "__main__":
