@@ -292,7 +292,14 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
   const setDato = (k, v) => setDatosCliente(p => ({ ...p, [k]: v }));
 
   const set = (k, v) => {
-    setForm(f => ({ ...f, [k]: v }));
+    setForm(f => {
+      const next = { ...f, [k]: v };
+      // Si se cambia a tienda y el estado seleccionado es "En camino", retroceder a "Listo"
+      if (k === "domicilio" && !v && f.estadoPedido === "En camino") {
+        next.estadoPedido = "Listo";
+      }
+      return next;
+    });
     let err = "";
     if (k === "idCliente"         && !v)        err = "Selecciona un cliente";
     if (k === "metodo_pago"       && !v)        err = "Selecciona método de pago";
@@ -977,6 +984,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
             {(() => {
               const actualIdx = ESTADOS_FLUJO.indexOf(pedido.estado);
               const validos   = ESTADOS_FLUJO.filter((e, i) => {
+                if (e === "En camino" && !form.domicilio) return false;
                 if (e === "Cancelado") return !["Entregado", "Cancelado"].includes(pedido.estado);
                 return i >= actualIdx;
               });
