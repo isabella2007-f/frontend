@@ -18,7 +18,7 @@ const COP = (n) =>
   }).format(n);
 
 /* ── fila de un producto ── */
-function ProductRow({ item, checked, motivo, onToggle, onMotivo }) {
+function ProductRow({ item, checked, motivo, cantidadDev, onToggle, onMotivo, onCantidad }) {
   return (
     <div style={{
       borderRadius: 14,
@@ -50,36 +50,93 @@ function ProductRow({ item, checked, motivo, onToggle, onMotivo }) {
             {item.nombre}
           </p>
           <p style={{ margin: '2px 0 0', fontSize: 11, color: '#6b7280', fontWeight: 500 }}>
-            {item.cantidad} {item.cantidad === 1 ? 'unidad' : 'unidades'} · {COP(item.precio * item.cantidad)}
+            {item.cantidad} {item.cantidad === 1 ? 'unidad disponible' : 'unidades disponibles'} · {COP(item.precio)} c/u
           </p>
         </div>
       </label>
 
-      {/* selector de motivo (visible solo si está marcado) */}
+      {/* controles adicionales (visibles solo si está marcado) */}
       {checked && (
-        <div style={{ marginTop: 10 }}>
-          <label style={{
-            display: 'block', fontSize: 10, fontWeight: 700,
-            color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.05em',
-            marginBottom: 4,
-          }}>
-            Motivo de devolución <span style={{ color: '#ef4444' }}>*</span>
-          </label>
-          <select
-            value={motivo}
-            onChange={e => onMotivo(e.target.value)}
-            style={{
-              width: '100%', padding: '9px 12px', borderRadius: 10,
-              border: `1.5px solid ${motivo ? '#a7f3d0' : '#fca5a5'}`,
-              background: 'white', fontSize: 12, fontWeight: 600,
-              color: motivo ? '#065f46' : '#9ca3af',
-              outline: 'none', cursor: 'pointer',
-              fontFamily: 'var(--font-body)',
-            }}
-          >
-            <option value="">— Selecciona el motivo —</option>
-            {MOTIVOS.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
+        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+
+          {/* selector de cantidad */}
+          <div>
+            <label style={{
+              display: 'block', fontSize: 10, fontWeight: 700,
+              color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.05em',
+              marginBottom: 4,
+            }}>
+              Cantidad a devolver <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => onCantidad(cantidadDev - 1)}
+                disabled={cantidadDev <= 1}
+                style={{
+                  width: 30, height: 30, borderRadius: 8, border: '1.5px solid #d1d5db',
+                  background: cantidadDev <= 1 ? '#f3f4f6' : 'white',
+                  cursor: cantidadDev <= 1 ? 'not-allowed' : 'pointer',
+                  fontSize: 16, fontWeight: 700, color: cantidadDev <= 1 ? '#d1d5db' : '#374151',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}
+              >−</button>
+              <input
+                type="number"
+                min={1}
+                max={item.cantidad}
+                value={cantidadDev}
+                onChange={e => onCantidad(e.target.value)}
+                style={{
+                  width: 56, textAlign: 'center', padding: '5px 6px', borderRadius: 8,
+                  border: '1.5px solid #a7f3d0', background: 'white',
+                  fontSize: 13, fontWeight: 700, color: '#065f46',
+                  outline: 'none', fontFamily: 'var(--font-body)',
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => onCantidad(cantidadDev + 1)}
+                disabled={cantidadDev >= item.cantidad}
+                style={{
+                  width: 30, height: 30, borderRadius: 8, border: '1.5px solid #d1d5db',
+                  background: cantidadDev >= item.cantidad ? '#f3f4f6' : 'white',
+                  cursor: cantidadDev >= item.cantidad ? 'not-allowed' : 'pointer',
+                  fontSize: 16, fontWeight: 700, color: cantidadDev >= item.cantidad ? '#d1d5db' : '#374151',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}
+              >+</button>
+              <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 500 }}>
+                de {item.cantidad}
+              </span>
+            </div>
+          </div>
+
+          {/* selector de motivo */}
+          <div>
+            <label style={{
+              display: 'block', fontSize: 10, fontWeight: 700,
+              color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.05em',
+              marginBottom: 4,
+            }}>
+              Motivo de devolución <span style={{ color: '#ef4444' }}>*</span>
+            </label>
+            <select
+              value={motivo}
+              onChange={e => onMotivo(e.target.value)}
+              style={{
+                width: '100%', padding: '9px 12px', borderRadius: 10,
+                border: `1.5px solid ${motivo ? '#a7f3d0' : '#fca5a5'}`,
+                background: 'white', fontSize: 12, fontWeight: 600,
+                color: motivo ? '#065f46' : '#9ca3af',
+                outline: 'none', cursor: 'pointer',
+                fontFamily: 'var(--font-body)',
+              }}
+            >
+              <option value="">— Selecciona el motivo —</option>
+              {MOTIVOS.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
         </div>
       )}
     </div>
@@ -104,16 +161,32 @@ const ReturnForm = ({ onSuccess, defaultIdVenta = '', orderProducts = [] }) => {
     setError('');
   }, [defaultIdVenta]);
 
-  const toggle = (id) =>
-    setProdState(prev => ({
-      ...prev,
-      [id]: { checked: !prev[id]?.checked, motivo: prev[id]?.motivo || '' },
-    }));
+  const toggle = (id, maxQty) =>
+    setProdState(prev => {
+      const wasChecked = prev[id]?.checked;
+      return {
+        ...prev,
+        [id]: {
+          checked: !wasChecked,
+          motivo: prev[id]?.motivo || '',
+          cantidadDev: wasChecked ? 0 : (prev[id]?.cantidadDev || maxQty),
+        },
+      };
+    });
 
   const setMotivo = (id, motivo) =>
     setProdState(prev => ({
       ...prev,
       [id]: { ...prev[id], motivo },
+    }));
+
+  const setCantidad = (id, val, maxQty) =>
+    setProdState(prev => ({
+      ...prev,
+      [id]: {
+        ...prev[id],
+        cantidadDev: Math.max(1, Math.min(maxQty, Number(val) || 1)),
+      },
     }));
 
   const [uploadingEvidencia, setUploadingEvidencia] = useState(false);
@@ -136,16 +209,25 @@ const ReturnForm = ({ onSuccess, defaultIdVenta = '', orderProducts = [] }) => {
   /* productos seleccionados con todos sus datos */
   const seleccionados = orderProducts
     .filter(p => prodState[p.idProducto || p.id]?.checked)
-    .map(p => ({
-      ...p,
-      motivoProd: prodState[p.idProducto || p.id]?.motivo || '',
-    }));
+    .map(p => {
+      const st = prodState[p.idProducto || p.id];
+      return {
+        ...p,
+        cantidad:   st?.cantidadDev || p.cantidad,
+        motivoProd: st?.motivo || '',
+      };
+    });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (seleccionados.length === 0) {
       setError('Selecciona al menos un producto para devolver.');
+      return;
+    }
+    const sinCantidad = seleccionados.find(p => !p.cantidad || p.cantidad <= 0);
+    if (sinCantidad) {
+      setError(`Indica la cantidad a devolver para "${sinCantidad.nombre}".`);
       return;
     }
     const sinMotivo = seleccionados.find(p => !p.motivoProd);
@@ -222,14 +304,17 @@ const ReturnForm = ({ onSuccess, defaultIdVenta = '', orderProducts = [] }) => {
           ) : (
             orderProducts.map(p => {
               const key = p.idProducto || p.id;
+              const st  = prodState[key] || {};
               return (
                 <ProductRow
                   key={key}
                   item={p}
-                  checked={!!prodState[key]?.checked}
-                  motivo={prodState[key]?.motivo || ''}
-                  onToggle={() => toggle(key)}
+                  checked={!!st.checked}
+                  motivo={st.motivo || ''}
+                  cantidadDev={st.cantidadDev || p.cantidad}
+                  onToggle={() => toggle(key, p.cantidad)}
                   onMotivo={(m) => setMotivo(key, m)}
+                  onCantidad={(val) => setCantidad(key, val, p.cantidad)}
                 />
               );
             })
