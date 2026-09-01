@@ -1191,6 +1191,19 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
                     "completada. Completá la orden de producción primero."
                 ),
             )
+        # Y el faltante que nunca llegó a tener orden: el producto sin ficha
+        # técnica no se puede fabricar, así que no se le abre ninguna y el
+        # bloqueo de arriba no lo veía. Igual falta producto que entregar.
+        faltantes = _faltantes_sin_cubrir(db, id_venta, tiene_domicilio)
+        if faltantes:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"No se puede marcar como Listo: falta producto de {', '.join(faltantes)}. "
+                    "Completá su orden de producción —si el producto no tiene ficha técnica, "
+                    "cargala primero para poder abrirla— o reponé el stock."
+                ),
+            )
 
     # Bloquear paso a ENTREGADO si el pedido requiere anticipo y el saldo no fue registrado.
     # No afecta pedidos donde Requiere_Anticipo == 0 (flujo normal sin anticipo).
@@ -1493,6 +1506,45 @@ def _productos_producibles(db: Session, prod_ids: list[int]) -> set[int]:
         ).distinct().all()
     }
     return marcados | con_ficha
+
+
+def _faltantes_sin_cubrir(db: Session, id_venta: int, tiene_domicilio: bool) -> list[str]:
+    """Nombres de los productos del pedido cuyo faltante nadie fabricó ni repuso.
+
+    Un pedido que pide más de lo que hay solo se despacha cuando ese faltante
+    existe de verdad: porque su orden de producción se completó, o porque
+    entretanto entró stock. El caso que se colaba es el producto que no se puede
+    fabricar —sin ficha técnica y sin `Requiere_Produccion`—: no se le abre
+    orden, así que no había nada que bloqueara el paso a Listo y el pedido
+    quedaba listo para entregar un producto que no existe. También cubre la
+    orden que se canceló sin fabricar nada.
+
+    `tiene_domicilio` decide cuánto stock hace falta: en los pedidos de recoger
+    en tienda el stock ya se descontó al confirmar y solo queda debiendo la
+    preorden; en los de domicilio el descuento ocurre al entregar, así que
+    todavía hace falta el pedido completo.
+    """
+    items = db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()
+    pendientes: list[str] = []
+    for item in items:
+        preorden = item.Cantidad_Preorden or 0
+        if preorden <= 0:
+            continue  # la línea entraba en el stock del día; nada que cubrir
+        fabricado = db.query(OrdenProduccion).filter(
+            OrdenProduccion.ID_Venta    == id_venta,
+            OrdenProduccion.ID_Producto == item.ID_Producto,
+            OrdenProduccion.Estado      == 11,   # Completada
+        ).first()
+        if fabricado:
+            continue
+        producto  = db.query(Producto).filter(
+            Producto.ID_Producto == item.ID_Producto
+        ).first()
+        necesario = (item.Cantidad or 0) if tiene_domicilio else preorden
+        if producto and (producto.Stock or 0) >= necesario:
+            continue  # entró stock entretanto: el faltante ya existe
+        pendientes.append(producto.nombre if producto else f"producto #{item.ID_Producto}")
+    return pendientes
 
 
 def _crear_ordenes_produccion_para_venta(db: Session, id_venta: int, fecha_entrega) -> int:

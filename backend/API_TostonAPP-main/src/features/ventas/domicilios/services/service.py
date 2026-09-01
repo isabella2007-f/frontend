@@ -11,7 +11,9 @@ from src.shared.services.models import (
     VentaXProducto, Rol, MensajeChat, OrdenProduccion,
 )
 from src.shared.services.notificaciones_utils import notificar, notificar_stock_producto
-from src.features.ventas.gestion_ventas.services.service import _actualizar_estado_producto, _descontar_fefo_producto
+from src.features.ventas.gestion_ventas.services.service import (
+    _actualizar_estado_producto, _descontar_fefo_producto, _faltantes_sin_cubrir,
+)
 from src.shared.services.observaciones_utils import observaciones_limpias
 from .estados import (
     EstadoDomicilio, ESTADO_DOM_A_VENTA, normalizar_estado, puede_reasignarse,
@@ -615,6 +617,15 @@ def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observacio
                 detail=(
                     "La producción de este pedido aún no está completada. "
                     "Completá la orden de producción antes de despacharlo."
+                ),
+            )
+        faltantes = _faltantes_sin_cubrir(db, dom.ID_Venta, True)
+        if faltantes:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Falta producto de {', '.join(faltantes)}: el pedido pidió más de lo "
+                    "que había y ese faltante todavía no se fabricó ni se repuso."
                 ),
             )
 
