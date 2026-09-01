@@ -277,9 +277,8 @@ export default function EditarEmpleado({ empleado, onClose, onSave, roles = [] }
 
   const handleFoto = e => {
     const file = e.target.files[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => set("fotoPreview", ev.target.result);
-    reader.readAsDataURL(file);
+    set("fotoFile", file);
+    set("fotoPreview", URL.createObjectURL(file));
   };
 
   const validateStep = (s) => {

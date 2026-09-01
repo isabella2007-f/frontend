@@ -3,6 +3,7 @@ import { MUNICIPIOS_VALLE_ABURRA } from '../../../../utils/departamentosYCiudade
 import { Mail, Phone, MapPin, Camera, Save, X, CreditCard, Lock, Eye, EyeOff, KeyRound, Clock, User, AlertTriangle } from 'lucide-react';
 import { apiFetch } from '../../../../utils/api';
 import { soloDigitos, esUbicacionValida } from '../../../../utils/inputFilters';
+import { subirImagenCloudinary } from '../../../../utils/cloudinary.js';
 
 const TIPO_DOC_OPTS = ['CC', 'CE', 'TI', 'NIT', 'PP'];
 
@@ -70,6 +71,7 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
   const [perfil,          setPerfil]          = useState(null);
   const [showPassSection, setShowPassSection] = useState(false);
   const [passForm,        setPassForm]        = useState({ nueva: '', confirmar: '', showNueva: false, showConf: false });
+  const [uploadingFoto,   setUploadingFoto]   = useState(false);
 
   const [form, setForm] = useState({
     telefono:      '',
@@ -144,13 +146,24 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
     setErrors(p => { const n = { ...p }; delete n[k]; return n; });
   };
 
-  const handlePhoto = (e) => {
+  const handlePhoto = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { alert('Imagen muy pesada. Máximo 5MB.'); return; }
-    const reader = new FileReader();
-    reader.onloadend = () => setForm(p => ({ ...p, fotoPerfil: reader.result }));
-    reader.readAsDataURL(file);
+    if (fileRef.current) fileRef.current.value = '';
+    if (file.size > 5 * 1024 * 1024) {
+      setErrors(p => ({ ...p, fotoPerfil: 'Imagen muy pesada. Máximo 5MB.' }));
+      return;
+    }
+    setErrors(p => { const n = { ...p }; delete n.fotoPerfil; return n; });
+    setUploadingFoto(true);
+    try {
+      const url = await subirImagenCloudinary(file);
+      setForm(p => ({ ...p, fotoPerfil: url }));
+    } catch {
+      setErrors(p => ({ ...p, fotoPerfil: 'Error al subir la imagen. Intenta de nuevo.' }));
+    } finally {
+      setUploadingFoto(false);
+    }
   };
 
   const cedulaYaEstablecida = !!(perfil?.Cedula);
@@ -190,7 +203,7 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
       Departamento: form.departamento || null,
     };
 
-    if (form.fotoPerfil?.startsWith('data:image/'))
+    if (form.fotoPerfil && form.fotoPerfil !== (perfil?.Foto_perfil || ''))
       payload.Foto_perfil = form.fotoPerfil;
 
     if (showPassSection && passForm.nueva)
@@ -249,6 +262,16 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
           <input type="file" ref={fileRef} accept="image/*" style={{ display: 'none' }} onChange={handlePhoto} />
         </div>
       </div>
+      {uploadingFoto && (
+        <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--gray-500)', marginBottom: 12, fontFamily: 'var(--font-body)' }}>
+          Subiendo imagen…
+        </p>
+      )}
+      {errors.fotoPerfil && (
+        <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--accent-red)', marginBottom: 12, fontFamily: 'var(--font-body)' }}>
+          {errors.fotoPerfil}
+        </p>
+      )}
 
       {/* Nombre — solo lectura */}
       <Field label="Nombre completo" locked>
@@ -405,8 +428,8 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
         <button type="button" className="btn-secondary" onClick={onCancel} style={{ flex: 1, justifyContent: 'center' }}>
           <X size={15} /> Cancelar
         </button>
-        <button type="submit" className="btn-primary" style={{ flex: 2, justifyContent: 'center' }}>
-          <Save size={15} /> Guardar cambios
+        <button type="submit" className="btn-primary" disabled={uploadingFoto} style={{ flex: 2, justifyContent: 'center' }}>
+          <Save size={15} /> {uploadingFoto ? 'Subiendo imagen…' : 'Guardar cambios'}
         </button>
       </div>
     </form>

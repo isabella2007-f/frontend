@@ -130,7 +130,7 @@ export default function CrearEmpleado({ onClose, onSave, roles = [] }) {
     tipoDoc:"CC", numDoc:"", nombre:"", apellidos:"", correo:"",
     telefono:"", direccion:"", departamento:"", municipio:"",
     contrasena:"", confirmar:"", idRol:"", estado:true,
-    fotoPreview:null, fechaIngreso:"",
+    fotoPreview:null, fotoFile:null, fechaIngreso:"",
   };
 
   const [form, setForm]         = useState(empty);
@@ -189,9 +189,8 @@ export default function CrearEmpleado({ onClose, onSave, roles = [] }) {
 
   const handleFoto = e => {
     const file = e.target.files[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => set("fotoPreview", ev.target.result);
-    reader.readAsDataURL(file);
+    set("fotoFile", file);
+    set("fotoPreview", URL.createObjectURL(file));
   };
 
   // Validación por paso

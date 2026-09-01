@@ -39,6 +39,7 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
   const [tieneDomicilio,    setTieneDomicilio]    = useState(false);
   const [observaciones,     setObservaciones]     = useState('');
   const [sinDireccionMsg,   setSinDireccionMsg]   = useState(false);
+  const [checkoutError,     setCheckoutError]     = useState('');
   const [confirmVaciar,     setConfirmVaciar]     = useState(false);
   const [showDeliveryInfo,  setShowDeliveryInfo]  = useState(false);
   const [total, setTotal]             = useState(() =>
@@ -102,11 +103,12 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
   const costoTotal = tieneDomicilio ? total + COSTO_DOMICILIO : total;
 
   const handleCheckout = () => {
-    if (cart.length === 0) return alert('El carrito está vacío');
+    if (cart.length === 0) return;
     if (tieneDomicilio) {
-      if (!address)   return alert('Ingresa una dirección de entrega');
-      if (!municipio) return alert('Selecciona un municipio');
+      if (!address)   { setCheckoutError('Ingresa una dirección de entrega'); return; }
+      if (!municipio) { setCheckoutError('Selecciona un municipio de entrega'); return; }
     }
+    setCheckoutError('');
     if (!isAuthenticated()) { onClose(); onLoginRequired(); return; }
     onCheckout({ address, departamento, municipio, date: '', observaciones, tieneDomicilio });
   };
@@ -358,7 +360,7 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
               </div>
               <div className="flex justify-between items-end">
                 <div>
-                  <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Total a pagar</span>
+                  <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Total del pedido</span>
                   <span className="text-2xl font-black text-gray-900 tracking-tighter leading-none">{COP(costoTotal)}</span>
                 </div>
                 <div className="text-amber-500 pb-1"><Sparkles size={18} /></div>
@@ -366,6 +368,9 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
             </div>
           )}
 
+          {checkoutError && (
+            <p className="text-xs font-bold text-red-600 mb-2 text-center">{checkoutError}</p>
+          )}
           <button
             onClick={handleCheckout}
             disabled={cart.length === 0}

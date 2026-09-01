@@ -5,6 +5,7 @@ import { RolBadge } from "./CrearEmpleado.jsx";
 import CrearEmpleado from "./CrearEmpleado.jsx";
 import EditarEmpleado, { ModalVerEmpleado, ModalEliminarEmpleado } from "./EditarEmpleado.jsx";
 import { getUsuarios, crearEmpleado, editarUsuario, eliminarUsuario, toggleEstadoUsuario } from "../../../services/usuariosService.js";
+import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
 import { getRoles } from "../../../services/rolesService.js";
 import "./Empleados.css";
 
@@ -106,6 +107,7 @@ export default function GestionEmpleados() {
   const handleFilterRolChange = value => { setFilterRol(value); setPage(1); };
 
   const handleCreate = async (data) => {
+    const fotoUrl = data.fotoFile ? await subirImagenCloudinary(data.fotoFile).catch(() => null) : null;
     const payload = {
       Cedula:         data.numDoc,
       Tipo_Documento: data.tipoDoc,
@@ -118,7 +120,7 @@ export default function GestionEmpleados() {
       Municipio:      data.municipio    || null,
       Departamento:   data.departamento || null,
       Telefono:       data.telefono ? data.telefono.replace(/\s/g, "") : null,
-      Foto:           data.fotoPreview  || null,
+      Foto:           fotoUrl,
     };
     try {
       await crearEmpleado(payload);
@@ -132,6 +134,9 @@ export default function GestionEmpleados() {
   };
 
   const handleEdit = async (data) => {
+    const fotoUrl = data.fotoFile
+      ? await subirImagenCloudinary(data.fotoFile).catch(() => data.fotoPreview)
+      : data.fotoPreview;
     const payload = {
       Cedula:         data.numDoc,
       Tipo_Documento: data.tipoDoc,
@@ -143,7 +148,7 @@ export default function GestionEmpleados() {
       Municipio:      data.municipio    || null,
       Departamento:   data.departamento || null,
       Telefono:       data.telefono ? data.telefono.replace(/\s/g, "") : null,
-      Foto:           data.fotoPreview  || null,
+      Foto:           fotoUrl || null,
       ...(data.contrasena ? { Contrasena: data.contrasena } : {}),
     };
     try {

@@ -40,6 +40,26 @@ function calcularRango(periodo) {
   return { desde: null, hasta: null };
 }
 
+// Devuelve una clave que incluye el período de tiempo real (fecha/semana/mes)
+// para que el estado "pagado" en localStorage no persista de un período al siguiente.
+function claveParaPeriodo(idEmpleado, periodo) {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  if (periodo === "hoy") {
+    return `${idEmpleado}_hoy_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  }
+  if (periodo === "semana") {
+    const diasDesdelunes = (d.getDay() + 6) % 7;
+    const lunes = new Date(d);
+    lunes.setDate(d.getDate() - diasDesdelunes);
+    return `${idEmpleado}_semana_${lunes.getFullYear()}-${pad(lunes.getMonth()+1)}-${pad(lunes.getDate())}`;
+  }
+  if (periodo === "mes") {
+    return `${idEmpleado}_mes_${d.getFullYear()}-${pad(d.getMonth()+1)}`;
+  }
+  return `${idEmpleado}_todo`;
+}
+
 function filtrarEntregadas(domicilios, periodo) {
   const entregadas = domicilios.filter((d) => d.estado === "Entregado");
   if (periodo === "todo") return entregadas;
@@ -267,7 +287,7 @@ export default function GestionLiquidaciones() {
   const repartidores = agruparPorRepartidor(todosDomic).map((r) => {
     const entregasPeriodo = filtrarEntregadas(r.todos, periodo);
     const total           = entregasPeriodo.length * (Number(valorFee) || 0);
-    const claveKey        = `${r.idEmpleado}_${periodo}`;
+    const claveKey        = claveParaPeriodo(r.idEmpleado, periodo);
     const pagado          = !!pagados[claveKey];
     return { ...r, entregasPeriodo, total, pagado, claveKey };
   });

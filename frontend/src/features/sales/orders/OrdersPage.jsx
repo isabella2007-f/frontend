@@ -111,7 +111,7 @@ const OrdersPage = () => {
       ...details,
       clientName:    user?.nombre || '',
       items:         getCart(),
-      total:         subtotal + (details.tieneDomicilio ? COSTO_DOMICILIO : 0),
+      total:         subtotal,
       observaciones: details.observaciones || '',
       tieneDomicilio: details.tieneDomicilio || false,
     });

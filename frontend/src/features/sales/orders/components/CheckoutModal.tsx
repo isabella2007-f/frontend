@@ -35,7 +35,7 @@ interface CheckoutModalProps {
     observaciones?: string;
     tieneDomicilio?: boolean;
   } | null;
-  onConfirm: (paymentMethod: string, onBehalfOf: string, comprobante?: File | null, saldoAFavor?: { usar: boolean; monto: number; efectivoMonto?: number }, deliveryInfo?: { tieneDomicilio: boolean; address: string; municipio: string; departamento: string; date: string; time: string; observaciones: string }, anticipoData?: { requiere: boolean; metodo: string; efectivo: boolean; comprobante: File | null; monto: number; saldo: number; pagarTodo?: boolean; creditoCubreAnticipo?: boolean }) => void;
+  onConfirm: (paymentMethod: string, onBehalfOf: string, comprobante?: File | null, saldoAFavor?: { usar: boolean; monto: number; efectivoMonto?: number }, deliveryInfo?: { tieneDomicilio: boolean; address: string; municipio: string; departamento: string; date: string; time: string; observaciones: string }, anticipoData?: { requiere: boolean; metodo: string; efectivo: boolean; comprobante: File | null; monto: number; saldo: number; pagarTodo?: boolean; creditoCubreAnticipo?: boolean }) => Promise<void> | void;
 }
 
 const COSTO_DOMICILIO = 5000;
@@ -153,7 +153,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
       })
       .catch(() => {
         setTelefonoRegistrado(false);
-        setDireccionRegistrada(false);
+        setDireccionRegistrada('');
       });
 
     getMiCredito()
@@ -171,21 +171,10 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
     setTerminosAceptados(false);
   }, [isOpen]);
 
-  // El anticipo del 50% lo exige el backend cuando el pedido va por encima del
-  // stock: es una preventa y hay que separar la plata. No depende del monto —
-  // antes se pedía por pasar de $50.000 y caía en pedidos normales y grandes.
-  //
-  // Cuenta TODO lo que supere el stock, incluidos los productos por encargo.
-  // Antes se los excluía, y como el servidor sí los cuenta el cliente quedaba
-  // en un callejón sin salida: veía el aviso de producción, nunca el bloque del
-  // anticipo, y al confirmar le rechazaban el pedido por un anticipo que la
-  // pantalla jamás le había ofrecido pagar.
-  //
+  // El anticipo del 50% se exige en TODOS los pedidos de clientes.
   // Se calcula acá arriba, antes del early return, porque el efecto de abajo
   // lo necesita y los hooks no pueden quedar detrás de un return.
-  const requiereAnticipo = (orderDetails?.items || []).some(
-    (it: CartItem) => it.cantidad > (it.stock ?? 0)
-  );
+  const requiereAnticipo = true;
 
   // Un pedido con anticipo no admite mixto: la parte en efectivo del mixto se
   // paga AL RECIBIR y el anticipo tiene que estar cubierto ANTES de producir,
@@ -226,7 +215,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
     : 0;
   const totalFinal       = Math.max(0, orderDetails.total + costoDomicilio - creditoAplicar);
   const montoAnticipo        = requiereAnticipo ? (pagarTodo ? totalFinal : Math.ceil(totalFinal * 0.5)) : 0;
-  const creditoCubreAnticipo = requiereAnticipo && usarCredito && montoAnticipo > 0
+  const creditoCubreAnticipo = requiereAnticipo && usarCredito
     && creditoAplicar >= montoAnticipo;
 
   const handleFinalConfirm = async () => {
@@ -295,19 +284,24 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
       ? (creditoCubreAnticipo ? 'efectivo' : anticipoMetodo || 'efectivo')
       : paymentMethod;
 
-    onConfirm(metodoPedido, onBehalfOf, comprobante, { usar: usarCredito, monto: creditoAplicar, efectivoMonto: Number(efectivoMonto) || 0 }, {
-      tieneDomicilio, address, municipio, departamento: orderDetails.departamento || 'Antioquia', date, time, observaciones,
-    }, requiereAnticipo ? {
-      requiere: true,
-      metodo: creditoCubreAnticipo ? 'credito' : anticipoMetodo,
-      efectivo: creditoCubreAnticipo ? true : anticipoEfectivo,
-      comprobante: creditoCubreAnticipo ? null : anticipoComprobante,
-      monto: montoAnticipo,
-      saldo: totalFinal - montoAnticipo,
-      pagarTodo,
-      creditoCubreAnticipo,
-    } : undefined);
-    setIsConfirming(false);
+    try {
+      await onConfirm(metodoPedido, onBehalfOf, comprobante, { usar: usarCredito, monto: creditoAplicar, efectivoMonto: Number(efectivoMonto) || 0 }, {
+        tieneDomicilio, address, municipio, departamento: orderDetails.departamento || 'Antioquia', date, time, observaciones,
+      }, requiereAnticipo ? {
+        requiere: true,
+        metodo: creditoCubreAnticipo ? 'credito' : anticipoMetodo,
+        efectivo: creditoCubreAnticipo ? true : anticipoEfectivo,
+        comprobante: creditoCubreAnticipo ? null : anticipoComprobante,
+        monto: montoAnticipo,
+        saldo: totalFinal - montoAnticipo,
+        pagarTodo,
+        creditoCubreAnticipo,
+      } : undefined);
+    } catch {
+      // el padre ya muestra el error al usuario
+    } finally {
+      setIsConfirming(false);
+    }
   };
 
   const inputCls = "w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 text-sm text-gray-700 font-medium placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400 transition-all";
@@ -601,8 +595,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                 <Banknote size={20} className="text-yellow-600 shrink-0" />
                 <div>
                   <p className="text-xs font-black text-yellow-800">Anticipo requerido</p>
-                  <p className="text-[10px] font-bold text-yellow-700">El pedido lleva más unidades de las que hay en stock. Registra un anticipo para apartarlas.</p>
-                  <p className="text-[10px] font-bold text-yellow-700 mt-1">El pago mixto no está disponible en estos pedidos: su parte en efectivo se paga al recibir y el anticipo va antes.</p>
+                  <p className="text-[10px] font-bold text-yellow-700">Todos los pedidos requieren un anticipo del 50%. El saldo restante se paga al recibir.</p>
+                  <p className="text-[10px] font-bold text-yellow-700 mt-1">El pago mixto no está disponible: su parte en efectivo se paga al recibir y el anticipo va antes.</p>
                 </div>
               </div>
 

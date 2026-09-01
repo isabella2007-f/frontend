@@ -269,7 +269,8 @@ const LandingPage = ({ hideNavbar = false }) => {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [orderDetails, setOrderDetails] = useState(null);
-  const [orderDone, setOrderDone] = useState(false);
+  const [orderDone,   setOrderDone]   = useState(false);
+  const [errorToast,  setErrorToast]  = useState('');
   const [confirmPending, setConfirmPending] = useState(null);
 
   // Sincronizar contador del carrito
@@ -434,7 +435,8 @@ const LandingPage = ({ hideNavbar = false }) => {
         deliveryInfo, anticipoData, orderDetails,
       });
     } catch (err) {
-      alert(err.message || "Error al registrar el pedido");
+      setErrorToast(err.message || "Error al registrar el pedido");
+      setTimeout(() => setErrorToast(''), 4000);
       return;
     }
 
@@ -495,6 +497,14 @@ const LandingPage = ({ hideNavbar = false }) => {
         <div className="fixed top-6 left-1/2 z-[10000] flex items-center gap-3 px-6 py-4 bg-[#1b5e20] text-white rounded-2xl shadow-2xl animate-slide-down-toast">
           <CheckCircle2 className="w-5 h-5 text-[#81c784]" />
           <span className="font-black">¡Pedido registrado con éxito! 🎉</span>
+        </div>
+      )}
+
+      {/* ── Toast de error ── */}
+      {errorToast && (
+        <div className="fixed top-6 left-1/2 z-[10000] flex items-center gap-3 px-6 py-4 bg-[#b71c1c] text-white rounded-2xl shadow-2xl animate-slide-down-toast">
+          <X className="w-5 h-5 text-[#ef9a9a]" />
+          <span className="font-black">{errorToast}</span>
         </div>
       )}
 

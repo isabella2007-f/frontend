@@ -341,11 +341,7 @@ export default function CrearPedido({ onClose, onSave }) {
     ? Math.min(Math.max(Number(creditoMonto) || 0, 0), creditoMaximo)
     : 0;
   const totalFinal    = Math.max(0, total - creditoAplicar);
-  // El anticipo del 50% lo exige el backend cuando el pedido va por encima del
-  // stock: es una preventa. No depende del monto — antes se pedía por pasar de
-  const requiereAnticipo = form.productosItems.some(
-    p => p.cantidad > p.stockActual
-  );
+  const requiereAnticipo = true;
   const montoAnticipo    = requiereAnticipo ? (pagarTodo ? totalFinal : Math.ceil(totalFinal * 0.5)) : 0;
   // Con anticipo el método se elige una sola vez, en el bloque del anticipo, y de
   // ahí sale el del pedido: es el mismo dinero.
@@ -897,7 +893,7 @@ export default function CrearPedido({ onClose, onSave }) {
                     <div>
                       <p style={{ margin: 0, fontWeight: 800, color: "#f57f17", fontSize: 15 }}>Anticipo requerido</p>
                       <p style={{ margin: 0, fontSize: 12, color: "#795548" }}>
-                        El pedido lleva más unidades de las que hay en stock. Registra el anticipo antes de confirmar.
+                        Todos los pedidos requieren anticipo del 50%. Registra el pago antes de confirmar.
                       </p>
                       <p style={{ margin: "4px 0 0", fontSize: 12, color: "#795548" }}>
                         El pago mixto no aplica aquí: su parte en efectivo se cobra al entregar y el anticipo va antes.

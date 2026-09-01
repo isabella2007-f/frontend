@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { getUser, logout } from "../../services/authService";
-import { crearPedido, getMiCredito } from "../../services/pedidosService";
-import { Menu, X, ShoppingCart, Bell, LogOut, Gift } from "lucide-react";
+import { getMiCredito } from "../../services/pedidosService";
+import { crearPedidoCliente, resolverEntrega } from "../../features/sales/orders/services/crearPedidoCliente";
+import { Menu, X, ShoppingCart, Bell, LogOut, Gift, CheckCircle2, AlertCircle } from "lucide-react";
 import "./Navbar.css";
-import { getCartCount, getCart, getTotal } from "../../features/sales/orders/services/cartService";
+import { getCartCount, getCart, getTotal, clearCart } from "../../features/sales/orders/services/cartService";
 import CartAside from "../../features/sales/orders/components/CartAside";
 import CheckoutModal from "../../features/sales/orders/components/CheckoutModal";
 import LogoutModal from "./LogoutModal";
@@ -24,6 +25,7 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
   const [showLogoutModal,  setShowLogoutModal]  = useState(false);
   const [notifOpen,        setNotifOpen]        = useState(false);
   const [credito,          setCredito]          = useState(0);
+  const [navToast,         setNavToast]         = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -79,39 +81,24 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
 
   const handleLoginRequired = () => navigate("/login");
 
-  const handleConfirmOrder = async (paymentMethod, onBehalfOf, comprobante) => {
-    const currentUser = getUser();
-    const currentCart = getCart();
-    const total = getTotal();
+  const showNavToast = (msg, type = 'success') => {
+    setNavToast({ msg, type });
+    setTimeout(() => setNavToast(null), 3500);
+  };
 
-    const payload = {
-      ID_Usuario:        currentUser?.id || null,
-      Metodo_Pago:       paymentMethod === 'digital' ? 'Transferencia' : 'Efectivo',
-      productos:         currentCart.map(item => ({
-        ID_Producto: Number(item.id),
-        Cantidad:    Number(item.cantidad),
-      })),
-      usar_credito:      false,
-      codigo_descuento:  null,
-      domicilio:         orderDetails?.address ? {
-        Direccion_entrega:  orderDetails.address || '',
-        Municipio_entrega:  orderDetails.departamento || '',
-        Departamento_entrega: orderDetails.departamento || '',
-        Observaciones:      null,
-      } : undefined,
-    };
-
+  const handleConfirmOrder = async (paymentMethod, onBehalfOf, comprobante, saldoAFavor, deliveryInfo, anticipoData) => {
     try {
-      await crearPedido(payload);
+      await crearPedidoCliente({
+        paymentMethod, onBehalfOf, comprobante, saldoAFavor,
+        deliveryInfo, anticipoData, orderDetails,
+      });
+      clearCart();
+      setIsCheckoutOpen(false);
+      updateCartCount();
+      showNavToast('¡Pedido creado exitosamente!');
     } catch (err) {
-      alert(err.message || "Error al registrar el pedido");
-      return;
+      showNavToast(err.message || 'Error al registrar el pedido', 'error');
     }
-
-    setIsCheckoutOpen(false);
-    localStorage.removeItem('toston_app_cart');
-    updateCartCount();
-    window.dispatchEvent(new Event('cart-updated'));
   };
 
   const isOnLanding = location.pathname === '/';
@@ -125,6 +112,19 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
 
   return (
     <>
+      {navToast && (
+        <div style={{
+          position: 'fixed', bottom: 24, right: 24, zIndex: 99999,
+          background: navToast.type === 'error' ? '#c62828' : '#2e7d32',
+          color: '#fff', padding: '12px 20px', borderRadius: 12,
+          display: 'flex', alignItems: 'center', gap: 10,
+          fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: 14,
+          boxShadow: '0 8px 32px rgba(0,0,0,.18)',
+        }}>
+          {navToast.type === 'error' ? <AlertCircle size={18} /> : <CheckCircle2 size={18} />}
+          {navToast.msg}
+        </div>
+      )}
       <nav className={`navbar ${isLanding ? 'is-landing' : ''}`}>
         <div className="navbar-inner">
 

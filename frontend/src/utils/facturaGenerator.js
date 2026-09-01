@@ -242,7 +242,19 @@ function buildHTML({ numero, fecha, estado, cliente, entrega, metodoPago, items,
 
 function abrirFactura(html) {
   const win = window.open('', '_blank', 'width=920,height=760,scrollbars=yes');
-  if (!win) { alert('Activa las ventanas emergentes para descargar la factura.'); return; }
+  if (!win) {
+    // Popup blocked — offer as a file download instead
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'factura.html';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    return;
+  }
   win.document.write(html);
   win.document.close();
   win.focus();

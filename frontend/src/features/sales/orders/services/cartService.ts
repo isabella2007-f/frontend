@@ -25,7 +25,7 @@ export const addToCart = (product: any): void => {
   const existing = cart.find((item) => item.id === product.id);
 
   if (existing) {
-    if (!existing.requiereProduccion && existing.stock && existing.cantidad >= existing.stock) return;
+    if (!existing.requiereProduccion && !existing.pedidoProgramado && existing.stock > 0 && existing.cantidad >= existing.stock) return;
     existing.cantidad += 1;
   } else {
     cart.push({
@@ -74,7 +74,7 @@ export const updateQuantity = (productId: number, quantity: number): void => {
   const cart = getCart();
   const item = cart.find((i) => i.id === productId);
   if (item) {
-    const maxQty = item.requiereProduccion ? Infinity : (item.stock || Infinity);
+    const maxQty = (item.requiereProduccion || item.pedidoProgramado) ? Infinity : (item.stock || Infinity);
     item.cantidad = Math.max(1, Math.min(quantity, maxQty));
     saveCart(cart);
     window.dispatchEvent(new Event('cart-updated'));
