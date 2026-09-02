@@ -35,3 +35,5 @@ google-auth==2.40.0
 google-auth-httplib2==0.2.0
 google-api-python-client==2.169.0
 firebase-admin==6.5.0
+# Solo para los tests: TestClient de FastAPI recorre la API por HTTP.
+httpx==0.28.1

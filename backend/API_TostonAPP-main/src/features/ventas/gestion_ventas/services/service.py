@@ -1420,6 +1420,22 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
                     if a_restaurar > 0:
                         _restaurar_fefo_producto(db, item.ID_Producto, a_restaurar)
 
+        # Cerrar la producción que se abrió para este pedido. Cancelar el
+        # pedido y dejar su orden viva llenaba el panel de producción de trabajo
+        # para pedidos que ya no existen —y si la orden estaba en proceso, los
+        # insumos quedaban gastados sin nada que los devolviera—. Se cancela por
+        # el servicio de producción para que la devolución de insumos y los
+        # lotes se hagan con las mismas reglas de siempre.
+        from src.features.produccion.ordenes_produccion.services.service import (
+            cambiar_estado as _cambiar_estado_orden,
+        )
+        ordenes_vivas = db.query(OrdenProduccion).filter(
+            OrdenProduccion.ID_Venta == id_venta,
+            OrdenProduccion.Estado.notin_([11, 5]),   # completada / cancelada
+        ).all()
+        for _orden in ordenes_vivas:
+            _cambiar_estado_orden(db, _orden.ID_Orden_Produccion, 5)
+
         # Devolver crédito si se usó al crear el pedido
         detalle = db.query(DetalleVenta).filter(DetalleVenta.ID_Venta == id_venta).first()
         if detalle and detalle.Descuento and detalle.Descuento > 0:

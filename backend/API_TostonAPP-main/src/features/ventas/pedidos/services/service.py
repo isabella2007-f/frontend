@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from sqlalchemy.orm import Session, selectinload
 from fastapi import HTTPException
 
@@ -5,7 +7,10 @@ from src.shared.services.models import (
     Venta, Estado, DetalleVenta, Domicilio,
     VentaXProducto, Producto, DescuentoXVenta,
 )
-from src.features.ventas.gestion_ventas.services.service import _formato_venta, cambiar_estado as _gv_cambiar_estado
+from src.features.ventas.gestion_ventas.services.service import (
+    COSTO_DOMICILIO, _formato_venta, _now, cambiar_estado as _gv_cambiar_estado,
+)
+from src.features.ventas.domicilios.services.estados import EstadoDomicilio
 from src.features.ventas.pedidos.services.estados import EstadoPedido, ESTADOS_ACTIVOS
 
 
@@ -139,10 +144,25 @@ def editar_pedido(db: Session, id_venta: int, datos: dict) -> dict:
 
     quiere_domicilio = datos.get("Domicilio")
     domicilio = db.query(Domicilio).filter(Domicilio.ID_Venta == id_venta).first()
+    tenia_domicilio = domicilio is not None
 
     if quiere_domicilio is True:
         if domicilio is None:
-            domicilio = Domicilio(ID_Venta=id_venta, Estado=EstadoPedido.PENDIENTE)
+            # El domicilio nace igual que el que crea el checkout: en el
+            # estado PENDIENTE de la tabla global (3) y con su código de
+            # entrega. Acá se usaba EstadoPedido.PENDIENTE, que vale 1 y no
+            # es un estado válido de domicilio: el panel lo mostraba sin
+            # etiqueta, y sin OTP el repartidor no tenía código que validar
+            # ni el cliente cuál dictar.
+            import secrets as _secrets
+            from datetime import timedelta as _timedelta
+            domicilio = Domicilio(
+                ID_Venta         = id_venta,
+                Estado           = int(EstadoDomicilio.PENDIENTE),
+                Fecha_asignacion = _now(),
+                OTP              = str(100000 + _secrets.randbelow(900000)),
+                OTP_Expira       = _now() + _timedelta(hours=48),
+            )
             db.add(domicilio)
         if datos.get("Direccion_Entrega") is not None:
             domicilio.Direccion_entrega = datos["Direccion_Entrega"]
@@ -154,6 +174,19 @@ def editar_pedido(db: Session, id_venta: int, datos: dict) -> dict:
             domicilio.Observaciones = datos["Notas"]
     elif quiere_domicilio is False and domicilio is not None:
         db.delete(domicilio)
+
+    # El costo del envío lo lleva el servidor, no el formulario. Cambiar el
+    # tipo de entrega desde el panel no lo tocaba: pasar un pedido a domicilio
+    # se llevaba el envío gratis, y quitarle el domicilio dejaba al cliente
+    # pagando un envío que ya no existía. Se ajusta por diferencia para que
+    # repetir la misma edición no lo sume dos veces.
+    queda_con_domicilio = quiere_domicilio if quiere_domicilio is not None else tenia_domicilio
+    if bool(queda_con_domicilio) != bool(tenia_domicilio):
+        signo = 1 if queda_con_domicilio else -1
+        pedido.Total = max(
+            Decimal("0"),
+            Decimal(str(pedido.Total or 0)) + signo * COSTO_DOMICILIO,
+        )
 
     db.commit()
     db.refresh(pedido)

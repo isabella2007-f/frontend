@@ -14,6 +14,7 @@ from src.shared.services.notificaciones_utils import notificar, notificar_stock_
 from src.features.ventas.gestion_ventas.services.service import (
     _actualizar_estado_producto, _descontar_fefo_producto, _descontar_stock_venta,
     _faltantes_sin_cubrir,
+    cambiar_estado as _cambiar_estado_venta,
 )
 from src.shared.services.observaciones_utils import observaciones_limpias
 from src.shared.services.pagos_utils import cobro_efectivo_pendiente
@@ -671,7 +672,15 @@ def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observacio
             # Al entregar: descontar stock si aún no se había entregado.
             # with_for_update() en venta garantiza que dos requests concurrentes
             # no descuenten el stock dos veces (el segundo ve Estado==8 y no entra).
-            if nuevo_estado_venta == 8 and venta.Estado != 8:
+            if nuevo_estado_venta == 5 and venta.Estado != 5:
+                # Cancelar desde el panel de reparto es cancelar el pedido
+                # entero, y eso significa devolverle al cliente lo que puso: el
+                # saldo a favor que gastó y el stock que se le había reservado.
+                # Escribiendo el estado a mano, el mismo pedido cancelado desde
+                # acá le costaba la plata al cliente y cancelado desde Gestión de
+                # pedidos se la devolvía. Ahora los dos caminos hacen lo mismo.
+                _cambiar_estado_venta(db, dom.ID_Venta, nuevo_estado_venta)
+            elif nuevo_estado_venta == 8 and venta.Estado != 8:
                 # El mismo descuento que hace gestion_ventas al entregar. Antes
                 # este modulo lo repetia linea por linea, asi que cualquier
                 # arreglo alla habia que acordarse de copiarlo aca.

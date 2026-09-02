@@ -93,9 +93,16 @@ def registrar_venta(
     4. Descuenta stock automáticamente
     5. Crea domicilio si se incluye en el body
     """
-    # El cliente NO fija la fecha de entrega en el checkout: la propone el
-    # administrador después. Se ignora cualquier fecha enviada por un cliente.
     if actual.get("tipo") == "cliente":
+        # El pedido queda a nombre de quien lo hace, no de quien diga el
+        # cuerpo. Con el ID libre, un cliente podía mandar el de otro y el
+        # pedido se creaba a nombre de esa persona Y se pagaba con SU saldo
+        # a favor (`usar_credito` lo toma del ID del pedido), con la
+        # dirección de entrega que eligiera el atacante. El mostrador sí
+        # puede vender a nombre de un tercero: por eso solo se fuerza aquí.
+        datos.ID_Usuario = actual["registro"].ID_Usuario
+        # El cliente NO fija la fecha de entrega en el checkout: la propone
+        # el administrador después. Se ignora cualquier fecha que envíe.
         datos.Fecha_entrega_esperada = None
         if datos.domicilio is not None:
             datos.domicilio.Fecha_entrega = None
