@@ -252,6 +252,49 @@ PARTE_PREORDEN   = "preorden"     # el faltante, que llega cuando cierra la orde
 PARTE_TODO       = "todo"         # la línea completa
 
 
+def _abonar_credito(db: Session, id_usuario: int, monto: Decimal, id_venta: int) -> None:
+    """Le devuelve plata al cliente como saldo a favor.
+
+    Crea la cuenta si no existía: al cliente que nunca había tenido saldo no
+    se le devolvía nada, porque no había fila que sumarle.
+    """
+    if monto <= 0:
+        return
+    credito = db.query(CreditoCliente).filter(
+        CreditoCliente.ID_Usuario == id_usuario
+    ).first()
+    if not credito:
+        credito = CreditoCliente(
+            ID_Usuario=id_usuario, Saldo=Decimal("0"), Fecha_Update=_now(),
+        )
+        db.add(credito)
+        db.flush()
+    credito.Saldo        += monto
+    credito.Fecha_Update  = _now()
+    db.add(MovimientoCredito(
+        ID_Credito    = credito.ID_Credito,
+        ID_Devolucion = None,
+        ID_Venta      = id_venta,
+        Tipo          = "recarga",
+        Monto         = monto,
+        Fecha         = _now(),
+    ))
+
+
+def _ya_se_produjo(db: Session, id_venta: int) -> bool:
+    """Si alguna orden de este pedido llegó a completarse.
+
+    Es la línea que decide si al cancelar se devuelve la plata: mientras la
+    orden no haya cerrado, cancelarla devuelve los insumos al inventario y
+    la panadería no perdió nada. Una vez horneado, el producto existe y se
+    hizo para este cliente.
+    """
+    return db.query(OrdenProduccion).filter(
+        OrdenProduccion.ID_Venta == id_venta,
+        OrdenProduccion.Estado   == 11,   # Completada
+    ).first() is not None
+
+
 def _descontar_stock_venta(db: Session, id_venta: int, parte: str = PARTE_TODO) -> None:
     """Descuenta del stock lo vendido en la venta, bloqueando cada producto.
 
@@ -1118,7 +1161,6 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
         estado_dom = ESTADO_ASIGNADO if datos.domicilio.ID_Empleado else ESTADO_DOM_PENDIENTE
         # Si el domicilio no trae su propia fecha, usa la fecha_entrega_esperada del pedido
         fecha_dom = datos.domicilio.Fecha_entrega or datos.Fecha_entrega_esperada
-        import secrets as _secrets
         db.add(Domicilio(
             ID_Venta             = nueva_venta.ID_Venta,
             ID_Empleado          = datos.domicilio.ID_Empleado,
@@ -1129,8 +1171,6 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
             Direccion_entrega    = datos.domicilio.Direccion_entrega,
             Municipio_entrega    = datos.domicilio.Municipio_entrega,
             Departamento_entrega = datos.domicilio.Departamento_entrega,
-            OTP                  = str(100000 + _secrets.randbelow(900000)),
-            OTP_Expira           = _now() + timedelta(hours=48),
         ))
         if not datos.domicilio.ID_Empleado:
             notificar(
@@ -1302,12 +1342,13 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
                 ),
             )
 
-    # Con domicilio, la plata la recibe el repartidor al entregar: marcar el
-    # pedido como entregado sin haber registrado ese cobro deja la venta cerrada
-    # y el efectivo sin rastro. Registrarlo también es declarar que NO se pudo
-    # cobrar (con motivo): lo que no vale es entregar sin decir qué pasó.
-    if (nuevo_estado == EstadoPedido.ENTREGADO and tiene_domicilio
-            and cobro_efectivo_pendiente(venta)):
+    # Entregar es cerrar la venta: no se cierra sin decir qué pasó con la
+    # plata que se cobra en mano. Con domicilio la recibe el repartidor y en
+    # tienda la recibe quien atiende el mostrador; en los dos casos, marcar
+    # el pedido como entregado sin registrar ese cobro deja la venta cerrada
+    # y el efectivo sin rastro. Registrarlo también es declarar que NO se
+    # pudo cobrar (con motivo): lo que no vale es entregar sin decirlo.
+    if nuevo_estado == EstadoPedido.ENTREGADO and cobro_efectivo_pendiente(venta):
         raise HTTPException(
             status_code=400,
             detail=(
@@ -1438,21 +1479,36 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
 
         # Devolver crédito si se usó al crear el pedido
         detalle = db.query(DetalleVenta).filter(DetalleVenta.ID_Venta == id_venta).first()
-        if detalle and detalle.Descuento and detalle.Descuento > 0:
-            credito = db.query(CreditoCliente).filter(
-                CreditoCliente.ID_Usuario == venta.ID_Usuario
-            ).first()
-            if credito:
-                credito.Saldo        += detalle.Descuento
-                credito.Fecha_Update  = _now()
-                db.add(MovimientoCredito(
-                    ID_Credito    = credito.ID_Credito,
-                    ID_Devolucion = None,
-                    ID_Venta      = id_venta,
-                    Tipo          = "recarga",
-                    Monto         = detalle.Descuento,
-                    Fecha         = _now(),
-                ))
+        credito_devuelto = Decimal(str(getattr(detalle, "Descuento", None) or 0))
+        if credito_devuelto > 0:
+            _abonar_credito(db, venta.ID_Usuario, credito_devuelto, id_venta)
+
+        # Y devolver la plata que el cliente ya había puesto —anticipo y saldo
+        # final—, con dos condiciones.
+        #
+        # La primera: que el pedido ya lo hubiera aceptado el personal. El
+        # anticipo que llega en el pedido es una DECLARACIÓN del cliente («ya
+        # transferí»), y quien la verifica es el administrador antes de
+        # confirmarlo. Devolviéndoselo a un pedido que nadie miró, cualquiera
+        # podía declarar un anticipo de $500.000 que nunca pagó, cancelar y
+        # quedarse con ese saldo a favor.
+        #
+        # La segunda: que no se haya producido. Ahí la panadería gastó insumos y
+        # horno en algo hecho para este cliente, y ese dinero se queda.
+        #
+        # Se descuenta lo que ya vuelve por la línea de arriba, porque el
+        # anticipo se puede haber pagado justamente con saldo a favor y si no
+        # se devolvería dos veces.
+        _lo_acepto_el_personal = venta.Estado != EstadoPedido.PENDIENTE
+        if _lo_acepto_el_personal and not _ya_se_produjo(db, id_venta):
+            pagado = Decimal("0")
+            if getattr(venta, "Anticipo_Registrado", 0):
+                pagado += Decimal(str(getattr(venta, "Anticipo_Monto", None) or 0))
+            if getattr(venta, "Pago_Final_Registrado", 0):
+                pagado += Decimal(str(getattr(venta, "Pago_Final_Monto", None) or 0))
+            a_devolver = pagado - credito_devuelto
+            if a_devolver > 0:
+                _abonar_credito(db, venta.ID_Usuario, a_devolver, id_venta)
 
     if venta.Estado == EstadoPedido.PENDIENTE:
         descartar_notificacion(db, "pedido_nuevo", id_venta)

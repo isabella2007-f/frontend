@@ -1,5 +1,4 @@
 import re
-import secrets
 import logging
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
@@ -40,11 +39,6 @@ def _imagen_producto(db: Session, id_producto: int) -> str | None:
         ProductoImagen.ID_Producto == id_producto
     ).first()
     return img.imagen if img else None
-
-
-def _otp_nuevo() -> str:
-    """Genera un código OTP de 6 dígitos criptográficamente seguro."""
-    return str(100000 + secrets.randbelow(900000))
 
 
 def _label_estado(db: Session, id_estado: int) -> str:
@@ -121,7 +115,6 @@ def _formato_domicilio(dom: Domicilio, db: Session) -> dict:
         "estado_pago":          venta.Estado_Pago if venta else None,
         "productos":            productos,
         "telefono_cliente":     cliente.Telefono if cliente else "",
-        "otp":                  getattr(dom, "OTP", None),
     }
 
 
@@ -327,7 +320,6 @@ def obtener_domicilios(
             "comprobante_pago":     venta.Comprobante_Pago if venta else None,
             "productos":            prods,
             "telefono_cliente":     cliente.Telefono if cliente else "",
-            "otp":                  getattr(dom, "OTP", None),
         }
 
     return {
@@ -413,8 +405,6 @@ def crear_domicilio(db: Session, datos: DomicilioCreate) -> dict:
         Direccion_entrega    = datos.Direccion_entrega,
         Municipio_entrega    = datos.Municipio_entrega,
         Departamento_entrega = datos.Departamento_entrega,
-        OTP                  = _otp_nuevo(),
-        OTP_Expira           = _now() + timedelta(hours=48),
     )
     db.add(nuevo)
     db.commit()
@@ -488,42 +478,6 @@ def asignar_repartidor(db: Session, id_domicilio: int, id_empleado: int) -> dict
     except Exception as e:
         logger.error(f"Error formateando domicilio {id_domicilio} tras asignación: {e}")
         raise HTTPException(status_code=500, detail="Error al procesar la respuesta")
-
-
-def verificar_otp(db: Session, id_domicilio: int, codigo: str) -> bool:
-    """Verifica el OTP contra el valor almacenado en BD. Expira a las 48 h de creación."""
-    dom = db.query(Domicilio).filter(Domicilio.ID_Domicilio == id_domicilio).first()
-    if not dom:
-        return False
-    otp_db = getattr(dom, "OTP", None)
-    if not otp_db:
-        return False
-    expira = getattr(dom, "OTP_Expira", None)
-    if expira and _now() > expira:
-        return False
-    return codigo.strip() == otp_db
-
-
-def regenerar_otp(db: Session, id_domicilio: int) -> dict:
-    """Genera un OTP nuevo para un domicilio cuyo código anterior expiró o se perdió."""
-    from src.shared.services.models import Domicilio as _Dom
-    dom = db.query(_Dom).filter(_Dom.ID_Domicilio == id_domicilio).first()
-    if not dom:
-        raise HTTPException(status_code=404, detail="Domicilio no encontrado")
-
-    estados_entregados = {8}  # Entregado — el OTP ya no tiene sentido
-    if getattr(dom, "Estado", None) in estados_entregados:
-        raise HTTPException(
-            status_code=400,
-            detail="El domicilio ya fue entregado. No es posible regenerar el OTP.",
-        )
-
-    nuevo_otp = _otp_nuevo()
-    dom.OTP        = nuevo_otp
-    dom.OTP_Expira = _now() + timedelta(hours=48)
-    db.commit()
-
-    return {"otp": nuevo_otp, "expira_en": dom.OTP_Expira.isoformat()}
 
 
 def obtener_mensajes(db: Session, id_domicilio: int) -> list:

@@ -324,6 +324,13 @@ class PanelBase(unittest.TestCase):
         respuesta = self.post("/ventas/", quien or self.cliente, self.cuerpo_pedido(**kw))
         return self.afirmar_ok(respuesta, 201)
 
+    def cobrar_en_tienda(self, id_venta, monto=20000):
+        """El mostrador registra el efectivo antes de entregar."""
+        return self.afirmar_ok(self.patch(
+            f"/pedidos/{id_venta}/registrar-cobro", self.admin,
+            {"recibido": True, "monto": monto},
+        ))
+
     def dar_saldo(self, monto, id_usuario=ID_CLIENTE):
         self.db.add(CreditoCliente(ID_Usuario=id_usuario, Saldo=Decimal(str(monto))))
         self.db.commit()

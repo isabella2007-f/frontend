@@ -149,19 +149,13 @@ def editar_pedido(db: Session, id_venta: int, datos: dict) -> dict:
     if quiere_domicilio is True:
         if domicilio is None:
             # El domicilio nace igual que el que crea el checkout: en el
-            # estado PENDIENTE de la tabla global (3) y con su código de
-            # entrega. Acá se usaba EstadoPedido.PENDIENTE, que vale 1 y no
-            # es un estado válido de domicilio: el panel lo mostraba sin
-            # etiqueta, y sin OTP el repartidor no tenía código que validar
-            # ni el cliente cuál dictar.
-            import secrets as _secrets
-            from datetime import timedelta as _timedelta
+            # estado PENDIENTE de la tabla global (3). Acá se usaba
+            # EstadoPedido.PENDIENTE, que vale 1 y no es un estado válido de
+            # domicilio: el panel lo mostraba sin etiqueta.
             domicilio = Domicilio(
                 ID_Venta         = id_venta,
                 Estado           = int(EstadoDomicilio.PENDIENTE),
                 Fecha_asignacion = _now(),
-                OTP              = str(100000 + _secrets.randbelow(900000)),
-                OTP_Expira       = _now() + _timedelta(hours=48),
             )
             db.add(domicilio)
         if datos.get("Direccion_Entrega") is not None:
@@ -238,6 +232,18 @@ def cancelar_pedido(db: Session, id_venta: int, actual: dict = None) -> dict:
         id_usuario = actual["registro"].ID_Usuario
         if pedido.ID_Usuario != id_usuario:
             raise HTTPException(status_code=403, detail="No puedes cancelar pedidos de otros clientes")
+        # Una vez aceptado, el pedido ya movió cosas: se reservó stock y se
+        # abrió la producción. El cliente podía cancelar hasta un pedido ya
+        # horneado, con los insumos gastados. A partir de ahí la cancelación
+        # la decide la panadería, que sí puede desde Gestión de pedidos.
+        if pedido.Estado != EstadoPedido.PENDIENTE:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Este pedido ya fue aceptado y está en preparación, así que "
+                    "no se puede cancelar desde aquí. Escribínos y lo revisamos."
+                ),
+            )
 
     return _gv_cambiar_estado(db, id_venta, EstadoPedido.CANCELADO)
 

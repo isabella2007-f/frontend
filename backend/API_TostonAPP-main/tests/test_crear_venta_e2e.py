@@ -1112,10 +1112,30 @@ class FlujoPagosTests(CrearVentaBase):
         cambiar_estado_domicilio(self.db, dom.ID_Domicilio, ESTADO_DOM_ENTREGADO)
         self.assertEqual(self.venta_creada().Estado, EstadoPedido.ENTREGADO)
 
-    def test_el_pedido_para_recoger_en_tienda_no_pasa_por_esa_puerta(self):
-        """La regla es del domicilio: en tienda el cobro se hace en el mostrador."""
+    def test_el_pedido_para_recoger_en_tienda_tambien_exige_el_cobro(self):
+        """En el mostrador la plata la recibe quien atiende, pero se registra.
+
+        La puerta era solo del domicilio: en tienda el pedido se cerraba sin
+        dejar rastro de si el efectivo entró.
+        """
         self.crear(self.pedido())
         id_venta = self.venta_creada().ID_Venta
+        self.avanzar(id_venta, EstadoPedido.CONFIRMADO, EstadoPedido.LISTO)
+
+        with self.assertRaises(HTTPException) as ctx:
+            cambiar_estado(self.db, id_venta, EstadoPedido.ENTREGADO)
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("efectivo", ctx.exception.detail.lower())
+
+        self.cobrar(id_venta)
+        cambiar_estado(self.db, id_venta, EstadoPedido.ENTREGADO)
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.ENTREGADO)
+
+    def test_el_pedido_por_transferencia_en_tienda_no_espera_ningun_cobro(self):
+        """No hay plata en mano: exigir el cobro lo dejaría trabado."""
+        self.crear(self.transferencia())
+        id_venta = self.venta_creada().ID_Venta
+        aprobar_comprobante(self.db, id_venta)
         self.avanzar(
             id_venta,
             EstadoPedido.CONFIRMADO, EstadoPedido.LISTO, EstadoPedido.ENTREGADO,

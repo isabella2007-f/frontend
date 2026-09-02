@@ -51,7 +51,6 @@ class CrearPedidoTests(PanelBase):
         dom = self.domicilio()
         self.assertIsNotNone(dom)
         self.assertEqual(dom.Estado, DOM_PENDIENTE)   # sin repartidor todavía
-        self.assertIsNotNone(dom.OTP)
 
     def test_transferencia_con_comprobante_queda_esperando_validacion(self):
         pedido = self.crear_pedido(
@@ -343,10 +342,14 @@ class PanelAdminTests(PanelBase):
     def test_el_recorrido_completo_de_un_pedido_en_tienda(self):
         pedido = self.crear_pedido()
         id_venta = pedido["ID_Venta"]
-        for estado in (PEDIDO_CONFIRMADO, PEDIDO_LISTO, PEDIDO_ENTREGADO):
+        for estado in (PEDIDO_CONFIRMADO, PEDIDO_LISTO):
             self.afirmar_ok(self.patch(
                 f"/ventas/{id_venta}/estado", self.admin, {"Estado": estado}
             ))
+        self.cobrar_en_tienda(id_venta)
+        self.afirmar_ok(self.patch(
+            f"/ventas/{id_venta}/estado", self.admin, {"Estado": PEDIDO_ENTREGADO}
+        ))
         self.assertEqual(self.venta(id_venta).Estado, PEDIDO_ENTREGADO)
         self.assertEqual(self.stock(ID_TOSTON), STOCK_TOSTON - 2)
         self.assertIsNotNone(self.venta(id_venta).Fecha_entrega)
@@ -360,6 +363,37 @@ class PanelAdminTests(PanelBase):
         self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/cancelar", self.admin))
         self.assertEqual(self.venta(id_venta).Estado, PEDIDO_CANCELADO)
         self.assertEqual(self.stock(ID_TOSTON), STOCK_TOSTON)
+
+    def test_no_entrega_en_tienda_sin_registrar_el_cobro(self):
+        """La misma regla del domicilio, ahora también en el mostrador."""
+        pedido = self.crear_pedido()
+        id_venta = pedido["ID_Venta"]
+        for estado in (PEDIDO_CONFIRMADO, PEDIDO_LISTO):
+            self.afirmar_ok(self.patch(
+                f"/ventas/{id_venta}/estado", self.admin, {"Estado": estado}
+            ))
+        respuesta = self.patch(
+            f"/ventas/{id_venta}/estado", self.admin, {"Estado": PEDIDO_ENTREGADO}
+        )
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn("efectivo", self.detalle(respuesta).lower())
+        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_LISTO)
+
+    def test_declarar_que_no_se_cobro_tambien_deja_entregar_en_tienda(self):
+        pedido = self.crear_pedido()
+        id_venta = pedido["ID_Venta"]
+        for estado in (PEDIDO_CONFIRMADO, PEDIDO_LISTO):
+            self.afirmar_ok(self.patch(
+                f"/ventas/{id_venta}/estado", self.admin, {"Estado": estado}
+            ))
+        self.afirmar_ok(self.patch(
+            f"/pedidos/{id_venta}/registrar-cobro", self.admin,
+            {"recibido": False, "motivo": "se lo llevó y paga el lunes"},
+        ))
+        self.afirmar_ok(self.patch(
+            f"/ventas/{id_venta}/estado", self.admin, {"Estado": PEDIDO_ENTREGADO}
+        ))
+        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_ENTREGADO)
 
     def test_un_empleado_sin_permiso_no_toca_los_pedidos(self):
         from panel import ROL_EMPLEADO, _token
@@ -553,8 +587,9 @@ class PanelDomiciliarioTests(PanelBase):
         self.assertEqual(cuerpo["Direccion_entrega"], "Calle 10 #20-30")
         self.assertEqual(cuerpo["metodo_pago"], "Efectivo")
         self.assertTrue(cuerpo["productos"])
-        self.assertIsNotNone(cuerpo["otp"])
         self.assertEqual(cuerpo["indicaciones_cliente"], "Portón verde")
+        # El código de entrega se quitó del flujo: ya no viaja en la respuesta.
+        self.assertNotIn("otp", cuerpo)
 
     def test_sale_en_camino_y_el_pedido_lo_sigue(self):
         id_venta, id_dom = self.preparar_domicilio()
@@ -631,17 +666,15 @@ class PanelDomiciliarioTests(PanelBase):
         )
         self.assertEqual(respuesta.status_code, 409)
 
-    def test_el_codigo_de_entrega_valida_y_el_incorrecto_no(self):
+    def test_entregar_ya_no_pide_ningun_codigo(self):
+        """El código de entrega se retiró: sus endpoints ya no existen."""
         _, id_dom = self.preparar_domicilio()
-        otp = self.domicilio().OTP
-
-        malo = self.post(f"/domicilios/{id_dom}/verificar-otp", self.repartidor,
-                         {"codigo": "000000"})
-        self.assertEqual(malo.status_code, 400)
-
-        bueno = self.post(f"/domicilios/{id_dom}/verificar-otp", self.repartidor,
-                          {"codigo": otp})
-        self.assertEqual(bueno.status_code, 200)
+        for ruta in (f"/domicilios/{id_dom}/verificar-otp",
+                     f"/domicilios/{id_dom}/regenerar-otp"):
+            with self.subTest(ruta=ruta):
+                respuesta = self.post(ruta, self.repartidor, {"codigo": "123456"})
+                self.assertEqual(respuesta.status_code, 404)
+        self.assertIsNone(self.domicilio().OTP)
 
     def test_el_chat_lo_ven_el_cliente_y_su_repartidor(self):
         _, id_dom = self.preparar_domicilio()
@@ -698,10 +731,14 @@ class DevolucionesTests(PanelBase):
     def pedido_entregado(self):
         pedido = self.crear_pedido()
         id_venta = pedido["ID_Venta"]
-        for estado in (PEDIDO_CONFIRMADO, PEDIDO_LISTO, PEDIDO_ENTREGADO):
+        for estado in (PEDIDO_CONFIRMADO, PEDIDO_LISTO):
             self.afirmar_ok(self.patch(
                 f"/ventas/{id_venta}/estado", self.admin, {"Estado": estado}
             ))
+        self.cobrar_en_tienda(id_venta)
+        self.afirmar_ok(self.patch(
+            f"/ventas/{id_venta}/estado", self.admin, {"Estado": PEDIDO_ENTREGADO}
+        ))
         return id_venta
 
     def cuerpo_devolucion(self, id_venta, **kw):
@@ -923,9 +960,9 @@ class CancelarTests(PanelBase):
         self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/confirmar", self.admin))
         self.assertEqual(self.orden(id_venta).Estado, ORDEN_PENDIENTE)
 
-        self.afirmar_ok(self.patch(
-            f"/pedidos/{id_venta}/cancelar-mi-pedido", self.cliente
-        ))
+        # Ya no lo cancela el cliente: en producción la decisión es de la
+        # panadería.
+        self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/cancelar", self.admin))
         self.assertEqual(self.orden(id_venta).Estado, ORDEN_CANCELADA)
 
     def test_cancelar_con_la_orden_ya_empezada_devuelve_los_insumos(self):
@@ -960,12 +997,95 @@ class CancelarTests(PanelBase):
     def test_un_pedido_entregado_ya_no_se_cancela(self):
         pedido = self.crear_pedido()
         id_venta = pedido["ID_Venta"]
-        for estado in (PEDIDO_CONFIRMADO, PEDIDO_LISTO, PEDIDO_ENTREGADO):
+        for estado in (PEDIDO_CONFIRMADO, PEDIDO_LISTO):
             self.afirmar_ok(self.patch(
                 f"/ventas/{id_venta}/estado", self.admin, {"Estado": estado}
             ))
+        self.cobrar_en_tienda(id_venta)
+        self.afirmar_ok(self.patch(
+            f"/ventas/{id_venta}/estado", self.admin, {"Estado": PEDIDO_ENTREGADO}
+        ))
         respuesta = self.patch(f"/pedidos/{id_venta}/cancelar", self.admin)
         self.assertEqual(respuesta.status_code, 404)
+
+    def test_cancelar_antes_de_hornear_devuelve_el_anticipo(self):
+        """Nada se produjo todavía: la plata del cliente vuelve como saldo.
+
+        Antes el anticipo no se devolvía nunca, ni siquiera cancelando un pedido
+        al que no se le había puesto un gramo de harina.
+        """
+        pedido = self.pedido_con_faltante()
+        id_venta = pedido["ID_Venta"]
+        self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/confirmar", self.admin))
+        self.assertEqual(self.saldo(), Decimal("0"))
+
+        self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/cancelar", self.admin))
+        self.assertEqual(self.saldo(), Decimal("30000"))
+
+    def test_el_anticipo_que_nadie_verifico_no_se_devuelve(self):
+        """El anticipo del pedido es una declaración del cliente, no un pago.
+
+        Quien la verifica es el administrador al confirmar. Devolviéndosela a un
+        pedido que nadie miró, cualquiera podía declarar un anticipo de $500.000
+        que nunca pagó, cancelar y quedarse con ese saldo a favor.
+        """
+        pedido = self.pedido_con_faltante(anticipo_monto=500000.0)
+        id_venta = pedido["ID_Venta"]
+        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_PENDIENTE)
+
+        self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/cancelar", self.admin))
+        self.assertEqual(self.saldo(), Decimal("0"))
+
+    def test_cancelar_ya_producido_no_devuelve_el_anticipo(self):
+        """El horno ya corrió y las tortas se hicieron para este cliente."""
+        pedido = self.pedido_con_faltante()
+        id_venta = pedido["ID_Venta"]
+        self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/confirmar", self.admin))
+        self.hornear(id_venta)
+
+        self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/cancelar", self.admin))
+        self.assertEqual(self.saldo(), Decimal("0"))
+
+    def test_el_anticipo_pagado_con_saldo_no_se_devuelve_dos_veces(self):
+        """El saldo vuelve por su propia línea; no puede volver también como anticipo."""
+        self.dar_saldo(60000)
+        pedido = self.pedido_con_faltante(
+            usar_credito=True, credito_monto=60000,
+            anticipo_metodo_pago="Credito", anticipo_monto=30000.0,
+        )
+        id_venta = pedido["ID_Venta"]
+        self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/confirmar", self.admin))
+        self.assertEqual(self.saldo(), Decimal("0"))
+
+        self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/cancelar", self.admin))
+        self.assertEqual(self.saldo(), Decimal("60000"))
+
+    def test_el_cliente_solo_cancela_mientras_este_pendiente(self):
+        """Aceptado el pedido, la cancelación la decide la panadería."""
+        pedido = self.crear_pedido()
+        id_venta = pedido["ID_Venta"]
+        self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/confirmar", self.admin))
+
+        respuesta = self.patch(f"/pedidos/{id_venta}/cancelar-mi-pedido", self.cliente)
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn("preparación", self.detalle(respuesta).lower())
+        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_CONFIRMADO)
+
+    def test_el_cliente_tampoco_cancela_lo_que_ya_esta_en_produccion(self):
+        pedido = self.pedido_con_faltante()
+        id_venta = pedido["ID_Venta"]
+        self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/confirmar", self.admin))
+        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_EN_PRODUCCION)
+
+        respuesta = self.patch(f"/pedidos/{id_venta}/cancelar-mi-pedido", self.cliente)
+        self.assertEqual(respuesta.status_code, 400)
+
+    def test_la_panaderia_si_puede_cancelar_lo_que_ya_acepto(self):
+        pedido = self.crear_pedido()
+        id_venta = pedido["ID_Venta"]
+        self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/confirmar", self.admin))
+        self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/cancelar", self.admin))
+        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_CANCELADO)
 
     def test_no_se_cancela_dos_veces(self):
         pedido = self.crear_pedido()
@@ -1057,12 +1177,11 @@ class EditarPedidoTests(PanelBase):
             Decimal(str(self.venta(id_venta).Total)), Decimal("20000") + COSTO_DOMICILIO
         )
 
-    def test_el_domicilio_agregado_nace_completo(self):
-        """Con estado válido y con código de entrega, como el del checkout.
+    def test_el_domicilio_agregado_nace_con_un_estado_valido(self):
+        """Se creaba con el estado 1, que es "Pendiente" de un PEDIDO.
 
-        Se creaba con el estado 1 —que es "Pendiente" de un PEDIDO, no de un
-        domicilio— y sin OTP: el panel lo listaba sin etiqueta y el repartidor
-        no tenía código que validar.
+        No es un estado válido de domicilio, así que el panel lo listaba sin
+        etiqueta.
         """
         pedido = self.crear_pedido()
         id_venta = pedido["ID_Venta"]
@@ -1072,9 +1191,7 @@ class EditarPedidoTests(PanelBase):
             "Municipio_entrega": "Envigado",
             "Departamento_entrega": "Antioquia",
         }))
-        dom = self.domicilio(id_venta)
-        self.assertEqual(dom.Estado, DOM_PENDIENTE)
-        self.assertIsNotNone(dom.OTP)
+        self.assertEqual(self.domicilio(id_venta).Estado, DOM_PENDIENTE)
 
         listado = self.afirmar_ok(self.get("/domicilios/", self.admin))
         self.assertEqual(listado["domicilios"][0]["estado_label"], "Pendiente")

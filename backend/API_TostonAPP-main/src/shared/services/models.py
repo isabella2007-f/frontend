@@ -471,8 +471,9 @@ class Domicilio(Base):
     Direccion_entrega    = Column(String(50))
     Municipio_entrega    = Column(String(25))
     Departamento_entrega = Column(String(60))
-    # OTP de confirmación de entrega generado con secrets, almacenado en BD para
-    # sobrevivir reinicios del servidor (reemplaza el hash matemático predecible).
+    # Código de entrega que se le pedía al cliente al recibir. Se quitó del
+    # flujo: entregar ya no depende de dictar un número. Las columnas quedan por
+    # los domicilios viejos que lo tienen guardado; nadie las lee ni las escribe.
     OTP        = Column(String(10), nullable=True)
     OTP_Expira = Column(DateTime, nullable=True)
 
