@@ -281,20 +281,6 @@ def _abonar_credito(db: Session, id_usuario: int, monto: Decimal, id_venta: int)
     ))
 
 
-def _ya_se_produjo(db: Session, id_venta: int) -> bool:
-    """Si alguna orden de este pedido llegó a completarse.
-
-    Es la línea que decide si al cancelar se devuelve la plata: mientras la
-    orden no haya cerrado, cancelarla devuelve los insumos al inventario y
-    la panadería no perdió nada. Una vez horneado, el producto existe y se
-    hizo para este cliente.
-    """
-    return db.query(OrdenProduccion).filter(
-        OrdenProduccion.ID_Venta == id_venta,
-        OrdenProduccion.Estado   == 11,   # Completada
-    ).first() is not None
-
-
 def _descontar_stock_venta(db: Session, id_venta: int, parte: str = PARTE_TODO) -> None:
     """Descuenta del stock lo vendido en la venta, bloqueando cada producto.
 
@@ -1483,32 +1469,12 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
         if credito_devuelto > 0:
             _abonar_credito(db, venta.ID_Usuario, credito_devuelto, id_venta)
 
-        # Y devolver la plata que el cliente ya había puesto —anticipo y saldo
-        # final—, con dos condiciones.
-        #
-        # La primera: que el pedido ya lo hubiera aceptado el personal. El
-        # anticipo que llega en el pedido es una DECLARACIÓN del cliente («ya
-        # transferí»), y quien la verifica es el administrador antes de
-        # confirmarlo. Devolviéndoselo a un pedido que nadie miró, cualquiera
-        # podía declarar un anticipo de $500.000 que nunca pagó, cancelar y
-        # quedarse con ese saldo a favor.
-        #
-        # La segunda: que no se haya producido. Ahí la panadería gastó insumos y
-        # horno en algo hecho para este cliente, y ese dinero se queda.
-        #
-        # Se descuenta lo que ya vuelve por la línea de arriba, porque el
-        # anticipo se puede haber pagado justamente con saldo a favor y si no
-        # se devolvería dos veces.
-        _lo_acepto_el_personal = venta.Estado != EstadoPedido.PENDIENTE
-        if _lo_acepto_el_personal and not _ya_se_produjo(db, id_venta):
-            pagado = Decimal("0")
-            if getattr(venta, "Anticipo_Registrado", 0):
-                pagado += Decimal(str(getattr(venta, "Anticipo_Monto", None) or 0))
-            if getattr(venta, "Pago_Final_Registrado", 0):
-                pagado += Decimal(str(getattr(venta, "Pago_Final_Monto", None) or 0))
-            a_devolver = pagado - credito_devuelto
-            if a_devolver > 0:
-                _abonar_credito(db, venta.ID_Usuario, a_devolver, id_venta)
+        # El anticipo NO se devuelve solo. Qué pasa con la plata que el cliente
+        # ya entregó —si se le abona, si se le guarda para el próximo pedido, si
+        # se le transfiere de vuelta— lo acuerdan el cliente y el administrador;
+        # el sistema no toma esa decisión por ellos. Lo único que vuelve
+        # automáticamente es el saldo a favor que el propio cliente puso en el
+        # pedido, que es plata suya que nunca llegó a gastarse.
 
     if venta.Estado == EstadoPedido.PENDIENTE:
         descartar_notificacion(db, "pedido_nuevo", id_venta)

@@ -1008,51 +1008,33 @@ class CancelarTests(PanelBase):
         respuesta = self.patch(f"/pedidos/{id_venta}/cancelar", self.admin)
         self.assertEqual(respuesta.status_code, 404)
 
-    def test_cancelar_antes_de_hornear_devuelve_el_anticipo(self):
-        """Nada se produjo todavía: la plata del cliente vuelve como saldo.
+    def test_el_anticipo_no_se_devuelve_solo(self):
+        """Qué pasa con esa plata lo acuerdan el cliente y el administrador.
 
-        Antes el anticipo no se devolvía nunca, ni siquiera cancelando un pedido
-        al que no se le había puesto un gramo de harina.
+        El sistema no toma esa decisión: no le abona el anticipo a nadie por su
+        cuenta, ni antes ni después de hornear.
         """
-        pedido = self.pedido_con_faltante()
-        id_venta = pedido["ID_Venta"]
-        self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/confirmar", self.admin))
-        self.assertEqual(self.saldo(), Decimal("0"))
+        for producido in (False, True):
+            with self.subTest(ya_producido=producido):
+                self.setUp()
+                pedido = self.pedido_con_faltante()
+                id_venta = pedido["ID_Venta"]
+                self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/confirmar", self.admin))
+                if producido:
+                    self.hornear(id_venta)
 
-        self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/cancelar", self.admin))
-        self.assertEqual(self.saldo(), Decimal("30000"))
+                self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/cancelar", self.admin))
+                self.assertEqual(self.venta(id_venta).Estado, PEDIDO_CANCELADO)
+                self.assertEqual(self.saldo(), Decimal("0"))
 
-    def test_el_anticipo_que_nadie_verifico_no_se_devuelve(self):
-        """El anticipo del pedido es una declaración del cliente, no un pago.
+    def test_el_saldo_a_favor_del_cliente_si_vuelve(self):
+        """Es plata suya que puso en el pedido y nunca llegó a gastarse.
 
-        Quien la verifica es el administrador al confirmar. Devolviéndosela a un
-        pedido que nadie miró, cualquiera podía declarar un anticipo de $500.000
-        que nunca pagó, cancelar y quedarse con ese saldo a favor.
+        No es el anticipo: es el saldo que ya tenía en la casa y que aplicó al
+        pagar. Sigue volviendo aunque el pedido lleve anticipo.
         """
-        pedido = self.pedido_con_faltante(anticipo_monto=500000.0)
-        id_venta = pedido["ID_Venta"]
-        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_PENDIENTE)
-
-        self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/cancelar", self.admin))
-        self.assertEqual(self.saldo(), Decimal("0"))
-
-    def test_cancelar_ya_producido_no_devuelve_el_anticipo(self):
-        """El horno ya corrió y las tortas se hicieron para este cliente."""
-        pedido = self.pedido_con_faltante()
-        id_venta = pedido["ID_Venta"]
-        self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/confirmar", self.admin))
-        self.hornear(id_venta)
-
-        self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/cancelar", self.admin))
-        self.assertEqual(self.saldo(), Decimal("0"))
-
-    def test_el_anticipo_pagado_con_saldo_no_se_devuelve_dos_veces(self):
-        """El saldo vuelve por su propia línea; no puede volver también como anticipo."""
         self.dar_saldo(60000)
-        pedido = self.pedido_con_faltante(
-            usar_credito=True, credito_monto=60000,
-            anticipo_metodo_pago="Credito", anticipo_monto=30000.0,
-        )
+        pedido = self.pedido_con_faltante(usar_credito=True, credito_monto=60000)
         id_venta = pedido["ID_Venta"]
         self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/confirmar", self.admin))
         self.assertEqual(self.saldo(), Decimal("0"))
