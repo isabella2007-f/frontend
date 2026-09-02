@@ -5,6 +5,8 @@ import { getUser } from '../../../../services/authService';
 import { getMiCredito } from '../../../../services/pedidosService';
 import { apiFetch } from '../../../../utils/api';
 import { MUNICIPIOS_VALLE_ABURRA } from '../../../../utils/departamentosYCiudades';
+// La regla del anticipo vive en un solo lugar, espejo del servidor.
+import { pideAnticipo } from '../../../../utils/anticipo';
 import SaldoMonto from '../../../../shared/components/SaldoMonto';
 import SplitPagoMonto from '../../../../shared/components/SplitPagoMonto';
 import './CheckoutModal.css';
@@ -171,10 +173,21 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
     setTerminosAceptados(false);
   }, [isOpen]);
 
-  // El anticipo del 50% se exige en TODOS los pedidos de clientes.
+  // El anticipo se le pide al pedido que hay que hornear Y que pasa de
+  // $50.000. Acá estaba clavado en `true`: se le pedía transferencia por
+  // adelantado a quien compraba tres panes que estaban en la vitrina.
+  //
   // Se calcula acá arriba, antes del early return, porque el efecto de abajo
-  // lo necesita y los hooks no pueden quedar detrás de un return.
-  const requiereAnticipo = true;
+  // lo necesita y los hooks no pueden quedar detrás de un return; de ahí el
+  // encadenado opcional sobre orderDetails.
+  const requiereAnticipo = pideAnticipo(
+    (orderDetails?.items || []).map((it: CartItem) => ({
+      cantidad:           it.cantidad,
+      stock:              it.stock,
+      requiereProduccion: it.requiereProduccion,
+    })),
+    (orderDetails?.total || 0) + (tieneDomicilio ? COSTO_DOMICILIO : 0),
+  );
 
   // Un pedido con anticipo no admite mixto: la parte en efectivo del mixto se
   // paga AL RECIBIR y el anticipo tiene que estar cubierto ANTES de producir,
@@ -595,7 +608,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                 <Banknote size={20} className="text-yellow-600 shrink-0" />
                 <div>
                   <p className="text-xs font-black text-yellow-800">Anticipo requerido</p>
-                  <p className="text-[10px] font-bold text-yellow-700">Todos los pedidos requieren un anticipo del 50%. El saldo restante se paga al recibir.</p>
+                  <p className="text-[10px] font-bold text-yellow-700">Este pedido lleva productos por encargo y supera los $50.000: requiere un anticipo del 50%. El saldo restante se paga al recibir.</p>
                   <p className="text-[10px] font-bold text-yellow-700 mt-1">El pago mixto no está disponible: su parte en efectivo se paga al recibir y el anticipo va antes.</p>
                 </div>
               </div>

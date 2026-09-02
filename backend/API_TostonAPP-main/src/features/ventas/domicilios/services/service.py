@@ -1,5 +1,4 @@
 import re
-import secrets
 import logging
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
@@ -12,9 +11,12 @@ from src.shared.services.models import (
 )
 from src.shared.services.notificaciones_utils import notificar, notificar_stock_producto
 from src.features.ventas.gestion_ventas.services.service import (
-    _actualizar_estado_producto, _descontar_fefo_producto, _faltantes_sin_cubrir,
+    _actualizar_estado_producto, _descontar_fefo_producto, _descontar_stock_venta,
+    _faltantes_sin_cubrir,
+    cambiar_estado as _cambiar_estado_venta,
 )
 from src.shared.services.observaciones_utils import observaciones_limpias
+from src.shared.services.pagos_utils import cobro_efectivo_pendiente
 from .estados import (
     EstadoDomicilio, ESTADO_DOM_A_VENTA, normalizar_estado, puede_reasignarse,
     validar_cambio,
@@ -37,11 +39,6 @@ def _imagen_producto(db: Session, id_producto: int) -> str | None:
         ProductoImagen.ID_Producto == id_producto
     ).first()
     return img.imagen if img else None
-
-
-def _otp_nuevo() -> str:
-    """Genera un código OTP de 6 dígitos criptográficamente seguro."""
-    return str(100000 + secrets.randbelow(900000))
 
 
 def _label_estado(db: Session, id_estado: int) -> str:
@@ -118,7 +115,6 @@ def _formato_domicilio(dom: Domicilio, db: Session) -> dict:
         "estado_pago":          venta.Estado_Pago if venta else None,
         "productos":            productos,
         "telefono_cliente":     cliente.Telefono if cliente else "",
-        "otp":                  getattr(dom, "OTP", None),
     }
 
 
@@ -324,7 +320,6 @@ def obtener_domicilios(
             "comprobante_pago":     venta.Comprobante_Pago if venta else None,
             "productos":            prods,
             "telefono_cliente":     cliente.Telefono if cliente else "",
-            "otp":                  getattr(dom, "OTP", None),
         }
 
     return {
@@ -410,8 +405,6 @@ def crear_domicilio(db: Session, datos: DomicilioCreate) -> dict:
         Direccion_entrega    = datos.Direccion_entrega,
         Municipio_entrega    = datos.Municipio_entrega,
         Departamento_entrega = datos.Departamento_entrega,
-        OTP                  = _otp_nuevo(),
-        OTP_Expira           = _now() + timedelta(hours=48),
     )
     db.add(nuevo)
     db.commit()
@@ -485,42 +478,6 @@ def asignar_repartidor(db: Session, id_domicilio: int, id_empleado: int) -> dict
     except Exception as e:
         logger.error(f"Error formateando domicilio {id_domicilio} tras asignación: {e}")
         raise HTTPException(status_code=500, detail="Error al procesar la respuesta")
-
-
-def verificar_otp(db: Session, id_domicilio: int, codigo: str) -> bool:
-    """Verifica el OTP contra el valor almacenado en BD. Expira a las 48 h de creación."""
-    dom = db.query(Domicilio).filter(Domicilio.ID_Domicilio == id_domicilio).first()
-    if not dom:
-        return False
-    otp_db = getattr(dom, "OTP", None)
-    if not otp_db:
-        return False
-    expira = getattr(dom, "OTP_Expira", None)
-    if expira and _now() > expira:
-        return False
-    return codigo.strip() == otp_db
-
-
-def regenerar_otp(db: Session, id_domicilio: int) -> dict:
-    """Genera un OTP nuevo para un domicilio cuyo código anterior expiró o se perdió."""
-    from src.shared.services.models import Domicilio as _Dom
-    dom = db.query(_Dom).filter(_Dom.ID_Domicilio == id_domicilio).first()
-    if not dom:
-        raise HTTPException(status_code=404, detail="Domicilio no encontrado")
-
-    estados_entregados = {8}  # Entregado — el OTP ya no tiene sentido
-    if getattr(dom, "Estado", None) in estados_entregados:
-        raise HTTPException(
-            status_code=400,
-            detail="El domicilio ya fue entregado. No es posible regenerar el OTP.",
-        )
-
-    nuevo_otp = _otp_nuevo()
-    dom.OTP        = nuevo_otp
-    dom.OTP_Expira = _now() + timedelta(hours=48)
-    db.commit()
-
-    return {"otp": nuevo_otp, "expira_en": dom.OTP_Expira.isoformat()}
 
 
 def obtener_mensajes(db: Session, id_domicilio: int) -> list:
@@ -638,6 +595,18 @@ def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observacio
                     status_code=400,
                     detail="Debes registrar el cobro antes de marcar el pedido como entregado",
                 )
+            # El filtro de arriba deja pasar "anticipo_pagado" y
+            # "pendiente_validacion", que en un pedido mixto solo dicen que
+            # entró la mitad transferida: la plata en mano seguía sin cobrarse y
+            # el pedido se entregaba igual.
+            if cobro_efectivo_pendiente(venta_check):
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Registrá el cobro en efectivo antes de entregar: este pedido "
+                        "se paga (total o en parte) en mano."
+                    ),
+                )
 
     if nuevo_estado == EstadoDomicilio.ENTREGADO:
         entregado_en = _now()
@@ -657,21 +626,19 @@ def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observacio
             # Al entregar: descontar stock si aún no se había entregado.
             # with_for_update() en venta garantiza que dos requests concurrentes
             # no descuenten el stock dos veces (el segundo ve Estado==8 y no entra).
-            if nuevo_estado_venta == 8 and venta.Estado != 8:
-                items = db.query(VentaXProducto).filter(
-                    VentaXProducto.ID_Venta == dom.ID_Venta
-                ).all()
-                for item in items:
-                    cantidad = item.Cantidad or 0
-                    producto = db.query(Producto).filter(
-                        Producto.ID_Producto == item.ID_Producto
-                    ).with_for_update().first()
-                    if producto:
-                        producto.Stock = max(0, (producto.Stock or 0) - cantidad)
-                        _actualizar_estado_producto(producto)
-                        notificar_stock_producto(db, producto)
-                        if cantidad > 0:
-                            _descontar_fefo_producto(db, item.ID_Producto, cantidad)
+            if nuevo_estado_venta == 5 and venta.Estado != 5:
+                # Cancelar desde el panel de reparto es cancelar el pedido
+                # entero, y eso significa devolverle al cliente lo que puso: el
+                # saldo a favor que gastó y el stock que se le había reservado.
+                # Escribiendo el estado a mano, el mismo pedido cancelado desde
+                # acá le costaba la plata al cliente y cancelado desde Gestión de
+                # pedidos se la devolvía. Ahora los dos caminos hacen lo mismo.
+                _cambiar_estado_venta(db, dom.ID_Venta, nuevo_estado_venta)
+            elif nuevo_estado_venta == 8 and venta.Estado != 8:
+                # El mismo descuento que hace gestion_ventas al entregar. Antes
+                # este modulo lo repetia linea por linea, asi que cualquier
+                # arreglo alla habia que acordarse de copiarlo aca.
+                _descontar_stock_venta(db, dom.ID_Venta)
             venta.Estado = nuevo_estado_venta
 
     dom.Estado = nuevo_estado

@@ -12,10 +12,12 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from src.features.ventas.gestion_ventas.services.service import (
+    UMBRAL_ANTICIPO,
     _es_mixto,
     _es_transferencia,
     _mixto_bloqueado_por_anticipo,
     _partir_pago_mixto,
+    _pide_anticipo,
 )
 from src.features.ventas.pedidos.services.service import (
     _ESTADOS_MIXTO_A_MEDIAS,
@@ -47,36 +49,58 @@ class MixtoConAnticipoTests(unittest.TestCase):
     producir: no alcanza a respaldar el anticipo, que va antes.
     """
 
-    def test_pedido_sobre_stock_rechaza_el_mixto(self):
-        self.assertTrue(
-            _mixto_bloqueado_por_anticipo("Mixto", sobre_stock=True, requiere_anticipo=False)
-        )
+    def test_el_pedido_con_anticipo_rechaza_el_mixto(self):
+        self.assertTrue(_mixto_bloqueado_por_anticipo("Mixto", True))
 
-    def test_anticipo_registrado_por_el_personal_rechaza_el_mixto(self):
-        self.assertTrue(
-            _mixto_bloqueado_por_anticipo("Mixto", sobre_stock=False, requiere_anticipo=True)
-        )
+    def test_el_pedido_sin_anticipo_sigue_aceptando_el_mixto(self):
+        """El caso de siempre, y ahora también el pedido chico sobre stock.
 
-    def test_pedido_normal_sigue_aceptando_el_mixto(self):
-        """Sin anticipo el mixto no se toca: es el caso de siempre."""
-        self.assertFalse(
-            _mixto_bloqueado_por_anticipo("Mixto", sobre_stock=False, requiere_anticipo=False)
-        )
+        Superar el stock ya no basta para cerrarle el mixto: si el pedido no
+        pide anticipo (`_pide_anticipo`), no hay nada que respaldar antes de
+        producir y el cliente puede repartir el pago como quiera.
+        """
+        self.assertFalse(_mixto_bloqueado_por_anticipo("Mixto", False))
 
     def test_los_otros_metodos_pasan_aunque_haya_anticipo(self):
         """Transferencia y efectivo conservan sus propias reglas de anticipo."""
         for metodo in ["Transferencia", "Efectivo", "Créditos", None, ""]:
             with self.subTest(metodo=metodo):
-                self.assertFalse(
-                    _mixto_bloqueado_por_anticipo(metodo, sobre_stock=True, requiere_anticipo=True)
-                )
+                self.assertFalse(_mixto_bloqueado_por_anticipo(metodo, True))
 
     def test_reconoce_el_mixto_escrito_de_cualquier_forma(self):
         for metodo in ["mixto", "  MIXTO  ", "Pago Mixto"]:
             with self.subTest(metodo=metodo):
-                self.assertTrue(
-                    _mixto_bloqueado_por_anticipo(metodo, sobre_stock=True, requiere_anticipo=False)
-                )
+                self.assertTrue(_mixto_bloqueado_por_anticipo(metodo, True))
+
+
+class PideAnticipoTests(unittest.TestCase):
+    """Qué pedido pide anticipo. Las dos condiciones tienen que darse.
+
+    El síntoma que motivó el cambio: se pedía anticipo en TODOS los pedidos,
+    con stock de sobra y por cualquier monto.
+    """
+
+    def test_hay_que_fabricar_y_el_pedido_pesa(self):
+        self.assertTrue(_pide_anticipo(True, Decimal("50001")))
+
+    def test_lo_que_sale_del_stock_no_pide_nada_por_caro_que_sea(self):
+        # El producto ya existe: si el cliente no aparece, se le vende al
+        # siguiente. No hay plata arriesgada por adelantado.
+        self.assertFalse(_pide_anticipo(False, Decimal("500000")))
+
+    def test_el_pedido_chico_no_pide_anticipo_aunque_haya_que_hornearlo(self):
+        self.assertFalse(_pide_anticipo(True, Decimal("30000")))
+
+    def test_el_umbral_no_se_cuenta_a_sí_mismo(self):
+        """Justo $50.000 todavía no pide: la regla es "más de"."""
+        self.assertFalse(_pide_anticipo(True, UMBRAL_ANTICIPO))
+        self.assertTrue(_pide_anticipo(True, UMBRAL_ANTICIPO + Decimal("1")))
+
+    def test_acepta_el_total_venga_como_venga(self):
+        """El total llega como Decimal, float o str según quién pregunte."""
+        for total in (Decimal("60000"), 60000.0, 60000, "60000"):
+            with self.subTest(total=total):
+                self.assertTrue(_pide_anticipo(True, total))
 
 
 class PartirPagoMixtoTests(unittest.TestCase):

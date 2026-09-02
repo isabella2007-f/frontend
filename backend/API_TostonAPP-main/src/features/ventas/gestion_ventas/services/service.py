@@ -31,6 +31,9 @@ from src.features.ventas.pedidos.services.estados import (
 )
 from .schemas import VentaCreate, DomicilioVentaInput
 from src.shared.services.observaciones_utils import observaciones_limpias
+from src.shared.services.pagos_utils import (
+    cobro_efectivo_pendiente, comprobante_sin_aprobar,
+)
 
 # Costo fijo de domicilio (COP)
 COSTO_DOMICILIO = Decimal("5000")
@@ -39,6 +42,31 @@ COSTO_DOMICILIO = Decimal("5000")
 # las que hay en stock (pedido especial / preorden). Regla de negocio del backend:
 # nunca se toma del request, el cliente no puede alterarla.
 PORCENTAJE_ANTICIPO_SOBRE_STOCK = Decimal("0.50")
+
+# Monto a partir del cual un pedido por encargo pide anticipo. Por debajo el
+# trámite le cuesta más al cliente de lo que protege al negocio: un pedido chico
+# que no se recoge se le vende al siguiente que entre.
+UMBRAL_ANTICIPO = Decimal("50000")
+
+
+def _pide_anticipo(necesita_produccion: bool, total_pedido) -> bool:
+    """Si este pedido tiene que dejar anticipo antes de entrar a producción.
+
+    Dos condiciones, las dos necesarias:
+
+    - Hay que FABRICAR algo. Fabricar es lo único que arriesga plata por
+      adelantado: se compran insumos y se ocupa el horno antes de tener nada que
+      cobrar, y si el cliente no aparece, ese gasto ya se hizo. Lo que sale del
+      stock del día no arriesga nada: el producto ya existe y se le vende al
+      siguiente.
+    - Y el pedido pesa (más de UMBRAL_ANTICIPO). Por debajo de eso la pérdida
+      posible no justifica pedirle a nadie que transfiera por adelantado.
+
+    `necesita_produccion` es el mismo criterio con el que se abren las órdenes
+    de producción (`_productos_producibles`): se le pide anticipo exactamente al
+    pedido al que se le va a abrir una orden, ni a uno más.
+    """
+    return bool(necesita_produccion) and Decimal(str(total_pedido)) > UMBRAL_ANTICIPO
 
 
 def _calcular_anticipo(total_pedido: Decimal, credito_aplicado: Decimal) -> Decimal:
@@ -72,9 +100,7 @@ def _es_mixto(metodo: str | None) -> bool:
     return "mixto" in (metodo or "").strip().lower()
 
 
-def _mixto_bloqueado_por_anticipo(
-    metodo: str | None, sobre_stock: bool, requiere_anticipo: bool
-) -> bool:
+def _mixto_bloqueado_por_anticipo(metodo: str | None, pide_anticipo: bool) -> bool:
     """True si el pedido pide anticipo y lo quieren pagar con el método mixto.
 
     El anticipo existe para respaldar lo que hay que producir ANTES de
@@ -82,10 +108,11 @@ def _mixto_bloqueado_por_anticipo(
     después de producir: no respalda nada. Y su comprobante cubre solo la parte
     transferida, que puede quedar muy por debajo del 50% exigido.
 
-    Cubre las dos formas de anticipo: el pedido por encima del stock (que
-    calcula el servidor) y el anticipo que registra el personal al crear.
+    Solo se le cierra el mixto al pedido que de verdad pide anticipo
+    (`_pide_anticipo`). Antes se le cerraba a cualquiera que superara el stock,
+    aunque no tuviera que anticipar nada.
     """
-    return _es_mixto(metodo) and (bool(sobre_stock) or bool(requiere_anticipo))
+    return _es_mixto(metodo) and bool(pide_anticipo)
 
 
 def _partir_pago_mixto(total: Decimal, monto_efectivo) -> tuple[Decimal, Decimal]:
@@ -217,16 +244,72 @@ def _restaurar_fefo_producto(db: Session, id_producto: int, cantidad: int) -> No
         restante = 0
 
 
-def _descontar_stock_venta(db: Session, id_venta: int) -> None:
+# Qué parte de cada línea se descuenta del stock. Un pedido por encima del
+# stock tiene dos mitades que salen del inventario en momentos distintos: lo
+# que ya estaba en la vitrina y lo que hubo que hornear.
+PARTE_DISPONIBLE = "disponible"   # lo que ya existía cuando se hizo el pedido
+PARTE_PREORDEN   = "preorden"     # el faltante, que llega cuando cierra la orden
+PARTE_TODO       = "todo"         # la línea completa
+
+
+def _abonar_credito(db: Session, id_usuario: int, monto: Decimal, id_venta: int) -> None:
+    """Le devuelve plata al cliente como saldo a favor.
+
+    Crea la cuenta si no existía: al cliente que nunca había tenido saldo no
+    se le devolvía nada, porque no había fila que sumarle.
+    """
+    if monto <= 0:
+        return
+    credito = db.query(CreditoCliente).filter(
+        CreditoCliente.ID_Usuario == id_usuario
+    ).first()
+    if not credito:
+        credito = CreditoCliente(
+            ID_Usuario=id_usuario, Saldo=Decimal("0"), Fecha_Update=_now(),
+        )
+        db.add(credito)
+        db.flush()
+    credito.Saldo        += monto
+    credito.Fecha_Update  = _now()
+    db.add(MovimientoCredito(
+        ID_Credito    = credito.ID_Credito,
+        ID_Devolucion = None,
+        ID_Venta      = id_venta,
+        Tipo          = "recarga",
+        Monto         = monto,
+        Fecha         = _now(),
+    ))
+
+
+def _descontar_stock_venta(db: Session, id_venta: int, parte: str = PARTE_TODO) -> None:
     """Descuenta del stock lo vendido en la venta, bloqueando cada producto.
 
     with_for_update() evita que dos pedidos que se confirman/entregan a la vez
-    lean el mismo stock y lo descuenten dos veces sobre el mismo valor. El stock
-    nunca baja de 0: lo que se pidió por encima quedó registrado como preorden en
-    Venta_x_Producto.Cantidad_Preorden.
+    lean el mismo stock y lo descuenten dos veces sobre el mismo valor.
+
+    `parte` existe por el pedido que se recoge en tienda y pide más de lo que
+    hay: su stock se descuenta AL CONFIRMAR, o sea antes de que la orden de
+    producción exista. Descontando ahí la línea entera, el sobrante se perdía
+    contra el tope de 0 y las unidades que después producía la orden se
+    sumaban al stock y ya nunca salían: el cliente se llevaba 6 tortas y el
+    inventario seguía mostrando las 4 horneadas para él.
+
+    Ahora al confirmar sale lo que de verdad hay (PARTE_DISPONIBLE) y al
+    entregar sale el faltante ya producido (PARTE_PREORDEN). El pedido a
+    domicilio no se parte: su stock sale entero al entregar, cuando la
+    producción ya cerró.
     """
     items = db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()
     for item in items:
+        preorden = item.Cantidad_Preorden or 0
+        if parte == PARTE_DISPONIBLE:
+            cantidad = max(0, (item.Cantidad or 0) - preorden)
+        elif parte == PARTE_PREORDEN:
+            cantidad = preorden
+        else:
+            cantidad = item.Cantidad or 0
+        if cantidad <= 0:
+            continue
         producto = (
             db.query(Producto)
             .filter(Producto.ID_Producto == item.ID_Producto)
@@ -235,7 +318,6 @@ def _descontar_stock_venta(db: Session, id_venta: int) -> None:
         )
         if not producto:
             continue
-        cantidad = item.Cantidad or 0
         producto.Stock = max(0, (producto.Stock or 0) - cantidad)
         _actualizar_estado_producto(producto)
         notificar_stock_producto(db, producto)
@@ -801,21 +883,6 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
                 ),
             )
 
-    # El pago mixto no sirve para anticipar: ver _mixto_bloqueado_por_anticipo.
-    if _mixto_bloqueado_por_anticipo(
-        datos.Metodo_Pago, sobre_stock, datos.requiere_anticipo
-    ):
-        db.rollback()
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Este pedido requiere anticipo, así que no se puede pagar con el "
-                "método mixto: la parte en efectivo se paga al recibir y el "
-                "anticipo tiene que estar cubierto antes. Págalo por "
-                "transferencia, o con tu saldo a favor si alcanza."
-            ),
-        )
-
     ESTADO_PENDIENTE = 1
 
     _metodo_lower = (datos.Metodo_Pago or "").strip().lower()
@@ -901,12 +968,40 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
             nueva_venta.Total, datos.pago_efectivo_monto
         )
 
-    # ── Pedido por encima del stock: anticipo obligatorio del 50% ──────────────
+    # ── ¿Este pedido pide anticipo? ──────────────────────────────────
+    # Lo pide el pedido que hay que fabricar Y que pesa: ver `_pide_anticipo`.
+    # Antes lo pedía cualquier pedido que superara el stock, aunque fueran dos
+    # panes de $6.000 que se hornean igual el martes.
+    #
     # TODO lo que se evalúa aquí sale de la BD (stock real, precios reales, crédito
     # realmente descontado). El request del cliente no puede declarar que ya pagó.
-    if sobre_stock:
-        # Valor real del pedido antes de aplicar créditos (lo que cuesta).
-        total_pedido       = subtotal_bruto - descuento_aplicado + costo_domicilio
+    #
+    # Valor real del pedido antes de aplicar créditos (lo que cuesta).
+    total_pedido         = subtotal_bruto - descuento_aplicado + costo_domicilio
+    anticipo_obligatorio = _pide_anticipo(necesita_produccion, total_pedido)
+    anticipo_requerido   = Decimal("0")
+
+    # El pago mixto no sirve para anticipar: ver _mixto_bloqueado_por_anticipo.
+    # Se decide acá abajo y no al entrar porque ahora depende del total ya
+    # cerrado, con domicilio y descuentos incluidos.
+    if _mixto_bloqueado_por_anticipo(datos.Metodo_Pago, anticipo_obligatorio):
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Este pedido requiere anticipo, así que no se puede pagar con el "
+                "método mixto: la parte en efectivo se paga al recibir y el "
+                "anticipo tiene que estar cubierto antes. Págalo por "
+                "transferencia, o con tu saldo a favor si alcanza."
+            ),
+        )
+
+    # Que el pedido supere el stock se registra siempre: es un hecho del pedido
+    # y de él dependen la fecha propuesta y las órdenes de producción, pida o no
+    # anticipo.
+    nueva_venta.Sobre_Stock = 1 if sobre_stock else 0
+
+    if anticipo_obligatorio:
         anticipo_requerido = _calcular_anticipo(total_pedido, credito_aplicado)
         # Solo cuenta como pagado lo verificable en el servidor: el crédito
         # efectivamente descontado del libro mayor del cliente.
@@ -962,7 +1057,6 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
                 ),
             )
 
-        nueva_venta.Sobre_Stock        = 1
         nueva_venta.Anticipo_Requerido = anticipo_requerido
         nueva_venta.Anticipo_Pagado    = anticipo_pagado
         # Cuando el flujo de anticipo explícito no se activa (solo ítems de
@@ -973,22 +1067,33 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
             nueva_venta.Anticipo_Monto      = anticipo_requerido
             nueva_venta.Estado_Pago         = "anticipo_pagado"
 
+    # El aviso al panel lo dispara el faltante, no el anticipo: el admin tiene
+    # que proponer fecha igual, cobre o no por adelantado.
+    if sobre_stock:
         detalle_preorden = ", ".join(
             f"{l['nombre']}: {l['cantidad']} pedidas / {l['stock']} en stock"
             for l in lineas if l["preorden"] > 0
         )
+        detalle_anticipo = (
+            f"Anticipo requerido: ${anticipo_requerido:,.0f}. "
+            if anticipo_obligatorio else ""
+        )
         notificar(
             db, "pedido_sobre_stock", "Pedido por encima del stock",
             f"El pedido #{nueva_venta.ID_Venta} supera el stock ({detalle_preorden}). "
-            f"Anticipo requerido: ${anticipo_requerido:,.0f}. Revisá y proponé una fecha de entrega.",
+            f"{detalle_anticipo}Revisá y proponé una fecha de entrega.",
             nueva_venta.ID_Venta, "/ventas/pedidos",
         )
-    else:
-        nueva_venta.Sobre_Stock = 0
 
-    # Anticipo del 50% por total > $50.000 (regla general — lo registra el admin al crear)
+    # El anticipo que registró quien creó el pedido. La obligación la decide el
+    # servidor —una app vieja sigue mandando el flag en pedidos que ya no lo
+    # piden—, pero la plata que de verdad entró se guarda igual: si alguien pagó
+    # por adelantado, el pedido tiene que mostrarlo y el saldo tiene que poder
+    # cobrarse después (registrar_pago_final exige Requiere_Anticipo).
     if datos.requiere_anticipo:
-        nueva_venta.Requiere_Anticipo        = 1
+        nueva_venta.Requiere_Anticipo        = (
+            1 if (anticipo_obligatorio or datos.anticipo_registrado) else 0
+        )
         nueva_venta.Anticipo_Monto           = datos.anticipo_monto
         nueva_venta.Anticipo_Metodo_Pago     = datos.anticipo_metodo_pago
         nueva_venta.Anticipo_Comprobante_Url = datos.anticipo_comprobante_url
@@ -1042,7 +1147,6 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
         estado_dom = ESTADO_ASIGNADO if datos.domicilio.ID_Empleado else ESTADO_DOM_PENDIENTE
         # Si el domicilio no trae su propia fecha, usa la fecha_entrega_esperada del pedido
         fecha_dom = datos.domicilio.Fecha_entrega or datos.Fecha_entrega_esperada
-        import secrets as _secrets
         db.add(Domicilio(
             ID_Venta             = nueva_venta.ID_Venta,
             ID_Empleado          = datos.domicilio.ID_Empleado,
@@ -1053,8 +1157,6 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
             Direccion_entrega    = datos.domicilio.Direccion_entrega,
             Municipio_entrega    = datos.domicilio.Municipio_entrega,
             Departamento_entrega = datos.domicilio.Departamento_entrega,
-            OTP                  = str(100000 + _secrets.randbelow(900000)),
-            OTP_Expira           = _now() + timedelta(hours=48),
         ))
         if not datos.domicilio.ID_Empleado:
             notificar(
@@ -1156,6 +1258,27 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
     # Valida que la transición esté permitida por la máquina de estados
     validar_transicion(venta.Estado, nuevo_estado, tiene_domicilio)
 
+    # Confirmar es aceptar el pedido: no se acepta un pago que nadie revisó.
+    # El comprobante lo sube el cliente y lo aprueba el admin; si se confirma
+    # antes, el pedido entra a producción y se despacha contra una imagen que
+    # después puede resultar falsa o de otro monto.
+    if nuevo_estado == EstadoPedido.CONFIRMADO and comprobante_sin_aprobar(venta):
+        _estado_pago = (getattr(venta, "Estado_Pago", None) or "pendiente").strip()
+        if _estado_pago == "comprobante_rechazado":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "El comprobante de este pedido fue rechazado. El cliente tiene que "
+                    "enviar uno nuevo antes de poder confirmarlo."
+                ),
+            )
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Aprobá el comprobante de pago antes de confirmar el pedido."
+            ),
+        )
+
     # El estado que se guarda al final. Casi siempre es el pedido, pero al
     # confirmar un pedido con faltante se desvía a "En producción": no se puede
     # dar por confirmado y listo algo que todavía hay que hornear.
@@ -1205,6 +1328,21 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
                 ),
             )
 
+    # Entregar es cerrar la venta: no se cierra sin decir qué pasó con la
+    # plata que se cobra en mano. Con domicilio la recibe el repartidor y en
+    # tienda la recibe quien atiende el mostrador; en los dos casos, marcar
+    # el pedido como entregado sin registrar ese cobro deja la venta cerrada
+    # y el efectivo sin rastro. Registrarlo también es declarar que NO se
+    # pudo cobrar (con motivo): lo que no vale es entregar sin decirlo.
+    if nuevo_estado == EstadoPedido.ENTREGADO and cobro_efectivo_pendiente(venta):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Registrá el cobro en efectivo antes de marcar el pedido como "
+                "entregado: este pedido se paga (total o en parte) en mano."
+            ),
+        )
+
     # Bloquear paso a ENTREGADO si el pedido requiere anticipo y el saldo no fue registrado.
     # No afecta pedidos donde Requiere_Anticipo == 0 (flujo normal sin anticipo).
     if nuevo_estado == EstadoPedido.ENTREGADO and getattr(venta, "Requiere_Anticipo", 0):
@@ -1236,11 +1374,19 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
     if nuevo_estado == EstadoPedido.ENTREGADO and not getattr(venta, "Fecha_entrega", None):
         venta.Fecha_entrega = _now()
 
-    # Al confirmar un pedido SIN domicilio (recoger en tienda): descontar stock
+    # Al confirmar un pedido SIN domicilio (recoger en tienda): se reserva lo
+    # que hay en vitrina. El faltante todavía no existe —la orden de producción
+    # recién se abre acá— y sale del stock al entregarlo.
     if nuevo_estado == EstadoPedido.CONFIRMADO and not tiene_domicilio:
-        _descontar_stock_venta(db, id_venta)
+        _descontar_stock_venta(db, id_venta, PARTE_DISPONIBLE)
 
-    # Al entregar un pedido CON domicilio: descontar stock
+    # Al entregar en tienda: sale el faltante, que para este momento la orden
+    # ya horneó y sumó al stock (el pedido no llega a Listo si no).
+    if nuevo_estado == EstadoPedido.ENTREGADO and not tiene_domicilio:
+        _descontar_stock_venta(db, id_venta, PARTE_PREORDEN)
+
+    # Al entregar un pedido CON domicilio: descontar stock. Acá sale entero,
+    # porque nunca se descontó nada antes.
     if nuevo_estado == EstadoPedido.ENTREGADO and tiene_domicilio:
         _descontar_stock_venta(db, id_venta)
 
@@ -1301,23 +1447,34 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
                     if a_restaurar > 0:
                         _restaurar_fefo_producto(db, item.ID_Producto, a_restaurar)
 
+        # Cerrar la producción que se abrió para este pedido. Cancelar el
+        # pedido y dejar su orden viva llenaba el panel de producción de trabajo
+        # para pedidos que ya no existen —y si la orden estaba en proceso, los
+        # insumos quedaban gastados sin nada que los devolviera—. Se cancela por
+        # el servicio de producción para que la devolución de insumos y los
+        # lotes se hagan con las mismas reglas de siempre.
+        from src.features.produccion.ordenes_produccion.services.service import (
+            cambiar_estado as _cambiar_estado_orden,
+        )
+        ordenes_vivas = db.query(OrdenProduccion).filter(
+            OrdenProduccion.ID_Venta == id_venta,
+            OrdenProduccion.Estado.notin_([11, 5]),   # completada / cancelada
+        ).all()
+        for _orden in ordenes_vivas:
+            _cambiar_estado_orden(db, _orden.ID_Orden_Produccion, 5)
+
         # Devolver crédito si se usó al crear el pedido
         detalle = db.query(DetalleVenta).filter(DetalleVenta.ID_Venta == id_venta).first()
-        if detalle and detalle.Descuento and detalle.Descuento > 0:
-            credito = db.query(CreditoCliente).filter(
-                CreditoCliente.ID_Usuario == venta.ID_Usuario
-            ).first()
-            if credito:
-                credito.Saldo        += detalle.Descuento
-                credito.Fecha_Update  = _now()
-                db.add(MovimientoCredito(
-                    ID_Credito    = credito.ID_Credito,
-                    ID_Devolucion = None,
-                    ID_Venta      = id_venta,
-                    Tipo          = "recarga",
-                    Monto         = detalle.Descuento,
-                    Fecha         = _now(),
-                ))
+        credito_devuelto = Decimal(str(getattr(detalle, "Descuento", None) or 0))
+        if credito_devuelto > 0:
+            _abonar_credito(db, venta.ID_Usuario, credito_devuelto, id_venta)
+
+        # El anticipo NO se devuelve solo. Qué pasa con la plata que el cliente
+        # ya entregó —si se le abona, si se le guarda para el próximo pedido, si
+        # se le transfiere de vuelta— lo acuerdan el cliente y el administrador;
+        # el sistema no toma esa decisión por ellos. Lo único que vuelve
+        # automáticamente es el saldo a favor que el propio cliente puso en el
+        # pedido, que es plata suya que nunca llegó a gastarse.
 
     if venta.Estado == EstadoPedido.PENDIENTE:
         descartar_notificacion(db, "pedido_nuevo", id_venta)
