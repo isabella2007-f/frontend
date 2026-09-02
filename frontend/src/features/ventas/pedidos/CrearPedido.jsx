@@ -8,6 +8,8 @@ import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
 import SaldoMonto from "../../../shared/components/SaldoMonto";
 import SplitPagoMonto from "../../../shared/components/SplitPagoMonto";
 import { getCreditoCliente } from "../../../services/devolucionesService.js";
+// La regla del anticipo vive en un solo lugar, espejo del servidor.
+import { pideAnticipo, esFabricable } from "../../../utils/anticipo.js";
 import "./Pedidos.css";
 
 /* ─── Datos de transferencia ─────────────────────────────── */
@@ -304,7 +306,8 @@ export default function CrearPedido({ onClose, onSave }) {
         stock:             p.Stock       || p.stock       || 0,
         stockMinimo:       p.Stock_Minimo|| p.stockMinimo || 0,
         categoria:         p.nombre_categoria || p.categoria || "",
-        requiereProduccion: !!(p.Requiere_Produccion || 0),
+        // La ficha técnica también cuenta: es el criterio del servidor.
+        requiereProduccion: esFabricable(p),
       }));
       setProductos(lista);
     }).catch(() => {});
@@ -341,7 +344,21 @@ export default function CrearPedido({ onClose, onSave }) {
     ? Math.min(Math.max(Number(creditoMonto) || 0, 0), creditoMaximo)
     : 0;
   const totalFinal    = Math.max(0, total - creditoAplicar);
-  const requiereAnticipo = true;
+  // El anticipo se le pide al pedido que hay que hornear Y que pesa más de
+  // $50.000 —la regla vive en utils/anticipo.js, espejo del servidor—. Acá
+  // estaba clavado en `true`: el mostrador pedía anticipo hasta por dos panes
+  // que estaban en la vitrina.
+  //
+  // El umbral se mide sobre el total del pedido, sin el saldo a favor: el
+  // saldo cambia cuánto se anticipa, no si hay que anticipar.
+  const requiereAnticipo = pideAnticipo(
+    form.productosItems.map(p => ({
+      cantidad:           p.cantidad,
+      stock:              p.stockActual,
+      requiereProduccion: p.requiereProduccion,
+    })),
+    total,
+  );
   const montoAnticipo    = requiereAnticipo ? (pagarTodo ? totalFinal : Math.ceil(totalFinal * 0.5)) : 0;
   // Con anticipo el método se elige una sola vez, en el bloque del anticipo, y de
   // ahí sale el del pedido: es el mismo dinero.
@@ -893,7 +910,7 @@ export default function CrearPedido({ onClose, onSave }) {
                     <div>
                       <p style={{ margin: 0, fontWeight: 800, color: "#f57f17", fontSize: 15 }}>Anticipo requerido</p>
                       <p style={{ margin: 0, fontSize: 12, color: "#795548" }}>
-                        Todos los pedidos requieren anticipo del 50%. Registra el pago antes de confirmar.
+                        Este pedido supera el stock y los $50.000: requiere anticipo del 50%. Registra el pago antes de confirmar.
                       </p>
                       <p style={{ margin: "4px 0 0", fontSize: 12, color: "#795548" }}>
                         El pago mixto no aplica aquí: su parte en efectivo se cobra al entregar y el anticipo va antes.

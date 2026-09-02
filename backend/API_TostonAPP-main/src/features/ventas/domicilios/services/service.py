@@ -12,7 +12,8 @@ from src.shared.services.models import (
 )
 from src.shared.services.notificaciones_utils import notificar, notificar_stock_producto
 from src.features.ventas.gestion_ventas.services.service import (
-    _actualizar_estado_producto, _descontar_fefo_producto, _faltantes_sin_cubrir,
+    _actualizar_estado_producto, _descontar_fefo_producto, _descontar_stock_venta,
+    _faltantes_sin_cubrir,
 )
 from src.shared.services.observaciones_utils import observaciones_limpias
 from src.shared.services.pagos_utils import cobro_efectivo_pendiente
@@ -671,20 +672,10 @@ def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observacio
             # with_for_update() en venta garantiza que dos requests concurrentes
             # no descuenten el stock dos veces (el segundo ve Estado==8 y no entra).
             if nuevo_estado_venta == 8 and venta.Estado != 8:
-                items = db.query(VentaXProducto).filter(
-                    VentaXProducto.ID_Venta == dom.ID_Venta
-                ).all()
-                for item in items:
-                    cantidad = item.Cantidad or 0
-                    producto = db.query(Producto).filter(
-                        Producto.ID_Producto == item.ID_Producto
-                    ).with_for_update().first()
-                    if producto:
-                        producto.Stock = max(0, (producto.Stock or 0) - cantidad)
-                        _actualizar_estado_producto(producto)
-                        notificar_stock_producto(db, producto)
-                        if cantidad > 0:
-                            _descontar_fefo_producto(db, item.ID_Producto, cantidad)
+                # El mismo descuento que hace gestion_ventas al entregar. Antes
+                # este modulo lo repetia linea por linea, asi que cualquier
+                # arreglo alla habia que acordarse de copiarlo aca.
+                _descontar_stock_venta(db, dom.ID_Venta)
             venta.Estado = nuevo_estado_venta
 
     dom.Estado = nuevo_estado
