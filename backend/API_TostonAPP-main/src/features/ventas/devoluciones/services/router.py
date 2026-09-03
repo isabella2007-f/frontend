@@ -102,7 +102,7 @@ def aprobar_rechazar(
     id_devolucion: int,
     datos:         DevolucionResolucion,
     db:            Session = Depends(get_db),
-    _:             dict    = Depends(requiere_permiso("editar_devoluciones"))
+    _:             dict    = Depends(requiere_permiso("aprobar_devoluciones"))
 ):
     """Aprueba o rechaza la devolución. Si se aprueba → recarga crédito automáticamente."""
     return resolver_devolucion(db, id_devolucion, datos)

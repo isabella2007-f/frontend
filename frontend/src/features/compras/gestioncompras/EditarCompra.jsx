@@ -6,9 +6,26 @@ import { fmtFecha } from "../../../utils/dateUtils";
 import SearchableSelect from "../../../shared/components/SearchableSelect.jsx";
 import "./compras.css";
 
-const CANT_MAX  = 10_000;
-const TOTAL_MIN = 1_000;
-const TOTAL_MAX = 50_000_000;
+const CANT_MAX   = 10_000;
+const TOTAL_MIN  = 0;
+const TOTAL_MAX  = 50_000_000;
+const PORC_MAX   = 100;
+const MONTO_MAX  = 9_999_999_999;
+
+const soloNumero = (v) => v === "" || /^\d*\.?\d*$/.test(v);
+
+/* Íconos de estado — mismos que usa el listado de compras (GestionCompras) */
+const ESTADO_ICON = { pendiente: Clock, completada: CheckCircle2, anulada: Ban };
+
+function EstadoChip({ estado }) {
+  const Icon = ESTADO_ICON[estado] || Clock;
+  const label = String(estado || "").charAt(0).toUpperCase() + String(estado || "").slice(1);
+  return (
+    <span className={`estado-chip estado-chip--${estado}`}>
+      <Icon size={13} /> {label}
+    </span>
+  );
+}
 
 const METODOS_PAGO = [
   { value: "efectivo",      label: "Efectivo",      Icon: Banknote  },
@@ -227,7 +244,6 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
   const [form, setForm] = useState({
     idProveedor:   compra.idProveedor  || "",
     fecha:         compra.fecha        || "",
-    estado:        compra.estado       || "pendiente",
     metodoPago:    compra.metodoPago   || "",
     notas:         String(compra.notas || ""),
     fecha_llegada: compra.fecha_llegada || "",
@@ -235,10 +251,21 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
 
   const [comprobante, setComprobante] = useState(null);
 
+  // Gastos adicionales — precargados con lo ingresado al crear la compra.
+  // Solo editables mientras la compra está Pendiente (ver `puedeEditarGastos`).
+  const [gastos, setGastos] = useState({
+    transporte: compra.transporte           ? String(compra.transporte)           : "",
+    iva:        compra.ivaPorcentaje         ? String(compra.ivaPorcentaje)        : "",
+    descuento:  compra.descuentoPorcentaje   ? String(compra.descuentoPorcentaje)  : "",
+    otros:      compra.otros                 ? String(compra.otros)                : "",
+  });
+  const setGasto = (k, v) => { if (soloNumero(v)) setGastos(g => ({ ...g, [k]: v })); };
+
   const [detalles, setDetalles] = useState(
-    (compra.items || []).map(d => ({
+    (compra.items || []).map((d, i) => ({
       ...d,
-      _key:             d.idInsumo || Date.now() + Math.random(),
+      _key:             d.idDetalle || d.idInsumo || `item-${i}`,
+      idUnidad:         d.idUnidad ? String(d.idUnidad) : "",
       vencimientoTipo:  "fecha",
       vencimientoValor: "30",
       isExpanded:       false,
@@ -248,11 +275,17 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
+  const hoy = new Date().toISOString().split("T")[0];
+  const puedeEditarGastos = !isLocked && compra.estado === "pendiente";
+
   const set = (k, v) => {
     setForm(f => ({ ...f, [k]: v }));
     let err = "";
     if (k === "idProveedor" && !v) err = "Selecciona un proveedor";
-    if (k === "fecha" && !v) err = "Ingresa la fecha";
+    if (k === "fecha") {
+      if (!v) err = "Ingresa la fecha";
+      else if (v > hoy) err = "La fecha no puede ser futura";
+    }
     if (k === "metodoPago" && !v) err = "Selecciona el método de pago";
     setErrors(e => ({ ...e, [k]: err }));
   };
@@ -292,27 +325,60 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
 
   const idsSeleccionados = detalles.map(d => String(d.idInsumo)).filter(Boolean);
 
-  const totalActual = calcularTotal(
+  const subtotalActual = calcularTotal(
     detalles.map(d => ({ cantidad: Number(d.cantidad) || 0, precioUnd: Number(d.precioUnd) || 0 }))
   );
+
+  // Gastos efectivos: los del formulario si son editables, si no los que ya tenía la compra
+  const gTransporte = puedeEditarGastos ? Number(gastos.transporte) || 0 : Number(compra.transporte) || 0;
+  const gIvaPct     = puedeEditarGastos ? Number(gastos.iva)        || 0 : Number(compra.ivaPorcentaje) || 0;
+  const gDescPct    = puedeEditarGastos ? Number(gastos.descuento)  || 0 : Number(compra.descuentoPorcentaje) || 0;
+  const gOtros      = puedeEditarGastos ? Number(gastos.otros)      || 0 : Number(compra.otros) || 0;
+  const valorIvaActual  = subtotalActual * gIvaPct  / 100;
+  const valorDescActual = subtotalActual * gDescPct / 100;
+  const totalActual = subtotalActual + gTransporte + valorIvaActual - valorDescActual + gOtros;
 
   const handleNextStep = () => {
     const e = {};
     if (!form.idProveedor) e.idProveedor = "Selecciona un proveedor";
     if (!form.fecha)       e.fecha       = "Ingresa la fecha";
+    else if (form.fecha > hoy) e.fecha   = "La fecha no puede ser futura";
     if (!form.metodoPago)  e.metodoPago  = "Selecciona el método de pago";
     if (Object.keys(e).length) { setErrors(e); return; }
     setErrors({});
     setStep(2);
   };
 
+  const validarGastos = () => {
+    if (gIvaPct  < 0 || gIvaPct  > PORC_MAX)  return "El IVA debe estar entre 0 y 100%";
+    if (gDescPct < 0 || gDescPct > PORC_MAX)  return "El descuento debe estar entre 0 y 100%";
+    if (gTransporte < 0 || gOtros < 0)        return "Los costos no pueden ser negativos";
+    if (gTransporte > MONTO_MAX || gOtros > MONTO_MAX) return "Transporte y otros costos admiten máximo 10 dígitos";
+    return "";
+  };
+
   const handleSave = async () => {
     if (saving) return;
+
+    // Compra completada/bloqueada: solo método, notas y fecha de llegada.
+    if (isLocked) {
+      setSaving(true);
+      await new Promise(r => setTimeout(r, 400));
+      onSave({
+        ...compra,
+        ...form,
+        comprobante: comprobante || compra.comprobante || null,
+      });
+      return;
+    }
+
     const errores = {};
     detalles.forEach((d, i) => {
       const n = Number(d.cantidad);
       const grupo = GRUPO_UNIDAD[Number(d.idUnidad)];
       const soloEntero = grupo === "und";
+      if (!d.idInsumo)
+        errores[`ins_${i}`] = "Selecciona un insumo";
       if (!d.cantidad || n <= 0)
         errores[`cant_${i}`] = "Cantidad inválida";
       else if (soloEntero && !Number.isInteger(n))
@@ -322,29 +388,20 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
       if (!d.precioUnd || Number(d.precioUnd) <= 0)
         errores[`precio_${i}`] = "El precio unitario debe ser mayor a $0";
     });
+    if (!detalles.length) errores.detalles = "Agrega al menos un insumo";
 
-    // Validar total incluyendo los gastos existentes de la compra
-    const subtotalItems = detalles.reduce(
-      (s, d) => s + (Number(d.cantidad) || 0) * (Number(d.precioUnd) || 0), 0
-    );
-    const transporte = Number(compra.transporte) || 0;
-    const ivaPct     = Number(compra.ivaPorcentaje) || 0;
-    const descPct    = Number(compra.descuentoPorcentaje) || 0;
-    const otros      = Number(compra.otros) || 0;
-    const valorIva   = subtotalItems * ivaPct / 100;
-    const valorDesc  = subtotalItems * descPct / 100;
-    const totalFinal = subtotalItems + transporte + valorIva - valorDesc + otros;
+    const errGastos = validarGastos();
+    if (errGastos) errores.gastos = errGastos;
 
-    if (totalFinal < TOTAL_MIN)
-      errores.total = `El total (${COP(totalFinal)}) debe ser al menos ${COP(TOTAL_MIN)} COP`;
-    else if (totalFinal > TOTAL_MAX)
-      errores.total = `El total (${COP(totalFinal)}) supera el máximo permitido de ${COP(TOTAL_MAX)} COP`;
+    if (totalActual < TOTAL_MIN)
+      errores.total = `El total (${COP(totalActual)}) no puede ser negativo`;
+    else if (totalActual > TOTAL_MAX)
+      errores.total = `El total (${COP(totalActual)}) supera el máximo permitido de ${COP(TOTAL_MAX)} COP`;
 
     if (Object.keys(errores).length) { setErrors(errores); return; }
     setSaving(true);
     await new Promise(r => setTimeout(r, 400));
     const detallesLimpios = detalles.map(d => ({
-      id:               d.id,
       idInsumo:         Number(d.idInsumo),
       idUnidad:         d.idUnidad ? Number(d.idUnidad) : null,
       cantidad:         Number(d.cantidad),
@@ -359,6 +416,12 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
       ...form,
       comprobante:  comprobante || compra.comprobante || null,
       detalles:     detallesLimpios,
+      gastos: {
+        transporte: gTransporte,
+        iva:        gIvaPct,   // porcentaje
+        descuento:  gDescPct,  // porcentaje
+        otros:      gOtros,
+      },
     });
   };
 
@@ -388,9 +451,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
               <h2 className="modal-header__title">Detalle de Compra</h2>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span className={`estado-chip estado-chip--${compra.estado}`}>
-                {String(compra.estado || "").charAt(0).toUpperCase() + String(compra.estado || "").slice(1)}
-              </span>
+              <EstadoChip estado={compra.estado} />
               <button type="button" className="modal-close-btn" onClick={onClose}><X size={16} /></button>
             </div>
           </div>
@@ -434,8 +495,14 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                   </div>
                   {compra.fecha_llegada && (
                     <div className="compra-det-info-card">
-                      <div className="compra-det-info-card__lbl">Fecha de llegada</div>
-                      <div className="compra-det-info-card__val" style={{ display: "flex", alignItems: "center", gap: 4 }}><Package size={14} /> {fmtFecha(compra.fecha_llegada)}</div>
+                      <div className="compra-det-info-card__lbl">Fecha de completación</div>
+                      <div className="compra-det-info-card__val" style={{ display: "flex", alignItems: "center", gap: 4, color: "#2e7d32" }}><CheckCircle2 size={14} /> {fmtFecha(compra.fecha_llegada)}</div>
+                    </div>
+                  )}
+                  {compra.fecha_anulada && (
+                    <div className="compra-det-info-card">
+                      <div className="compra-det-info-card__lbl">Fecha de anulación</div>
+                      <div className="compra-det-info-card__val" style={{ display: "flex", alignItems: "center", gap: 4, color: "#c62828" }}><Ban size={14} /> {fmtFecha(compra.fecha_anulada)}</div>
                     </div>
                   )}
                 </div>
@@ -554,9 +621,16 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                           </div>
                         ) : (
                           lotes.map(l => {
-                            const idCompraLote = l.id_compra || l.ID_Compra || null;
+                            const esDeEstaCompra = d.idLoteCompra != null && Number(l.id) === Number(d.idLoteCompra);
                             return (
-                              <div key={l.id} className={`compra-det-lote-item${l.vencido ? " compra-det-lote-item--vencido" : ""}`}>
+                              <div
+                                key={l.id}
+                                className={
+                                  "compra-det-lote-item"
+                                  + (l.vencido ? " compra-det-lote-item--vencido" : "")
+                                  + (esDeEstaCompra ? " compra-det-lote-item--origen" : "")
+                                }
+                              >
                                 <div className="compra-det-lote-item__main">
                                   <div className="compra-det-lote-item__num">
                                     Lote #{l.id}
@@ -566,17 +640,15 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                                     {l.vencido && (
                                       <span className="compra-det-lote-badge--vencido">Vencido</span>
                                     )}
+                                    {esDeEstaCompra && (
+                                      <span className="compra-det-lote-badge--origen">Esta compra</span>
+                                    )}
                                   </div>
                                   <div className="compra-det-lote-item__meta">
                                     {l.fecha_produccion && `Producción: ${fmtFecha(l.fecha_produccion)}`}
                                     {l.fecha_produccion && l.fecha_vencimiento && " · "}
                                     {l.fecha_vencimiento && `Vence: ${fmtFecha(l.fecha_vencimiento)}`}
                                   </div>
-                                  {idCompraLote && Number(idCompraLote) !== Number(compra.id) && (
-                                    <div className="compra-det-lote-item__origen">
-                                      Generado por compra #{idCompraLote}
-                                    </div>
-                                  )}
                                 </div>
                                 <div className="compra-det-lote-item__qty">
                                   <span className="compra-det-lote-item__qty-num">
@@ -615,9 +687,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
             <h2 className="modal-header__title">Editar Compra</h2>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span className={`estado-chip estado-chip--${compra.estado}`}>
-              {compra.estado.toUpperCase()}
-            </span>
+            <EstadoChip estado={compra.estado} />
             <button type="button" className="modal-close-btn" onClick={onClose} style={{ flexShrink: 0 }}><X size={16} /></button>
           </div>
         </div>
@@ -722,6 +792,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                       <label className="field-label">Fecha de compra <span className="required">*</span></label>
                       <input
                         type="date"
+                        max={hoy}
                         className={`field-input ${errors.fecha ? "error" : ""}`}
                         value={form.fecha}
                         onChange={e => set("fecha", e.target.value)}
@@ -730,17 +801,8 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                     </div>
                     <div className="field-wrap">
                       <label className="field-label">Estado</label>
-                      <div className="estado-toggle-wrap">
-                        {["pendiente", "completada"].map(est => (
-                          <button
-                            key={est}
-                            type="button"
-                            className={`estado-toggle-btn ${form.estado === est ? `estado-toggle-btn--${est}` : ""}`}
-                            onClick={() => set("estado", est)}
-                          >
-                            {est === "pendiente" ? <Clock size={13} style={{ verticalAlign: "middle" }} /> : <CheckCircle2 size={13} style={{ verticalAlign: "middle" }} />} {est.charAt(0).toUpperCase() + est.slice(1)}
-                          </button>
-                        ))}
+                      <div style={{ display: "flex", alignItems: "center", height: 38 }}>
+                        <EstadoChip estado={compra.estado} />
                       </div>
                     </div>
                   </div>
@@ -864,7 +926,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                                 max={CANT_MAX}
                                 step={GRUPO_UNIDAD[Number(d.idUnidad)] === "und" ? "1" : "0.001"}
                                 value={d.cantidad}
-                                onChange={e => setDetalle(d._key, "cantidad", e.target.value)}
+                                onChange={e => { if (soloNumero(e.target.value)) setDetalle(d._key, "cantidad", e.target.value); }}
                                 style={{ flex: 1, minWidth: 0 }}
                               />
                               {(() => {
@@ -893,10 +955,11 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                             <label className="field-label">Precio unitario</label>
                             <input
                               type="number"
+                              min="0"
                               className={`field-input ${errors[`precio_${i}`] ? "error" : ""}`}
                               placeholder="$ 0"
                               value={d.precioUnd}
-                              onChange={e => setDetalle(d._key, "precioUnd", e.target.value)}
+                              onChange={e => { if (soloNumero(e.target.value)) setDetalle(d._key, "precioUnd", e.target.value); }}
                             />
                           </div>
 
@@ -919,13 +982,15 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                             {d.vencimientoTipo === "dias" ? (
                               <input
                                 type="number"
+                                min="1"
                                 className="field-input"
                                 value={d.vencimientoValor}
-                                onChange={e => setDetalle(d._key, "vencimientoValor", e.target.value)}
+                                onChange={e => { if (soloNumero(e.target.value)) setDetalle(d._key, "vencimientoValor", e.target.value); }}
                               />
                             ) : (
                               <input
                                 type="date"
+                                min={hoy}
                                 className="field-input"
                                 value={d.fechaVencimiento}
                                 onChange={e => setDetalle(d._key, "fechaVencimiento", e.target.value)}
@@ -946,6 +1011,39 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                   <button className="btn-add-detalle" type="button" onClick={addDetalle}>
                     + Agregar insumo
                   </button>
+
+                  <p className="section-label">Gastos adicionales</p>
+                  {errors.gastos && <span className="field-error" style={{ display: "block", marginBottom: 8 }}>{errors.gastos}</span>}
+                  <div className="gastos-grid gastos-grid--standalone">
+                    <div className="field-wrap">
+                      <label className="field-label">Transporte</label>
+                      <input type="number" min="0" max={MONTO_MAX} step="1" className="field-input" placeholder="$ 0"
+                        value={gastos.transporte} onChange={e => setGasto("transporte", e.target.value)} />
+                    </div>
+                    <div className="field-wrap">
+                      <label className="field-label" style={{ display: "flex", alignItems: "center", gap: 4 }}><Receipt size={14} /> IVA (%)</label>
+                      <div style={{ position: "relative" }}>
+                        <input type="number" min="0" max={PORC_MAX} className="field-input" placeholder="0" style={{ paddingRight: 30 }}
+                          value={gastos.iva} onChange={e => setGasto("iva", e.target.value)} />
+                        <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#9e9e9e", fontWeight: 700 }}>%</span>
+                      </div>
+                      {valorIvaActual > 0 && <span className="field-hint" style={{ color: "#2e7d32", fontWeight: 600 }}>+ {COP(valorIvaActual)}</span>}
+                    </div>
+                    <div className="field-wrap">
+                      <label className="field-label" style={{ display: "flex", alignItems: "center", gap: 4 }}><Tag size={14} /> Descuento (%)</label>
+                      <div style={{ position: "relative" }}>
+                        <input type="number" min="0" max={PORC_MAX} className="field-input gastos-descuento-input" placeholder="0" style={{ paddingRight: 30 }}
+                          value={gastos.descuento} onChange={e => setGasto("descuento", e.target.value)} />
+                        <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#c62828", fontWeight: 700 }}>%</span>
+                      </div>
+                      {valorDescActual > 0 && <span className="field-hint" style={{ color: "#c62828", fontWeight: 600 }}>− {COP(valorDescActual)}</span>}
+                    </div>
+                    <div className="field-wrap">
+                      <label className="field-label">Otros costos</label>
+                      <input type="number" min="0" max={MONTO_MAX} step="1" className="field-input" placeholder="$ 0"
+                        value={gastos.otros} onChange={e => setGasto("otros", e.target.value)} />
+                    </div>
+                  </div>
                 </>
               )}
             </div>

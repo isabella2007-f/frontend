@@ -41,9 +41,9 @@ class RolEstado(BaseModel):
     Estado: int
 
 
-# ── Asignar/quitar permisos a un rol ──
+# ── Asignar/quitar permisos a un rol (por NOMBRE de permiso) ──
 class AsignarPermisos(BaseModel):
-    permisos_ids: list[int]
+    permisos: list[str] = []
 
 
 # ── Update parcial (usado internamente, el router usa Form) ──

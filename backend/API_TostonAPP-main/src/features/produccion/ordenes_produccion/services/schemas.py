@@ -4,21 +4,27 @@ from datetime import datetime, date, timezone, timedelta
 from decimal import Decimal
 
 
+def _hoy_local() -> date:
+    return datetime.now(timezone(timedelta(hours=-5))).date()
+
+
 # ── Crear orden ──
 class OrdenCreate(BaseModel):
     ID_Producto:   int
     ID_Insumo:     Optional[int] = None
     ID_Ficha:      Optional[int] = None
-    Cantidad:      int = Field(gt=0, description="Debe ser mayor a 0")
-    Fecha_inicio:  datetime
+    Cantidad:      int = Field(gt=0, le=999, description="Entre 1 y 999")
+    # Por defecto es hoy; el servicio la completa si no viene.
+    Fecha_inicio:  Optional[datetime] = None
     Fecha_Entrega: datetime
 
     @model_validator(mode="after")
     def validar_fechas(self):
-        hoy = datetime.now(timezone(timedelta(hours=-5))).date()
-        if self.Fecha_inicio.date() < hoy:
+        hoy = _hoy_local()
+        inicio = self.Fecha_inicio.date() if self.Fecha_inicio else hoy
+        if inicio < hoy:
             raise ValueError("La Fecha_inicio no puede ser anterior a hoy")
-        if self.Fecha_Entrega < self.Fecha_inicio:
+        if self.Fecha_Entrega.date() < inicio:
             raise ValueError("La Fecha_Entrega no puede ser anterior a la Fecha_inicio")
         return self
 
@@ -28,14 +34,14 @@ class OrdenUpdate(BaseModel):
     ID_Producto:   Optional[int]      = None
     ID_Insumo:     Optional[int]      = None
     ID_Ficha:      Optional[int]      = None
-    Cantidad:      Optional[int]      = Field(default=None, gt=0, description="Debe ser mayor a 0")
+    Cantidad:      Optional[int]      = Field(default=None, gt=0, le=999, description="Entre 1 y 999")
     Fecha_inicio:  Optional[datetime] = None
     Fecha_Entrega: Optional[datetime] = None
 
     @model_validator(mode="after")
     def validar_fechas_update(self):
         if self.Fecha_inicio is not None and self.Fecha_Entrega is not None:
-            if self.Fecha_Entrega < self.Fecha_inicio:
+            if self.Fecha_Entrega.date() < self.Fecha_inicio.date():
                 raise ValueError("La Fecha_Entrega no puede ser anterior a la Fecha_inicio")
         return self
 
@@ -59,6 +65,7 @@ class OrdenResponse(BaseModel):
     ID_Ficha:            Optional[int]      = None
     version_ficha:       Optional[str]      = None
     Cantidad:            Optional[int]      = None
+    Fecha_Creacion:      Optional[datetime] = None
     Fecha_inicio:        Optional[datetime] = None
     Fecha_Entrega:       Optional[datetime] = None
     Fecha_fin:           Optional[datetime] = None

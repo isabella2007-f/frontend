@@ -1,18 +1,18 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, X, AlertTriangle, Package, ClipboardList, Check, Eye, PenLine, Trash2, RefreshCw, Building2, FolderOpen, ShoppingCart } from "lucide-react";
+import { Search, X, AlertTriangle, Package, ClipboardList, Check, Eye, PenLine, Ban, RefreshCw, Building2, FolderOpen, ShoppingCart, Lock } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { fmtFecha } from "../../../utils/dateUtils.js";
 import DateRangeFilter from "../../../shared/components/DateRangeFilter";
 import {
-  getOrdenes, crearOrden, editarOrden, eliminarOrden, cambiarEstadoOrden,
+  getOrdenes, crearOrden, editarOrden, anularOrden, cambiarEstadoOrden,
 } from "../../../services/ordenesProduccionService.js";
 import { getProducto, getProductos } from "../../../services/productosService.js";
 import { getInsumos }   from "../../../services/insumosService.js";
-import { cambiarEstadoVenta } from "../../../services/pedidosService.js";
 import SearchableSelect from "../../../shared/components/SearchableSelect.jsx";
 import "./OrdenesProduccion.css";
 
 const PER_PAGE = 5;
+const MAX_CANTIDAD = 999;   // 3 dígitos
 
 const ESTADOS_ORDEN = ["Pendiente", "En proceso", "Completada", "Cancelada"];
 
@@ -42,6 +42,14 @@ const VALID_TRANSITIONS = {
   "Completada": [],
   "Cancelada":  [],
 };
+
+// "Cambiar estado" no cancela una orden: eso es "Anular" (permiso aparte). Y la
+// orden de un pedido solo se cancela cancelando el pedido (3.12).
+const transicionesPermitidas = (orden) =>
+  (VALID_TRANSITIONS[orden?.estado] || []).filter(e => e !== "Cancelada");
+
+// La orden solo es editable mientras está Pendiente (validado también en backend).
+const esEditable = (orden) => orden?.estado === "Pendiente";
 
 const fmt = (n) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n ?? 0);
@@ -244,6 +252,14 @@ function ModalDetallesOrden({ orden, onClose }) {
             <div className="field-input field-input--disabled" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "#2e7d32", textTransform: "uppercase", letterSpacing: 1 }}>Entrega</div>
               <div style={{ fontSize: 13, fontWeight: 700, color: "#2e7d32" }}>{fmtFecha(orden.fechaEntrega)}</div>
+            </div>
+            <div className="field-input field-input--disabled" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: 1 }}>Creada el</div>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>{orden.fechaCreacion ? fmtFecha(orden.fechaCreacion) : "—"}</div>
+            </div>
+            <div className="field-input field-input--disabled" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: 1 }}>Completada el</div>
+              <div style={{ fontSize: 13, fontWeight: 600 }}>{orden.fechaFin ? fmtFecha(orden.fechaFin) : "—"}</div>
             </div>
           </div>
 
@@ -482,12 +498,16 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
       const insuficientes = fichaConCheck.filter(i => i.faltante > 0.0001);
       setStockCheck({ insuficientes, fichaConCheck, stockMap, cantidadOrden });
 
-      // Fecha vencimiento automática solo al completar
+      // Fecha vencimiento automática solo al completar: sale de la ficha técnica
+      // (Dias_Vida_Util + Vida_Util_Unidad), igual que el backend.
       if (estadoSel === "Completada") {
-        const vidaUtil = prod?.Vida_Util || prod?.vida_util_dias || prod?.vida_util || 0;
+        const vidaUtil = Number(prod?.ficha_tecnica?.Dias_Vida_Util || 0);
+        const unidad   = (prod?.ficha_tecnica?.Vida_Util_Unidad || "dias").toLowerCase();
         if (vidaUtil && !fechaVencimiento) {
           const venc = new Date(today + "T00:00:00");
-          venc.setDate(venc.getDate() + Number(vidaUtil));
+          if (unidad === "meses")        venc.setMonth(venc.getMonth() + vidaUtil);
+          else if (unidad === "semanas") venc.setDate(venc.getDate() + vidaUtil * 7);
+          else                           venc.setDate(venc.getDate() + vidaUtil);
           setFechaVencimiento(venc.toISOString().split("T")[0]);
         }
       }
@@ -498,7 +518,7 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
 
   if (!orden) return null;
 
-  const transicionesValidas = VALID_TRANSITIONS[orden.estado] || [];
+  const transicionesValidas = transicionesPermitidas(orden);
 
   const handleConfirm = () => {
     const loteData = {};
@@ -524,6 +544,12 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
           {!confirmStep ? (
             <>
               <p className="section-label" style={{ marginTop: 0 }}>Orden #{orden.id} — selecciona el nuevo estado</p>
+              {orden.idVenta && (
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "#e3f2fd", border: "1px solid #90caf9", borderRadius: 10, padding: "10px 12px", marginBottom: 10, fontSize: 12, color: "#1565c0" }}>
+                  <Lock size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <span>Esta orden depende del pedido #{orden.idVenta}. Para cancelarla, cancela el pedido.</span>
+                </div>
+              )}
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {ESTADOS_ORDEN.map(est => {
                   const c = ESTADO_COLORS[est] || {};
@@ -771,15 +797,15 @@ function ModalErrorEstado({ mensaje, orden, onClose }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   MODAL ELIMINAR ORDEN
+   MODAL ANULAR ORDEN
    ═══════════════════════════════════════════════════════════ */
-function ModalEliminarOrden({ orden, onClose, onConfirm }) {
+function ModalAnularOrden({ orden, onClose, onConfirm }) {
   const [confirmText, setConfirmText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   if (!orden) return null;
 
   const handleConfirm = async () => {
-    if (String(confirmText).toUpperCase().trim() !== "ELIMINAR") return;
+    if (String(confirmText).toUpperCase().trim() !== "ANULAR") return;
     try {
       setSubmitting(true);
       await onConfirm(orden.id);
@@ -797,21 +823,24 @@ function ModalEliminarOrden({ orden, onClose, onConfirm }) {
             background: "#ffebee", border: "1px solid #ef9a9a",
             display: "flex", alignItems: "center", justifyContent: "center",
             fontSize: 24, margin: "0 auto 14px",
-          }}><Trash2 size={24} style={{ color: "#c62828" }} /></div>
-          <h3 style={{ margin: "0 0 8px", fontSize: 17, fontWeight: 700, color: "#1a1a1a" }}>Eliminar orden</h3>
+          }}><Ban size={24} style={{ color: "#c62828" }} /></div>
+          <h3 style={{ margin: "0 0 8px", fontSize: 17, fontWeight: 700, color: "#1a1a1a" }}>Anular orden</h3>
           <p style={{ margin: "0 0 4px", fontSize: 14, color: "#616161" }}>
-            ¿Estás seguro de que deseas eliminar la orden <strong>#{orden.id}</strong>?
+            ¿Anular la orden <strong>#{orden.id}</strong>?
           </p>
           <p style={{ margin: "0 0 8px", fontSize: 12, color: "#9e9e9e" }}>
             <strong>{orden.nombreProducto}</strong> × {orden.cantidad}
           </p>
-          <p style={{ margin: "0 0 12px", fontSize: 12, color: "#9e9e9e" }}>Esta operación es definitiva y no podrá ser revertida.</p>
+          <p style={{ margin: "0 0 12px", fontSize: 12, color: "#9e9e9e" }}>
+            La orden pasa a <strong>Cancelada</strong> y conserva su historial.
+            {orden.estado === "En proceso" && " Los insumos reservados se devuelven al stock."}
+          </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 6 }}>
-            <div style={{ fontSize: 12, color: "#616161" }}>Para confirmar escribe <strong>ELIMINAR</strong> en la casilla:</div>
+            <div style={{ fontSize: 12, color: "#616161" }}>Para confirmar escribe <strong>ANULAR</strong> en la casilla:</div>
             <input
               value={confirmText}
               onChange={e => setConfirmText(e.target.value)}
-              placeholder="Escribe ELIMINAR para confirmar"
+              placeholder="Escribe ANULAR para confirmar"
               style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #e0e0e0", fontSize: 13 }}
             />
           </div>
@@ -820,7 +849,7 @@ function ModalEliminarOrden({ orden, onClose, onConfirm }) {
           <button className="btn-ghost" onClick={onClose}>Cancelar</button>
           <button
             onClick={handleConfirm}
-            disabled={submitting || String(confirmText).toUpperCase().trim() !== "ELIMINAR"}
+            disabled={submitting || String(confirmText).toUpperCase().trim() !== "ANULAR"}
             style={{
               padding: "9px 20px", borderRadius: 9, border: "none",
               background: "#c62828", color: "#fff",
@@ -828,7 +857,7 @@ function ModalEliminarOrden({ orden, onClose, onConfirm }) {
               fontFamily: "inherit", opacity: submitting ? 0.7 : 1,
             }}
           >
-            {submitting ? "Eliminando…" : "Sí, eliminar orden"}
+            {submitting ? "Anulando…" : "Sí, anular orden"}
           </button>
         </div>
       </div>
@@ -839,13 +868,13 @@ function ModalEliminarOrden({ orden, onClose, onConfirm }) {
 /* ═══════════════════════════════════════════════════════════
    MODAL FORMULARIO — CREAR / EDITAR ORDEN
    ═══════════════════════════════════════════════════════════ */
-function ModalFormOrden({ orden, productos, insumos, onClose, onSave }) {
+function ModalFormOrden({ orden, productos, onClose, onSave }) {
   const [form, setForm] = useState({
     idProducto:   orden?.idProducto   ?? "",
     cantidad:     orden?.cantidad     ?? 1,
-    fechaInicio:  orden?.fechaInicio  ?? "",
+    // 3.2 — por defecto la fecha de inicio es hoy (editable hacia el futuro).
+    fechaInicio:  orden?.fechaInicio  ?? localToday(),
     fechaEntrega: orden?.fechaEntrega ?? "",
-    estado:       orden?.estado       ?? "Pendiente",
   });
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [productLoading, setProductLoading] = useState(false);
@@ -861,7 +890,7 @@ function ModalFormOrden({ orden, productos, insumos, onClose, onSave }) {
     try {
       const product = await getProducto(Number(productId));
       setSelectedProduct(product);
-    } catch (err) {
+    } catch {
       setSelectedProduct(null);
     } finally {
       setProductLoading(false);
@@ -877,54 +906,54 @@ function ModalFormOrden({ orden, productos, insumos, onClose, onSave }) {
   }, [form.idProducto]);
 
   const set = (k, v) => {
-    setForm(f => ({ ...f, [k]: v }));
+    setForm(f => {
+      const next = { ...f, [k]: v };
+      // 3.5 — la fecha de inicio se confirma primero: si se cambia después de
+      // haber puesto una fecha de entrega, la entrega se limpia y se vuelve a pedir.
+      if (k === "fechaInicio" && f.fechaEntrega) next.fechaEntrega = "";
+      return next;
+    });
     setErrors(e => ({ ...e, [k]: "" }));
   };
 
+  const sinFicha = !productLoading && form.idProducto && !selectedProduct?.ficha_tecnica;
+
   const handleSave = async () => {
     const today = localToday();
+    const cantNum = Number(form.cantidad);
     const e = {};
-    if (!form.idProducto)                    e.idProducto = "Seleccione un producto";
-    if (!form.cantidad || form.cantidad < 1) e.cantidad   = "Ingrese una cantidad válida";
-    if (!orden) {
-      if (!form.fechaEntrega)             e.fechaEntrega = "La fecha de entrega es obligatoria";
-      else if (form.fechaEntrega < today) e.fechaEntrega = "La fecha no puede ser anterior al día de hoy";
-    } else if (form.fechaEntrega && form.fechaEntrega < today) {
-      e.fechaEntrega = "La fecha no puede ser anterior al día de hoy";
+    if (!form.idProducto)                      e.idProducto = "Seleccione un producto";
+    if (!cantNum || cantNum < 1)               e.cantidad   = "Ingrese una cantidad válida";
+    else if (cantNum > MAX_CANTIDAD)           e.cantidad   = `El máximo es ${MAX_CANTIDAD}`;
+    // 3.10 — sin ficha técnica no se puede generar la orden.
+    if (sinFicha)                              e.idProducto = "Este producto no tiene ficha técnica. Créala en Gestión de Productos.";
+
+    if (!form.fechaEntrega)                    e.fechaEntrega = "La fecha de entrega es obligatoria";
+    else if (form.fechaEntrega < today)        e.fechaEntrega = "La fecha no puede ser anterior a hoy";
+
+    // 3.2 / 3.5 — fecha de inicio de hoy hacia adelante; al editar tampoco
+    // antes de la original de la orden.
+    if (form.fechaInicio) {
+      if (form.fechaInicio < today && form.fechaInicio !== orden?.fechaInicio)
+        e.fechaInicio = "La fecha de inicio no puede ser anterior a hoy";
+      else if (orden?.fechaInicio && form.fechaInicio < orden.fechaInicio)
+        e.fechaInicio = "No puede ser anterior a la fecha de inicio original de la orden";
+      else if (form.fechaEntrega && form.fechaInicio > form.fechaEntrega)
+        e.fechaInicio = "La fecha de inicio no puede ser después de la entrega";
     }
-    const minFechaInicio = orden ? (orden.fechaInicio || today) : today;
-    if (form.fechaInicio && form.fechaInicio < minFechaInicio) {
-      e.fechaInicio = orden
-        ? "No puede ser anterior a la fecha de inicio original de la orden"
-        : "La fecha de inicio no puede ser anterior al día de hoy";
-    }
-    if (form.fechaInicio && form.fechaEntrega && form.fechaInicio > form.fechaEntrega) e.fechaInicio = "La fecha de inicio no puede ser después de la entrega";
     if (Object.keys(e).length) { setErrors(e); return; }
 
     setSaving(true);
     const payload = {
-      ID_Producto: Number(form.idProducto),
-      Cantidad:    Number(form.cantidad),
+      ID_Producto:   Number(form.idProducto),
+      Cantidad:      cantNum,
+      Fecha_Entrega: form.fechaEntrega,
     };
-    if (form.fechaEntrega)                     payload.Fecha_Entrega = form.fechaEntrega;
-    if (selectedProduct?.ficha_tecnica?.ID_Ficha) payload.ID_Ficha  = selectedProduct.ficha_tecnica.ID_Ficha;
-    if (form.fechaInicio)                      payload.Fecha_inicio  = form.fechaInicio;
+    if (form.fechaInicio) payload.Fecha_inicio = form.fechaInicio;
 
     try {
-      if (orden?.id) {
-        await editarOrden(orden.id, payload);
-        if (form.estado !== orden.estado) {
-          const estadoNum = ESTADO_TO_NUM[form.estado];
-          const loteData = form.estado === "Completada" ? { Fecha_Produccion: today } : {};
-          await cambiarEstadoOrden(orden.id, estadoNum, loteData);
-          // Si se completa y hay pedido asociado, moverlo a "Listo" automáticamente
-          if (form.estado === "Completada" && orden.idVenta) {
-            try { await cambiarEstadoVenta(orden.idVenta, 11); } catch (_) {}
-          }
-        }
-      } else {
-        await crearOrden(payload);
-      }
+      if (orden?.id) await editarOrden(orden.id, payload);
+      else           await crearOrden(payload);
       onSave();
     } catch (err) {
       const msg = Array.isArray(err?.detail)
@@ -977,9 +1006,9 @@ function ModalFormOrden({ orden, productos, insumos, onClose, onSave }) {
                 <span style={{ color: "#616161" }}>Selecciona un producto para ver la ficha</span>
               )}
             </div>
-            {!productLoading && form.idProducto && !selectedProduct?.ficha_tecnica && (
+            {sinFicha && (
               <p className="field-error" style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
-                ⚠ Este producto no tiene ficha técnica. El cocinero no podrá ver ingredientes ni cantidades en el panel de cocina.
+                ⚠ Este producto no tiene ficha técnica. No se puede crear una orden hasta cargarla en Gestión de Productos.
               </p>
             )}
           </div>
@@ -990,65 +1019,16 @@ function ModalFormOrden({ orden, productos, insumos, onClose, onSave }) {
             <input
               type="number"
               min={1}
+              max={MAX_CANTIDAD}
               className={`field-input${errors.cantidad ? " error" : ""}`}
               value={form.cantidad}
-              onChange={e => set("cantidad", e.target.value)}
+              onChange={e => {
+                const v = e.target.value;
+                set("cantidad", v === "" ? "" : String(Math.min(MAX_CANTIDAD, Math.max(0, Math.floor(Number(v) || 0)))));
+              }}
             />
             {errors.cantidad && <span className="field-error">{errors.cantidad}</span>}
           </div>
-
-          {/* Estado — solo al editar */}
-          {orden && (
-            <div className="form-group">
-              <label className="form-label">Estado</label>
-              {(VALID_TRANSITIONS[orden.estado] || []).length === 0 ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <EstadoBadge estado={orden.estado} />
-                  <span style={{ fontSize: 11, color: "#9e9e9e" }}>Estado final, sin cambios posibles</span>
-                </div>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {/* Preview de la transición */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 28 }}>
-                    <EstadoBadge estado={orden.estado} />
-                    {form.estado !== orden.estado && (
-                      <>
-                        <span style={{ color: "#bdbdbd", fontSize: 18, lineHeight: 1 }}>→</span>
-                        <EstadoBadge estado={form.estado} />
-                      </>
-                    )}
-                  </div>
-                  {/* Pills seleccionables */}
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {[orden.estado, ...(VALID_TRANSITIONS[orden.estado] || [])].map(est => {
-                      const c = ESTADO_COLORS[est] || { bg: "#f5f5f5", color: "#757575", border: "#e0e0e0" };
-                      const sel = form.estado === est;
-                      return (
-                        <button
-                          key={est}
-                          type="button"
-                          onClick={() => set("estado", est)}
-                          style={{
-                            display: "flex", alignItems: "center", gap: 6,
-                            padding: "7px 14px", borderRadius: 20,
-                            border: `2px solid ${sel ? c.color : c.border}`,
-                            background: sel ? c.bg : "#fff",
-                            color: sel ? c.color : "#9e9e9e",
-                            fontSize: 12, fontWeight: sel ? 700 : 500,
-                            cursor: "pointer", transition: "all 0.15s", fontFamily: "inherit",
-                          }}
-                        >
-                          <span style={{ width: 7, height: 7, borderRadius: "50%", background: sel ? c.color : "#bdbdbd", flexShrink: 0 }} />
-                          {est}
-                          {est === orden.estado && <span style={{ fontSize: 10, opacity: 0.6, marginLeft: 2 }}>actual</span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Fechas */}
           <div className="form-grid-2">
@@ -1058,7 +1038,6 @@ function ModalFormOrden({ orden, productos, insumos, onClose, onSave }) {
                 type="date"
                 className={`field-input${errors.fechaInicio ? " error" : ""}`}
                 min={orden ? (orden.fechaInicio || localToday()) : localToday()}
-                max={form.fechaEntrega || undefined}
                 value={form.fechaInicio}
                 onChange={e => set("fechaInicio", e.target.value)}
               />
@@ -1098,7 +1077,7 @@ function ModalFormOrden({ orden, productos, insumos, onClose, onSave }) {
 
         <div className="modal-footer" style={{ justifyContent: "space-between" }}>
           <button className="btn-ghost" onClick={onClose}>Cancelar</button>
-          <button className="btn-save" onClick={handleSave} disabled={saving}>
+          <button className="btn-save" onClick={handleSave} disabled={saving || sinFicha || productLoading}>
             {saving ? "Guardando…" : orden ? "Guardar cambios" : "Crear orden"}
           </button>
         </div>
@@ -1116,7 +1095,6 @@ export default function GestionOrdenesProduccion() {
 
   const [ordenes,      setOrdenes]      = useState([]);
   const [productos,    setProductos]    = useState([]);
-  const [insumos,      setInsumos]      = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [search,       setSearch]       = useState(initialSearch);
   const [filterEstado, setFilterEstado] = useState("todos");
@@ -1137,21 +1115,15 @@ export default function GestionOrdenesProduccion() {
   const cargarDatos = async () => {
     setLoading(true);
     try {
-      const [ordenesData, pData, iData] = await Promise.all([
+      const [ordenesData, pData] = await Promise.all([
         getOrdenes(),
         getProductos().catch(() => ({ productos: [] })),
-        getInsumos().catch(() => ({ insumos: [] })),
       ]);
       setOrdenes([...(ordenesData || [])].sort((a, b) => b.id - a.id));
       setProductos(
         (pData.productos || [])
           .filter(p => p.Estado !== 0)
           .map(p => ({ id: p.ID_Producto, nombre: p.nombre || p.Nombre || "" }))
-      );
-      setInsumos(
-        (iData.insumos || [])
-          .filter(i => i.Estado !== 0)
-          .map(i => ({ id: i.ID_Insumo, nombre: i.Nombre }))
       );
     } catch (e) {
       showToast(e.message || "Error al cargar órdenes", "error");
@@ -1208,14 +1180,9 @@ export default function GestionOrdenesProduccion() {
     const ordenActual = ordenes.find(o => o.id === idOrden);
     setActionSaving(true);
     try {
+      // El backend sincroniza el estado del pedido asociado (si lo hay) al
+      // completar o cancelar la orden — no se hace desde el frontend.
       await cambiarEstadoOrden(idOrden, estadoNum, loteData);
-
-      // Si la orden se completa y tiene pedido asociado, pasar el pedido a "Listo" (estado 11)
-      if (nuevoEstado === "Completada" && ordenActual?.idVenta) {
-        try {
-          await cambiarEstadoVenta(ordenActual.idVenta, 11);
-        } catch (_) { /* Si falla no interrumpir el flujo normal */ }
-      }
 
       showToast(`Estado cambiado a "${nuevoEstado}"`);
       setModal(null);
@@ -1231,13 +1198,13 @@ export default function GestionOrdenesProduccion() {
     }
   };
 
-  const handleEliminar = async (idOrden) => {
+  const handleAnular = async (idOrden) => {
     try {
-      await eliminarOrden(idOrden);
-      showToast("Orden eliminada", "warn");
+      await anularOrden(idOrden);
+      showToast("Orden anulada", "warn");
       await cargarDatos();
     } catch (e) {
-      showToast(e.message || "Error al eliminar", "error");
+      showToast(e.message || e.detail || "Error al anular la orden", "error");
     }
     setModal(null);
   };
@@ -1363,10 +1330,31 @@ export default function GestionOrdenesProduccion() {
                     <td><EstadoBadge estado={orden.estado} /></td>
                     <td>
                       <div className="actions-cell">
-                        <button className="act-btn act-btn--view"   data-tooltip="Ver detalles"   onClick={() => setModal({ type: "detalles", orden })}><Eye size={15} /></button>
-                        <button className="act-btn act-btn--edit"   data-tooltip="Editar"         onClick={() => setModal({ type: "form",     orden })}><PenLine size={15} /></button>
-                        <button className="act-btn act-btn--status" data-tooltip="Cambiar estado" onClick={() => setModal({ type: "estado",   orden })} disabled={actionSaving}><RefreshCw size={15} /></button>
-                        <button className="act-btn act-btn--delete" data-tooltip="Eliminar"       onClick={() => setModal({ type: "eliminar", orden })} disabled={["En proceso", "Completada"].includes(orden.estado)} style={{ opacity: ["En proceso", "Completada"].includes(orden.estado) ? 0.35 : 1, cursor: ["En proceso", "Completada"].includes(orden.estado) ? "default" : "pointer" }}><Trash2 size={15} /></button>
+                        {(() => {
+                          const editable       = esEditable(orden);
+                          const ligadaAPedido  = !!orden.idVenta;
+                          const anulable       = !ligadaAPedido && ["Pendiente", "En proceso"].includes(orden.estado);
+                          return (
+                            <>
+                              <button className="act-btn act-btn--view" data-tooltip="Ver detalles" onClick={() => setModal({ type: "detalles", orden })}><Eye size={15} /></button>
+                              <button
+                                className="act-btn act-btn--edit"
+                                data-tooltip={editable ? "Editar" : "Solo se editan las órdenes pendientes"}
+                                onClick={() => editable && setModal({ type: "form", orden })}
+                                disabled={!editable}
+                                style={{ opacity: editable ? 1 : 0.35, cursor: editable ? "pointer" : "default" }}
+                              ><PenLine size={15} /></button>
+                              <button className="act-btn act-btn--status" data-tooltip="Cambiar estado" onClick={() => setModal({ type: "estado", orden })} disabled={actionSaving}><RefreshCw size={15} /></button>
+                              <button
+                                className="act-btn act-btn--delete"
+                                data-tooltip={ligadaAPedido ? `Controlada por el pedido #${orden.idVenta}` : anulable ? "Anular" : "No se puede anular"}
+                                onClick={() => anulable && setModal({ type: "anular", orden })}
+                                disabled={!anulable}
+                                style={{ opacity: anulable ? 1 : 0.35, cursor: anulable ? "pointer" : "default" }}
+                              >{ligadaAPedido ? <Lock size={15} /> : <Ban size={15} />}</button>
+                            </>
+                          );
+                        })()}
                       </div>
                     </td>
                   </tr>
@@ -1394,7 +1382,6 @@ export default function GestionOrdenesProduccion() {
         <ModalFormOrden
           orden={modal.orden}
           productos={productos}
-          insumos={insumos}
           onClose={() => setModal(null)}
           onSave={handleSaveOrder}
         />
@@ -1410,8 +1397,8 @@ export default function GestionOrdenesProduccion() {
           onConfirm={handleCambiarEstado}
         />
       )}
-      {modal?.type === "eliminar" && (
-        <ModalEliminarOrden orden={modal.orden} onClose={() => setModal(null)} onConfirm={handleEliminar} />
+      {modal?.type === "anular" && (
+        <ModalAnularOrden orden={modal.orden} onClose={() => setModal(null)} onConfirm={handleAnular} />
       )}
       {modal?.type === "errorEstado" && (
         <ModalErrorEstado

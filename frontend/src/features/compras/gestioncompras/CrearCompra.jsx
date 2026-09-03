@@ -24,10 +24,15 @@ const UNIDADES = [
 
 const GRUPO_UNIDAD = { 1: "masa", 2: "masa", 6: "masa", 3: "vol", 4: "vol", 5: "und" };
 
-// Cantidad máx 10 000 por línea; total entre $1 000 y $50 000 000 COP
-const CANT_MAX  = 10_000;
-const TOTAL_MIN = 1_000;
-const TOTAL_MAX = 50_000_000;
+// Cantidad máx 10 000 por línea; total entre $0 y $50 000 000 COP
+const CANT_MAX   = 10_000;
+const TOTAL_MIN  = 0;
+const TOTAL_MAX  = 50_000_000;
+const PORC_MAX   = 100;          // IVA y descuento en %
+const MONTO_MAX  = 9_999_999_999; // transporte / otros: máx. 10 dígitos
+
+// Rechaza signo negativo, letras y separadores; deja pasar dígitos y un punto decimal
+const soloNumero = (v) => v === "" || /^\d*\.?\d*$/.test(v);
 
 const unidadesDelGrupo = (idUnidadBase) => {
   const grupo = GRUPO_UNIDAD[Number(idUnidadBase)];
@@ -222,7 +227,10 @@ export default function CrearCompra({ onClose, onSave }) {
     otros:      "",
   });
 
-  const setGasto = (k, v) => setGastos(g => ({ ...g, [k]: v }));
+  const setGasto = (k, v) => {
+    if (!soloNumero(v)) return;
+    setGastos(g => ({ ...g, [k]: v }));
+  };
 
   const [detalles, setDetalles] = useState([emptyDetalle()]);
   const [errors,   setErrors]   = useState({});
@@ -250,7 +258,7 @@ export default function CrearCompra({ onClose, onSave }) {
     if (k === "idProveedor" && !v) err = "Selecciona un proveedor";
     if (k === "fecha") {
       if (!v) err = "Ingresa la fecha";
-      else if (v < hoy) err = "La fecha no puede ser anterior a hoy";
+      else if (v > hoy) err = "La fecha no puede ser futura";
     }
     if (k === "metodoPago" && !v) err = "Selecciona el método de pago";
     setErrors(e => ({ ...e, [k]: err }));
@@ -288,9 +296,6 @@ export default function CrearCompra({ onClose, onSave }) {
     }));
   };
 
-  const toggleExpand = (key) =>
-    setDetalles(ds => ds.map(d => d._key === key ? { ...d, isExpanded: !d.isExpanded } : d));
-
   const addDetalle = () => {
     setDetalles(ds => [
       ...ds.map(d => ({ ...d, isExpanded: false })),
@@ -307,7 +312,7 @@ export default function CrearCompra({ onClose, onSave }) {
     const hoy = new Date().toISOString().split("T")[0];
     if (!form.idProveedor)  e.idProveedor = "Selecciona un proveedor";
     if (!form.fecha)        e.fecha       = "Ingresa la fecha";
-    else if (form.fecha < hoy) e.fecha    = "La fecha no puede ser anterior a hoy";
+    else if (form.fecha > hoy) e.fecha    = "La fecha no puede ser futura";
     if (!form.metodoPago)  e.metodoPago  = "Selecciona el método de pago";
     return e;
   };
@@ -350,8 +355,16 @@ export default function CrearCompra({ onClose, onSave }) {
 
   const validateTotal = () => {
     const e = {};
+    const iva  = Number(gastos.iva)       || 0;
+    const desc = Number(gastos.descuento) || 0;
+    const tra  = Number(gastos.transporte) || 0;
+    const otr  = Number(gastos.otros)      || 0;
+    if (iva < 0 || iva > PORC_MAX)   e.gastos = "El IVA debe estar entre 0 y 100%";
+    else if (desc < 0 || desc > PORC_MAX) e.gastos = "El descuento debe estar entre 0 y 100%";
+    else if (tra < 0 || otr < 0)     e.gastos = "Los costos no pueden ser negativos";
+    else if (tra > MONTO_MAX || otr > MONTO_MAX) e.gastos = "Transporte y otros costos admiten máximo 10 dígitos";
     if (totalActual < TOTAL_MIN)
-      e.total = `El total (${COP(totalActual)}) debe ser al menos ${COP(TOTAL_MIN)} COP`;
+      e.total = `El total (${COP(totalActual)}) no puede ser negativo`;
     else if (totalActual > TOTAL_MAX)
       e.total = `El total (${COP(totalActual)}) supera el máximo permitido de ${COP(TOTAL_MAX)} COP`;
     return e;
@@ -447,7 +460,7 @@ export default function CrearCompra({ onClose, onSave }) {
                   <label className="field-label">Fecha de compra <span className="required">*</span></label>
                   <input
                     type="date"
-                    min={new Date().toISOString().split("T")[0]}
+                    max={new Date().toISOString().split("T")[0]}
                     className={`field-input ${errors.fecha ? "error" : ""}`}
                     value={form.fecha}
                     onChange={e => set("fecha", e.target.value)}
@@ -570,7 +583,7 @@ export default function CrearCompra({ onClose, onSave }) {
                               value={d.cantidad}
                               onChange={e => {
                                 const v = e.target.value;
-                                setDetalle(d._key, "cantidad", v);
+                                if (soloNumero(v)) setDetalle(d._key, "cantidad", v);
                               }}
                               style={{ flex: 1, minWidth: 0 }}
                             />
@@ -604,12 +617,13 @@ export default function CrearCompra({ onClose, onSave }) {
                       <label className="field-label" style={{ fontSize: 10 }}>Precio unitario</label>
                       <input
                         type="number"
+                        min="0"
                         className={`field-input ${errors[`precio_${i}`] ? "error" : ""}`}
                         placeholder="$ 0"
                         value={d.precioUnd}
                         onChange={e => {
                           const v = e.target.value;
-                          setDetalle(d._key, "precioUnd", v);
+                          if (soloNumero(v)) setDetalle(d._key, "precioUnd", v);
                         }}
                       />
                       {errors[`precio_${i}`] && <span className="field-error" style={{ fontSize: 10 }}>{errors[`precio_${i}`]}</span>}
@@ -630,11 +644,11 @@ export default function CrearCompra({ onClose, onSave }) {
                           Fecha
                         </button>
                         {d.vencimientoTipo === "dias" ? (
-                          <input type="number" className="field-input" style={{ flex: 1 }}
+                          <input type="number" min="1" className="field-input" style={{ flex: 1 }}
                             placeholder="30" value={d.vencimientoValor}
-                            onChange={e => setDetalle(d._key, "vencimientoValor", e.target.value)} />
+                            onChange={e => { if (soloNumero(e.target.value)) setDetalle(d._key, "vencimientoValor", e.target.value); }} />
                         ) : (
-                          <input type="date" className={`field-input ${errors[`venc_${i}`] ? "error" : ""}`} style={{ flex: 1 }}
+                          <input type="date" min={new Date().toISOString().split("T")[0]} className={`field-input ${errors[`venc_${i}`] ? "error" : ""}`} style={{ flex: 1 }}
                             value={d.fechaVencimiento}
                             onChange={e => setDetalle(d._key, "fechaVencimiento", e.target.value)} />
                         )}
@@ -665,15 +679,17 @@ export default function CrearCompra({ onClose, onSave }) {
                 </p>
               </div>
 
+              {errors.gastos && <span className="field-error" style={{ display: "block", marginBottom: 8 }}>{errors.gastos}</span>}
+
               <div className="gastos-grid gastos-grid--standalone">
                 <div className="field-wrap">
                   <label className="field-label">Transporte</label>
-                  <input type="number" className="field-input" placeholder="$ 0" value={gastos.transporte} onChange={e => setGasto("transporte", e.target.value)} />
+                  <input type="number" min="0" max={MONTO_MAX} step="1" className="field-input" placeholder="$ 0" value={gastos.transporte} onChange={e => setGasto("transporte", e.target.value)} />
                 </div>
                 <div className="field-wrap">
                   <label className="field-label" style={{ display: "flex", alignItems: "center", gap: 4 }}><Receipt size={14} /> IVA (%)</label>
                   <div style={{ position: "relative" }}>
-                    <input type="number" className="field-input" placeholder="0" value={gastos.iva} onChange={e => setGasto("iva", e.target.value)} style={{ paddingRight: 30 }} />
+                    <input type="number" min="0" max={PORC_MAX} className="field-input" placeholder="0" value={gastos.iva} onChange={e => setGasto("iva", e.target.value)} style={{ paddingRight: 30 }} />
                     <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#9e9e9e", fontWeight: 700 }}>%</span>
                   </div>
                   {valorIva > 0 && <span className="field-hint" style={{ color: "#2e7d32", fontWeight: 600 }}>+ {COP(valorIva)}</span>}
@@ -681,14 +697,14 @@ export default function CrearCompra({ onClose, onSave }) {
                 <div className="field-wrap">
                   <label className="field-label" style={{ display: "flex", alignItems: "center", gap: 4 }}><Tag size={14} /> Descuento (%)</label>
                   <div style={{ position: "relative" }}>
-                    <input type="number" className="field-input gastos-descuento-input" placeholder="0" value={gastos.descuento} onChange={e => setGasto("descuento", e.target.value)} style={{ paddingRight: 30 }} />
+                    <input type="number" min="0" max={PORC_MAX} className="field-input gastos-descuento-input" placeholder="0" value={gastos.descuento} onChange={e => setGasto("descuento", e.target.value)} style={{ paddingRight: 30 }} />
                     <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#c62828", fontWeight: 700 }}>%</span>
                   </div>
                   {valorDescuento > 0 && <span className="field-hint" style={{ color: "#c62828", fontWeight: 600 }}>− {COP(valorDescuento)}</span>}
                 </div>
                 <div className="field-wrap">
                   <label className="field-label">Otros costos</label>
-                  <input type="number" className="field-input" placeholder="$ 0" value={gastos.otros} onChange={e => setGasto("otros", e.target.value)} />
+                  <input type="number" min="0" max={MONTO_MAX} step="1" className="field-input" placeholder="$ 0" value={gastos.otros} onChange={e => setGasto("otros", e.target.value)} />
                 </div>
               </div>
 

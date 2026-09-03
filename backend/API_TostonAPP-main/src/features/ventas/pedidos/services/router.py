@@ -9,9 +9,31 @@ from .service import (
     obtener_pedidos, obtener_pedido, confirmar_pedido, cancelar_pedido,
     editar_pedido, aprobar_comprobante, rechazar_comprobante, registrar_cobro_pedido,
 )
-from src.features.ventas.gestion_ventas.services.schemas import RechazoComprobante
+from src.features.ventas.gestion_ventas.services.schemas import (
+    RechazoComprobante, VentaCreate, VentaResponse,
+)
+from src.features.ventas.gestion_ventas.services.service import crear_venta
 
 router = APIRouter(prefix="/pedidos", tags=["Pedidos"])
+
+
+@router.post("/", response_model=VentaResponse, status_code=201)
+def crear(
+    datos:  VentaCreate,
+    db:     Session = Depends(get_db),
+    actual: dict    = Depends(requiere_permiso("crear_pedidos")),
+):
+    """
+    Crea un pedido (una venta es un pedido; no son módulos separados).
+    El cliente solo puede crear pedidos a su propio nombre; el mostrador
+    (empleado/admin) puede hacerlo a nombre de un tercero.
+    """
+    if actual.get("tipo") == "cliente":
+        datos.ID_Usuario = actual["registro"].ID_Usuario
+        datos.Fecha_entrega_esperada = None
+        if datos.domicilio is not None:
+            datos.domicilio.Fecha_entrega = None
+    return crear_venta(db, datos)
 
 
 @router.get("/", response_model=PedidoListResponse)
@@ -62,7 +84,7 @@ def confirmar(
 def cancelar(
     id_venta: int,
     db:       Session = Depends(get_db),
-    _:        dict    = Depends(requiere_permiso("editar_pedidos"))
+    _:        dict    = Depends(requiere_permiso("cancelar_pedidos"))
 ):
     """Cancela cualquier pedido pendiente (empleado / admin)."""
     return cancelar_pedido(db, id_venta)
@@ -82,7 +104,7 @@ def cancelar_mi_pedido(
 def aprobar_comprobante_endpoint(
     id_venta: int,
     db:       Session = Depends(get_db),
-    actual:   dict    = Depends(requiere_permiso("editar_ventas")),
+    actual:   dict    = Depends(requiere_permiso("editar_pedidos")),
 ):
     """Admin aprueba el comprobante de transferencia → Estado_Pago='pagado_completo'."""
     return aprobar_comprobante(db, id_venta)
@@ -93,7 +115,7 @@ def rechazar_comprobante_endpoint(
     id_venta: int,
     datos:    RechazoComprobante,
     db:       Session = Depends(get_db),
-    actual:   dict    = Depends(requiere_permiso("editar_ventas")),
+    actual:   dict    = Depends(requiere_permiso("editar_pedidos")),
 ):
     """Admin rechaza el comprobante → Estado_Pago='comprobante_rechazado'. El motivo queda en notificación."""
     registro = actual["registro"]
@@ -105,7 +127,7 @@ def registrar_cobro_endpoint(
     id_venta: int,
     datos:    RegistroCobro,
     db:       Session = Depends(get_db),
-    actual:   dict    = Depends(requiere_permiso("editar_ventas")),
+    actual:   dict    = Depends(requiere_permiso("editar_pedidos")),
 ):
     """Admin/empleado registra cobro en efectivo (contra entrega o en tienda) → Estado_Pago='efectivo_recibido'."""
     registro = actual["registro"]

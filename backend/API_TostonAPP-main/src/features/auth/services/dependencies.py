@@ -7,6 +7,7 @@ import os
 
 from src.shared.services.database import get_db
 from src.shared.services.models import Usuario, Rol, RolXPermiso, Permiso
+from src.shared.services.permisos_catalogo import PERMISOS_VER, VER_HERMANO
 from .schemas import TokenData
 
 load_dotenv()
@@ -76,6 +77,46 @@ def solo_empleados(actual: dict = Depends(obtener_usuario_actual)):
     return actual
 
 
+def rol_tiene_permiso(db: Session, id_rol: int, nombre_permiso: str) -> bool:
+    """
+    True si el rol tiene el permiso en Rol_x_Permiso.
+
+    Regla de auto-otorgado de `ver_`: si se pide un permiso `ver_X` y el rol no
+    lo tiene explícito pero SÍ tiene cualquier otra acción del mismo módulo
+    (editar_X, crear_X, anular_X, …), se considera que también tiene `ver_X`.
+    Un permiso sin "ver" no sirve de nada si no puedes abrir el módulo.
+    Admin (ID_Rol=1) siempre pasa.
+    """
+    if id_rol == 1:
+        return True
+
+    tiene = (
+        db.query(RolXPermiso)
+        .join(Permiso, Permiso.ID_Permiso == RolXPermiso.ID_Permiso)
+        .filter(RolXPermiso.ID_Rol == id_rol, Permiso.Permiso == nombre_permiso)
+        .first()
+        is not None
+    )
+    if tiene:
+        return True
+
+    if nombre_permiso in PERMISOS_VER:
+        hermanos = [p for p, ver in VER_HERMANO.items() if ver == nombre_permiso]
+        if hermanos:
+            return (
+                db.query(RolXPermiso)
+                .join(Permiso, Permiso.ID_Permiso == RolXPermiso.ID_Permiso)
+                .filter(
+                    RolXPermiso.ID_Rol == id_rol,
+                    Permiso.Permiso.in_(hermanos),
+                )
+                .first()
+                is not None
+            )
+
+    return False
+
+
 def requiere_permiso(nombre_permiso: str):
     """
     Dependencia factory que verifica si el usuario autenticado
@@ -84,34 +125,17 @@ def requiere_permiso(nombre_permiso: str):
     Reglas:
     - Admin (ID_Rol=1): bypass total
     - TODOS los demás, clientes incluidos: el permiso tiene que estar en
-      Rol_x_Permiso. El rol Cliente necesita `crear_ventas` cargado ahí para
-      poder comprar; quitárselo deja la tienda entera devolviendo 403 al
-      confirmar el pedido.
+      Rol_x_Permiso (con el auto-otorgado de `ver_`, ver `rol_tiene_permiso`).
+      El rol Cliente necesita `crear_pedidos` cargado ahí para poder comprar;
+      quitárselo deja la tienda entera devolviendo 403 al confirmar el pedido.
     """
     def verificar(
         actual: dict    = Depends(obtener_usuario_actual),
         db:     Session = Depends(get_db)
     ):
-        registro = actual["registro"]
-        id_rol   = registro.ID_Rol
+        id_rol = actual["registro"].ID_Rol
 
-        # Bypass total para Admin
-        if id_rol == 1:
-            return actual
-
-        # Todos los demás roles (empleados, clientes, domiciliarios)
-        # deben tener el permiso explícito en Rol_x_Permiso.
-        tiene_permiso = (
-            db.query(RolXPermiso)
-            .join(Permiso, Permiso.ID_Permiso == RolXPermiso.ID_Permiso)
-            .filter(
-                RolXPermiso.ID_Rol == id_rol,
-                Permiso.Permiso    == nombre_permiso
-            )
-            .first()
-        )
-
-        if not tiene_permiso:
+        if not rol_tiene_permiso(db, id_rol, nombre_permiso):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="No tienes permiso para realizar esta acción"

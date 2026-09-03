@@ -16,7 +16,7 @@
  */
 
 import { useState } from "react";
-import { X, AlertTriangle, Check, Lock, Eye, Plus, PenLine, Trash2, Ban, Upload, Search, RefreshCw, CheckCircle2, XCircle, Globe, Settings, Shield, Users, Package, FolderOpen, Truck, ClipboardList, Factory, Banknote, CreditCard, ShoppingCart, CornerUpLeft, Bike, Receipt, BarChart2 } from "lucide-react";
+import { X, AlertTriangle, Check, Lock, Eye, Plus, PenLine, Trash2, Ban, Upload, Search, RefreshCw, CheckCircle2, XCircle, Globe, Settings, Shield, Users, Package, FolderOpen, Truck, ClipboardList, Factory, Banknote, ShoppingCart, CornerUpLeft, Bike, Receipt, BarChart2 } from "lucide-react";
 import { createPortal } from "react-dom";
 
 // ── Catálogo completo de acciones posibles ──────────────────────────────────
@@ -41,7 +41,7 @@ const GRUPOS_MODULOS = [
     grupo: "Sitio web",
     Icon: Globe,
     modulos: [
-      { key: "LandingPage",       label: "Landing Page",      Icon: Globe,        acciones: ["ver", "editar"] },
+      { key: "LandingPage",       label: "Landing Page",      Icon: Globe,        acciones: ["editar"] },
     ],
   },
   {
@@ -71,17 +71,16 @@ const GRUPOS_MODULOS = [
     modulos: [
       { key: "CategoriaProductos", label: "Cat. Productos", Icon: Package,       acciones: ["ver", "crear", "editar", "eliminar", "cambiar_estado"] },
       { key: "GestionProductos",   label: "Gestión Prod.",  Icon: ClipboardList, acciones: ["ver", "crear", "editar", "eliminar", "cambiar_estado", "generar_salida"] },
-      { key: "OrdenesProduccion",  label: "Órdenes Prod.",  Icon: Factory,       acciones: ["ver", "crear", "editar", "cancelar", "cambiar_estado"] },
+      { key: "OrdenesProduccion",  label: "Órdenes Prod.",  Icon: Factory,       acciones: ["ver", "crear", "editar", "cambiar_estado", "anular"] },
     ],
   },
   {
     grupo: "Ventas",
     Icon: Banknote,
     modulos: [
-      { key: "GestionVentas", label: "Gestión Ventas", Icon: CreditCard,    acciones: ["ver", "crear", "editar", "eliminar"] },
-      { key: "Pedidos",       label: "Pedidos",        Icon: ShoppingCart,  acciones: ["ver", "crear", "editar", "eliminar"] },
+      { key: "Pedidos",       label: "Pedidos",        Icon: ShoppingCart,  acciones: ["ver", "crear", "editar", "cancelar"] },
       { key: "Devoluciones",  label: "Devoluciones",   Icon: CornerUpLeft,  acciones: ["ver", "crear", "editar", "aprobar", "desaprobar"] },
-      { key: "Domicilios",    label: "Domicilios",     Icon: Bike,          acciones: ["ver", "ver_detalles", "cambiar_estado"] },
+      { key: "Domicilios",    label: "Domicilios",     Icon: Bike,          acciones: ["ver", "ver_detalles", "crear", "editar", "cambiar_estado"] },
       { key: "Liquidaciones", label: "Liquidaciones",  Icon: Receipt,       acciones: ["ver", "crear", "editar", "eliminar", "anular"] },
     ],
   },
@@ -233,10 +232,16 @@ const S = {
   },
 };
 
+// ¿el módulo tiene alguna acción ≠ "ver" activa?
+const tieneOtraAccion = (lista, moduloKey) =>
+  lista.some(p => p.modulo === moduloKey && p.accion !== "ver" && p.estado);
+
 export default function PrivilegiosModal({
   privilegios,
-  esAdmin   = false,
-  isView    = false,
+  esAdmin    = false,
+  isView     = false,
+  misClaves  = null,   // Set de claves que posee el usuario actual; null = sin límite
+  bypass     = false,  // el usuario actual es Admin → sin anti-escalación
   onChange,
   onClose,
 }) {
@@ -250,8 +255,25 @@ export default function PrivilegiosModal({
   };
 
   const [local, setLocal]   = useState(() => normalizar(privilegios));
+  // Por módulo: ¿el "ver" quedó activo por elección directa del usuario (clic
+  // sobre el propio "ver"), no como efecto de marcar otra acción? Si es así,
+  // "ver" permanece aunque se apaguen las demás acciones del módulo.
+  const [verExplicito, setVerExplicito] = useState(() => {
+    const init = {};
+    MODULOS.forEach(m => {
+      const items = local.filter(p => p.modulo === m.key);
+      const ver   = items.find(p => p.accion === "ver");
+      if (ver?.estado && !tieneOtraAccion(local, m.key)) init[m.key] = true;
+    });
+    return init;
+  });
   const [grupo, setGrupo]   = useState(GRUPOS_MODULOS[0].grupo);
   const [modKey, setModKey] = useState(GRUPOS_MODULOS[0].modulos[0].key);
+
+  // Anti-escalación: el usuario no puede tocar acciones que él mismo no posee.
+  const puedeEditar = (p) => bypass || !misClaves || misClaves.has(p.id);
+  // "ver" bloqueado: hay otra acción del módulo activa (no se puede desmarcar).
+  const verBloqueado = (moduloKey) => tieneOtraAccion(local, moduloKey);
 
   const handleGrupo = (g) => {
     setGrupo(g);
@@ -261,24 +283,45 @@ export default function PrivilegiosModal({
 
   const toggle = (id) => {
     if (isView) return;
+    const target = local.find(p => p.id === id);
+    if (!target || !puedeEditar(target)) return;
+
+    const mod = target.modulo;
+
+    if (target.accion === "ver") {
+      // Bloqueado mientras haya otra acción del módulo marcada.
+      if (verBloqueado(mod)) return;
+      const nuevo = !target.estado;
+      setVerExplicito(v => ({ ...v, [mod]: nuevo }));
+      setLocal(prev => prev.map(p => p.id === id ? { ...p, estado: nuevo } : p));
+      return;
+    }
+
+    const nuevo = !target.estado;
     setLocal(prev => {
-      const target = prev.find(p => p.id === id);
-      if (!target) return prev;
-      const newEstado = !target.estado;
-      return prev.map(p => {
-        if (p.id === id) return { ...p, estado: newEstado };
-        // Si activamos "crear", también activamos "ver" en el mismo módulo
-        if (newEstado && target.accion === "crear" && p.modulo === target.modulo && p.accion === "ver") {
-          return { ...p, estado: true };
-        }
-        return p;
-      });
+      const next = prev.map(p => p.id === id ? { ...p, estado: nuevo } : p);
+      const ver = next.find(p => p.modulo === mod && p.accion === "ver");
+      if (!ver) return next;
+      if (nuevo) {
+        // Marcar cualquier acción ≠ "ver" fuerza el "ver" del módulo.
+        return next.map(p => p === ver ? { ...p, estado: true } : p);
+      }
+      // Se desmarcó la última acción ≠ "ver": el "ver" se apaga salvo que el
+      // usuario lo hubiera marcado explícitamente.
+      const quedanOtras = next.some(p => p.modulo === mod && p.accion !== "ver" && p.estado);
+      if (!quedanOtras && !verExplicito[mod]) {
+        return next.map(p => p === ver ? { ...p, estado: false } : p);
+      }
+      return next;
     });
   };
 
   const toggleAll = (moduloKey, valor) => {
     if (isView) return;
-    setLocal(prev => prev.map(p => p.modulo === moduloKey ? { ...p, estado: valor } : p));
+    setLocal(prev => prev.map(p =>
+      p.modulo === moduloKey && puedeEditar(p) ? { ...p, estado: valor } : p
+    ));
+    if (!valor) setVerExplicito(v => ({ ...v, [moduloKey]: false }));
   };
 
   const grupoActual = GRUPOS_MODULOS.find(g => g.grupo === grupo);
@@ -409,12 +452,25 @@ export default function PrivilegiosModal({
               .map(accion => {
                 const permiso = modItems.find(p => p.accion === accion.key);
                 if (!permiso) return null;
-                const on = permiso.estado;
+                const on        = permiso.estado;
+                const noPosee   = !isView && !bypass && misClaves && !misClaves.has(permiso.id);
+                const verLock   = !isView && accion.key === "ver" && verBloqueado(modKey);
+                const bloqueado = noPosee || verLock;
+                const tip = noPosee
+                  ? "No puedes asignar un permiso que tú no tienes"
+                  : verLock
+                  ? "\"Ver\" es obligatorio mientras haya otras acciones marcadas"
+                  : undefined;
                 return (
                   <div
                     key={accion.key}
-                    style={{ ...S.accionCard(on, accion), cursor: isView ? "default" : "pointer" }}
-                    onClick={() => toggle(permiso.id)}
+                    data-tooltip={tip}
+                    style={{
+                      ...S.accionCard(on, accion),
+                      cursor: isView || bloqueado ? "default" : "pointer",
+                      opacity: noPosee ? 0.4 : 1,
+                    }}
+                    onClick={() => { if (!bloqueado) toggle(permiso.id); }}
                   >
                     <div style={{ width: 44, height: 44, borderRadius: 10, background: on ? accion.bg : "#f5f5f5", border: `1.5px solid ${on ? accion.border : "#e8e8e8"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <accion.Icon size={22} />
@@ -423,7 +479,9 @@ export default function PrivilegiosModal({
                       {accion.label}
                     </p>
                     <div style={S.accionCheck(on, accion)}>
-                      {on && <Check size={10} color="#fff" strokeWidth={3} />}
+                      {on && !verLock && <Check size={10} color="#fff" strokeWidth={3} />}
+                      {verLock && <Lock size={10} color="#fff" strokeWidth={3} />}
+                      {noPosee && !on && <Lock size={10} color="#9e9e9e" strokeWidth={3} />}
                     </div>
                   </div>
                 );

@@ -693,7 +693,9 @@ def obtener_mis_permisos(db: Session, actual: dict) -> list[str]:
     if id_rol == 1:
         return [p.Permiso for p in db.query(Permiso).all()]
 
-    return [
+    from src.shared.services.permisos_catalogo import VER_HERMANO
+
+    nombres = {
         p.Permiso
         for p in (
             db.query(Permiso)
@@ -701,4 +703,10 @@ def obtener_mis_permisos(db: Session, actual: dict) -> list[str]:
             .filter(RolXPermiso.ID_Rol == id_rol)
             .all()
         )
-    ]
+    }
+    # Auto-otorgado de `ver_`: cualquier acción de un módulo implica poder verlo.
+    for nombre in list(nombres):
+        ver = VER_HERMANO.get(nombre)
+        if ver:
+            nombres.add(ver)
+    return sorted(nombres)

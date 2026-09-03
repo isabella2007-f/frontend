@@ -3,6 +3,7 @@ import MainLayout from "../layouts/MainLayout";
 
 /* ─── DASHBOARD ─── */
 import Dashboard from "../features/dashboard/Dashboard";
+import PanelInicio from "../features/dashboard/PanelInicio";
 
 /* ─── CONFIGURACIÓN ─── */
 import GestionUsuarios from "../features/configuracion/Usuarios/GestionUsuarios";
@@ -21,8 +22,6 @@ import GestionClientes from "../features/ventas/clientes/GestionClientes";
 import GestionPedidos from "../features/ventas/pedidos/GestionPedidos";
 import GestionLiquidaciones from "../features/ventas/liquidaciones/GestionLiquidaciones";
 
-/* ─── REPORTES ─── */
-import Reportes from "../features/reportes/Reportes";
 import GestionDevoluciones from "../features/ventas/devoluciones/GestionDevoluciones";
 import GestionDomicilios from "../features/ventas/domicilios/Gestiondomicilios";
 import GestionDomiciliosRepartidor from "../features/ventas/domicilios/GestionDomiciliosRepartidor";
@@ -59,6 +58,7 @@ import SinAcceso from "../pages/SinAcceso";
 import ProtectedRoute from "../components/ProtectedRoute";
 import PrivilegioRoute from "../components/PrivilegioRoute";
 import RepartidorRoute from "../components/RepartidorRoute";
+import { usePrivilegio } from "../context/PrivilegiosContext";
 import { esRolRepartidor, INICIO_REPARTIDOR } from "../utils/roles";
 import { initUsers } from "../services/userService";
 import { getUser } from "../services/authService";
@@ -78,24 +78,18 @@ function CocinaRoute() {
   return <DashboardCocina />;
 }
 
-function ReportesRoute() {
-  const user = getUser();
-  if (user?.rol?.toLowerCase() === "cocinero") {
-    return <Reportes />;
-  }
-  return <PR clave="Dashboard_ver" el={<Reportes />} />;
-}
-
-/* Redirige domiciliarios a su dashboard; el resto ve el Dashboard general */
+/* Redirige domiciliarios a su dashboard; el resto ve el Dashboard general.
+   Sin "ver Dashboard" el usuario NO queda bloqueado: ve el panel de módulos. */
 function DashboardIndex() {
   const user = getUser();
+  const puedeVerDashboard = usePrivilegio("Dashboard_ver");
   if (esRolRepartidor(user?.rol)) {
     return <Navigate to={INICIO_REPARTIDOR} replace />;
   }
   if (user?.rol?.toLowerCase() === "cocinero") {
     return <Navigate to="/admin/cocina" replace />;
   }
-  return <PR clave="Dashboard_ver" el={<Dashboard />} />;
+  return puedeVerDashboard ? <Dashboard /> : <PanelInicio />;
 }
 
 const AppRouter = () => {
@@ -117,7 +111,7 @@ const AppRouter = () => {
             <Route index element={<DashboardIndex />} />
 
             {/* Sitio Web */}
-            <Route path="landing"    element={<PR clave="LandingPage_ver"   el={<EditarLanding />} />} />
+            <Route path="landing"    element={<PR clave="LandingPage_editar" el={<EditarLanding />} />} />
 
             {/* Configuración */}
             <Route path="usuarios"   element={<PR clave="Usuarios_ver"      el={<GestionUsuarios />} />} />
@@ -135,7 +129,6 @@ const AppRouter = () => {
             <Route path="clientes"      element={<PR clave="Pedidos_ver"      el={<GestionClientes />} />} />
             <Route path="pedidos"       element={<PR clave="Pedidos_ver"      el={<GestionPedidos />} />} />
             <Route path="liquidaciones" element={<PR clave="Domicilios_ver"   el={<GestionLiquidaciones />} />} />
-            <Route path="reportes"      element={<ReportesRoute />} />
             <Route path="devoluciones"  element={<PR clave="Devoluciones_ver" el={<GestionDevoluciones />} />} />
             <Route path="domicilios"           element={<PR clave="Domicilios_ver"            el={<GestionDomicilios />} />} />
             {/* Panel propio del repartidor: entra por rol, no por privilegio

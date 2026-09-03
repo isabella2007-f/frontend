@@ -1,19 +1,25 @@
 from sqlalchemy.orm import Session, selectinload
 from fastapi import HTTPException
-from datetime import datetime
+from datetime import datetime, time
 from decimal import Decimal
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from src.shared.services.models import (
     Compra, DetalleCompra, LoteCompra, Insumo, Proveedor, Estado
 )
 from src.shared.services.notificaciones_utils import notificar_stock_insumo
-from .schemas import CompraCreate
+from .schemas import (
+    CompraCreate, calcular_total_compra, validar_rango_total, TOTAL_MIN, TOTAL_MAX,
+)
 
 
 ESTADO_PENDIENTE  = 3
 ESTADO_COMPLETADA = 11
 ESTADO_ANULADA    = 12
+
+LOTE_PENDIENTE = 3
+LOTE_ACTIVO    = 1
+LOTE_ANULADO   = 12
 
 
 # ─────────────────────────────────────────
@@ -31,6 +37,19 @@ def _actualizar_estado_insumo(insumo: Insumo) -> None:
         insumo.Estado = 1
 
 
+def _parse_fecha_limite(valor, *, fin_del_dia: bool):
+    """Convierte 'YYYY-MM-DD' (o datetime) a datetime; None si no se puede."""
+    if not valor:
+        return None
+    if isinstance(valor, datetime):
+        return valor
+    try:
+        d = datetime.fromisoformat(str(valor).split("T")[0]).date()
+    except ValueError:
+        return None
+    return datetime.combine(d, time.max if fin_del_dia else time.min)
+
+
 # ─────────────────────────────────────────
 # FORMATO DE RESPUESTA
 # ─────────────────────────────────────────
@@ -44,6 +63,7 @@ def _formato_detalle(detalle: DetalleCompra) -> dict:
         "ID_Detalle_Compra": detalle.ID_Detalle_Compra,
         "ID_Insumo":         detalle.ID_Insumo,
         "nombre_insumo":     insumo.Nombre if insumo else None,
+        "ID_Unidad_Medida":  insumo.Unidad_Medida if insumo else None,
         "ID_Lote_Compra":    detalle.ID_Lote_Compra,
         "Cantidad":          detalle.Cantidad,
         "Precio_Und":        detalle.Precio_Und,
@@ -70,6 +90,7 @@ def _formato_compra(compra: Compra, db: Session, *, estados_map=None) -> dict:
         "Total_Pago":           compra.Total_Pago,
         "Fecha_Compra":         compra.Fecha_Compra,
         "Fecha_Llegada":        getattr(compra, "Fecha_Llegada", None),
+        "Fecha_Anulada":        getattr(compra, "Fecha_Anulada", None),
         "Estado":               compra.Estado,
         "estado_label":         estado_label,
         "Metodo_Pago":          compra.Metodo_Pago,
@@ -92,6 +113,8 @@ def obtener_compras(
     por_pagina: int = 10,
     busqueda: str = None,
     id_proveedor: int = None,
+    fecha_desde=None,
+    fecha_hasta=None,
 ) -> dict:
     query = db.query(Compra)
 
@@ -99,16 +122,30 @@ def obtener_compras(
         query = query.filter(Compra.ID_Proveedor == id_proveedor)
 
     if busqueda:
-        termino        = f"%{busqueda}%"
-        proveedor_ids  = (
+        termino       = f"%{busqueda.strip()}%"
+        proveedor_ids = (
             db.query(Proveedor.ID_Proveedor)
-            .filter(Proveedor.Nombre.ilike(termino))
+            .filter(Proveedor.Responsable.ilike(termino))
             .subquery()
         )
-        query = query.filter(
-            Compra.Metodo_Pago.ilike(termino) |
-            Compra.ID_Proveedor.in_(proveedor_ids)
-        )
+        filtros = [
+            Compra.Metodo_Pago.ilike(termino),
+            Compra.ID_Proveedor.in_(proveedor_ids),
+        ]
+        if busqueda.strip().isdigit():
+            filtros.append(Compra.ID_Compra == int(busqueda.strip()))
+        query = query.filter(or_(*filtros))
+
+    # Rango de fechas — se corrige automáticamente si vienen invertidas (no se bloquea)
+    d_desde = _parse_fecha_limite(fecha_desde, fin_del_dia=False)
+    d_hasta = _parse_fecha_limite(fecha_hasta, fin_del_dia=True)
+    if d_desde and d_hasta and d_desde > d_hasta:
+        d_desde, d_hasta = _parse_fecha_limite(fecha_hasta, fin_del_dia=False), \
+                           _parse_fecha_limite(fecha_desde, fin_del_dia=True)
+    if d_desde:
+        query = query.filter(Compra.Fecha_Compra >= d_desde)
+    if d_hasta:
+        query = query.filter(Compra.Fecha_Compra <= d_hasta)
 
     total   = query.count()
     offset  = (pagina - 1) * por_pagina
@@ -166,6 +203,7 @@ def obtener_compras(
             "ID_Detalle_Compra": d.ID_Detalle_Compra,
             "ID_Insumo":         d.ID_Insumo,
             "nombre_insumo":     ins.Nombre if ins else None,
+            "ID_Unidad_Medida":  ins.Unidad_Medida if ins else None,
             "ID_Lote_Compra":    d.ID_Lote_Compra,
             "Cantidad":          d.Cantidad,
             "Precio_Und":        d.Precio_Und,
@@ -183,6 +221,7 @@ def obtener_compras(
             "Total_Pago":           c.Total_Pago,
             "Fecha_Compra":         c.Fecha_Compra,
             "Fecha_Llegada":        getattr(c, "Fecha_Llegada", None),
+            "Fecha_Anulada":        getattr(c, "Fecha_Anulada", None),
             "Estado":               c.Estado,
             "estado_label":         estado.Estado if estado else None,
             "Metodo_Pago":          c.Metodo_Pago,
@@ -220,15 +259,10 @@ def crear_compra(db: Session, datos: CompraCreate) -> dict:
     if not proveedor:
         raise HTTPException(status_code=404, detail="Proveedor no encontrado")
 
-    subtotal = sum(
-        Decimal(str(d.Precio_Und)) * d.Cantidad
-        for d in datos.detalles
+    total_pago = calcular_total_compra(
+        datos.detalles, datos.Costo_Transporte, datos.IVA_Porcentaje,
+        datos.Descuento_Porcentaje, datos.Otros_Costos,
     )
-    transporte = Decimal(str(datos.Costo_Transporte or 0))
-    iva_val    = subtotal * Decimal(str(datos.IVA_Porcentaje or 0)) / 100
-    desc_val   = subtotal * Decimal(str(datos.Descuento_Porcentaje or 0)) / 100
-    otros      = Decimal(str(datos.Otros_Costos or 0))
-    total_pago = subtotal + transporte + iva_val - desc_val + otros
 
     nueva_compra = Compra(
         ID_Proveedor         = datos.ID_Proveedor,
@@ -259,7 +293,7 @@ def crear_compra(db: Session, datos: CompraCreate) -> dict:
             Fecha_Vencimiento = item.Fecha_Vencimiento,
             Cantidad_Inicial  = item.Cantidad,
             Cantidad_Actual   = item.Cantidad,  # FEFO: se actualiza al descontar
-            Estado            = 3,  # Pendiente — se activa al confirmar llegada
+            Estado            = LOTE_PENDIENTE,  # se activa al confirmar llegada
         )
         db.add(lote)
         db.flush()
@@ -281,9 +315,11 @@ def crear_compra(db: Session, datos: CompraCreate) -> dict:
 
 def editar_compra(db: Session, id_compra: int, datos) -> dict:
     """
-    Edita los campos básicos de una compra.
-    - Pendiente: proveedor, método, fecha, notas, departamento, municipio.
-    - Completada: solo método, notas y fecha_llegada.
+    Edita una compra.
+    - Pendiente: proveedor, método, fecha, notas, gastos adicionales e insumos
+      (se reconstruyen las líneas y sus lotes pendientes). Recalcula el total.
+    - Completada: solo método, notas y fecha de llegada.
+    - Anulada: no editable.
     """
     compra = db.query(Compra).filter(Compra.ID_Compra == id_compra).first()
     if not compra:
@@ -291,6 +327,7 @@ def editar_compra(db: Session, id_compra: int, datos) -> dict:
     if compra.Estado == ESTADO_ANULADA:
         raise HTTPException(status_code=400, detail="No se puede editar una compra anulada")
 
+    # Campos editables en cualquier estado no-anulado
     if datos.Metodo_Pago is not None:
         compra.Metodo_Pago = datos.Metodo_Pago
     if datos.Notas is not None:
@@ -298,7 +335,6 @@ def editar_compra(db: Session, id_compra: int, datos) -> dict:
     if datos.Fecha_Llegada is not None:
         compra.Fecha_Llegada = datos.Fecha_Llegada
 
-    # Campos solo editables cuando está pendiente
     if compra.Estado == ESTADO_PENDIENTE:
         if datos.ID_Proveedor is not None:
             proveedor = db.query(Proveedor).filter(Proveedor.ID_Proveedor == datos.ID_Proveedor).first()
@@ -308,6 +344,70 @@ def editar_compra(db: Session, id_compra: int, datos) -> dict:
         if datos.Fecha_Compra is not None:
             compra.Fecha_Compra = datos.Fecha_Compra
 
+        # Gastos adicionales — solo editables mientras está Pendiente
+        if datos.Costo_Transporte is not None:
+            compra.Costo_Transporte = datos.Costo_Transporte
+        if datos.IVA_Porcentaje is not None:
+            compra.IVA_Porcentaje = datos.IVA_Porcentaje
+        if datos.Descuento_Porcentaje is not None:
+            compra.Descuento_Porcentaje = datos.Descuento_Porcentaje
+        if datos.Otros_Costos is not None:
+            compra.Otros_Costos = datos.Otros_Costos
+
+        # Insumos — reconstruir líneas y sus lotes pendientes (nunca toca lotes ya activos)
+        if datos.detalles is not None:
+            if not datos.detalles:
+                raise HTTPException(status_code=400, detail="La compra debe tener al menos un insumo")
+
+            viejos     = db.query(DetalleCompra).filter(DetalleCompra.ID_Compra == id_compra).all()
+            lote_ids   = [d.ID_Lote_Compra for d in viejos if d.ID_Lote_Compra]
+            for d in viejos:
+                db.delete(d)
+            db.flush()
+            if lote_ids:
+                (db.query(LoteCompra)
+                   .filter(LoteCompra.ID_Lote_Compra.in_(lote_ids),
+                           LoteCompra.Estado == LOTE_PENDIENTE)
+                   .delete(synchronize_session=False))
+
+            for item in datos.detalles:
+                insumo = db.query(Insumo).filter(Insumo.ID_Insumo == item.ID_Insumo).first()
+                if not insumo:
+                    db.rollback()
+                    raise HTTPException(status_code=404, detail=f"Insumo con ID {item.ID_Insumo} no encontrado")
+                lote = LoteCompra(
+                    ID_Insumo         = item.ID_Insumo,
+                    Fecha_Vencimiento = item.Fecha_Vencimiento,
+                    Cantidad_Inicial  = item.Cantidad,
+                    Cantidad_Actual   = item.Cantidad,
+                    Estado            = LOTE_PENDIENTE,
+                )
+                db.add(lote)
+                db.flush()
+                db.add(DetalleCompra(
+                    ID_Compra      = id_compra,
+                    ID_Insumo      = item.ID_Insumo,
+                    ID_Lote_Compra = lote.ID_Lote_Compra,
+                    Cantidad       = item.Cantidad,
+                    Precio_Und     = item.Precio_Und,
+                    Notas          = item.Notas,
+                ))
+            db.flush()
+
+    # Recalcular el total con el estado final de líneas + gastos
+    detalles_finales = db.query(DetalleCompra).filter(DetalleCompra.ID_Compra == id_compra).all()
+    total = calcular_total_compra(
+        detalles_finales, compra.Costo_Transporte, compra.IVA_Porcentaje,
+        compra.Descuento_Porcentaje, compra.Otros_Costos,
+    )
+    if total < TOTAL_MIN or total > TOTAL_MAX:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=f"El total resultante (${total:,.0f} COP) está fuera del rango permitido"
+        )
+    compra.Total_Pago = total
+
     db.commit()
     db.refresh(compra)
     return _formato_compra(compra, db)
@@ -315,7 +415,7 @@ def editar_compra(db: Session, id_compra: int, datos) -> dict:
 
 def completar_compra(db: Session, id_compra: int, fecha_llegada=None) -> dict:
     """
-    Confirma la llegada de la compra: aplica el stock de cada insumo y pasa a Completada (4).
+    Confirma la llegada de la compra: aplica el stock de cada insumo y pasa a Completada (11).
     Solo puede completarse desde Pendiente (3).
     """
     compra = db.query(Compra).filter(Compra.ID_Compra == id_compra).first()
@@ -335,24 +435,34 @@ def completar_compra(db: Session, id_compra: int, fecha_llegada=None) -> dict:
     insumos_map  = {i.ID_Insumo: i for i in db.query(Insumo).filter(Insumo.ID_Insumo.in_(insumo_ids_d)).all()} if insumo_ids_d else {}
     lotes_map    = {l.ID_Lote_Compra: l for l in db.query(LoteCompra).filter(LoteCompra.ID_Lote_Compra.in_(lote_ids_d)).all()} if lote_ids_d else {}
 
+    # FEFO: el hint Insumo.ID_Lote_Compra apunta al lote de esta compra más próximo a vencer
+    lote_hint_por_insumo: dict = {}
     for detalle in detalles:
         insumo = insumos_map.get(detalle.ID_Insumo)
         if insumo:
             insumo.Stock_Actual = (insumo.Stock_Actual or 0) + detalle.Cantidad
-            insumo.ID_Lote_Compra = detalle.ID_Lote_Compra
             _actualizar_estado_insumo(insumo)
         lote = lotes_map.get(detalle.ID_Lote_Compra) if detalle.ID_Lote_Compra else None
         if lote:
-            lote.Estado = 1
+            lote.Estado = LOTE_ACTIVO
             if lote.Cantidad_Actual is None:
                 lote.Cantidad_Actual = lote.Cantidad_Inicial
+            actual = lote_hint_por_insumo.get(detalle.ID_Insumo)
+            if actual is None or (
+                lote.Fecha_Vencimiento is not None and (
+                    actual.Fecha_Vencimiento is None
+                    or lote.Fecha_Vencimiento < actual.Fecha_Vencimiento
+                )
+            ):
+                lote_hint_por_insumo[detalle.ID_Insumo] = lote
+
+    for id_insumo, lote in lote_hint_por_insumo.items():
+        insumo = insumos_map.get(id_insumo)
+        if insumo:
+            insumo.ID_Lote_Compra = lote.ID_Lote_Compra
 
     compra.Estado = ESTADO_COMPLETADA
-    if fecha_llegada:
-        compra.Fecha_Llegada = fecha_llegada
-    else:
-        from datetime import datetime as _dt
-        compra.Fecha_Llegada = _dt.now()
+    compra.Fecha_Llegada = fecha_llegada or datetime.now()
     db.commit()
     db.refresh(compra)
 
@@ -368,8 +478,8 @@ def completar_compra(db: Session, id_compra: int, fecha_llegada=None) -> dict:
 def anular_compra(db: Session, id_compra: int) -> dict:
     """
     Anula la compra.
-    - Desde Pendiente (3): marca los lotes como Anulados (12), sin afectar stock.
-    - Desde Completada (11): revierte el stock de cada insumo y marca los lotes como Anulados.
+    - Desde Pendiente (3): marca los lotes pendientes como Anulados (12), sin afectar stock.
+    - Desde Completada (11): revierte el stock de cada insumo y anula los lotes.
     """
     compra = db.query(Compra).filter(Compra.ID_Compra == id_compra).first()
     if not compra:
@@ -410,7 +520,8 @@ def anular_compra(db: Session, id_compra: int) -> dict:
                 _actualizar_estado_insumo(insumo)
             lote = lotes_map.get(detalle.ID_Lote_Compra) if detalle.ID_Lote_Compra else None
             if lote:
-                lote.Estado = 12  # Anulada
+                lote.Estado = LOTE_ANULADO
+                lote.Cantidad_Actual = 0  # el lote revertido ya no aporta stock
 
         for detalle in detalles:
             insumo = insumos_map.get(detalle.ID_Insumo)
@@ -421,10 +532,11 @@ def anular_compra(db: Session, id_compra: int) -> dict:
         # Marcar lotes pendientes como anulados
         for detalle in detalles:
             lote = lotes_map.get(detalle.ID_Lote_Compra) if detalle.ID_Lote_Compra else None
-            if lote and lote.Estado == 3:
-                lote.Estado = 12  # Anulada
+            if lote and lote.Estado == LOTE_PENDIENTE:
+                lote.Estado = LOTE_ANULADO
 
     compra.Estado = ESTADO_ANULADA
+    compra.Fecha_Anulada = datetime.now()
     db.commit()
     db.refresh(compra)
     return _formato_compra(compra, db)

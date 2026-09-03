@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Search, X, Check, CheckCircle2, Ban, Package, Building2, CreditCard, FileText, Banknote, Eye, PenLine, Trash2, ShoppingCart, Clock } from "lucide-react";
+import { Search, X, Check, CheckCircle2, Ban, Building2, CreditCard, FileText, Banknote, Eye, PenLine, ShoppingCart, Clock } from "lucide-react";
 import { getCompras, crearCompra as apiCrearCompra, editarCompra, completarCompra, anularCompra } from "../../../services/comprasService.js";
 import { getProveedores } from "../../../services/proveedoresService.js";
 import CrearCompra from "./CrearCompra.jsx";
@@ -19,6 +19,39 @@ const METODOS_LABEL = {
   crédito:       { label: "Crédito",       Icon: CreditCard,  bg: "#f3e5f5", color: "#6a1b9a", border: "#ce93d8" },
   cheque:        { label: "Cheque",        Icon: FileText,    bg: "#fff8e1", color: "#f57f17", border: "#ffe082" },
 };
+
+/* ── Celda "Fechas" (completación / anulación) ─────────────── */
+function FechaBadge({ tipo, fecha }) {
+  const esComp = tipo === "completada";
+  return (
+    <span className={`fecha-badge fecha-badge--${esComp ? "completada" : "anulada"}`}>
+      <span className="fecha-badge__label">{esComp ? "Completada" : "Anulada"}</span>
+      <span className="fecha-badge__date">
+        {esComp ? <CheckCircle2 size={11} /> : <Ban size={11} />} {fmtFecha(fecha)}
+      </span>
+    </span>
+  );
+}
+
+function FechasCell({ compra }) {
+  if (compra.estado === "anulada") {
+    // Completada y luego anulada → ambas apiladas (completación arriba, anulación abajo)
+    return (
+      <div className="fechas-cell">
+        {compra.fecha_llegada && <FechaBadge tipo="completada" fecha={compra.fecha_llegada} />}
+        <FechaBadge tipo="anulada" fecha={compra.fecha_anulada} />
+      </div>
+    );
+  }
+  if (compra.estado === "completada") {
+    return (
+      <div className="fechas-cell">
+        <FechaBadge tipo="completada" fecha={compra.fecha_llegada} />
+      </div>
+    );
+  }
+  return <span style={{ fontSize: 11, color: "#bdbdbd", fontWeight: 600 }}>Pendiente</span>;
+}
 
 /* ── Toast ────────────────────────────────────────────────── */
 function Toast({ toast }) {
@@ -93,15 +126,22 @@ export default function GestionCompras() {
 
   const getProveedor = (id) => proveedores.find(p => (p.ID_Proveedor || p.id) === id) || null;
 
-  const cargarDatos = async () => {
+  // Si el rango viene invertido se ordena solo: el menor es "desde", el mayor "hasta".
+  const [rangoDesde, rangoHasta] = (filterDesde && filterHasta && filterDesde > filterHasta)
+    ? [filterHasta, filterDesde]
+    : [filterDesde, filterHasta];
+
+  const cargarCompras = async () => {
     setLoading(true);
     try {
-      const [cData, pData] = await Promise.all([
-        getCompras({ porPagina: 100 }),
-        getProveedores({ porPagina: 100 }).catch(() => []),
-      ]);
+      const cData = await getCompras({
+        porPagina:  100,
+        busqueda:   search.trim(),
+        idProveedor: filterProv !== "todos" ? filterProv : null,
+        fechaDesde: rangoDesde,
+        fechaHasta: rangoHasta,
+      });
       setCompras([...(cData.compras || [])].sort((a, b) => b.id - a.id));
-      setProveedores(pData.proveedores || pData || []);
     } catch (err) {
       showToast(err?.message || "Error al cargar las compras. Intenta de nuevo.", "error");
     } finally {
@@ -109,7 +149,19 @@ export default function GestionCompras() {
     }
   };
 
-  useEffect(() => { cargarDatos(); }, []);
+  // Proveedores: se cargan una sola vez. Las compras las carga el efecto de abajo.
+  useEffect(() => {
+    getProveedores({ porPagina: 100 })
+      .then(pData => setProveedores(pData.proveedores || pData || []))
+      .catch(() => {});
+  }, []);
+
+  // Carga inicial + refetch (con debounce) cuando cambian los filtros que resuelve el backend.
+  useEffect(() => {
+    const t = setTimeout(() => { cargarCompras(); }, 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, filterProv, rangoDesde, rangoHasta]);
 
   useEffect(() => {
     const h = e => {
@@ -124,10 +176,12 @@ export default function GestionCompras() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  /* ── Filtrado ── */
+  /* ── Filtrado ──
+     El backend ya resuelve búsqueda, proveedor y rango de fechas (ver cargarCompras).
+     Aquí solo se aplica el estado y una segunda pasada de texto/fecha por si acaso. */
   const filtered = compras.filter(c => {
     const q = search.toLowerCase();
-    const matchQ = (
+    const matchQ = !q || (
       String(c.id).toLowerCase().includes(q) ||
       (c.proveedor   || "").toLowerCase().includes(q) ||
       (c.metodoPago  || "").toLowerCase().includes(q) ||
@@ -135,15 +189,15 @@ export default function GestionCompras() {
     );
     const matchEstado = filterEstado === "todos" || c.estado === filterEstado;
     const matchProv   = filterProv   === "todos" || String(c.idProveedor) === String(filterProv);
-    // Fecha range
+    // Fecha range — comparación por string YYYY-MM-DD (sin desfase de zona horaria)
     let matchFecha = true;
-    if (filterDesde || filterHasta) {
+    if (rangoDesde || rangoHasta) {
       const val = getRecordDate(c);
       if (!val) matchFecha = false;
       else {
-        const d = new Date(String(val).split('T')[0]);
-        if (filterDesde && new Date(filterDesde) > d) matchFecha = false;
-        if (filterHasta && new Date(filterHasta) < d) matchFecha = false;
+        const d = String(val).split('T')[0];
+        if (rangoDesde && d < rangoDesde) matchFecha = false;
+        if (rangoHasta && d > rangoHasta) matchFecha = false;
       }
     }
     return matchQ && matchEstado && matchProv && matchFecha;
@@ -153,7 +207,7 @@ export default function GestionCompras() {
   const safePage   = Math.min(page, totalPages);
   const paginated  = filtered.slice((safePage - 1) * ITEMS_PER_PAGE, safePage * ITEMS_PER_PAGE);
 
-  useEffect(() => setPage(1), [search, filterEstado, filterProv]);
+  useEffect(() => setPage(1), [search, filterEstado, filterProv, rangoDesde, rangoHasta]);
 
   const hasFilter = filterEstado !== "todos" || filterProv !== "todos";
 
@@ -161,7 +215,7 @@ export default function GestionCompras() {
   const handleCreate = async (form) => {
     try {
       await apiCrearCompra(form);
-      await cargarDatos();
+      await cargarCompras();
       showToast("Compra registrada correctamente");
       setModal(null);
     } catch (err) {
@@ -172,7 +226,7 @@ export default function GestionCompras() {
   const handleEdit = async (form) => {
     try {
       await editarCompra(form.id, form);
-      await cargarDatos();
+      await cargarCompras();
       showToast("Compra actualizada correctamente");
       setModal(null);
     } catch (err) {
@@ -184,7 +238,7 @@ export default function GestionCompras() {
     setModal(null);  // cerrar modal antes de mostrar toast para evitar que quede detrás
     try {
       await anularCompra(id);
-      await cargarDatos();
+      await cargarCompras();
       showToast("Compra anulada correctamente");
     } catch (err) {
       showToast(err.message || "Error al anular la compra", "error");
@@ -199,7 +253,7 @@ export default function GestionCompras() {
   const handleConfirmarLlegada = async (id, fecha) => {
     try {
       await completarCompra(id, fecha);
-      await cargarDatos();
+      await cargarCompras();
       showToast("Compra completada y stock aplicado correctamente");
       setLlegadaModal(null);
     } catch (err) {
@@ -335,7 +389,7 @@ export default function GestionCompras() {
                   <th>Método</th>
                   <th>Total</th>
                   <th>Estado</th>
-                  <th>Llegada</th>
+                  <th>Fechas</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
@@ -413,13 +467,8 @@ export default function GestionCompras() {
                         </span>
                       </td>
 
-                      {/* Fecha llegada */}
-                      <td>
-                        {c.fecha_llegada
-                          ? <span className="date-badge" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Package size={13} /> {fmtFecha(c.fecha_llegada)}</span>
-                          : <span style={{ fontSize: 11, color: "#bdbdbd", fontWeight: 600 }}>Pendiente</span>
-                        }
-                      </td>
+                      {/* Fechas de estado */}
+                      <td><FechasCell compra={c} /></td>
 
                       {/* Acciones */}
                       <td>
@@ -437,11 +486,13 @@ export default function GestionCompras() {
                               onClick={() => handleCompletarRapido(c.id)}
                             ><CheckCircle2 size={15} /></button>
                           )}
-                          <button
-                            className="act-btn act-btn--edit"
-                            data-tooltip="Editar compra"
-                            onClick={() => setModal({ mode: "edit", compra: c })}
-                          ><PenLine size={15} /></button>
+                          {c.estado !== "anulada" && (
+                            <button
+                              className="act-btn act-btn--edit"
+                              data-tooltip="Editar compra"
+                              onClick={() => setModal({ mode: "edit", compra: c })}
+                            ><PenLine size={15} /></button>
+                          )}
 
                           {c.estado !== "anulada" && (
                             <button

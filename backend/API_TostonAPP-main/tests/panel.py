@@ -117,23 +117,25 @@ DEV_RECHAZADA = 7
 
 # Lo que el rol de reparto tiene concedido en Rol_x_Permiso. Es la lista real
 # que se le carga desde Configuración → Roles.
-PERMISOS_REPARTO = ["ver_domicilios", "cambiar_estado_domicilios"]
+PERMISOS_REPARTO = ["ver_domicilios", "ver_detalle_domicilios", "cambiar_estado_domicilios"]
 
 # Lo que necesita el rol Cliente para comprar. `requiere_permiso` NO exceptúa a
 # los clientes (su docstring dice que sí, pero el código solo exceptúa al rol
 # Administrador), así que sin este permiso cargado en Rol_x_Permiso la tienda
 # entera devuelve 403 al confirmar el pedido. Se siembra igual que en producción
 # para que estas pruebas reproduzcan lo que ve el cliente de verdad.
-PERMISOS_CLIENTE = ["crear_ventas"]
+PERMISOS_CLIENTE = ["crear_pedidos"]
 
-# Todos los permisos que tocan los módulos de venta, para poder darle a un
-# empleado exactamente los que hagan falta en cada caso.
+# Todos los permisos que tocan los módulos de venta/producción, para poder darle
+# a un rol exactamente los que hagan falta en cada caso. Una venta es un pedido
+# completado: no hay permisos "*_ventas" separados.
 PERMISOS = [
-    "ver_pedidos", "editar_pedidos",
-    "ver_ventas", "crear_ventas", "editar_ventas",
-    "ver_domicilios", "crear_domicilios", "editar_domicilios",
-    "cambiar_estado_domicilios",
-    "ver_devoluciones", "editar_devoluciones",
+    "ver_pedidos", "crear_pedidos", "editar_pedidos", "cancelar_pedidos",
+    "ver_domicilios", "ver_detalle_domicilios", "crear_domicilios",
+    "editar_domicilios", "cambiar_estado_domicilios",
+    "ver_devoluciones", "editar_devoluciones", "aprobar_devoluciones",
+    "ver_ordenes", "crear_ordenes", "editar_ordenes",
+    "cambiar_estado_ordenes", "anular_ordenes",
     "ver_productos", "crear_productos", "editar_productos",
 ]
 

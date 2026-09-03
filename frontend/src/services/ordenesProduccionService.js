@@ -22,8 +22,10 @@ function adaptarOrden(o) {
     idFicha:        o.ID_Ficha,
     versionFicha:   o.version_ficha,
     cantidad:       o.Cantidad,
+    fechaCreacion:  o.Fecha_Creacion ? String(o.Fecha_Creacion).split("T")[0] : null,
     fechaInicio:    o.Fecha_inicio  ? String(o.Fecha_inicio).split("T")[0]  : null,
     fechaEntrega:   o.Fecha_Entrega ? String(o.Fecha_Entrega).split("T")[0] : null,
+    fechaFin:       o.Fecha_fin     ? String(o.Fecha_fin).split("T")[0]     : null,
     estado:         ESTADO_DISPLAY_MAP[label] || label || "Pendiente",
     costo:          parseFloat(o.Costo ?? 0),
     costoDetalle:   o.costo_detalle || [],
@@ -52,7 +54,9 @@ export async function editarOrden(id, data) {
   return apiFetch(`/ordenes-produccion/${id}`, { method: "PUT", body: JSON.stringify(data) });
 }
 
-export async function eliminarOrden(id) {
+// "Anular" = pasar la orden a estado Cancelada conservando su historial.
+// El backend usa el verbo DELETE pero NO borra el registro.
+export async function anularOrden(id) {
   return apiFetch(`/ordenes-produccion/${id}`, { method: "DELETE" });
 }
 

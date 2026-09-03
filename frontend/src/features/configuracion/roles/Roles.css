@@ -316,6 +316,10 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; color: #1a1a1a; }
 }
 .emoji-picker-tab:hover { color: #2e7d32; }
 .emoji-picker-tab.active { color: #2e7d32; border-bottom-color: #2e7d32; background: #f1f8f1; }
+.emoji-picker-libre {
+  display: flex; align-items: center; gap: 8px; padding: 12px;
+}
+.emoji-picker-libre .field-input { flex: 1; }
 
 /* ─── Icon row ───────────────────────────────────────────── */
 .icon-row { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }

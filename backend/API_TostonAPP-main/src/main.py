@@ -56,6 +56,7 @@ def migrate_db():
             "ALTER TABLE Orden_Produccion MODIFY COLUMN ID_Ficha  INT NULL",
             "ALTER TABLE Ficha_Tecnica ADD COLUMN Dias_Vida_Util INT NULL",
             "ALTER TABLE Compras ADD COLUMN Fecha_Llegada DATETIME NULL",
+            "ALTER TABLE Compras ADD COLUMN Fecha_Anulada DATETIME NULL",
             """CREATE TABLE IF NOT EXISTS Ficha_Tecnica_Insumo (
                 ID_Ficha_Insumo INT AUTO_INCREMENT PRIMARY KEY,
                 ID_Ficha        INT NOT NULL,
@@ -71,8 +72,6 @@ def migrate_db():
             "ALTER TABLE Compras ADD COLUMN IVA_Porcentaje DECIMAL(5,2) NULL",
             "ALTER TABLE Compras ADD COLUMN Descuento_Porcentaje DECIMAL(5,2) NULL",
             "ALTER TABLE Compras ADD COLUMN Otros_Costos DECIMAL(30,2) NULL",
-            """INSERT IGNORE INTO Permisos (ID_Permiso, Permiso, Descripcion)
-               VALUES (60, 'ver_landing_page', 'Ver la landing page desde el panel')""",
             # Pago mixto: cuánto del pedido va en efectivo y cuánto por transferencia
             "ALTER TABLE Ventas ADD COLUMN Monto_Efectivo DECIMAL(30,2) NULL",
             "ALTER TABLE Ventas ADD COLUMN Monto_Transferencia DECIMAL(30,2) NULL",
@@ -142,6 +141,10 @@ def migrate_db():
             "ALTER TABLE Ventas ADD COLUMN Estado_Pago VARCHAR(30) NULL DEFAULT 'pendiente'",
             # Unidades de cada línea que van por encima del stock (preorden)
             "ALTER TABLE Venta_x_Producto ADD COLUMN Cantidad_Preorden INT NOT NULL DEFAULT 0",
+            # Fecha en que se registró la orden de producción (automática, solo lectura).
+            # Backfill: las órdenes previas heredan su Fecha_inicio como aproximación.
+            "ALTER TABLE Orden_Produccion ADD COLUMN Fecha_Creacion DATETIME NULL",
+            "UPDATE Orden_Produccion SET Fecha_Creacion = Fecha_inicio WHERE Fecha_Creacion IS NULL",
             # Chat de domicilios persistido en BD (antes se perdía en cada reinicio)
             """CREATE TABLE IF NOT EXISTS MensajesChat (
                 ID_Mensaje       INT AUTO_INCREMENT PRIMARY KEY,
@@ -288,10 +291,16 @@ def migrate_db():
         except Exception:
             pass
 
+    # ── Refactor del catálogo de permisos ─────────────────────────────────────
+    # Renombres, fusión de "ventas" en "pedidos", retiro de permisos sin uso y
+    # migración de los endpoints que usaban un permiso "proxy" de otro módulo a
+    # su permiso propio. Cada rol conserva el acceso que ya tenía.
+    _migrar_catalogo_permisos(engine)
+
     # ── Permisos del rol "Empleado" ───────────────────────────────────────────
     # El empleado puede CREAR y VER pedidos (con selección de cliente) y VER
     # devoluciones, pero NO confirmar/cancelar pedidos ni aprobar/rechazar
-    # devoluciones (esas acciones requieren editar_ventas / editar_devoluciones).
+    # devoluciones (esas acciones requieren editar_pedidos / editar_devoluciones).
     with engine.connect() as conn:
         # Otorgar permisos necesarios (idempotente)
         try:
@@ -301,7 +310,7 @@ def migrate_db():
                 FROM Roles r
                 JOIN Permisos p
                   ON p.Permiso IN (
-                       'ver_pedidos', 'ver_ventas', 'crear_ventas',
+                       'ver_pedidos', 'crear_pedidos',
                        'ver_usuarios', 'ver_devoluciones'
                      )
                 WHERE LOWER(TRIM(r.Rol)) = 'empleado'
@@ -316,14 +325,14 @@ def migrate_db():
                 JOIN Roles r     ON r.ID_Rol     = rxp.ID_Rol
                 JOIN Permisos p  ON p.ID_Permiso = rxp.ID_Permiso
                 WHERE LOWER(TRIM(r.Rol)) = 'empleado'
-                  AND p.Permiso IN ('editar_ventas', 'editar_devoluciones')
+                  AND p.Permiso IN ('editar_pedidos', 'editar_devoluciones')
             """))
             conn.commit()
         except Exception:
             pass
 
     # ── Permisos del rol "Cliente" ───────────────────────────────────────────
-    # El cliente solo necesita crear_ventas (hacer pedidos). Las demás acciones
+    # El cliente solo necesita crear_pedidos (hacer pedidos). Las demás acciones
     # del cliente (mis-ventas, mis-devoluciones, cancelar pedido propio) usan
     # obtener_usuario_actual sin requiere_permiso.
     with engine.connect() as conn:
@@ -332,12 +341,107 @@ def migrate_db():
                 INSERT IGNORE INTO Rol_x_Permiso (ID_Rol, ID_Permiso)
                 SELECT r.ID_Rol, p.ID_Permiso
                 FROM Roles r
-                JOIN Permisos p ON p.Permiso = 'crear_ventas'
+                JOIN Permisos p ON p.Permiso = 'crear_pedidos'
                 WHERE LOWER(TRIM(r.Rol)) = 'cliente'
             """))
             conn.commit()
         except Exception:
             pass
+
+
+def _migrar_catalogo_permisos(engine):
+    """Migración idempotente del catálogo de permisos (ver `migrate_db`)."""
+    from sqlalchemy import text
+    from src.shared.services.permisos_catalogo import PERMISOS as _CAT
+
+    # Fusiones = el permiso de origen se retira y su acceso pasa al destino.
+    #  - Renombre semántico: "eliminar" → "anular"/"cancelar" en módulos operativos.
+    #  - "Gestión de Ventas" no existe como módulo: una venta es un pedido
+    #    completado; su permiso pasa al equivalente de pedidos.
+    fusiones = [
+        ("eliminar_ordenes", "anular_ordenes"),
+        ("eliminar_pedidos", "cancelar_pedidos"),
+        ("ver_ventas",       "ver_pedidos"),
+        ("crear_ventas",     "crear_pedidos"),
+        ("editar_ventas",    "editar_pedidos"),
+    ]
+    # 3. Endpoints que pedían un permiso de otro módulo → grant del propio.
+    proxies = [
+        ("ver_productos",    "ver_ordenes"),
+        ("crear_productos",  "crear_ordenes"),
+        ("editar_productos", "editar_ordenes"),
+        ("editar_productos", "cambiar_estado_ordenes"),
+        ("eliminar_productos", "anular_ordenes"),
+        ("ver_productos",    "ver_cat_productos"),
+        ("crear_productos",  "crear_cat_productos"),
+        ("editar_productos", "editar_cat_productos"),
+        ("eliminar_productos", "eliminar_cat_productos"),
+        ("ver_insumos",    "ver_compras"),
+        ("crear_insumos",  "crear_compras"),
+        ("editar_insumos", "editar_compras"),
+        ("editar_insumos", "cambiar_estado_compras"),
+        ("editar_insumos", "anular_compras"),
+        ("ver_insumos",    "ver_cat_insumos"),
+        ("crear_insumos",  "crear_cat_insumos"),
+        ("editar_insumos", "editar_cat_insumos"),
+        ("eliminar_insumos", "eliminar_cat_insumos"),
+        ("ver_insumos",    "ver_proveedores"),
+        ("crear_insumos",  "crear_proveedores"),
+        ("editar_insumos", "editar_proveedores"),
+        ("eliminar_insumos", "eliminar_proveedores"),
+        ("ver_domicilios", "ver_detalle_domicilios"),
+        ("editar_devoluciones", "aprobar_devoluciones"),
+        ("editar_pedidos", "cancelar_pedidos"),
+    ]
+    obsoletos = ["ver_landing_page"]
+
+    with engine.connect() as conn:
+        # Sembrar todo el catálogo (llena los nombres nuevos que falten).
+        for nombre, desc, _m, _a in _CAT:
+            try:
+                conn.execute(text(
+                    "INSERT IGNORE INTO Permisos (Permiso, Descripcion) VALUES (:n, :d)"
+                ), {"n": nombre, "d": desc})
+                conn.commit()
+            except Exception:
+                conn.rollback()
+
+        # Fusiones y proxies: grant del permiso destino a todo rol que ya tenía
+        # el de origen; las fusiones además retiran el permiso de origen.
+        for origen, destino in fusiones + proxies:
+            try:
+                conn.execute(text("""
+                    INSERT IGNORE INTO Rol_x_Permiso (ID_Rol, ID_Permiso)
+                    SELECT rxp.ID_Rol, pd.ID_Permiso
+                    FROM Rol_x_Permiso rxp
+                    JOIN Permisos po ON po.ID_Permiso = rxp.ID_Permiso AND po.Permiso = :o
+                    JOIN Permisos pd ON pd.Permiso = :d
+                """), {"o": origen, "d": destino})
+                conn.commit()
+            except Exception:
+                conn.rollback()
+
+        for origen, _destino in fusiones:
+            for sql in (
+                "DELETE rxp FROM Rol_x_Permiso rxp JOIN Permisos p ON p.ID_Permiso = rxp.ID_Permiso WHERE p.Permiso = :o",
+                "DELETE FROM Permisos WHERE Permiso = :o",
+            ):
+                try:
+                    conn.execute(text(sql), {"o": origen})
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+
+        for nombre in obsoletos:
+            for sql in (
+                "DELETE rxp FROM Rol_x_Permiso rxp JOIN Permisos p ON p.ID_Permiso = rxp.ID_Permiso WHERE p.Permiso = :o",
+                "DELETE FROM Permisos WHERE Permiso = :o",
+            ):
+                try:
+                    conn.execute(text(sql), {"o": nombre})
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
 
 # ── CORS — origins desde variable de entorno para no hardcodear URLs ──
 _CORS_ORIGINS = [

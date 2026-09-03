@@ -116,11 +116,16 @@ class CrearVentaBase(unittest.TestCase):
         self.db.commit()
 
     def marcar_por_encargo(self, id_producto):
-        """El producto se fabrica bajo pedido (Requiere_Produccion = 1)."""
+        """El producto se fabrica bajo pedido: flag Requiere_Produccion + ficha
+        técnica (sin ella no puede generarse la orden — regla 3.10)."""
         prod = self.db.query(Producto).filter(
             Producto.ID_Producto == id_producto
         ).first()
         prod.Requiere_Produccion = 1
+        if not self.db.query(FichaTecnica).filter(
+            FichaTecnica.ID_Producto == id_producto
+        ).first():
+            self.db.add(FichaTecnica(ID_Producto=id_producto, Version="1", Estado=1))
         self.db.commit()
 
     def desactivar(self, id_producto):

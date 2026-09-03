@@ -92,7 +92,7 @@ def listar_repartidores(
 def ver_domicilio(
     id_domicilio: int,
     db:           Session = Depends(get_db),
-    actual:       dict    = Depends(requiere_permiso("ver_domicilios"))
+    actual:       dict    = Depends(requiere_permiso("ver_detalle_domicilios"))
 ):
     """Retorna el detalle de un domicilio."""
     registro = actual["registro"]

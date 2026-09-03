@@ -37,8 +37,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from src.features.produccion.ordenes_produccion.services.service import (
+    anular_orden,
     cambiar_estado as cambiar_estado_orden,
+    crear_orden,
+    editar_orden,
 )
+from src.features.produccion.ordenes_produccion.services.schemas import OrdenCreate, OrdenUpdate
+from src.features.produccion.productos.services.service import gestionar_ficha
+from src.features.produccion.productos.services.schemas import FichaTecnicaInput, FichaTecnicaInsumoInput
 from src.features.ventas.gestion_ventas.services.schemas import (
     DomicilioVentaInput,
     ProductoVentaInput,
@@ -298,10 +304,14 @@ class InsumosTests(FlujoProduccionE2EBase):
             self.mover_orden(ORDEN_EN_PROCESO)
         self.assertIn("ficha técnica", ctx.exception.detail.lower())
 
-    def test_cancelar_lo_que_estaba_en_proceso_devuelve_los_insumos(self):
+    def test_cancelar_el_pedido_en_proceso_devuelve_los_insumos_de_su_orden(self):
+        """3.13 — cancelar el pedido cancela su orden en cadena y le devuelve
+        los insumos (la orden ligada a un pedido no se cancela por separado)."""
         self.crear()
         self.mover_orden(ORDEN_EN_PROCESO)
-        self.mover_orden(ORDEN_CANCELADA)
+        cambiar_estado(self.db, self.venta().ID_Venta, EstadoPedido.CANCELADO)
+        self.db.commit()
+        self.assertEqual(self.orden().Estado, ORDEN_CANCELADA)
         self.assertAlmostEqual(float(self.harina().Stock_Actual), STOCK_HARINA, places=3)
         self.assertAlmostEqual(float(self.lote_compra(1).Cantidad_Actual), 500.0, places=3)
 
@@ -381,23 +391,32 @@ class PedidoEsperaLaProduccionTests(FlujoProduccionE2EBase):
         with self.assertRaises(HTTPException):
             cambiar_estado(self.db, self.venta().ID_Venta, EstadoPedido.LISTO)
 
-    def test_cancelar_la_orden_sin_hornear_deja_el_pedido_trabado(self):
-        """Y con razón: el producto no existe. Hay que reponer o volver a producir."""
+    def _sin_ficha(self):
+        """Deja el producto sin ficha técnica: su faltante ya no puede fabricarse."""
+        self.db.query(FichaTecnicaInsumo).delete()
+        self.db.query(FichaTecnica).delete()
+        self.db.commit()
+
+    def test_producto_sin_ficha_no_abre_orden_y_traba_el_pedido(self):
+        """3.10 — sin ficha técnica no se abre orden automática y el pedido no
+        puede pasar a Listo: falta producto que nadie fabricó."""
+        self._sin_ficha()
         self.crear()
+        self.assertIsNone(self.orden())
+
         cambiar_estado(self.db, self.venta().ID_Venta, EstadoPedido.CONFIRMADO)
         self.db.commit()
-        self.mover_orden(ORDEN_CANCELADA)
 
         with self.assertRaises(HTTPException) as ctx:
             cambiar_estado(self.db, self.venta().ID_Venta, EstadoPedido.LISTO)
         self.assertIn("falta producto", ctx.exception.detail.lower())
 
-    def test_reponiendo_el_stock_a_mano_el_pedido_se_destraba(self):
-        """La orden se canceló pero entró mercadería: el faltante ya existe."""
+    def test_reponiendo_el_stock_a_mano_destraba_el_pedido_sin_ficha(self):
+        """Aunque el faltante no se fabricó, si entra mercadería el pedido pasa."""
+        self._sin_ficha()
         self.crear()
         cambiar_estado(self.db, self.venta().ID_Venta, EstadoPedido.CONFIRMADO)
         self.db.commit()
-        self.mover_orden(ORDEN_CANCELADA)
 
         producto = self.db.query(Producto).filter(Producto.ID_Producto == ID_TORTA).first()
         producto.Stock = FALTANTE
@@ -490,6 +509,140 @@ class InventarioAlEntregarTests(FlujoProduccionE2EBase):
         linea = self.db.query(VentaXProducto).first()
         self.assertEqual(linea.Cantidad, PEDIDAS)
         self.assertEqual(linea.Cantidad_Preorden, FALTANTE)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 6. Anular una orden (reemplaza al borrado físico)
+# ══════════════════════════════════════════════════════════════════════════
+class AnularOrdenTests(FlujoProduccionE2EBase):
+
+    def _orden_manual(self, cantidad=3):
+        """Orden creada a mano (sin pedido) para la torta, que tiene ficha."""
+        return crear_orden(self.db, OrdenCreate(
+            ID_Producto=ID_TORTA, Cantidad=cantidad,
+            Fecha_Entrega=datetime.now() + timedelta(days=2),
+        ))
+
+    def test_anular_una_orden_pendiente_la_deja_cancelada(self):
+        orden = self._orden_manual()
+        anular_orden(self.db, orden["ID_Orden_Produccion"])
+        self.db.commit()
+        fila = self.db.query(OrdenProduccion).filter(
+            OrdenProduccion.ID_Orden_Produccion == orden["ID_Orden_Produccion"]
+        ).first()
+        self.assertEqual(fila.Estado, ORDEN_CANCELADA)   # sigue existiendo
+
+    def test_anular_una_orden_en_proceso_devuelve_los_insumos(self):
+        orden = self._orden_manual()
+        id_orden = orden["ID_Orden_Produccion"]
+        cambiar_estado_orden(self.db, id_orden, ORDEN_EN_PROCESO)
+        self.db.commit()
+        self.assertLess(float(self.harina().Stock_Actual), STOCK_HARINA)
+
+        anular_orden(self.db, id_orden)
+        self.db.commit()
+        self.assertAlmostEqual(float(self.harina().Stock_Actual), STOCK_HARINA, places=3)
+
+    def test_no_se_anula_una_orden_completada(self):
+        orden = self._orden_manual()
+        id_orden = orden["ID_Orden_Produccion"]
+        cambiar_estado_orden(self.db, id_orden, ORDEN_EN_PROCESO)
+        cambiar_estado_orden(self.db, id_orden, ORDEN_COMPLETADA)
+        self.db.commit()
+        with self.assertRaises(HTTPException) as ctx:
+            anular_orden(self.db, id_orden)
+        self.assertEqual(ctx.exception.status_code, 400)
+
+    def test_no_se_anula_por_separado_la_orden_de_un_pedido(self):
+        """3.12 — la orden de un pedido se anula cancelando el pedido."""
+        self.crear()
+        with self.assertRaises(HTTPException) as ctx:
+            anular_orden(self.db, self.orden().ID_Orden_Produccion)
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("pedido", ctx.exception.detail.lower())
+
+    def test_un_producto_sin_ficha_no_deja_crear_orden_manual(self):
+        """3.10 — ni manual ni automáticamente."""
+        self.db.query(FichaTecnicaInsumo).delete()
+        self.db.query(FichaTecnica).delete()
+        self.db.commit()
+        with self.assertRaises(HTTPException) as ctx:
+            self._orden_manual()
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("ficha técnica", ctx.exception.detail.lower())
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 7. Edición según estado (3.6) y snapshot de ficha técnica (3.8)
+# ══════════════════════════════════════════════════════════════════════════
+class EdicionYSnapshotTests(FlujoProduccionE2EBase):
+
+    def _orden_manual(self, cantidad=2):
+        return crear_orden(self.db, OrdenCreate(
+            ID_Producto=ID_TORTA, Cantidad=cantidad,
+            Fecha_Entrega=datetime.now() + timedelta(days=3),
+        ))
+
+    def _orden(self, id_orden):
+        return self.db.query(OrdenProduccion).filter(
+            OrdenProduccion.ID_Orden_Produccion == id_orden
+        ).first()
+
+    def test_pendiente_se_edita_en_proceso_no(self):
+        orden = self._orden_manual()
+        id_orden = orden["ID_Orden_Produccion"]
+
+        editar_orden(self.db, id_orden, OrdenUpdate(Cantidad=3))
+        self.db.commit()
+        self.assertEqual(self._orden(id_orden).Cantidad, 3)
+
+        cambiar_estado_orden(self.db, id_orden, ORDEN_EN_PROCESO)
+        self.db.commit()
+        with self.assertRaises(HTTPException) as ctx:
+            editar_orden(self.db, id_orden, OrdenUpdate(Cantidad=4))
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertEqual(self._orden(id_orden).Cantidad, 3)
+
+    def test_cantidad_fuera_de_rango_se_rechaza(self):
+        with self.assertRaises(Exception):   # ValidationError de pydantic
+            OrdenCreate(ID_Producto=ID_TORTA, Cantidad=1000,
+                        Fecha_Entrega=datetime.now() + timedelta(days=1))
+
+    def test_editar_una_ficha_con_orden_en_proceso_crea_una_version_nueva(self):
+        """3.8 — la orden en proceso conserva su receta; la ficha se versiona."""
+        orden = self._orden_manual()
+        id_orden = orden["ID_Orden_Produccion"]
+        ficha_original = self._orden(id_orden).ID_Ficha
+
+        cambiar_estado_orden(self.db, id_orden, ORDEN_EN_PROCESO)
+        self.db.commit()
+
+        # Cambiar la receta del producto mientras la orden está en proceso.
+        gestionar_ficha(self.db, ID_TORTA, FichaTecnicaInput(
+            Dias_Vida_Util=99,
+            insumos=[FichaTecnicaInsumoInput(ID_Insumo=ID_HARINA, Cantidad=1, Unidad="g")],
+        ))
+        self.db.commit()
+
+        # La orden en proceso sigue apuntando a la ficha con la que arrancó.
+        self.assertEqual(self._orden(id_orden).ID_Ficha, ficha_original)
+        # Y ahora hay 2 versiones de ficha para el producto.
+        versiones = self.db.query(FichaTecnica).filter(
+            FichaTecnica.ID_Producto == ID_TORTA
+        ).count()
+        self.assertEqual(versiones, 2)
+
+    def test_editar_una_ficha_sin_ordenes_en_proceso_no_crea_version(self):
+        self._orden_manual()   # queda Pendiente
+        self.db.commit()
+
+        gestionar_ficha(self.db, ID_TORTA, FichaTecnicaInput(Dias_Vida_Util=42))
+        self.db.commit()
+
+        versiones = self.db.query(FichaTecnica).filter(
+            FichaTecnica.ID_Producto == ID_TORTA
+        ).count()
+        self.assertEqual(versiones, 1)   # se editó in-place
 
 
 if __name__ == "__main__":

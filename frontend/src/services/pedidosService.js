@@ -115,15 +115,11 @@ export const cancelarPedido = async (id, motivo = null) => {
 };
 
 export const crearPedido = async (data) => {
-  return apiFetch("/ventas/", { method: "POST", body: JSON.stringify(data) });
+  return apiFetch("/pedidos/", { method: "POST", body: JSON.stringify(data) });
 };
 
 export const editarPedido = async (id, data) => {
   return apiFetch(`/pedidos/${id}`, { method: "PUT", body: JSON.stringify(data) });
-};
-
-export const eliminarPedido = async (id) => {
-  return apiFetch(`/pedidos/${id}`, { method: "DELETE" });
 };
 
 export const registrarPagoFinal = async (id, { monto, metodo_pago, comprobante_url }) => {

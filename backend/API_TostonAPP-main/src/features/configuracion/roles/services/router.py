@@ -18,8 +18,9 @@ ESTADO_ACTIVO = 1
 
 # ── Schemas de entrada para los endpoints JSON ──
 class RolCreateBody(BaseModel):
-    Rol:   str
-    Icono: Optional[str] = None   # URL de Cloudinary o emoji
+    Rol:      str
+    Icono:    Optional[str]       = None   # URL de Cloudinary o emoji
+    permisos: Optional[list[str]] = None   # nombres de permiso (opcional al crear)
 
 
 class RolUpdateBody(BaseModel):
@@ -51,21 +52,24 @@ def ver_rol(
 
 @router.post("/", response_model=RolResponse, status_code=201)
 def agregar_rol(
-    datos: RolCreateBody,
-    db:    Session = Depends(get_db),
-    _:     dict    = Depends(requiere_permiso("crear_roles")),
+    datos:  RolCreateBody,
+    db:     Session = Depends(get_db),
+    actual: dict    = Depends(requiere_permiso("crear_roles")),
 ):
     """
     Crea un nuevo rol.
     - Nombre: no puede repetirse (ignora mayúsculas y espacios).
     - Ícono: URL de Cloudinary (subida previa desde el frontend) o emoji.
     - Estado inicial: Activo (1).
+    - `permisos` (nombres): opcional, para crear el rol ya con permisos.
     """
     return crear_rol(
-        db     = db,
-        nombre = datos.Rol,
-        icono  = datos.Icono,
-        estado = ESTADO_ACTIVO,
+        db       = db,
+        nombre   = datos.Rol,
+        icono    = datos.Icono,
+        estado   = ESTADO_ACTIVO,
+        actual   = actual,
+        permisos = datos.permisos,
     )
 
 
@@ -126,7 +130,10 @@ def gestionar_permisos(
     id_rol: int,
     datos:  AsignarPermisos,
     db:     Session = Depends(get_db),
-    _:      dict    = Depends(requiere_permiso("editar_roles")),
+    actual: dict    = Depends(requiere_permiso("editar_roles")),
 ):
-    """Reemplaza los permisos del rol con la lista enviada. Lista vacía = sin permisos."""
-    return asignar_permisos(db, id_rol, datos.permisos_ids)
+    """
+    Reemplaza los permisos del rol con la lista de NOMBRES enviada.
+    Lista vacía = sin permisos. Aplica anti-escalación y forzado de `ver_`.
+    """
+    return asignar_permisos(db, id_rol, datos.permisos, actual)
