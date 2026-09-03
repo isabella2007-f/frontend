@@ -14,6 +14,7 @@ from .service import (
     crear_registro, obtener_registros, eliminar_registro,
     generar_liquidacion, obtener_liquidaciones, obtener_liquidacion,
     editar_liquidacion, registrar_pago, anular_liquidacion,
+    obtener_empleados_para_liquidaciones,
 )
 
 router = APIRouter(prefix="/liquidaciones", tags=["Liquidaciones"])
@@ -21,6 +22,16 @@ router = APIRouter(prefix="/liquidaciones", tags=["Liquidaciones"])
 # Todos los endpoints requieren ver_liquidaciones.
 # Admin (ID_Rol==1) tiene bypass total; ningún otro rol tiene este permiso.
 _P = "ver_liquidaciones"
+
+
+# ── Empleados (para dropdowns) ────────────────────────────────────────────────
+
+@router.get("/empleados")
+def listar_empleados_liquidaciones(
+    db:      Session = Depends(get_db),
+    _actual: dict    = Depends(requiere_permiso(_P)),
+):
+    return obtener_empleados_para_liquidaciones(db)
 
 
 # ── Tarifas ───────────────────────────────────────────────────────────────────

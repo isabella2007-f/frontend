@@ -13,6 +13,12 @@ function qs(params) {
   return s ? `?${s}` : "";
 }
 
+// ── Empleados ─────────────────────────────────────────────────────────────────
+
+export async function getEmpleadosParaLiquidaciones() {
+  return apiFetch(`${BASE}/empleados`);
+}
+
 // ── Tarifas ───────────────────────────────────────────────────────────────────
 
 export async function listarTarifas(idEmpleado = null) {

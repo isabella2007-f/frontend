@@ -9,8 +9,8 @@ import {
   editarLiquidacion, pagarLiquidacion, anularLiquidacion,
   listarRegistros, crearRegistro, eliminarRegistro,
   listarTarifas, crearTarifa,
+  getEmpleadosParaLiquidaciones,
 } from "../../../services/liquidacionesService";
-import { getUsuarios } from "../../../services/usuariosService";
 import "./GestionLiquidaciones.css";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -92,8 +92,8 @@ function Paginacion({ pagina, total, porPagina, onCambiar }) {
 
 function Modal({ titulo, onClose, children, ancho = "500px" }) {
   return (
-    <div className="liq-overlay" onClick={onClose}>
-      <div className="liq-modal" style={{ maxWidth: ancho }} onClick={e => e.stopPropagation()}>
+    <div className="liq-overlay">
+      <div className="liq-modal" style={{ maxWidth: ancho }}>
         <div className="liq-modal__header">
           <h3>{titulo}</h3>
           <button className="liq-modal__close" onClick={onClose}><X size={18} /></button>
@@ -1026,17 +1026,21 @@ const TABS = [
 ];
 
 export default function GestionLiquidaciones() {
-  const [tab, setTab]           = useState("liquidaciones");
-  const [empleados, setEmpleados] = useState([]);
-  const [detalleId, setDetalleId] = useState(null);
+  const [tab, setTab]               = useState("liquidaciones");
+  const [empleados, setEmpleados]   = useState([]);
+  const [empCargando, setEmpCargando] = useState(true);
+  const [empError, setEmpError]     = useState(false);
+  const [detalleId, setDetalleId]   = useState(null);
 
   useEffect(() => {
-    getUsuarios({ porPagina: 100 })
+    setEmpCargando(true);
+    getEmpleadosParaLiquidaciones()
       .then(res => {
-        const lista = Array.isArray(res) ? res : (res.items || res.usuarios || []);
-        setEmpleados(lista.filter(u => u.tipo !== "cliente" && u.estado !== false && u.estado !== 0));
+        setEmpleados(Array.isArray(res) ? res : []);
+        setEmpError(false);
       })
-      .catch(() => {});
+      .catch(() => setEmpError(true))
+      .finally(() => setEmpCargando(false));
   }, []);
 
   if (detalleId !== null) {
@@ -1051,9 +1055,29 @@ export default function GestionLiquidaciones() {
 
   return (
     <div className="liq-root">
-      <div className="liq-header">
-        <h1>Gestión de liquidaciones</h1>
-        <p className="liq-header__sub">Administra tarifas, registra horas y gestiona el pago de empleados</p>
+      <div className="liq-page-header">
+        <div className="liq-page-header__icon">
+          <DollarSign size={26} />
+        </div>
+        <div className="liq-page-header__text">
+          <h1>Gestión de Liquidaciones</h1>
+          <p>Administra tarifas, registra horas y gestiona el pago de empleados</p>
+        </div>
+        <div className="liq-page-header__badges">
+          {empCargando ? (
+            <span className="liq-page-badge liq-page-badge--loading">
+              <Loader2 size={12} className="spin" /> Cargando empleados…
+            </span>
+          ) : empError ? (
+            <span className="liq-page-badge liq-page-badge--error">
+              <AlertCircle size={12} /> Sin acceso a empleados
+            </span>
+          ) : (
+            <span className="liq-page-badge">
+              <Check size={12} /> {empleados.length} empleado{empleados.length !== 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="liq-tabs">
