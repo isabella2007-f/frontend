@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { getUser } from "../../../services/authService";
-import { getDomicilios } from "../../../services/domiciliosService";
+import { getTodosLosDomicilios } from "../../../services/domiciliosService";
 import "./Domicilios.css";
 import { CheckCircle2, XCircle, Banknote, ClipboardList, MapPin } from "lucide-react";
 
@@ -63,13 +63,17 @@ export default function HistorialEntregas() {
       setError(null);
       const { fechaInicio, fechaFin } = getRango(filtro);
       try {
-        const data = await getDomicilios({
-          porPagina:   100,
+        // El rango lo aplica el servidor sobre la fecha de ENTREGA (ver
+        // FECHA_DEL_DOMICILIO en el backend): antes filtraba por la fecha de
+        // creación, así que la entrega que el repartidor cerró hoy de un
+        // pedido de ayer no salía en "Hoy" y el historial contradecía al
+        // resumen del día en su propia pantalla.
+        const domicilios = await getTodosLosDomicilios({
           idEmpleado:  user.id,
           fechaInicio,
           fechaFin,
         });
-        const historial = (data.domicilios || []).filter(d =>
+        const historial = domicilios.filter(d =>
           d.estado === "Entregado" || d.estado === "Cancelado"
         );
         historial.sort((a, b) =>

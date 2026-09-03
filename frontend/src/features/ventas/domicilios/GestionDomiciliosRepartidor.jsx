@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getDomicilios, cambiarEstadoDomicilio, registrarPagoEfectivo } from "../../../services/domiciliosService.js";
+import { getTodosLosDomicilios, cambiarEstadoDomicilio, registrarPagoEfectivo } from "../../../services/domiciliosService.js";
 import { getUser } from "../../../services/authService.js";
 import { fmtFechaHora as fmtFecha } from "../../../utils/dateUtils.js";
 import { ESTADO_DOMICILIO, ESTADO_DOM_CONFIG, cobroEfectivoPendiente, esDomicilioActivo, esPagoMixto, montoACobrar, transicionesDom } from "./estadosDomicilio";
@@ -406,8 +406,10 @@ export default function GestionDomiciliosRepartidor() {
     if (!idEmpleado) return;
     setLoading(true);
     try {
-      const data = await getDomicilios({ porPagina: 100, idEmpleado });
-      setDomicilios(data.domicilios || []);
+      // Todas las páginas: los contadores de los filtros ("Activos", "Todos")
+      // se sacan de esta lista, y con una sola página de 100 empezaban a
+      // mentir en cuanto el repartidor acumulaba entregas.
+      setDomicilios(await getTodosLosDomicilios({ idEmpleado }));
     } catch (e) {
       showToast(e.message || "Error al cargar entregas", "error");
     } finally {
