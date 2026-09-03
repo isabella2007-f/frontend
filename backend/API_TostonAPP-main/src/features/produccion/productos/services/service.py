@@ -97,6 +97,11 @@ def _formato_producto(producto: Producto, db: Session) -> dict:
                     "Cantidad":         fi.Cantidad,
                     "Unidad":           fi.Unidad,
                     "Stock_Actual":     float(fi.insumo.Stock_Actual or 0) if fi.insumo else None,
+                    # La unidad en que está medido el insumo, que casi nunca es
+                    # la de la ficha: la receta pide gramos y el depósito lo
+                    # guarda en kilos. Sin ella no se pueden comparar.
+                    "simbolo_unidad":   (fi.insumo.unidad_medida.Simbolo
+                                         if fi.insumo and fi.insumo.unidad_medida else None),
                 }
                 for fi in (ficha.insumos_ficha if ficha else [])
             ],
@@ -190,11 +195,25 @@ def obtener_productos(
     # Batch 5: insumos para fichas
     insumos_fi: dict = {}
     cat_ins_ids: set = set()
+    unidad_ins_ids: set = set()
     if insumo_fi_ids:
         for ins in db.query(Insumo).filter(Insumo.ID_Insumo.in_(list(insumo_fi_ids))).all():
             insumos_fi[ins.ID_Insumo] = ins
             if ins.ID_Categoria:
                 cat_ins_ids.add(ins.ID_Categoria)
+            if ins.Unidad_Medida:
+                unidad_ins_ids.add(ins.Unidad_Medida)
+
+    # Batch 5b: unidades de esos insumos, para poder comparar la receta con
+    # el depósito (la ficha pide gramos, el insumo se guarda en kilos).
+    unidades_fi: dict = {}
+    if unidad_ins_ids:
+        unidades_fi = {
+            u.ID_Unidad_Medida: u
+            for u in db.query(UnidadMedida).filter(
+                UnidadMedida.ID_Unidad_Medida.in_(list(unidad_ins_ids))
+            ).all()
+        }
 
     # Batch 6: categorías de insumos
     from src.shared.services.models import CategoriaInsumo
@@ -262,6 +281,12 @@ def obtener_productos(
                         "Cantidad":         fi.Cantidad,
                         "Unidad":           fi.Unidad,
                         "Stock_Actual":     float(insumos_fi[fi.ID_Insumo].Stock_Actual or 0) if fi.ID_Insumo in insumos_fi else None,
+                        "simbolo_unidad":   (
+                            unidades_fi[insumos_fi[fi.ID_Insumo].Unidad_Medida].Simbolo
+                            if fi.ID_Insumo in insumos_fi
+                            and insumos_fi[fi.ID_Insumo].Unidad_Medida in unidades_fi
+                            else None
+                        ),
                     }
                     for fi in fis
                 ],
