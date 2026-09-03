@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { getUser } from "../../../services/authService";
 import { getDomicilios, getResumenDia } from "../../../services/domiciliosService";
-import { ESTADO_DOMICILIO, ESTADO_DOM_CONFIG, esDomicilioActivo, esPagoEfectivo } from "./estadosDomicilio";
+import { ESTADO_DOMICILIO, ESTADO_DOM_CONFIG, esDomicilioActivo } from "./estadosDomicilio";
 import "./Domicilios.css";
 import {
   Package, CheckCircle2, BarChart2, Banknote, Bike, MapPin,
@@ -21,22 +21,14 @@ const fmtCOP = (n) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 })
     .format(n || 0);
 
-const esHoy = (iso) => {
-  if (!iso) return false;
-  const d = new Date(iso);
-  const hoy = new Date();
-  return d.getFullYear() === hoy.getFullYear() &&
-         d.getMonth() === hoy.getMonth() &&
-         d.getDate() === hoy.getDate();
-};
-
 export default function DashboardDomiciliario() {
   const user = getUser();
-  const [resumen, setResumen]       = useState({ activos: 0, entregados_hoy: 0, total_hoy: 0 });
+  const [resumen, setResumen] = useState({
+    activos: 0, entregados_hoy: 0, total_hoy: 0, efectivo_hoy: 0,
+  });
   const [ordenActiva, setOrdenActiva] = useState(null);
   const [loading, setLoading]       = useState(true);
   const [errorCarga, setErrorCarga] = useState(null);
-  const [efectivoHoy, setEfectivoHoy] = useState(0);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -48,6 +40,12 @@ export default function DashboardDomiciliario() {
           getResumenDia(),
           getDomicilios({ porPagina: 100, idEmpleado: user.id }),
         ]);
+        // Los números del día los calcula el servidor (ver obtener_resumen_dia):
+        // acá se sacaban a mano sobre la primera página de domicilios, y el
+        // efectivo se contaba mal en los pedidos mixtos —sumaba el pedido
+        // entero cuando solo la mitad se cobra en mano, y el estado de pago
+        // de un mixto nunca es "efectivo_recibido", así que casi siempre
+        // quedaba en cero—.
         setResumen(res);
         const mios = doms.domicilios || [];
         const activos = mios.filter(d => esDomicilioActivo(d.estadoId));
@@ -55,17 +53,6 @@ export default function DashboardDomiciliario() {
           (a, b) => ESTADO_ORDEN.indexOf(a.estadoId) - ESTADO_ORDEN.indexOf(b.estadoId)
         );
         setOrdenActiva(activos[0] || null);
-
-        // Efectivo que el repartidor lleva encima: pedidos en efectivo
-        // entregados hoy con el cobro registrado.
-        setEfectivoHoy(
-          mios
-            .filter(d =>
-              esPagoEfectivo(d.metodo_pago) &&
-              d.estado_pago === "efectivo_recibido" &&
-              esHoy(d.fecha_entrega_real))
-            .reduce((suma, d) => suma + (d.total || 0), 0)
-        );
       } catch (e) {
         setErrorCarga(e?.message || "No se pudo cargar el resumen. Intenta de nuevo.");
       } finally {
@@ -80,16 +67,19 @@ export default function DashboardDomiciliario() {
   const STATS = [
     { label: "Pedidos activos",    value: resumen.activos,        color: "#1565c0", Icon: Package,        bg: "#e3f2fd" },
     { label: "Entregados hoy",     value: resumen.entregados_hoy, color: "#2e7d32", Icon: CheckCircle2,   bg: "#e8f5e9" },
-    { label: "Total del día",      value: resumen.total_hoy,      color: "#6a1b9a", Icon: BarChart2,      bg: "#f3e5f5" },
+    // Los pesos que movió en las entregas de hoy. Antes esta tarjeta decía
+    // "Total del día" y mostraba un CONTEO de domicilios creados hoy: un
+    // número que no era plata ni era del repartidor.
+    { label: "Entregado hoy",      value: fmtCOP(resumen.total_hoy),    color: "#6a1b9a", Icon: BarChart2, bg: "#f3e5f5" },
     // Lo que debe entregar en caja al cerrar el día.
-    { label: "Efectivo recaudado", value: fmtCOP(efectivoHoy),   color: "#e65100", Icon: Banknote,       bg: "#fff3e0" },
+    { label: "Efectivo recaudado", value: fmtCOP(resumen.efectivo_hoy), color: "#e65100", Icon: Banknote,  bg: "#fff3e0" },
   ];
 
   const ACCESOS = [
     { label: "Mis Entregas",   Icon: Bike,          link: "/admin/mis-entregas",        desc: "Pedidos asignados" },
     { label: "Pedido Actual",  Icon: Package,        link: "/admin/pedido-actual",        desc: "El pedido en curso" },
     { label: "Historial",      Icon: ClipboardList,  link: "/admin/historial-entregas",   desc: "Entregas anteriores" },
-    { label: "Mis Ganancias",  Icon: Banknote,       link: "/admin/mis-ganancias",        desc: "Hoy, semana, mes" },
+    { label: "Lo que entregué", Icon: Banknote,      link: "/admin/mis-ganancias",        desc: "Hoy, semana, mes" },
     { label: "Notificaciones", Icon: Bell,           link: "/admin/mis-notificaciones",   desc: "Avisos y alertas" },
     { label: "Mi Perfil",      Icon: User,           link: "/admin/mi-perfil-repartidor", desc: "Datos personales" },
   ];

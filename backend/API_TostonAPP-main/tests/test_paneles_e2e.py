@@ -1216,5 +1216,125 @@ class EditarPedidoTests(PanelBase):
         self.assertEqual(Decimal(str(self.venta(id_venta).Total)), antes)
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# 10. El día del repartidor: resumen e historial
+# ══════════════════════════════════════════════════════════════════════════
+class DiaDelRepartidorTests(PanelBase):
+    """Lo que el panel del domiciliario le dice que hizo hoy.
+
+    El caso que lo destapó: el repartidor entregó dos pedidos, uno de ellos de
+    un pedido que había entrado ayer. El resumen decía 2 entregas y el
+    historial le mostraba 1, en la misma pantalla. El rango de fechas se medía
+    contra `Fecha_asignacion`, que pese al nombre es la fecha en que se CREÓ el
+    domicilio: nadie la toca al asignarle repartidor.
+    """
+
+    def test_el_historial_de_hoy_trae_lo_entregado_hoy(self):
+        de_ayer = self.entrega_del_repartidor(creado_hace=1, entregado_hace=0)
+        de_hoy  = self.entrega_del_repartidor(creado_hace=0, entregado_hace=0)
+        self.entrega_del_repartidor(creado_hace=5, entregado_hace=5)
+
+        desde, hasta = self.rango_de_hoy()
+        cuerpo = self.afirmar_ok(self.get(
+            f"/domicilios/?por_pagina=100&id_empleado={ID_REPARTIDOR}"
+            f"&fecha_inicio={desde}&fecha_fin={hasta}", self.repartidor
+        ))
+        entregados = [d["ID_Domicilio"] for d in cuerpo["domicilios"]
+                      if d["estado_label"] == "Entregado"]
+        self.assertEqual(sorted(entregados), sorted([de_ayer, de_hoy]))
+
+    def test_el_resumen_y_el_historial_dicen_lo_mismo(self):
+        self.entrega_del_repartidor(creado_hace=1, entregado_hace=0)
+        self.entrega_del_repartidor(creado_hace=0, entregado_hace=0)
+        self.entrega_del_repartidor(creado_hace=3, entregado_hace=3)
+
+        resumen = self.afirmar_ok(self.get("/domicilios/resumen", self.repartidor))
+        desde, hasta = self.rango_de_hoy()
+        cuerpo = self.afirmar_ok(self.get(
+            f"/domicilios/?por_pagina=100&id_empleado={ID_REPARTIDOR}"
+            f"&fecha_inicio={desde}&fecha_fin={hasta}", self.repartidor
+        ))
+        entregados = [d for d in cuerpo["domicilios"] if d["estado_label"] == "Entregado"]
+        self.assertEqual(resumen["entregados_hoy"], len(entregados))
+
+    def test_lo_que_sigue_abierto_cuenta_por_el_dia_en_que_entro(self):
+        """Sin fecha de entrega, el domicilio pertenece al día en que se creó."""
+        abierto_hoy = self.entrega_del_repartidor(creado_hace=0, entregado=False)
+        self.entrega_del_repartidor(creado_hace=4, entregado=False)
+
+        desde, hasta = self.rango_de_hoy()
+        cuerpo = self.afirmar_ok(self.get(
+            f"/domicilios/?por_pagina=100&id_empleado={ID_REPARTIDOR}"
+            f"&fecha_inicio={desde}&fecha_fin={hasta}", self.repartidor
+        ))
+        self.assertEqual(
+            [d["ID_Domicilio"] for d in cuerpo["domicilios"]], [abierto_hoy]
+        )
+
+    def test_el_total_del_dia_son_pesos_y_no_un_conteo(self):
+        """Contaba los domicilios CREADOS hoy bajo una etiqueta que promete plata."""
+        self.entrega_del_repartidor(creado_hace=1, entregado_hace=0)
+        self.entrega_del_repartidor(creado_hace=0, entregado_hace=0)
+
+        resumen = self.afirmar_ok(self.get("/domicilios/resumen", self.repartidor))
+        # Dos pedidos de $20.000 + $5.000 de envío.
+        esperado = float((Decimal("20000") + COSTO_DOMICILIO) * 2)
+        self.assertEqual(resumen["entregados_hoy"], 2)
+        self.assertEqual(resumen["total_hoy"], esperado)
+
+    def test_el_efectivo_del_dia_es_solo_lo_que_recibio_en_mano(self):
+        # Efectivo: entra completo.
+        self.entrega_del_repartidor(creado_hace=0, entregado_hace=0)
+        # Transferencia: no pasó por sus manos.
+        self.entrega_del_repartidor(
+            creado_hace=0, entregado_hace=0, estado_pago="pagado_completo",
+            Metodo_Pago="Transferencia",
+            comprobante_pago="https://cloudinary.test/comp.jpg",
+        )
+
+        resumen = self.afirmar_ok(self.get("/domicilios/resumen", self.repartidor))
+        self.assertEqual(resumen["total_hoy"], float((Decimal("20000") + COSTO_DOMICILIO) * 2))
+        self.assertEqual(resumen["efectivo_hoy"], float(Decimal("20000") + COSTO_DOMICILIO))
+
+    def test_del_mixto_solo_cuenta_la_parte_en_efectivo(self):
+        self.entrega_del_repartidor(
+            creado_hace=0, entregado_hace=0, estado_pago="pagado_completo",
+            Metodo_Pago="Mixto", pago_efectivo_monto=9000,
+            comprobante_pago="https://cloudinary.test/comp.jpg",
+        )
+        resumen = self.afirmar_ok(self.get("/domicilios/resumen", self.repartidor))
+        self.assertEqual(resumen["efectivo_hoy"], 9000.0)
+
+    def test_lo_que_no_se_pudo_cobrar_no_le_cuenta_como_recogido(self):
+        self.entrega_del_repartidor(
+            creado_hace=0, entregado_hace=0, estado_pago="no_recibido",
+        )
+        resumen = self.afirmar_ok(self.get("/domicilios/resumen", self.repartidor))
+        self.assertEqual(resumen["entregados_hoy"], 1)
+        self.assertEqual(resumen["efectivo_hoy"], 0.0)
+
+    def test_el_resumen_es_de_cada_repartidor(self):
+        self.entrega_del_repartidor(creado_hace=0, entregado_hace=0)
+        self.entrega_del_repartidor(
+            creado_hace=0, entregado_hace=0, quien=ID_OTRO_REPARTIDOR,
+        )
+
+        mio = self.afirmar_ok(self.get("/domicilios/resumen", self.repartidor))
+        self.assertEqual(mio["entregados_hoy"], 1)
+        del_otro = self.afirmar_ok(self.get("/domicilios/resumen", self.otro_repartidor))
+        self.assertEqual(del_otro["entregados_hoy"], 1)
+
+    def test_el_listado_llega_ordenado_por_lo_ultimo_que_paso(self):
+        viejo = self.entrega_del_repartidor(creado_hace=9, entregado_hace=9)
+        reciente = self.entrega_del_repartidor(creado_hace=9, entregado_hace=0)
+
+        cuerpo = self.afirmar_ok(self.get(
+            f"/domicilios/?por_pagina=100&id_empleado={ID_REPARTIDOR}", self.repartidor
+        ))
+        ids = [d["ID_Domicilio"] for d in cuerpo["domicilios"]]
+        self.assertEqual(ids.index(reciente), 0)
+        self.assertLess(ids.index(reciente), ids.index(viejo))
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

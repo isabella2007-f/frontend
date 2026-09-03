@@ -1,12 +1,27 @@
 import { useState, useEffect } from "react";
 import { getUser } from "../../../services/authService";
-import { getDomicilios } from "../../../services/domiciliosService";
+import { getTodosLosDomicilios } from "../../../services/domiciliosService";
+import { esPagoEfectivo, esPagoMixto } from "../../../utils/metodosPago";
 import { fmtFecha } from "../../../utils/dateUtils.js";
 import "./Domicilios.css";
 import { Banknote, CheckCircle2, BarChart2 } from "lucide-react";
 
 const fmt = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
+  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n || 0);
+
+/**
+ * Cuánta plata de esta entrega pasó por las manos del repartidor.
+ *
+ * En un pedido mixto solo la parte en efectivo: el resto se transfirió antes
+ * de que saliera. Y si quedó registrado que no se pudo cobrar, no cuenta.
+ * Espeja `_cobrado_en_mano` del servidor.
+ */
+const efectivoRecibido = (d) => {
+  if (d.estado_pago === "no_recibido") return 0;
+  if (!esPagoEfectivo(d.metodo_pago)) return 0;
+  if (esPagoMixto(d.metodo_pago)) return d.monto_efectivo || 0;
+  return d.total || 0;
+};
 
 const PERIODOS = [
   { id: "hoy",   label: "Hoy" },
@@ -61,8 +76,9 @@ export default function GananciasDomiciliario() {
       setLoading(true);
       setError(null);
       try {
-        const data = await getDomicilios({ porPagina: 100, idEmpleado: user.id });
-        setTodos(data.domicilios || []);
+        // Todas las páginas, no solo la primera: "Total histórico" se cortaba
+        // en 100 entregas y dejaba de contar sin decirlo.
+        setTodos(await getTodosLosDomicilios({ idEmpleado: user.id }));
       } catch (err) {
         setError(err?.message || "No se pudieron cargar tus entregas. Intenta de nuevo.");
       } finally {
@@ -72,10 +88,16 @@ export default function GananciasDomiciliario() {
     cargar();
   }, [user?.id]);
 
-  const entregados = filtrarPorPeriodo(todos, periodo);
-  const totalGanado   = entregados.reduce((s, d) => s + (d.total || 0), 0);
-  const totalEntregas = entregados.length;
-  const promedio      = totalEntregas > 0 ? totalGanado / totalEntregas : 0;
+  // OJO con lo que significan estos números: son el valor de los PEDIDOS que
+  // el repartidor entregó, o sea plata de los clientes que pasó por sus manos.
+  // No es su sueldo ni su comisión. La pantalla decía "Mis Ganancias" y
+  // "Total del periodo" sobre esta misma suma, así que a un repartidor que
+  // movió dos millones en pedidos le decía que había ganado dos millones.
+  const entregados    = filtrarPorPeriodo(todos, periodo);
+  const valorEntregado = entregados.reduce((s, d) => s + (d.total || 0), 0);
+  const enEfectivo     = entregados.reduce((s, d) => s + efectivoRecibido(d), 0);
+  const totalEntregas  = entregados.length;
+  const promedio       = totalEntregas > 0 ? valorEntregado / totalEntregas : 0;
 
   // Resumen rápido de todos los periodos (para las tarjetas de resumen)
   const resumen = PERIODOS.slice(0, 3).map(p => {
@@ -84,19 +106,25 @@ export default function GananciasDomiciliario() {
   });
 
   const STATS_PERIODO = [
-    { label: "Total del periodo", value: fmt(totalGanado),  Icon: Banknote,      color: "#2e7d32", bg: "#e8f5e9" },
-    { label: "Entregas",          value: totalEntregas,     Icon: CheckCircle2,  color: "#1565c0", bg: "#e3f2fd" },
-    { label: "Promedio",          value: fmt(promedio),     Icon: BarChart2,     color: "#6a1b9a", bg: "#f3e5f5" },
+    { label: "Valor entregado",    value: fmt(valorEntregado), Icon: Banknote,     color: "#2e7d32", bg: "#e8f5e9" },
+    { label: "Recibido en efectivo", value: fmt(enEfectivo),   Icon: Banknote,     color: "#e65100", bg: "#fff3e0" },
+    { label: "Entregas",           value: totalEntregas,       Icon: CheckCircle2, color: "#1565c0", bg: "#e3f2fd" },
+    { label: "Promedio por entrega", value: fmt(promedio),     Icon: BarChart2,    color: "#6a1b9a", bg: "#f3e5f5" },
   ];
 
   return (
     <div className="page-wrapper">
       <div className="page-header">
-        <h1 className="page-header__title">Mis Ganancias</h1>
+        <h1 className="page-header__title">Mis Entregas</h1>
         <div className="page-header__line" />
       </div>
 
       <div className="page-inner">
+
+        <p style={{ fontSize: 12.5, color: "#757575", margin: "0 0 18px", lineHeight: 1.5 }}>
+          Estas cifras son el valor de los pedidos que entregaste —plata de los
+          clientes que pasó por tus manos—, no tu pago.
+        </p>
 
         {error && (
           <div style={{ background: "#ffebee", border: "1.5px solid #ef9a9a", borderRadius: 10, padding: "12px 16px", marginBottom: 18, fontSize: 13, color: "#c62828", fontWeight: 600 }}>

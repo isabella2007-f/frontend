@@ -1,8 +1,10 @@
 import re
 import logging
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from datetime import datetime, timedelta
+from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from src.shared.services.models import (
@@ -16,7 +18,9 @@ from src.features.ventas.gestion_ventas.services.service import (
     cambiar_estado as _cambiar_estado_venta,
 )
 from src.shared.services.observaciones_utils import observaciones_limpias
-from src.shared.services.pagos_utils import cobro_efectivo_pendiente
+from src.shared.services.pagos_utils import (
+    cobro_efectivo_pendiente, es_pago_efectivo, es_pago_mixto,
+)
 from .estados import (
     EstadoDomicilio, ESTADO_DOM_A_VENTA, normalizar_estado, puede_reasignarse,
     validar_cambio,
@@ -118,6 +122,19 @@ def _formato_domicilio(dom: Domicilio, db: Session) -> dict:
     }
 
 
+# La fecha por la que un domicilio cae en un día u otro.
+#
+# `Fecha_asignacion` es, pese al nombre, la fecha en que se CREÓ el domicilio:
+# nadie la toca al asignarle repartidor. Filtrando por ella, el historial del
+# repartidor perdía justo las entregas que le importan —la que cerró hoy de un
+# pedido de ayer no aparecía en "Hoy"— y su panel se contradecía solo: el
+# resumen decía 2 entregas hoy y el historial le mostraba 1.
+#
+# Un domicilio cerrado pertenece al día en que se entregó; uno abierto, al día
+# en que entró. Es la misma regla que ya usaba la app móvil por su cuenta.
+FECHA_DEL_DOMICILIO = func.coalesce(Domicilio.Fecha_entrega, Domicilio.Fecha_asignacion)
+
+
 def obtener_repartidores(db: Session) -> list:
     """Usuarios cuyo rol contiene 'domiciliario'."""
     repartidores = (
@@ -132,35 +149,82 @@ def obtener_repartidores(db: Session) -> list:
     ]
 
 
+# Estados canónicos del domicilio (ver estados.py). Antes se contaba el 13,
+# que es "En producción" del PEDIDO y no un estado de domicilio, y las
+# entregas solo miraban el 8, dejando fuera el 4 que escribían las versiones
+# viejas de la app móvil: el repartidor veía menos entregas de las hechas.
+ESTADOS_ACTIVOS = [
+    int(EstadoDomicilio.PENDIENTE),
+    int(EstadoDomicilio.ASIGNADO),
+    int(EstadoDomicilio.EN_CAMINO),
+]
+ESTADOS_ENTREGADOS = [int(EstadoDomicilio.ENTREGADO), 4]
+
+
 def obtener_resumen_dia(db: Session, id_empleado: int) -> dict:
+    """Lo que el repartidor hizo hoy.
+
+    `total_hoy` contaba los domicilios CREADOS hoy, que no es nada que al
+    repartidor le sirva: quedaba al lado de "Entregados hoy" bajo una etiqueta
+    que promete plata ("Total del día") y mostraba otro conteo. Ahora es lo que
+    dice ser: los pesos que movió en las entregas que cerró hoy.
+
+    `efectivo_hoy` es la parte de eso que recibió en mano —en un mixto, solo la
+    mitad en efectivo—, que es la plata que tiene encima y de la que responde.
+    """
     hoy_inicio = _now().replace(hour=0, minute=0, second=0, microsecond=0)
     hoy_fin    = hoy_inicio + timedelta(days=1)
 
     base = db.query(Domicilio).filter(Domicilio.ID_Empleado == id_empleado)
 
-    # Estados canónicos del domicilio (ver estados.py). Antes se contaba el 13,
-    # que es "En producción" del PEDIDO y no un estado de domicilio, y las
-    # entregas solo miraban el 8, dejando fuera el 4 que escribían las versiones
-    # viejas de la app móvil: el repartidor veía menos entregas de las hechas.
-    _ACTIVOS = [
-        int(EstadoDomicilio.PENDIENTE),
-        int(EstadoDomicilio.ASIGNADO),
-        int(EstadoDomicilio.EN_CAMINO),
-    ]
-    _ENTREGADOS = [int(EstadoDomicilio.ENTREGADO), 4]
+    activos = base.filter(Domicilio.Estado.in_(ESTADOS_ACTIVOS)).count()
 
-    activos        = base.filter(Domicilio.Estado.in_(_ACTIVOS)).count()
-    entregados_hoy = base.filter(
-        Domicilio.Estado.in_(_ENTREGADOS),
+    entregas_hoy = base.filter(
+        Domicilio.Estado.in_(ESTADOS_ENTREGADOS),
         Domicilio.Fecha_entrega >= hoy_inicio,
         Domicilio.Fecha_entrega < hoy_fin,
-    ).count()
-    total_hoy = base.filter(
-        Domicilio.Fecha_asignacion >= hoy_inicio,
-        Domicilio.Fecha_asignacion < hoy_fin,
-    ).count()
+    ).all()
 
-    return {"activos": activos, "entregados_hoy": entregados_hoy, "total_hoy": total_hoy}
+    total_hoy    = Decimal("0")
+    efectivo_hoy = Decimal("0")
+    ventas = _ventas_de(db, entregas_hoy)
+    for dom in entregas_hoy:
+        venta = ventas.get(dom.ID_Venta)
+        if not venta:
+            continue
+        total_hoy    += Decimal(str(venta.Total or 0))
+        efectivo_hoy += _cobrado_en_mano(venta)
+
+    return {
+        "activos":        activos,
+        "entregados_hoy": len(entregas_hoy),
+        "total_hoy":      float(total_hoy),
+        "efectivo_hoy":   float(efectivo_hoy),
+    }
+
+
+def _ventas_de(db: Session, domicilios: list) -> dict:
+    """Las ventas de esos domicilios, en una sola consulta."""
+    ids = [d.ID_Venta for d in domicilios if d.ID_Venta]
+    if not ids:
+        return {}
+    return {v.ID_Venta: v for v in db.query(Venta).filter(Venta.ID_Venta.in_(ids)).all()}
+
+
+def _cobrado_en_mano(venta) -> Decimal:
+    """Cuánta plata de esta venta pasó por las manos del repartidor.
+
+    En un pedido mixto solo la parte en efectivo: el resto se transfirió antes
+    de que el repartidor saliera. Y si quedó registrado que NO se pudo cobrar,
+    no cuenta: no la tiene.
+    """
+    if (getattr(venta, "Estado_Pago", None) or "").strip() == "no_recibido":
+        return Decimal("0")
+    if not es_pago_efectivo(venta.Metodo_Pago):
+        return Decimal("0")
+    if es_pago_mixto(venta.Metodo_Pago):
+        return Decimal(str(getattr(venta, "Monto_Efectivo", None) or 0))
+    return Decimal(str(venta.Total or 0))
 
 
 def obtener_domicilios(
@@ -182,11 +246,13 @@ def obtener_domicilios(
     if estado:
         query = query.filter(Domicilio.Estado == estado)
 
+    # Ver FECHA_DEL_DOMICILIO: el rango se mide contra el día al que el
+    # domicilio pertenece de verdad, no contra el día en que se creó.
     if fecha_inicio:
-        query = query.filter(Domicilio.Fecha_asignacion >= fecha_inicio)
+        query = query.filter(FECHA_DEL_DOMICILIO >= fecha_inicio)
 
     if fecha_fin:
-        query = query.filter(Domicilio.Fecha_asignacion < fecha_fin)
+        query = query.filter(FECHA_DEL_DOMICILIO < fecha_fin)
 
     if busqueda:
         termino = f"%{busqueda}%"
@@ -220,7 +286,7 @@ def obtener_domicilios(
 
     total      = query.count()
     offset     = (pagina - 1) * por_pagina
-    domicilios = query.order_by(Domicilio.Fecha_asignacion.desc()).offset(offset).limit(por_pagina).all()
+    domicilios = query.order_by(FECHA_DEL_DOMICILIO.desc()).offset(offset).limit(por_pagina).all()
 
     if not domicilios:
         return {"total": total, "pagina": pagina, "por_pagina": por_pagina, "domicilios": []}
