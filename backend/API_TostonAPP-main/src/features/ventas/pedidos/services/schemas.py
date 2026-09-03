@@ -32,6 +32,7 @@ class PedidoResponse(BaseModel):
     comprobante_pago:             Optional[str]     = None
     nombre_domiciliario:          Optional[str]     = None
     ordenes_produccion_pendientes: int              = 0
+    ordenes_en_espera:             int              = 0
     requiere_produccion:          bool              = False
     # Pedido especial por encima del stock: bandera y anticipo del 50%
     sobre_stock:                  bool              = False

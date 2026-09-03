@@ -893,14 +893,14 @@ function ReporteSalidas({ salidas, loading }) {
     const ws = XLSX.utils.aoa_to_sheet(aoa);
 
     ws["!cols"] = [
-      { wch: 5  },  // N°
+      { wch: 30 },  // N° / títulos de sección
       { wch: 28 },  // Elemento
       { wch: 16 },  // Tipo elemento
       { wch: 22 },  // Categoría
       { wch: 15 },  // Tipo salida
       { wch: 10 },  // Cantidad
       { wch: 10 },  // Unidad
-      { wch: 32 },  // Motivo
+      { wch: 35 },  // Motivo
       { wch: 22 },  // Registrado por
       { wch: 12 },  // Fecha
     ];

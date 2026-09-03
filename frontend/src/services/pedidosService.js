@@ -40,6 +40,7 @@ const adaptPedido = (p) => {
     idEmpleado:          p.ID_Empleado          || p.id_empleado         || null,
     nombre_domiciliario: p.nombre_domiciliario  || null,
     orden_produccion:      (p.ordenes_produccion_pendientes > 0) || !!(p.Orden_Produccion ?? p.orden_produccion),
+    ordenes_en_espera:     p.ordenes_en_espera || 0,
     requiereProduccion:    !!(p.requiere_produccion),
     requiereFechaPropuesta: !!(p.requiere_fecha_propuesta),
     fecha_propuesta:  p.Fecha_Propuesta || p.fecha_propuesta || p.Fecha_entrega_esperada || null,

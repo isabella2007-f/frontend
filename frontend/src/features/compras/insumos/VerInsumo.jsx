@@ -89,8 +89,9 @@ function LotesTab({ lotes, loading, tipo, unidad }) {
     </div>
   );
 
-  const activos  = lotes.filter(l => !l.vencido);
-  const vencidos = lotes.filter(l => l.vencido);
+  const pendientes = lotes.filter(l => l.pendiente);
+  const activos    = lotes.filter(l => !l.vencido && !l.pendiente);
+  const vencidos   = lotes.filter(l => l.vencido);
 
   // FEFO: mostrar activos del que vence primero al último
   const activosSorted = [...activos].sort((a, b) => {
@@ -174,6 +175,47 @@ function LotesTab({ lotes, loading, tipo, unidad }) {
           </div>
         );
       })}
+
+      {tipo !== "vencidos" && pendientes.length > 0 && (
+        <>
+          <div style={{ marginTop: 8, marginBottom: 2, fontSize: 11, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            Pendientes de llegada ({pendientes.length})
+          </div>
+          {pendientes.map(l => {
+            const fv = l.fecha_vencimiento;
+            return (
+              <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 14px", borderRadius: 10, border: "1.5px dashed #bdbdbd", background: "#fafafa", opacity: 0.85 }}>
+                <Package size={18} style={{ flexShrink: 0, color: "#bdbdbd" }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: "#757575" }}>
+                    Lote #{l.id}
+                    {l.numero_lote && <span style={{ fontWeight: 400, fontSize: 11, color: "#bdbdbd", marginLeft: 8 }}>{l.numero_lote}</span>}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#bdbdbd", marginTop: 2 }}>
+                    {fv ? `Vence: ${fmtFecha(fv)}` : "Sin fecha de vencimiento"}
+                  </div>
+                  {(l.id_compra || l.ID_Compra) && (
+                    <div style={{ fontSize: 11, color: "#90a4ae", marginTop: 3, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+                      <ShoppingCart size={11} /> Compra #{l.id_compra || l.ID_Compra} — confirma llegada para activar
+                    </div>
+                  )}
+                </div>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: "#bdbdbd" }}>
+                    {l.cantidad ?? l.cantidad_inicial ?? "—"}
+                  </div>
+                  <div style={{ fontSize: 10, color: "#bdbdbd" }}>{unidad?.simbolo ?? "uds."}</div>
+                </div>
+                <BadgeVenc
+                  color="#5d4037" bg="#efebe9" border="#bcaaa4"
+                  icon={<AlertTriangle size={10} />} label="Pendiente"
+                  tooltip="Stock aún no recibido — confirma la llegada de la compra para activar este lote"
+                />
+              </div>
+            );
+          })}
+        </>
+      )}
     </div>
   );
 }

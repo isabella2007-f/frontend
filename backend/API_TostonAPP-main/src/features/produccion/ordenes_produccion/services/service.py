@@ -23,12 +23,22 @@ def _ahora_local() -> datetime:
 _CONV = {
     ("ml", "L"):         1 / 1000,
     ("L",  "ml"):        1000,
+    ("mg", "g"):         1 / 1000,
+    ("g",  "mg"):        1000,
+    ("mg", "kg"):        1 / 1_000_000,
+    ("kg", "mg"):        1_000_000,
     ("g",  "kg"):        1 / 1000,
     ("kg", "g"):         1000,
+    ("t",  "kg"):        1000,
+    ("kg", "t"):         1 / 1000,
+    ("t",  "g"):         1_000_000,
+    ("g",  "t"):         1 / 1_000_000,
     ("lb", "kg"):        0.453592,
     ("kg", "lb"):        2.20462,
     ("lb", "g"):         453.592,
     ("g",  "lb"):        1 / 453.592,
+    ("mg", "lb"):        1 / 453_592,
+    ("lb", "mg"):        453_592,
     # Medidas de cocina → ml
     ("taza",       "ml"): 240,
     ("ml", "taza"):       1 / 240,
@@ -63,16 +73,18 @@ def _convertir(cantidad: float, desde: str, hasta: str) -> float:
 # ── Costo de producción con conversión a unidad base ────────────
 # Convención de mercado colombiano: lb = 500 g (NO 453.592)
 _FAMILIA: dict[str, str] = {
-    "g": "masa", "kg": "masa", "lb": "masa",
+    "mg": "masa", "g": "masa", "kg": "masa", "lb": "masa", "t": "masa",
     "ml": "volumen", "l": "volumen",
     "unidad": "conteo", "uds": "conteo", "und": "conteo", "u": "conteo", "unidades": "conteo",
 }
 
 # Factor para convertir a la unidad base de cada familia (g, ml, unidad)
 _FACTOR: dict[str, Decimal] = {
+    "mg":       Decimal("0.001"),
     "g":        Decimal("1"),
     "kg":       Decimal("1000"),
     "lb":       Decimal("500"),
+    "t":        Decimal("1000000"),
     "ml":       Decimal("1"),
     "l":        Decimal("1000"),
     "unidad":   Decimal("1"),
@@ -265,9 +277,11 @@ _ESTADOS_VENTA_FINALES = {5, 8, 9}  # Cancelado, Entregado, En camino
 # tablas distintas: se nombra aparte para que quede claro a qué se refiere.
 ESTADO_VENTA_LISTO      = 11
 ESTADO_VENTA_CONFIRMADO = 4
-# Solo se avanza a Listo desde estos: Confirmado (el cliente aceptó) o En
-# producción. Un pedido aún Pendiente o esperando fecha no se salta ese paso.
-_ESTADOS_VENTA_PRODUCIENDO = {ESTADO_VENTA_CONFIRMADO, ESTADO_EN_PROCESO}
+ESTADO_VENTA_FECHA_PROPUESTA = 16
+# Solo se avanza a Listo desde estos: Confirmado (el cliente aceptó), En
+# producción, o Fecha propuesta (la producción puede arrancar antes de que el
+# cliente acepte formalmente cuando el admin la inicia directamente).
+_ESTADOS_VENTA_PRODUCIENDO = {ESTADO_VENTA_CONFIRMADO, ESTADO_EN_PROCESO, ESTADO_VENTA_FECHA_PROPUESTA}
 
 
 def _sync_venta_por_ordenes(
@@ -425,6 +439,10 @@ def _formato_orden(
         estado_label = estados_map.get(orden.Estado) if orden.Estado else None
     else:
         estado_label = _label_estado(db, orden.Estado) if orden.Estado else None
+    # La tabla Estados es compartida: Estado=1 es "Activo" para insumos/productos
+    # pero en producción significa "Pendiente"
+    if orden.Estado == 1:
+        estado_label = "Pendiente"
 
     # Cálculo de costo
     if orden.ID_Ficha:
@@ -490,10 +508,14 @@ def obtener_ordenes(
     db: Session,
     pagina: int = 1,
     por_pagina: int = 10,
-    busqueda: str = None
+    busqueda: str = None,
+    id_venta: int = None,
 ) -> dict:
     """Lista paginada con queries en lote. Evita N+1."""
     query = db.query(OrdenProduccion)
+
+    if id_venta is not None:
+        query = query.filter(OrdenProduccion.ID_Venta == id_venta)
 
     if busqueda:
         termino = f"%{busqueda}%"

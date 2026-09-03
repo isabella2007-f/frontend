@@ -29,9 +29,16 @@ const PASOS_TIENDA = [
   { key: 'Entregado',     label: 'Recogido',         Icon: CheckCircle2 },
 ];
 
+const getEstadoDisplay = (pedido) =>
+  (pedido?.ordenes_en_espera > 0 && pedido?.estado === 'En producción')
+    ? 'Pendiente de producción'
+    : (pedido?.estado ?? 'Pendiente');
+
 function PedidoStepper({ estado, domicilio }) {
   const pasos = domicilio ? PASOS_DOMICILIO : PASOS_TIENDA;
-  const estadoMapped = (domicilio && (estado === 'Listo' || estado === 'Asignado')) ? 'Confirmado' : estado;
+  // "Pendiente de producción" se muestra en el mismo paso que "En producción"
+  const estadoNorm = estado === 'Pendiente de producción' ? 'En producción' : estado;
+  const estadoMapped = (domicilio && (estadoNorm === 'Listo' || estadoNorm === 'Asignado')) ? 'Confirmado' : estadoNorm;
   const idx = pasos.findIndex(p => p.key === estadoMapped);
   const activoIdx = idx === -1 ? 0 : idx;
   return (
@@ -84,6 +91,15 @@ const ESTADO_CONFIG = {
     text: 'text-amber-700',
     border: 'border-amber-200',
     badge: 'bg-amber-100 text-amber-700'
+  },
+  'Pendiente de producción': {
+    color: 'orange',
+    icon: ChefHat,
+    label: 'Pendiente de producción',
+    bg: 'bg-orange-50',
+    text: 'text-orange-700',
+    border: 'border-orange-200',
+    badge: 'bg-orange-100 text-orange-700'
   },
   'En producción': {
     color: 'blue',
@@ -538,7 +554,7 @@ const PedidosClientePage = () => {
         {filteredPedidos.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredPedidos.map(pedido => {
-              const config = ESTADO_CONFIG[pedido.estado] || ESTADO_CONFIG['Pendiente'];
+              const config = ESTADO_CONFIG[getEstadoDisplay(pedido)] || ESTADO_CONFIG['Pendiente'];
               const StatusIcon = config.icon;
 
               return (
@@ -686,7 +702,7 @@ const PedidosClientePage = () => {
             {/* Stepper de seguimiento */}
             <div style={{ padding: '16px 20px 0', background: '#fff', flexShrink: 0 }}>
               <p style={{ fontSize: 10, fontWeight: 700, color: '#9e9e9e', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 12 }}>Seguimiento del pedido</p>
-              <PedidoStepper estado={selectedPedido.estado} domicilio={selectedPedido.domicilio} />
+              <PedidoStepper estado={getEstadoDisplay(selectedPedido)} domicilio={selectedPedido.domicilio} />
             </div>
 
             {/* Body */}

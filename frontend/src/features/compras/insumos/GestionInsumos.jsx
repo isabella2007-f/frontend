@@ -31,7 +31,7 @@ const ADAPT_INSUMO = raw => ({
   idUnidad:           raw.Unidad_Medida,
   stockActual:        raw.Stock_Actual,
   stockMinimo:        raw.Stock_Minimo,
-  estado:             raw.Estado === 1,
+  estado:             raw.Estado !== 2,
   simboloUnidad:      raw.simbolo_unidad ?? "",
   proxVencimiento:    raw.proximo_vencimiento ?? null,
   diasParaVencer:     raw.dias_para_vencer ?? null,
@@ -300,7 +300,8 @@ export default function GestionInsumos() {
       await crearInsumo(payload);
       showToast("Insumo creado");
       setModal(null);
-      cargarDatos();
+      await cargarDatos();
+      setPage(1);
     } catch (e) {
       showToast(e.message || "Error al crear el insumo", "error");
     }

@@ -77,6 +77,15 @@ def borrar_imagen(
     return eliminar_imagen(db, id_imagen)
 
 
+@router.get("/{id_producto}/ficha", response_model=ProductoResponse)
+def ver_ficha(
+    id_producto: int,
+    db:          Session = Depends(get_db),
+):
+    """Retorna la ficha técnica del producto."""
+    return obtener_producto(db, id_producto)
+
+
 @router.post("/{id_producto}/ficha", response_model=ProductoResponse)
 def crear_ficha(
     id_producto: int,
