@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Check, Eye, EyeOff } from "lucide-react";
+import { Check, X, Eye, EyeOff } from "lucide-react";
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
 import { soloLetras, soloDigitos, esUbicacionValida } from "../../../utils/inputFilters";
 import { GB, getRolStyle, EMPTY_FORM, TIPO_DOC, validatePassword, validateCedula, validateTelefono } from "./usuariosUtils.js";
@@ -188,6 +188,30 @@ function StepsBar({ current }) {
         );
       })}
     </div>
+  );
+}
+
+const PASS_RULES = [
+  { test: p => p.length >= 8,           label: "Mínimo 8 caracteres" },
+  { test: p => /[A-Z]/.test(p),         label: "Al menos una mayúscula" },
+  { test: p => /[a-z]/.test(p),         label: "Al menos una minúscula" },
+  { test: p => /\d/.test(p),            label: "Al menos un número" },
+  { test: p => /[^A-Za-z0-9]/.test(p),  label: "Al menos un carácter especial (!@#...)" },
+];
+
+function PasswordChecklist({ password }) {
+  if (!password) return null;
+  return (
+    <ul style={{ margin: "6px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 3 }}>
+      {PASS_RULES.map(({ test, label }) => {
+        const ok = test(password);
+        return (
+          <li key={label} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 600, color: ok ? "#166534" : "#991b1b" }}>
+            {ok ? <Check size={11} /> : <X size={11} />} {label}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -489,7 +513,7 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
                           type={showPass ? "text" : "password"}
                           value={form.contrasena}
                           onChange={e => set("contrasena", e.target.value)}
-                          placeholder={isEdit ? "Dejar vacío para no cambiar" : "Mínimo 8 caracteres"}
+                          placeholder={isEdit ? "Dejar vacío para no cambiar" : "Ej: Toston@2024"}
                           autoComplete="new-password"
                           className={`field-input${errors.contrasena ? " error" : ""}`}
                         />
@@ -497,6 +521,7 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
                           {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                         </button>
                       </div>
+                      <PasswordChecklist password={form.contrasena} />
                     </Field>
                     <Field required={!isEdit} label="Confirmar contraseña" error={errors.confirmar}>
                       <div className="pass-input-wrap">
@@ -512,6 +537,14 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
                           {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
                         </button>
                       </div>
+                      {form.confirmar && (
+                        <p style={{ margin: "4px 0 0", fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 4,
+                          color: form.contrasena === form.confirmar ? "#166534" : "#991b1b" }}>
+                          {form.contrasena === form.confirmar
+                            ? <><Check size={11} /> Las contraseñas coinciden</>
+                            : <><X size={11} /> Las contraseñas no coinciden</>}
+                        </p>
+                      )}
                     </Field>
                   </>
                 );
