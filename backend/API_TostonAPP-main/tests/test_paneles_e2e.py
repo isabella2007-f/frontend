@@ -1336,5 +1336,86 @@ class DiaDelRepartidorTests(PanelBase):
         self.assertLess(ids.index(reciente), ids.index(viejo))
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# 11. La fecha propuesta: la mueve el cliente, no el horno
+# ══════════════════════════════════════════════════════════════════════════
+class FechaPropuestaTests(PanelBase):
+    """Un pedido esperando respuesta del cliente no avanza solo.
+
+    Terminar de hornear no responde por él: mientras la fecha esté propuesta,
+    el pedido espera. Es la aceptación la que lo pone en marcha, y si para
+    entonces ya no falta nada, lo deja Listo directo.
+    """
+
+    def esperando_respuesta(self):
+        """Pedido con faltante, confirmado y con la fecha ya propuesta."""
+        pedido = self.pedido_con_faltante()
+        id_venta = pedido["ID_Venta"]
+        fecha = (datetime.now() + timedelta(days=3)).isoformat()
+        self.afirmar_ok(self.patch(
+            f"/ventas/{id_venta}/proponer-fecha", self.admin, {"fecha_entrega": fecha}
+        ))
+        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_FECHA_PROPUESTA)
+        return id_venta
+
+    def test_terminar_la_produccion_no_mueve_el_pedido(self):
+        """El cliente todavía no dijo que sí: el pedido sigue esperándolo."""
+        id_venta = self.esperando_respuesta()
+        self.hornear(id_venta)
+        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_FECHA_PROPUESTA)
+
+    def test_aceptar_con_la_produccion_lista_deja_el_pedido_listo(self):
+        id_venta = self.esperando_respuesta()
+        self.hornear(id_venta)
+
+        self.afirmar_ok(self.patch(f"/ventas/{id_venta}/aceptar-fecha", self.cliente))
+        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_LISTO)
+
+    def test_aceptar_con_la_produccion_a_medias_lo_manda_a_producir(self):
+        id_venta = self.esperando_respuesta()
+
+        self.afirmar_ok(self.patch(f"/ventas/{id_venta}/aceptar-fecha", self.cliente))
+        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_EN_PRODUCCION)
+
+    def test_terminada_despues_de_aceptar_el_pedido_queda_listo(self):
+        """El camino de siempre: se acepta, se hornea, queda listo."""
+        id_venta = self.esperando_respuesta()
+        self.afirmar_ok(self.patch(f"/ventas/{id_venta}/aceptar-fecha", self.cliente))
+        self.hornear(id_venta)
+        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_LISTO)
+
+    def test_aceptar_no_deja_listo_lo_que_no_se_pudo_fabricar(self):
+        """Sin ficha técnica no hay orden que abrir: el producto no existe.
+
+        Aceptar la fecha no puede inventarlo, así que el pedido no llega a
+        Listo por más que el cliente diga que sí.
+        """
+        from src.shared.services.models import Producto
+        torta = self.db.query(Producto).filter(
+            Producto.ID_Producto == ID_TORTA
+        ).first()
+        torta.Requiere_Produccion = 0
+        self.db.query(FichaTecnica).delete()
+        self.db.commit()
+
+        pedido = self.crear_pedido(
+            productos=[{"ID_Producto": ID_TORTA, "Cantidad": 6}],
+        )
+        id_venta = pedido["ID_Venta"]
+        fecha = (datetime.now() + timedelta(days=3)).isoformat()
+        self.afirmar_ok(self.patch(
+            f"/ventas/{id_venta}/proponer-fecha", self.admin, {"fecha_entrega": fecha}
+        ))
+        self.afirmar_ok(self.patch(f"/ventas/{id_venta}/aceptar-fecha", self.cliente))
+        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_CONFIRMADO)
+
+    def test_rechazar_sigue_cancelando_aunque_ya_este_horneado(self):
+        id_venta = self.esperando_respuesta()
+        self.hornear(id_venta)
+
+        self.afirmar_ok(self.patch(f"/ventas/{id_venta}/rechazar-fecha", self.cliente))
+        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_CANCELADO)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
