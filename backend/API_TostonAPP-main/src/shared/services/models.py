@@ -603,6 +603,62 @@ class Notificacion(Base):
 
 
 # ─────────────────────────────────────────
+# LIQUIDACIONES DE EMPLEADOS
+# ─────────────────────────────────────────
+
+class TarifaEmpleado(Base):
+    __tablename__ = "Tarifa_Empleado"
+
+    ID_Tarifa    = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    ID_Empleado  = Column(Integer, ForeignKey("Usuarios.ID_Usuario"))
+    Tarifa_Hora  = Column(Numeric(10, 2))
+    Fecha_Inicio = Column(DateTime)
+    Fecha_Fin    = Column(DateTime, nullable=True)  # NULL = vigente actualmente
+
+    empleado = relationship("Usuario", foreign_keys=[ID_Empleado])
+
+
+class Liquidacion(Base):
+    __tablename__ = "Liquidaciones"
+
+    ID_Liquidacion   = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    ID_Empleado      = Column(Integer, ForeignKey("Usuarios.ID_Usuario"))
+    Fecha_Inicio     = Column(DateTime)
+    Fecha_Fin        = Column(DateTime)
+    Total            = Column(Numeric(30, 2), default=0)
+    Estado           = Column(String(20), default="Borrador")  # Borrador | Pagada | Anulada
+    Motivo_Anulacion = Column(Text, nullable=True)
+    Fecha_Anulacion  = Column(DateTime, nullable=True)
+    Metodo_Pago      = Column(String(50), nullable=True)
+    Fecha_Pago       = Column(DateTime, nullable=True)
+    Fecha_Creacion   = Column(DateTime)
+
+    empleado  = relationship("Usuario", foreign_keys=[ID_Empleado])
+    registros = relationship("RegistroHoras", back_populates="liquidacion")
+
+
+class RegistroHoras(Base):
+    __tablename__ = "Registro_Horas"
+
+    ID_Registro         = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    ID_Empleado         = Column(Integer, ForeignKey("Usuarios.ID_Usuario"))
+    ID_Orden_Produccion = Column(Integer, ForeignKey("Orden_Produccion.ID_Orden_Produccion"), nullable=True)
+    ID_Domicilio        = Column(Integer, ForeignKey("Domicilios.ID_Domicilio"), nullable=True)
+    Fecha               = Column(DateTime)
+    Hora_Inicio         = Column(DateTime)
+    Hora_Fin            = Column(DateTime)
+    Horas_Trabajadas    = Column(Numeric(10, 2))
+    # pendiente | en_liquidacion | liquidado
+    Estado              = Column(String(20), default="pendiente")
+    ID_Liquidacion      = Column(Integer, ForeignKey("Liquidaciones.ID_Liquidacion"), nullable=True)
+
+    empleado         = relationship("Usuario", foreign_keys=[ID_Empleado])
+    orden_produccion = relationship("OrdenProduccion", foreign_keys=[ID_Orden_Produccion])
+    domicilio        = relationship("Domicilio", foreign_keys=[ID_Domicilio])
+    liquidacion      = relationship("Liquidacion", back_populates="registros")
+
+
+# ─────────────────────────────────────────
 # DESCUENTOS
 # ─────────────────────────────────────────
 
