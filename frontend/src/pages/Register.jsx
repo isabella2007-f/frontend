@@ -367,7 +367,7 @@ const Register = () => {
               <label className="auth-label"><Lock size={11} /> Contraseña <span className="required">*</span></label>
               <div className="auth-input-wrap">
                 <span className="auth-input-icon"><Lock size={15} /></span>
-                <input type={showPass ? 'text' : 'password'} placeholder="Mínimo 8 caracteres"
+                <input type={showPass ? 'text' : 'password'} placeholder="Ej: Toston@2024"
                   className="auth-input" value={form.Contrasena} onChange={set('Contrasena')} />
                 <button type="button" className="auth-eye" onClick={() => setShowPass(v => !v)} tabIndex={-1}>
                   {showPass ? <EyeOff size={16} /> : <Eye size={16} />}

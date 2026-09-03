@@ -521,8 +521,8 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
                           {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
                         </button>
                       </div>
-                      <PasswordChecklist password={form.contrasena} />
                     </Field>
+                    <PasswordChecklist password={form.contrasena} />
                     <Field required={!isEdit} label="Confirmar contraseña" error={errors.confirmar}>
                       <div className="pass-input-wrap">
                         <input
