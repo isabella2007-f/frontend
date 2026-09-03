@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback } from "react";
 import { getUser } from "../../../services/authService";
 import { getDomicilios, getDomicilio, cambiarEstadoDomicilio, registrarPagoEfectivo } from "../../../services/domiciliosService";
 import { ESTADO_DOMICILIO, cobroEfectivoPendiente, esDomicilioActivo, esPagoMixto, montoACobrar, transicionesDom } from "./estadosDomicilio";
@@ -92,7 +92,7 @@ function CobrarEfectivoModal({ pedido, entregarDespues, onClose, onConfirm }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div style={{
         background: "#fff", borderRadius: 16, padding: "24px 28px",
         width: "min(420px, 95vw)", boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
@@ -575,7 +575,7 @@ export default function PedidoActual() {
 
       {/* ── Modal confirmación cancelar ── */}
       {confirmando && (
-        <div className="modal-overlay" onClick={() => setConfirmando(null)}>
+        <div className="modal-overlay">
           <div style={{
             background: "#fff", borderRadius: 16, padding: "28px",
             width: "min(360px, 90vw)", boxShadow: "0 8px 40px rgba(0,0,0,0.18)",

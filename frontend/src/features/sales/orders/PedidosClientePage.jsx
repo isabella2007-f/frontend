@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+﻿import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getMisVentas, cancelarMiPedido, aceptarFechaProduccion, rechazarFechaProduccion } from '../../../services/pedidosService';
 import { crearDevolucion } from '../../../services/devolucionesService';
@@ -252,7 +252,7 @@ function SolicitarDevolucionModal({ pedido, onClose, onSuccess }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div
         className="modal-box bg-white w-full max-w-lg shadow-2xl flex flex-col"
         style={{ borderRadius: 24, maxHeight: '90vh', overflow: 'hidden' }}
@@ -684,7 +684,7 @@ const PedidosClientePage = () => {
 
       {/* ── Modal Detalle ── */}
       {selectedPedido && (
-        <div className="modal-overlay" onClick={closeModal}>
+        <div className="modal-overlay">
           <div
             className="modal-box relative bg-white w-full max-w-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col border-none"
             style={{ borderRadius: 28 }}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
 import { getSalidas, registrarSalida, anularSalida, procesarVencidos } from "../../services/salidasService.js";
 import { getProductos } from "../../services/productosService.js";
@@ -65,7 +65,7 @@ function InfoRow({ label, value, color }) {
 function ModalVerDetalle({ salida, onClose }) {
   const tc = TIPO_MAP[salida.tipo] || { color: "#757575", bg: "#f5f5f5", border: "#e0e0e0", Icon: ClipboardList, label: salida.tipo };
   return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 30000 }}>
+    <div className="modal-overlay" style={{ zIndex: 30000 }}>
       <div className="modal-box" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
         <div className="modal-header" style={{ background: `linear-gradient(135deg, ${tc.color} 0%, ${tc.color}cc 100%)` }}>
           <div>
@@ -110,7 +110,7 @@ function ModalVerDetalle({ salida, onClose }) {
 function ModalConfirmarAnular({ salida, onConfirmar, onCancelar }) {
   const tc = TIPO_MAP[salida.tipo] || { color: "#757575", bg: "#f5f5f5", border: "#e0e0e0", Icon: ClipboardList, label: salida.tipo };
   return (
-    <div className="modal-overlay" onClick={onCancelar}>
+    <div className="modal-overlay">
       <div className="modal-box" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div>
@@ -218,7 +218,7 @@ function RegistrarSalida({ productos, insumos, onClose, onRegistrada }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--wide" onClick={e => e.stopPropagation()} style={{ maxWidth: 850 }}>
         <div className="modal-header">
           <div>

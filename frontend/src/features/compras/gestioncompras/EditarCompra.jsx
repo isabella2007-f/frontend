@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { Check, X, Package, ClipboardList, Building2, Calendar, CreditCard, PenLine, AlertTriangle, CheckCircle2, Ban, Banknote, Receipt, Tag, Paperclip, Clock, ShoppingCart } from "lucide-react";
 import { getProveedores } from "../../../services/proveedoresService.js";
 import { getInsumos, getLotesInsumo } from "../../../services/insumosService.js";
@@ -138,7 +138,7 @@ export function AnularCompraModal({ compra, onClose, onConfirm }) {
   const yaCompletada = compra.stockAplicado === true || compra.estado === "completada";
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
         <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
           <div className="delete-icon-wrap" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Ban size={24} /></div>
@@ -441,7 +441,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
     const metodo = METODOS_PAGO.find(m => m.value === compra.metodoPago);
 
     return (
-      <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-overlay">
         <div className="modal-card modal-card--compra-det" onClick={e => e.stopPropagation()}>
 
           {/* Header */}
@@ -696,7 +696,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
 
   /* ── Modo editar ── */
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-card" onClick={e => e.stopPropagation()} style={modalStyle}>
 
         <div className="modal-header" style={{ flexShrink: 0, padding: "18px 28px" }}>

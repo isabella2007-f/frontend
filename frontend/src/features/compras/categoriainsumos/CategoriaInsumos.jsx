@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { Search, X, Eye, PenLine, Trash2, AlertTriangle, Tag, Package, Ban } from "lucide-react";
 import { fmtFecha } from "../../../utils/dateUtils.js";
 import { Toast, ModalOverlay } from "./ui.jsx";
@@ -433,7 +433,7 @@ export default function CategoriaInsumos() {
       )}
       {modal?.type === "eliminar" && (
         modal.cat.totalInsumos > 0 ? (
-          <div className="modal-overlay" onClick={() => setModal(null)}>
+          <div className="modal-overlay">
             <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()} style={{ overflow: "hidden", padding: 0 }}>
 
               <div style={{ background: "linear-gradient(135deg, #b71c1c 0%, #c62828 100%)", padding: "28px 24px 22px", textAlign: "center", position: "relative" }}>

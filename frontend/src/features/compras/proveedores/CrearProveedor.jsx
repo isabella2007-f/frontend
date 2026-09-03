@@ -295,7 +295,7 @@ export default function CrearProveedor({ onClose, onSave }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-card" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
 
         <div className="modal-header">

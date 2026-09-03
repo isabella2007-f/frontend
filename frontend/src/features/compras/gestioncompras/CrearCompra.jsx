@@ -408,7 +408,7 @@ export default function CrearCompra({ onClose, onSave }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div
         className="modal-card"
         onClick={e => e.stopPropagation()}

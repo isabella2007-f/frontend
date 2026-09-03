@@ -397,7 +397,7 @@ function VerProducto({ product, catObj, onClose, onOpenFicha }) {
   const previews = product.imagenesPreview ?? [];
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div
         className="modal-box"
         style={{ maxWidth: 500, display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 40px)" }}

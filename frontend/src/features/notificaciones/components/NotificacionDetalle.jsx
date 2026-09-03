@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { X, Calendar, AlertTriangle, Check, CheckCircle2, Info, ExternalLink } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useNotificaciones, TIPO_ICONS, TIPO_LABELS, TIPO_COLORS, TIPOS } from "../context/NotificacionesContext";
@@ -83,7 +83,7 @@ export default function NotificacionDetalle({ notif, onClose }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 30000 }}>
+    <div className="modal-overlay" style={{ zIndex: 30000 }}>
       <div className="modal-box modal-box--sm notif-detalle" onClick={e => e.stopPropagation()}>
 
         {/* Header */}

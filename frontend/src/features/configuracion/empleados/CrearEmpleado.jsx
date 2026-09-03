@@ -255,7 +255,7 @@ export default function CrearEmpleado({ onClose, onSave, roles = [] }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--wide" onClick={e => e.stopPropagation()}>
 
         {/* Header */}

@@ -3,7 +3,7 @@ import { CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 
 export function ModalOverlay({ onClose, children }) {
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box" onClick={e => e.stopPropagation()}>
         {children}
       </div>

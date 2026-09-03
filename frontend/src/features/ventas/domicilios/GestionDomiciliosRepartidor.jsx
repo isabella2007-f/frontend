@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { getDomicilios, cambiarEstadoDomicilio, registrarPagoEfectivo } from "../../../services/domiciliosService.js";
 import { getUser } from "../../../services/authService.js";
 import { fmtFechaHora as fmtFecha } from "../../../utils/dateUtils.js";
@@ -120,7 +120,7 @@ function CobroEfectivoModal({ domicilio, saving, entregarDespues, onClose, onCon
   );
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div
         style={{
           background: "#fff", borderRadius: 16, padding: "24px 28px",
@@ -217,7 +217,7 @@ function CambiarEstadoModal({ domicilio, onClose, onSave }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div style={{
         background: "#fff", borderRadius: 16, padding: "24px 28px",
         width: "min(420px, 95vw)", boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
@@ -299,7 +299,7 @@ function CambiarEstadoModal({ domicilio, onClose, onSave }) {
 
 function DetallesModal({ domicilio, onClose, onCambiarEstado, onCobrar }) {
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div style={{
         background: "#fff", borderRadius: 16, padding: "24px 28px",
         width: "min(480px, 95vw)", maxHeight: "85vh", overflow: "auto",

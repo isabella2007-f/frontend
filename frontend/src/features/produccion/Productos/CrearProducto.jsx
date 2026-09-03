@@ -1,4 +1,4 @@
-// src/features/produccion/Productos/CrearProducto.jsx
+﻿// src/features/produccion/Productos/CrearProducto.jsx
 // ─────────────────────────────────────────────────────────────────────────────
 // Modal de creación de producto conectado a la API real.
 // Flujo:
@@ -234,7 +234,7 @@ export default function CrearProducto({ categorias = [], onClose, onSave, existi
   ══════════════════════════════════════════════════════ */
   return (
     <>
-      <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-overlay">
         <div
           className="modal-card"
           style={{ maxWidth: 500 }}

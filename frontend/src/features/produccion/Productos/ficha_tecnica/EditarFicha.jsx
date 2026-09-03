@@ -140,7 +140,7 @@ export default function EditarFicha({ ficha, mode = "edit", onClose, onSave, pro
   ];
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="ficha-modal" onClick={e => e.stopPropagation()}>
 
         <div className="ficha-modal__header">

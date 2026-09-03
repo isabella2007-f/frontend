@@ -76,7 +76,7 @@ export const Toast = ({ toast }) =>
   ) : null;
 
 export const ModalOverlay = ({ onClose, children }) => (
-  <div className="modal-overlay" onClick={onClose}>
+  <div className="modal-overlay">
     <div className="modal-box" onClick={e => e.stopPropagation()}>
       {children}
     </div>

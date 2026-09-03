@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { AlertTriangle, Check, X, Search, Eye, PenLine, Trash2, Shield } from "lucide-react";
 import { usePrivilegio } from "../../../context/PrivilegiosContext";
 import { getRoles, eliminarRol, toggleEstadoRol } from "../../../services/rolesService.js";
@@ -37,7 +37,7 @@ function Toggle({ value, onChange, disabled = false }) {
 
 function ModalConfirmarDesactivarRol({ rol, onConfirm, onCancel }) {
   return (
-    <div className="modal-overlay" onClick={onCancel}>
+    <div className="modal-overlay">
       <div style={{
         background: "#fff", borderRadius: 16, padding: "32px 28px",
         width: "min(420px, 95vw)", boxShadow: "0 8px 40px rgba(0,0,0,0.2)",

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { esEmpleadoRepartidor } from "../../../utils/roles.js";
 import { Navigate } from "react-router-dom";
 import {
@@ -204,7 +204,7 @@ const exportToCsv = (rows, nombreRepartidor) => {
    ═══════════════════════════════════════════════════════════ */
 function ModalConfirmarDesactivar({ usuario, pedidosActivos, onConfirm, onClose }) {
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div>
@@ -302,7 +302,7 @@ function ModalRegistrarCobro({ pedido, saving, onClose, onConfirm }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div>
@@ -381,7 +381,7 @@ function ModalCambiarEstado({ pedido, esRepartidor = false, onClose, onSave }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div>
@@ -458,7 +458,7 @@ function ModalVerDomicilio({ pedido, emp, domicilios, onClose, onReasignar, onOb
   const entregados  = pedidosAsignados.filter(d => d.estado === "Entregado").length;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div
         className="modal-box modal-box--wide"
         onClick={e => e.stopPropagation()}
@@ -835,7 +835,7 @@ function ModalReasignar({ pedido, empleados, repartidores, onClose, onConfirm })
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div>
@@ -897,7 +897,7 @@ function ModalObservaciones({ pedido, onClose, onConfirm }) {
   const [done, setDone] = useState(false);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div>

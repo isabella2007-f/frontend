@@ -42,7 +42,7 @@ function EliminarModal({ ficha, onClose, onConfirm }) {
   const [deleting, setDeleting] = useState(false);
   const run = async () => { setDeleting(true); await onConfirm(); setDeleting(false); };
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
         <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
           <div className="delete-icon-wrap"><Trash2 size={30}/></div>

@@ -1,4 +1,4 @@
-import { esEmpleadoRepartidor } from "../../../utils/roles.js";
+﻿import { esEmpleadoRepartidor } from "../../../utils/roles.js";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { fmtFecha, getRecordDate } from "../../../utils/dateUtils.js";
@@ -210,7 +210,7 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit }) {
   if (!pedido) return null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div
         className="modal-box modal-box--wide"
         onClick={e => e.stopPropagation()}
@@ -807,7 +807,7 @@ function ModalRegistrarSaldo({ pedido, saving, onClose, onConfirm }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()} style={{ overflow: "hidden", padding: 0, maxWidth: 420 }}>
         <div style={{ background: "linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%)", padding: "24px 24px 18px", position: "relative" }}>
           <button onClick={onClose} style={{ position: "absolute", top: 12, right: 12, color: "rgba(255,255,255,0.8)", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 8, width: 30, height: 30, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={14} /></button>
@@ -899,7 +899,7 @@ function ModalRegistrarSaldo({ pedido, saving, onClose, onConfirm }) {
 function ModalErrorEstadoPedido({ mensaje, onClose }) {
   if (!mensaje) return null;
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()} style={{ overflow: "hidden", padding: 0 }}>
         <div style={{ background: "linear-gradient(135deg, #e65100 0%, #f57f17 100%)", padding: "28px 24px 22px", textAlign: "center", position: "relative" }}>
           <button onClick={onClose} style={{ position: "absolute", top: 12, right: 12, color: "rgba(255,255,255,0.8)", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 8, width: 30, height: 30, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={14} /></button>

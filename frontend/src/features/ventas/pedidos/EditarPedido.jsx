@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { getUsuarios, editarUsuario } from "../../../services/usuariosService.js";
 import SearchableSelect from "../../../shared/components/SearchableSelect.jsx";
 import { soloLetras, soloDigitos } from "../../../utils/inputFilters";
@@ -229,7 +229,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
   // de hooks entre renders y lanza "Rendered fewer hooks than expected".
   if (!esEditable) {
     return (
-      <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-overlay">
         <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
           <div style={{ padding: "28px 24px", textAlign: "center" }}>
             <div style={{
@@ -458,7 +458,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div
         className="modal-card"
         onClick={e => e.stopPropagation()}

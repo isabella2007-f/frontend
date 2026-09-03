@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { Search, X, AlertTriangle, Package, ClipboardList, Check, Eye, PenLine, Ban, RefreshCw, Building2, FolderOpen, ShoppingCart, Lock } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { fmtFecha } from "../../../utils/dateUtils.js";
@@ -195,7 +195,7 @@ function ModalDetallesOrden({ orden, onClose }) {
   );
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div
         className="modal-box"
         style={{ maxWidth: 480, width: "100%" }}
@@ -530,7 +530,7 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div>
@@ -714,7 +714,7 @@ function ModalErrorEstado({ mensaje, orden, onClose }) {
   const irACompras = () => { onClose(); navigate("/admin/compras"); };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
         <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
           <div style={{
@@ -815,7 +815,7 @@ function ModalAnularOrden({ orden, onClose, onConfirm }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
         <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
           <div style={{
@@ -965,7 +965,7 @@ function ModalFormOrden({ orden, productos, onClose, onSave }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div>

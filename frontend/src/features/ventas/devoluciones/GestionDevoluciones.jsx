@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import CrearDevolucion from "./CrearDevolucion.jsx";
 import { getDevoluciones, crearDevolucion, resolverDevolucion, getCreditoCliente } from "../../../services/devolucionesService.js";
 import { registrarSalida } from "../../../services/salidasService.js";
@@ -91,7 +91,7 @@ function ModalVerDevolucion({ dev, creditoCliente, onClose }) {
   const [tab, setTab] = useState("informacion");
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--wide" onClick={(e) => e.stopPropagation()}>
 
         <div className="modal-header modal-header--red">
@@ -232,7 +232,7 @@ function ModalVerDevolucion({ dev, creditoCliente, onClose }) {
 function ModalAprobar({ dev, onClose, onConfirm }) {
   const [done, setDone] = useState(false);
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--md" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <div>
@@ -290,7 +290,7 @@ function ModalRechazar({ dev, onClose, onConfirm }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--md" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header modal-header--red">
           <div>

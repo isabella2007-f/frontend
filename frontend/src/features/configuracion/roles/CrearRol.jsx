@@ -75,7 +75,7 @@ export default function CrearRol({ onClose, onSave }) {
 
   return createPortal(
     <>
-      <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-overlay">
         <div className="modal-box modal-box--wide" onClick={e => e.stopPropagation()}>
           <div className="modal-header">
             <div>

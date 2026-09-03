@@ -59,7 +59,7 @@ export default function SalidaModal({ entidad, tipo, stockActual, unidadLabel = 
     : 0;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
 
         {/* Header */}

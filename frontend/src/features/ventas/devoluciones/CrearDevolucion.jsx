@@ -423,7 +423,7 @@ export default function CrearDevolucion({ onClose, onSave, saving, devoluciones 
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-card modal-devolucion" style={{ maxWidth: 760 }} onClick={(e) => e.stopPropagation()}>
 
         {/* Header */}

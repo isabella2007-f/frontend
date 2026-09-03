@@ -176,7 +176,7 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
   ];
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="ficha-modal" onClick={e => e.stopPropagation()}>
 
         <div className="ficha-modal__header">

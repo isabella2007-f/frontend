@@ -79,7 +79,7 @@ function ModalRegistrarLlegada({ compra, onClose, onConfirm }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--sm" style={{ maxWidth: 360 }} onClick={e => e.stopPropagation()}>
         <div style={{ padding: "24px 24px 16px" }}>
           <h3 style={{ margin: "0 0 6px", fontSize: 16, fontWeight: 700, color: "#1a1a1a" }}>

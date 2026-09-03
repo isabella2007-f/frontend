@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { Search, X, AlertTriangle, Package, ClipboardList, Eye, PenLine, Trash2, Truck, Ban, CheckCircle2, ShoppingCart, Settings } from "lucide-react";
 import { usePrivilegio } from "../../../context/PrivilegiosContext";
 import { registrarSalida, procesarVencidos } from "../../../services/salidasService";
@@ -570,7 +570,7 @@ export default function GestionInsumos() {
       )}
       {modal?.type === "eliminar" && (
         (modal.ins.tieneFicha || modal.ins.tieneOrden || modal.ins.tieneCompra) ? (
-          <div className="modal-overlay" onClick={() => setModal(null)} style={{ zIndex: 30000 }}>
+          <div className="modal-overlay" style={{ zIndex: 30000 }}>
             <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 440, overflow: "hidden" }}>
 
               {/* ── Cabecera roja ── */}

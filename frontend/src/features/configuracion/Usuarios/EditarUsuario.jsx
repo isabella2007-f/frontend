@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { AlertTriangle, Info, X, User, MapPin, ShieldCheck, Banknote, Check, Calendar, Package, CheckCircle2, XCircle, Search, Trash2, RefreshCw } from "lucide-react";
 import { getPedidos } from "../../../services/pedidosService.js";
 import { Avatar } from "./CrearUsuario.jsx";
@@ -94,7 +94,7 @@ export function ModalVerUsuario({ user, roles = [], onClose }) {
     : null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div
         className="modal-box"
         style={{ maxWidth: 600, width: "100%", maxHeight: "calc(100vh - 40px)", display: "flex", flexDirection: "column", overflow: "hidden" }}
@@ -349,7 +349,7 @@ export function ModalEliminarUsuario({ user, razon, advertencias = [], onClose, 
   // ── Bloqueo duro (ej: admin principal) ──
   if (razon) {
     return (
-      <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-overlay">
         <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
           <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
             <div className="delete-icon-wrap" style={{ background: "#fff8e1", border: "1px solid #ffe082", color: "#e65100" }}><AlertTriangle size={32} /></div>
@@ -366,7 +366,7 @@ export function ModalEliminarUsuario({ user, razon, advertencias = [], onClose, 
 
   // ── Confirmación normal (con o sin advertencias) ──
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
         <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
           <div className="delete-icon-wrap"><Trash2 size={32} /></div>
@@ -424,7 +424,7 @@ export function ModalDesactivarUsuario({ user, advertencias, onClose, onConfirm 
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
         <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
           <div className="delete-icon-wrap" style={{ background: "#fff8e1", border: "1px solid #ffe082", color: "#e65100" }}><AlertTriangle size={32} /></div>
