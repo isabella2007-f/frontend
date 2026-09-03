@@ -1309,6 +1309,16 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
         ).count()
         if _creadas > 0 or _abiertas > 0:
             estado_a_guardar = EstadoPedido.PREPARANDO
+        else:
+            # No hay órdenes activas: puede que todas ya estuvieran completadas
+            # antes de que el sync funcionara correctamente (pedidos "atascados").
+            # Si existe al menos una orden completada, el producto ya está listo.
+            _completadas = db.query(OrdenProduccion).filter(
+                OrdenProduccion.ID_Venta == id_venta,
+                OrdenProduccion.Estado == 11,
+            ).count()
+            if _completadas > 0:
+                estado_a_guardar = EstadoPedido.LISTO
 
     # Bloquear paso a LISTO si hay órdenes de producción sin completar
     if nuevo_estado == EstadoPedido.LISTO:
