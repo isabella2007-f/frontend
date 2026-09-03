@@ -134,7 +134,7 @@ const AppRouter = () => {
             {/* Ventas */}
             <Route path="clientes"      element={<PR clave="Pedidos_ver"      el={<GestionClientes />} />} />
             <Route path="pedidos"       element={<PR clave="Pedidos_ver"      el={<GestionPedidos />} />} />
-            <Route path="liquidaciones" element={<PR clave="Domicilios_ver"   el={<GestionLiquidaciones />} />} />
+            <Route path="liquidaciones" element={<PR clave="Liquidaciones_ver" el={<GestionLiquidaciones />} />} />
             <Route path="reportes"      element={<ReportesRoute />} />
             <Route path="devoluciones"  element={<PR clave="Devoluciones_ver" el={<GestionDevoluciones />} />} />
             <Route path="domicilios"           element={<PR clave="Domicilios_ver"            el={<GestionDomicilios />} />} />

@@ -36,6 +36,9 @@ from src.features.ventas.domicilios.services.router     import router as domicil
 # ── Dashboard ──
 from src.features.dashboard.services.router import router as dashboard_router
 
+# ── Liquidaciones ──
+from src.features.liquidaciones.services.router import router as liquidaciones_router
+
 
 app = FastAPI(
     title="API Proyecto",
@@ -272,6 +275,61 @@ def migrate_db():
         except Exception:
             pass  # la columna ya existe
 
+    # ── Módulo Liquidaciones de empleados ────────────────────────────────────
+    # Las tablas se crean en orden: Liquidaciones primero porque
+    # Registro_Horas tiene FK hacia ella.
+    with engine.connect() as conn:
+        for stmt in [
+            """CREATE TABLE IF NOT EXISTS Tarifa_Empleado (
+                ID_Tarifa    INT AUTO_INCREMENT PRIMARY KEY,
+                ID_Empleado  INT NOT NULL,
+                Tarifa_Hora  DECIMAL(10,2) NOT NULL,
+                Fecha_Inicio DATETIME NOT NULL,
+                Fecha_Fin    DATETIME NULL,
+                FOREIGN KEY (ID_Empleado) REFERENCES Usuarios(ID_Usuario)
+            )""",
+            """CREATE TABLE IF NOT EXISTS Liquidaciones (
+                ID_Liquidacion   INT AUTO_INCREMENT PRIMARY KEY,
+                ID_Empleado      INT NOT NULL,
+                Fecha_Inicio     DATETIME NOT NULL,
+                Fecha_Fin        DATETIME NOT NULL,
+                Total            DECIMAL(30,2) NOT NULL DEFAULT 0,
+                Estado           VARCHAR(20) NOT NULL DEFAULT 'Borrador',
+                Motivo_Anulacion TEXT NULL,
+                Fecha_Anulacion  DATETIME NULL,
+                Metodo_Pago      VARCHAR(50) NULL,
+                Fecha_Pago       DATETIME NULL,
+                Fecha_Creacion   DATETIME NOT NULL,
+                FOREIGN KEY (ID_Empleado) REFERENCES Usuarios(ID_Usuario)
+            )""",
+            """CREATE TABLE IF NOT EXISTS Registro_Horas (
+                ID_Registro         INT AUTO_INCREMENT PRIMARY KEY,
+                ID_Empleado         INT NOT NULL,
+                ID_Orden_Produccion INT NULL,
+                ID_Domicilio        INT NULL,
+                Fecha               DATETIME NOT NULL,
+                Hora_Inicio         DATETIME NOT NULL,
+                Hora_Fin            DATETIME NOT NULL,
+                Horas_Trabajadas    DECIMAL(10,2) NOT NULL,
+                Estado              VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+                ID_Liquidacion      INT NULL,
+                FOREIGN KEY (ID_Empleado)         REFERENCES Usuarios(ID_Usuario),
+                FOREIGN KEY (ID_Orden_Produccion) REFERENCES Orden_Produccion(ID_Orden_Produccion),
+                FOREIGN KEY (ID_Domicilio)        REFERENCES Domicilios(ID_Domicilio),
+                FOREIGN KEY (ID_Liquidacion)      REFERENCES Liquidaciones(ID_Liquidacion)
+            )""",
+            # Permisos del módulo (IDs 70-73; Admin los obtiene vía bypass)
+            "INSERT IGNORE INTO Permisos (ID_Permiso, Permiso, Descripcion) VALUES (70, 'ver_liquidaciones', 'Ver módulo de gestión de liquidaciones de empleados')",
+            "INSERT IGNORE INTO Permisos (ID_Permiso, Permiso, Descripcion) VALUES (71, 'crear_liquidaciones', 'Crear tarifas, registros de horas y generar liquidaciones')",
+            "INSERT IGNORE INTO Permisos (ID_Permiso, Permiso, Descripcion) VALUES (72, 'editar_liquidaciones', 'Editar liquidaciones en estado Borrador')",
+            "INSERT IGNORE INTO Permisos (ID_Permiso, Permiso, Descripcion) VALUES (73, 'eliminar_liquidaciones', 'Anular liquidaciones')",
+        ]:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception:
+                pass  # tabla/permiso ya existe
+
     # Corrección de lotes huérfanos: lotes con Estado=1 que pertenecen a compras Pendientes
     # (creados antes de que el flujo fuera corregido para usar Estado=3)
     with engine.connect() as conn:
@@ -382,7 +440,8 @@ app.include_router(pedidos_router,       prefix=PREFIX)
 app.include_router(ventas_router,        prefix=PREFIX)
 app.include_router(devoluciones_router,  prefix=PREFIX)
 app.include_router(domicilios_router,    prefix=PREFIX)
-app.include_router(dashboard_router,     prefix=PREFIX)
+app.include_router(dashboard_router,      prefix=PREFIX)
+app.include_router(liquidaciones_router,  prefix=PREFIX)
 
 
 @app.get("/")
