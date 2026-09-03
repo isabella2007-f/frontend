@@ -18,11 +18,12 @@ def listar_ordenes(
     pagina:     int           = Query(1, ge=1),
     por_pagina: int           = Query(10, ge=1, le=100),
     busqueda:   Optional[str] = Query(None),
+    id_venta:   Optional[int] = Query(None),
     db:         Session       = Depends(get_db),
     _:          dict          = Depends(requiere_permiso("ver_productos"))
 ):
-    """Lista paginada de órdenes. Busca por nombre de producto."""
-    return obtener_ordenes(db, pagina, por_pagina, busqueda)
+    """Lista paginada de órdenes. Filtra por id_venta y busca por nombre de producto."""
+    return obtener_ordenes(db, pagina, por_pagina, busqueda, id_venta)
 
 
 @router.get("/{id_orden}", response_model=OrdenResponse)

@@ -407,6 +407,10 @@ def _formato_orden(
         estado_label = estados_map.get(orden.Estado) if orden.Estado else None
     else:
         estado_label = _label_estado(db, orden.Estado) if orden.Estado else None
+    # La tabla Estados es compartida: Estado=1 es "Activo" para insumos/productos
+    # pero en producción significa "Pendiente"
+    if orden.Estado == 1:
+        estado_label = "Pendiente"
 
     # Cálculo de costo
     if orden.ID_Ficha:
@@ -471,10 +475,14 @@ def obtener_ordenes(
     db: Session,
     pagina: int = 1,
     por_pagina: int = 10,
-    busqueda: str = None
+    busqueda: str = None,
+    id_venta: int = None,
 ) -> dict:
     """Lista paginada con queries en lote. Evita N+1."""
     query = db.query(OrdenProduccion)
+
+    if id_venta is not None:
+        query = query.filter(OrdenProduccion.ID_Venta == id_venta)
 
     if busqueda:
         termino = f"%{busqueda}%"
