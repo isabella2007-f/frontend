@@ -1,7 +1,8 @@
 :root {
   --sidebar-w: 240px;
+  --sidebar-mini: 56px;
   --g: #2e7d32;
-  --g-soft: #f1f8f1;
+  --g-soft: #e4f0e6;
   --g-light: #4caf50;
   --navbar-h: 64px;
 }
@@ -10,9 +11,8 @@
 .sidebar {
   width: var(--sidebar-w);
   height: calc(100vh - var(--navbar-h));
-  background: #fff;
-  border-right: 1px solid #e2ece6;
-  /* overflow: hidden; */ /* Eliminado para permitir que el botón sea visible cuando está cerrado */
+  background: #eef6f0;
+  border-right: 1px solid #c8dece;
   transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
@@ -31,8 +31,46 @@
 }
 
 .sidebar.is-closed {
-  width: 0;
-  border-right: none;
+  width: var(--sidebar-mini);
+}
+
+/* ─── ICON-ONLY MODE (collapsed, desktop) ────────────────── */
+.sidebar.is-closed .sidebar-inner {
+  width: var(--sidebar-mini);
+  min-width: var(--sidebar-mini);
+}
+
+.sidebar.is-closed .sidebar-search,
+.sidebar.is-closed .nav-group-label,
+.sidebar.is-closed .section-label,
+.sidebar.is-closed .chevron,
+.sidebar.is-closed .sub-label,
+.sidebar.is-closed .footer-info,
+.sidebar.is-closed .logout-btn-sidebar {
+  display: none;
+}
+
+.sidebar.is-closed .submenu {
+  max-height: 0 !important;
+}
+
+.sidebar.is-closed .section-btn {
+  justify-content: center;
+  padding: 10px 0;
+  gap: 0;
+}
+
+.sidebar.is-closed .section-icon-wrap {
+  color: var(--g);
+}
+
+.sidebar.is-closed .sidebar-nav {
+  padding: 0 6px 10px;
+}
+
+.sidebar.is-closed .sidebar-footer {
+  justify-content: center;
+  padding: 14px 8px;
 }
 
 .sidebar-toggle-btn {
@@ -41,8 +79,8 @@
   right: -30px;
   width: 30px;
   height: 30px;
-  background: #fff;
-  border: 1px solid #e2ece6;
+  background: #eef6f0;
+  border: 1px solid #c8dece;
   border-left: none;
   border-radius: 0 8px 8px 0;
   cursor: pointer;
@@ -83,8 +121,8 @@
   min-width: 0;
   padding: 8px 10px;
   border-radius: 10px;
-  border: 1.5px solid #e8f0eb;
-  background: #f7faf8;
+  border: 1.5px solid #c8dece;
+  background: #f5fbf6;
   font-size: 13px;
   outline: none;
   color: #333;
@@ -196,12 +234,12 @@
 /* ─── FOOTER ─────────────────────────────────────────────── */
 .sidebar-footer {
   padding: 14px 16px;
-  border-top: 1px solid #edf5ef;
+  border-top: 1px solid #c8dece;
   display: flex;
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
-  background: #fff;
+  background: #eef6f0;
 }
 
 .sidebar-footer .avatar {
@@ -271,6 +309,13 @@
 
   .sidebar.is-closed {
     width: 0;
+    border-right: none;
     box-shadow: none;
+  }
+
+  .sidebar.is-closed .sidebar-inner {
+    width: 0;
+    min-width: 0;
+    overflow: hidden;
   }
 }
