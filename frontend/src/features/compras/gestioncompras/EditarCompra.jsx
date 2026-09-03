@@ -606,7 +606,52 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                     const ins    = insumosActivos.find(i => i.id === Number(d.idInsumo));
                     const uni    = d.unidad || ins?.unidad || "";
                     const nombre = d.nombre || ins?.nombre || "Insumo";
-                    const lotes  = lotesMap[d.idInsumo] || [];
+                    const todosLotes = lotesMap[d.idInsumo] || [];
+
+                    // Separar el lote generado por esta compra de los históricos
+                    const loteDeEsta  = d.idLoteCompra != null
+                      ? todosLotes.filter(l => Number(l.id) === Number(d.idLoteCompra))
+                      : todosLotes; // si el backend no devuelve idLoteCompra, mostrar todos
+                    const otrosLotes  = d.idLoteCompra != null
+                      ? todosLotes.filter(l => Number(l.id) !== Number(d.idLoteCompra))
+                      : [];
+
+                    const renderLote = (l, esDeEstaCompra) => (
+                      <div
+                        key={l.id}
+                        className={
+                          "compra-det-lote-item"
+                          + (l.vencido ? " compra-det-lote-item--vencido" : "")
+                          + (esDeEstaCompra ? " compra-det-lote-item--origen" : "")
+                        }
+                      >
+                        <div className="compra-det-lote-item__main">
+                          <div className="compra-det-lote-item__num">
+                            Lote #{l.id}
+                            {l.numero_lote && (
+                              <span className="compra-det-lote-item__ref">{l.numero_lote}</span>
+                            )}
+                            {l.vencido && (
+                              <span className="compra-det-lote-badge--vencido">Vencido</span>
+                            )}
+                            {esDeEstaCompra && (
+                              <span className="compra-det-lote-badge--origen">Esta compra</span>
+                            )}
+                          </div>
+                          <div className="compra-det-lote-item__meta">
+                            {l.fecha_produccion && `Producción: ${fmtFecha(l.fecha_produccion)}`}
+                            {l.fecha_produccion && l.fecha_vencimiento && " · "}
+                            {l.fecha_vencimiento && `Vence: ${fmtFecha(l.fecha_vencimiento)}`}
+                          </div>
+                        </div>
+                        <div className="compra-det-lote-item__qty">
+                          <span className="compra-det-lote-item__qty-num">
+                            {l.cantidad ?? l.cantidad_inicial ?? "—"}
+                          </span>
+                          <span className="compra-det-lote-item__qty-unit">{uni || "uds."}</span>
+                        </div>
+                      </div>
+                    );
 
                     return (
                       <div key={d.idInsumo || idx} className="compra-det-lote-grupo">
@@ -615,50 +660,23 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
                           <span className="compra-det-lote-grupo__qty">{d.cantidad} {uni} comprados</span>
                         </div>
 
-                        {lotes.length === 0 ? (
+                        {todosLotes.length === 0 ? (
                           <div className="compra-det-lotes-empty">
                             Sin lotes registrados para este insumo
                           </div>
                         ) : (
-                          lotes.map(l => {
-                            const esDeEstaCompra = d.idLoteCompra != null && Number(l.id) === Number(d.idLoteCompra);
-                            return (
-                              <div
-                                key={l.id}
-                                className={
-                                  "compra-det-lote-item"
-                                  + (l.vencido ? " compra-det-lote-item--vencido" : "")
-                                  + (esDeEstaCompra ? " compra-det-lote-item--origen" : "")
-                                }
-                              >
-                                <div className="compra-det-lote-item__main">
-                                  <div className="compra-det-lote-item__num">
-                                    Lote #{l.id}
-                                    {l.numero_lote && (
-                                      <span className="compra-det-lote-item__ref">{l.numero_lote}</span>
-                                    )}
-                                    {l.vencido && (
-                                      <span className="compra-det-lote-badge--vencido">Vencido</span>
-                                    )}
-                                    {esDeEstaCompra && (
-                                      <span className="compra-det-lote-badge--origen">Esta compra</span>
-                                    )}
-                                  </div>
-                                  <div className="compra-det-lote-item__meta">
-                                    {l.fecha_produccion && `Producción: ${fmtFecha(l.fecha_produccion)}`}
-                                    {l.fecha_produccion && l.fecha_vencimiento && " · "}
-                                    {l.fecha_vencimiento && `Vence: ${fmtFecha(l.fecha_vencimiento)}`}
-                                  </div>
+                          <>
+                            {loteDeEsta.map(l => renderLote(l, true))}
+
+                            {otrosLotes.length > 0 && (
+                              <>
+                                <div style={{ padding: "6px 14px", fontSize: 10, fontWeight: 700, color: "#bdbdbd", letterSpacing: "0.5px", textTransform: "uppercase", background: "#fafafa", borderTop: "1px solid #f0f0f0", borderLeft: "1.5px solid #e8e8e8", borderRight: "1.5px solid #e8e8e8" }}>
+                                  Otros lotes del insumo (compras anteriores)
                                 </div>
-                                <div className="compra-det-lote-item__qty">
-                                  <span className="compra-det-lote-item__qty-num">
-                                    {l.cantidad ?? l.cantidad_inicial ?? "—"}
-                                  </span>
-                                  <span className="compra-det-lote-item__qty-unit">{uni || "uds."}</span>
-                                </div>
-                              </div>
-                            );
-                          })
+                                {otrosLotes.map(l => renderLote(l, false))}
+                              </>
+                            )}
+                          </>
                         )}
                       </div>
                     );

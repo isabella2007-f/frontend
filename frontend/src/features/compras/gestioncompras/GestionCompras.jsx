@@ -67,12 +67,15 @@ function Toast({ toast }) {
 /* ── Mini-modal: Registrar fecha de llegada ───────────────── */
 function ModalRegistrarLlegada({ compra, onClose, onConfirm }) {
   const hoy = new Date().toISOString().split('T')[0];
-  const [fecha, setFecha] = useState(compra.fecha_llegada || hoy);
-  const [err,   setErr]   = useState("");
+  const [fecha,      setFecha]      = useState(compra.fecha_llegada || hoy);
+  const [err,        setErr]        = useState("");
+  const [confirming, setConfirming] = useState(false);
 
-  const handleOk = () => {
+  const handleOk = async () => {
     if (!fecha) { setErr("Selecciona la fecha de llegada"); return; }
-    onConfirm(compra.id, fecha);
+    if (confirming) return;
+    setConfirming(true);
+    await onConfirm(compra.id, fecha);
   };
 
   return (
@@ -99,8 +102,10 @@ function ModalRegistrarLlegada({ compra, onClose, onConfirm }) {
           </div>
         </div>
         <div className="modal-footer modal-footer--center">
-          <button className="btn-ghost" onClick={onClose}>Cancelar</button>
-          <button className="btn-save" onClick={handleOk}>Confirmar</button>
+          <button className="btn-ghost" onClick={onClose} disabled={confirming}>Cancelar</button>
+          <button className="btn-save" onClick={handleOk} disabled={confirming}>
+            {confirming ? "Registrando…" : "Confirmar"}
+          </button>
         </div>
       </div>
     </div>
