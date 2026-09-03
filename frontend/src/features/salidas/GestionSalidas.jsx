@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import * as XLSX from "xlsx";
 import { getSalidas, registrarSalida, anularSalida, procesarVencidos } from "../../services/salidasService.js";
 import { getProductos } from "../../services/productosService.js";
 import { getInsumos } from "../../services/insumosService.js";
@@ -852,26 +853,61 @@ function ReporteSalidas({ salidas, loading }) {
     }, {})
   ).sort((a, b) => b.total - a.total).slice(0, 5);
 
-  const exportCSV = () => {
-    const headers = ["Elemento", "Tipo", "Cantidad", "Unidad", "Motivo", "Fecha"];
-    const rows = filtradas.map(s => [
-      s.entidadNombre,
-      TIPO_MAP[s.tipo]?.label || s.tipo,
-      s.cantidad,
-      s.unidad || "uds.",
-      s.motivo || "",
-      s.fecha  || "",
-    ]);
-    const csv = [headers, ...rows]
-      .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))
-      .join("\n");
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href     = url;
-    a.download = `reporte-salidas${fechaInicio ? "-" + fechaInicio : ""}${fechaFin ? "-al-" + fechaFin : ""}.csv`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 100);
+  const exportExcel = () => {
+    const aoa = [
+      // ── Encabezado ──────────────────────────────────────────────
+      ["TostonApp — Reporte de Salidas de Inventario"],
+      [`Período: ${rangoLabel}`],
+      [`Generado el: ${hoyISO()}`],
+      [],
+      // ── Resumen general ─────────────────────────────────────────
+      ["RESUMEN GENERAL", "", ""],
+      ["Total de salidas", filtradas.length, ""],
+      ["Total de unidades retiradas", totalUds, ""],
+      [],
+      // ── Desglose por tipo ────────────────────────────────────────
+      ["DESGLOSE POR TIPO", "Salidas", "Unidades"],
+      ...statsPorTipo.map(t => [t.label, t.count, t.uds]),
+      [],
+      // ── Tabla de detalle ─────────────────────────────────────────
+      ["DETALLE DE SALIDAS"],
+      [
+        "N°", "Elemento", "Tipo de elemento", "Categoría",
+        "Tipo de salida", "Cantidad", "Unidad",
+        "Motivo", "Registrado por", "Fecha",
+      ],
+      ...filtradas.map((s, i) => [
+        i + 1,
+        s.entidadNombre,
+        s.entidadTipo === "producto" ? "Producto" : "Insumo",
+        s.entidadCat  || "—",
+        TIPO_MAP[s.tipo]?.label || s.tipo,
+        s.cantidad,
+        s.unidad      || "uds.",
+        s.motivo      || "—",
+        s.empleado    || "—",
+        s.fecha       || "—",
+      ]),
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+    ws["!cols"] = [
+      { wch: 5  },  // N°
+      { wch: 28 },  // Elemento
+      { wch: 16 },  // Tipo elemento
+      { wch: 22 },  // Categoría
+      { wch: 15 },  // Tipo salida
+      { wch: 10 },  // Cantidad
+      { wch: 10 },  // Unidad
+      { wch: 32 },  // Motivo
+      { wch: 22 },  // Registrado por
+      { wch: 12 },  // Fecha
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Salidas");
+    XLSX.writeFile(wb, `reporte-salidas${fechaInicio ? "-" + fechaInicio : ""}${fechaFin ? "-al-" + fechaFin : ""}.xlsx`);
   };
 
   if (!canReport) {
@@ -949,8 +985,8 @@ function ReporteSalidas({ salidas, loading }) {
             <>
               {/* CA_48_04 – botones de exportación */}
               <div className="sl-report-actions no-print">
-                <button className="sl-report-btn sl-report-btn--csv" onClick={exportCSV} style={{display:"flex",alignItems:"center",gap:6}}>
-                  <BarChart2 size={14}/> Exportar Excel / CSV
+                <button className="sl-report-btn sl-report-btn--csv" onClick={exportExcel} style={{display:"flex",alignItems:"center",gap:6}}>
+                  <BarChart2 size={14}/> Exportar Excel (.xlsx)
                 </button>
                 <button className="sl-report-btn sl-report-btn--pdf" onClick={() => window.print()} style={{display:"flex",alignItems:"center",gap:6}}>
                   <Printer size={14}/> Exportar PDF
