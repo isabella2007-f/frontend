@@ -1031,14 +1031,10 @@ export default function GestionLiquidaciones() {
   const [detalleId, setDetalleId] = useState(null);
 
   useEffect(() => {
-    getUsuarios({ porPagina: 200 })
+    getUsuarios({ porPagina: 100 })
       .then(res => {
         const lista = Array.isArray(res) ? res : (res.items || res.usuarios || []);
-        // Solo empleados activos (no clientes ni domiciliarios)
-        setEmpleados(lista.filter(u => {
-          const rol = (u.rol || u.Rol || "").toLowerCase();
-          return !rol.includes("cliente") && u.estado !== false && u.estado !== 0;
-        }));
+        setEmpleados(lista.filter(u => u.tipo !== "cliente" && u.estado !== false && u.estado !== 0));
       })
       .catch(() => {});
   }, []);
