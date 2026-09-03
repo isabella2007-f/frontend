@@ -300,7 +300,8 @@ export default function GestionInsumos() {
       await crearInsumo(payload);
       showToast("Insumo creado");
       setModal(null);
-      cargarDatos();
+      await cargarDatos();
+      setPage(1);
     } catch (e) {
       showToast(e.message || "Error al crear el insumo", "error");
     }
