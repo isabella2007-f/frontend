@@ -382,6 +382,8 @@
   transition: background .12s;
 }
 .btn-icon-label:hover { background: #dcedc8; }
+.btn-icon-label--active { background: var(--g); color: #fff; border-color: var(--g); }
+.btn-icon-label--active:hover { background: var(--gd); }
 
 .btn-icon {
   background: none;

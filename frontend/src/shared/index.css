@@ -54,6 +54,12 @@ html, body, #root {
   z-index: 100; /* Suficiente para estar por encima de la tabla y sus headers */
 }
 
+/* ── Modal body: min-height:0 es obligatorio para que overflow-y:auto
+   funcione dentro de un flex-direction:column con max-height ── */
+.modal-body {
+  min-height: 0;
+}
+
 /* ── Card ── */
 .card {
   background: #fff;

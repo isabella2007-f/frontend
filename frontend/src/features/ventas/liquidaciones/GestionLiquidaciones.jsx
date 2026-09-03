@@ -827,6 +827,7 @@ function TabRegistros({ empleados }) {
   const [loading, setLoading] = useState(false);
   const [pagina, setPagina]   = useState(1);
   const [filtros, setFiltros] = useState({ idEmpleado: "", estado: "", fechaInicio: "", fechaFin: "" });
+  const [showFiltros, setShowFiltros] = useState(false);
   const [modal, setModal]     = useState(false);
   const [toast, setToast]     = useState(null);
 
@@ -860,11 +861,36 @@ function TabRegistros({ empleados }) {
     } catch (e) { mostrarToast(e.message, "error"); }
   }
 
+  const hayFiltros = filtros.idEmpleado || filtros.estado || filtros.fechaInicio || filtros.fechaFin;
+
+  function limpiarFiltros() {
+    setFiltros({ idEmpleado: "", estado: "", fechaInicio: "", fechaFin: "" });
+    setPagina(1);
+    setTimeout(() => cargar(1), 0);
+  }
+
   return (
     <div className="liq-tab-content">
       <Toast toast={toast} />
       <div className="liq-toolbar">
         <div className="liq-toolbar__left">
+          <button className={`btn-icon-label${hayFiltros ? " btn-icon-label--active" : ""}`}
+            onClick={() => setShowFiltros(v => !v)}>
+            <Filter size={14} /> Filtros{hayFiltros ? " ●" : ""}
+          </button>
+          {hayFiltros && (
+            <button className="btn-ghost btn-ghost--sm" onClick={limpiarFiltros}>
+              <X size={12} /> Limpiar
+            </button>
+          )}
+        </div>
+        <button className="btn-primary" onClick={() => setModal(true)}>
+          <Plus size={14} /> Registrar horas
+        </button>
+      </div>
+
+      {showFiltros && (
+        <div className="liq-filtros-panel">
           <select value={filtros.idEmpleado} onChange={e => setFiltros(f => ({ ...f, idEmpleado: e.target.value }))}>
             <option value="">Todos los empleados</option>
             {empleados.map(e => (
@@ -881,15 +907,9 @@ function TabRegistros({ empleados }) {
           </select>
           <input type="date" value={filtros.fechaInicio} onChange={e => setFiltros(f => ({ ...f, fechaInicio: e.target.value }))} />
           <input type="date" value={filtros.fechaFin} onChange={e => setFiltros(f => ({ ...f, fechaFin: e.target.value }))} />
-          <button className="btn-sm btn-primary" onClick={() => { setPagina(1); cargar(1); }}>Filtrar</button>
-          <button className="btn-ghost btn-ghost--sm" onClick={() => { setFiltros({ idEmpleado: "", estado: "", fechaInicio: "", fechaFin: "" }); setPagina(1); setTimeout(() => cargar(1), 0); }}>
-            <RefreshCw size={12} />
-          </button>
+          <button className="btn-primary btn-sm" onClick={() => { setPagina(1); cargar(1); }}>Aplicar</button>
         </div>
-        <button className="btn-primary" onClick={() => setModal(true)}>
-          <Plus size={14} /> Registrar horas
-        </button>
-      </div>
+      )}
 
       {loading ? (
         <div className="liq-loading"><Loader2 className="spin" size={22} /></div>
