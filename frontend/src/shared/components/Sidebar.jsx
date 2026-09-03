@@ -217,7 +217,7 @@ export default function Sidebar({ isOpen, onToggle }) {
                   <button
                     className={`section-btn ${isSectionOpen ? "open" : ""}`}
                     onClick={() => toggle(section)}
-                    title={!isOpen ? section : undefined}
+                    data-tooltip={!isOpen ? section : undefined}
                   >
                     <span className="section-icon-wrap">
                       <SectionIcon size={15} />

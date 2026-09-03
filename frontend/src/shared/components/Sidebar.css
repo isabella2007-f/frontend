@@ -68,6 +68,35 @@
   padding: 0 6px 10px;
 }
 
+/* Tooltip en modo colapsado */
+.sidebar.is-closed .section-btn {
+  position: relative;
+}
+
+.sidebar.is-closed .section-btn[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: #1b4332;
+  color: #fff;
+  padding: 5px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 300;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+}
+
+.sidebar.is-closed .section-btn[data-tooltip]:hover::after {
+  opacity: 1;
+}
+
 .sidebar.is-closed .sidebar-footer {
   justify-content: center;
   padding: 14px 8px;
