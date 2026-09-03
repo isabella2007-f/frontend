@@ -19,86 +19,100 @@ def _ahora_local() -> datetime:
     return datetime.now(_TZ_LOCAL).replace(tzinfo=None)
 
 
-# ── Conversión de unidades (para validación de stock FEFO) ───────
-_CONV = {
-    ("ml", "L"):         1 / 1000,
-    ("L",  "ml"):        1000,
-    ("mg", "g"):         1 / 1000,
-    ("g",  "mg"):        1000,
-    ("mg", "kg"):        1 / 1_000_000,
-    ("kg", "mg"):        1_000_000,
-    ("g",  "kg"):        1 / 1000,
-    ("kg", "g"):         1000,
-    ("t",  "kg"):        1000,
-    ("kg", "t"):         1 / 1000,
-    ("t",  "g"):         1_000_000,
-    ("g",  "t"):         1 / 1_000_000,
-    ("lb", "kg"):        0.453592,
-    ("kg", "lb"):        2.20462,
-    ("lb", "g"):         453.592,
-    ("g",  "lb"):        1 / 453.592,
-    ("mg", "lb"):        1 / 453_592,
-    ("lb", "mg"):        453_592,
-    # Medidas de cocina → ml
-    ("taza",       "ml"): 240,
-    ("ml", "taza"):       1 / 240,
-    ("cucharada",  "ml"): 15,
-    ("ml", "cucharada"):  1 / 15,
-    ("cucharadita","ml"): 5,
-    ("ml","cucharadita"): 1 / 5,
-    # Medidas de cocina → g (aproximado para líquidos con densidad ~1)
-    ("taza",       "g"):  240,
-    ("g",  "taza"):       1 / 240,
-    ("cucharada",  "g"):  15,
-    ("g",  "cucharada"):  1 / 15,
-    ("cucharadita","g"):  5,
-    ("g", "cucharadita"): 1 / 5,
-}
+# ══ Unidades ═══════════════════════════════════════════════════════════════
+#
+# Una sola tabla para todo el módulo. Antes había dos, y no decían lo mismo:
+# la de consumo de insumos comparaba los símbolos tal cual venían escritos
+# —así que una ficha con "gr", "G" o un insumo en "Kg" hacía fallar la orden
+# con "no se puede convertir"— y usaba la libra internacional (453,592 g)
+# mientras la de costos usaba la del mercado colombiano (500 g). La misma
+# receta costaba una cosa y consumía otra.
+#
+# La familia dice qué se puede convertir con qué; el factor lleva a la unidad
+# base de esa familia (g, ml, unidad).
 
-def _convertir(cantidad: float, desde: str, hasta: str) -> float:
-    """Convierte cantidad entre unidades compatibles. Lanza HTTPException si son incompatibles."""
-    desde = (desde or "").strip()
-    hasta = (hasta or "").strip()
-    if desde == hasta or not desde or not hasta:
-        return cantidad
-    factor = _CONV.get((desde, hasta))
-    if factor is None:
-        raise HTTPException(
-            status_code=400,
-            detail=f"No se puede convertir de '{desde}' a '{hasta}'. Revisa las unidades en la ficha técnica."
-        )
-    return cantidad * factor
-
-
-# ── Costo de producción con conversión a unidad base ────────────
-# Convención de mercado colombiano: lb = 500 g (NO 453.592)
 _FAMILIA: dict[str, str] = {
     "mg": "masa", "g": "masa", "kg": "masa", "lb": "masa", "t": "masa",
     "ml": "volumen", "l": "volumen",
-    "unidad": "conteo", "uds": "conteo", "und": "conteo", "u": "conteo", "unidades": "conteo",
+    "taza": "volumen", "cucharada": "volumen", "cucharadita": "volumen",
+    "unidad": "conteo",
 }
 
-# Factor para convertir a la unidad base de cada familia (g, ml, unidad)
+# Convención de mercado colombiano: lb = 500 g (NO 453.592)
 _FACTOR: dict[str, Decimal] = {
-    "mg":       Decimal("0.001"),
-    "g":        Decimal("1"),
-    "kg":       Decimal("1000"),
-    "lb":       Decimal("500"),
-    "t":        Decimal("1000000"),
-    "ml":       Decimal("1"),
-    "l":        Decimal("1000"),
-    "unidad":   Decimal("1"),
-    "uds":      Decimal("1"),
-    "und":      Decimal("1"),
-    "u":        Decimal("1"),
-    "unidades": Decimal("1"),
+    "mg":     Decimal("0.001"),
+    "g":      Decimal("1"),
+    "kg":     Decimal("1000"),
+    "lb":     Decimal("500"),
+    "t":      Decimal("1000000"),
+    "ml":     Decimal("1"),
+    "l":      Decimal("1000"),
+    # Medidas de cocina, en ml
+    "taza":         Decimal("240"),
+    "cucharada":    Decimal("15"),
+    "cucharadita":  Decimal("5"),
+    "unidad": Decimal("1"),
 }
+
+# Cómo escribe la gente las mismas unidades. Sin esto, que una ficha diga "gr"
+# y el insumo esté en "Kg" bastaba para que la orden no arrancara.
+_ALIAS: dict[str, str] = {
+    "gr": "g", "grs": "g", "gramo": "g", "gramos": "g",
+    "kgs": "kg", "kilo": "kg", "kilos": "kg",
+    "kilogramo": "kg", "kilogramos": "kg",
+    "mgs": "mg", "miligramo": "mg", "miligramos": "mg",
+    "lbs": "lb", "libra": "lb", "libras": "lb",
+    "ton": "t", "tonelada": "t", "toneladas": "t",
+    "lt": "l", "lts": "l", "litro": "l", "litros": "l",
+    "mls": "ml", "mililitro": "ml", "mililitros": "ml",
+    "u": "unidad", "un": "unidad", "und": "unidad", "unds": "unidad",
+    "uds": "unidad", "ud": "unidad", "unidades": "unidad",
+    "tazas": "taza",
+    "cucharadas": "cucharada",
+    "cucharaditas": "cucharadita",
+    "cda": "cucharada", "cdas": "cucharada",
+    "cdta": "cucharadita", "cdtas": "cucharadita",
+}
+
+# Las medidas de cocina son de volumen, pero en la panadería se usan para
+# pesar: "una taza de harina". El módulo ya hacía esa equivalencia (1 ml ≈ 1 g)
+# y se conserva, limitada a estas medidas: convertir litros a kilos en general
+# sería inventar una densidad.
+_MEDIDAS_DE_COCINA = frozenset({"taza", "cucharada", "cucharadita"})
 
 
 def _norm(simbolo: str) -> str:
-    return (simbolo or "").strip().lower()
+    """Deja el símbolo en su forma canónica: "Kg", "kilos" y "KG" son "kg"."""
+    u = (simbolo or "").strip().lower().rstrip(".")
+    return _ALIAS.get(u, u)
 
 
+def _convertir(cantidad: float, desde: str, hasta: str) -> float:
+    """Pasa `cantidad` de una unidad a otra. 400 si no son compatibles."""
+    d, h = _norm(desde), _norm(hasta)
+    if d == h or not d or not h:
+        return cantidad
+
+    fam_d, fam_h = _FAMILIA.get(d), _FAMILIA.get(h)
+    factor_d, factor_h = _FACTOR.get(d), _FACTOR.get(h)
+    compatibles = (
+        fam_d is not None and fam_h is not None
+        and (fam_d == fam_h
+             or (d in _MEDIDAS_DE_COCINA or h in _MEDIDAS_DE_COCINA)
+             and {fam_d, fam_h} <= {"masa", "volumen"})
+    )
+    if not compatibles or factor_d is None or factor_h is None:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"No se puede convertir de '{desde}' a '{hasta}'. "
+                "Revisa las unidades en la ficha técnica."
+            ),
+        )
+    return float(Decimal(str(cantidad)) * factor_d / factor_h)
+
+
+# ── Costo de producción con conversión a unidad base ────────────
 def _costo_un_insumo(
     precio: Decimal,
     unidad_insumo: str,
