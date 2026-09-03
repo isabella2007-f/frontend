@@ -286,19 +286,39 @@
 .ficha-insumos-table-wrap {
   border: 1.5px solid #e8f5e9;
   border-radius: 12px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  max-height: 260px;
+  /* Se desplaza en horizontal cuando no cabe.
+     Antes era `overflow-x: hidden` sobre una tabla de cinco columnas dentro de
+     un modal de 600px: "Unidad" y el botón de eliminar quedaban cortados y sin
+     ninguna forma de llegar a ellos. Con varios insumos cargados, la columna
+     de la unidad no se veía y la fila no se podía borrar.
+
+     También se le quitó el scroll vertical propio (`max-height: 260px`): con
+     la lista larga quedaban dos scrolls anidados —el de la tabla dentro del
+     del modal— peleándose por la rueda del mouse. Ahora desplaza el modal. */
+  overflow-x: auto;
   margin-bottom: 10px;
 }
 .ficha-insumos-tbl {
   width: 100%;
+  /* Por debajo de esto las columnas dejan de ser usables y el contenedor
+     pasa a desplazarse, en vez de aplastarlas hasta hacerlas desaparecer. */
+  min-width: 520px;
   border-collapse: collapse;
 }
+/* Reparto de las columnas. Sin esto los dos selectores (categoría e insumo)
+   se comían el ancho y dejaban a "Cantidad", "Unidad" y el botón de eliminar
+   con unos pocos píxeles. */
+.ficha-insumos-tbl th:nth-child(1), .ficha-insumos-tbl td:nth-child(1) { width: 30%; min-width: 140px; }
+.ficha-insumos-tbl th:nth-child(2), .ficha-insumos-tbl td:nth-child(2) { width: 30%; min-width: 140px; }
+.ficha-insumos-tbl th:nth-child(3), .ficha-insumos-tbl td:nth-child(3) { width: 84px; }
+.ficha-insumos-tbl th:nth-child(4), .ficha-insumos-tbl td:nth-child(4) { width: 96px; }
+.ficha-insumos-tbl th:nth-child(5), .ficha-insumos-tbl td:nth-child(5) { width: 46px; }
 .ficha-insumos-tbl thead tr { background: #2e7d32; }
 .ficha-insumos-tbl th {
   padding: 10px 12px; font-size: 12px; font-weight: 700;
   color: #fff; text-align: left; white-space: nowrap;
+  /* El encabezado acompaña mientras se recorre una lista larga. */
+  position: sticky; top: 0; z-index: 2; background: #2e7d32;
 }
 .ficha-insumos-tbl td { padding: 7px 8px; }
 .ficha-insumos-tbl__row     { background: #fff; }
@@ -325,6 +345,7 @@
 /* Botón eliminar fila */
 .ficha-del-btn {
   width: 26px; height: 26px; border-radius: 7px;
+  margin: 0 auto;
   border: 1.5px solid #ef9a9a; background: #ffebee;
   color: #c62828; font-size: 11px; font-weight: 700;
   cursor: pointer; display: flex; align-items: center; justify-content: center;

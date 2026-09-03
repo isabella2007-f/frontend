@@ -54,6 +54,32 @@ export const normalizarUnidad = (simbolo) =>
 const MEDIDAS_DE_COCINA = new Set(["taza", "cucharada", "cucharadita"]);
 
 /**
+ * Las unidades que se le pueden ofrecer a una receta según cómo esté medido
+ * el insumo.
+ *
+ * El formulario de la ficha tenía su propia lista, distinta de esta: ofrecía
+ * "docena", que el servidor no sabe convertir —elegirla hacía fallar la orden
+ * de producción—, y no ofrecía "lb", que sí acepta. Si el insumo estaba medido
+ * en algo que su lista no conocía ("gr", "Kg"), dejaba una sola opción.
+ *
+ * Sin referencia devuelve todo lo convertible, para no bloquear la carga.
+ */
+export function unidadesCompatibles(simboloInsumo) {
+  const todas = Object.keys(FACTOR);
+  const base = normalizarUnidad(simboloInsumo);
+  const familia = FAMILIA[base];
+  if (!familia) return todas;
+  if (familia === "conteo") return todas.filter((u) => FAMILIA[u] === "conteo");
+  // Masa y volumen comparten las medidas de cocina: una taza de harina se
+  // pesa, una taza de leche se mide. Lo que se cuenta por unidades no entra:
+  // no hay forma de pasar de "unidad" a gramos sin inventar un peso.
+  return todas.filter((u) => {
+    if (FAMILIA[u] === "conteo") return false;
+    return FAMILIA[u] === familia || MEDIDAS_DE_COCINA.has(u) || MEDIDAS_DE_COCINA.has(base);
+  });
+}
+
+/**
  * Pasa `cantidad` de una unidad a otra.
  *
  * Devuelve `{ valor, error }`: `error` trae el motivo cuando las unidades no
