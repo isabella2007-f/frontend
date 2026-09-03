@@ -12,6 +12,7 @@ import { getCategorias } from "../../../services/categoriasInsumosService.js";
 import "./GestionInsumos.css";
 import DateRangeFilter from "../../../shared/components/DateRangeFilter";
 import { getRecordDate } from "../../../utils/dateUtils";
+import { normQ } from "../../../utils/inputFilters";
 
 const ITEMS_PER_PAGE = 5;
 
@@ -254,9 +255,9 @@ export default function GestionInsumos() {
 
   /* ── Filtrado ── */
   const filtered = insumos.filter(ins => {
-    const q        = search.toLowerCase();
+    const q        = normQ(search);
     const cat      = getCatInsumo(ins.idCategoria);
-    const matchQ   = ins.nombre.toLowerCase().includes(q) || cat.nombre.toLowerCase().includes(q);
+    const matchQ   = normQ(ins.nombre).includes(q) || normQ(cat.nombre).includes(q);
     const matchCat = filterCat === "todas" || ins.idCategoria === Number(filterCat);
     const est      = calcEstado(ins.stockActual, ins.stockMinimo);
     const matchEst = filterEst === "todos" || filterEst === est ||

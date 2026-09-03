@@ -1,5 +1,12 @@
 const LETRAS_RE = /[a-zA-ZáéíóúÁÉÍÓÚàèìòùÀÈÌÒÙñÑüÜ]/;
 
+// Normaliza tildes y pasa a minúscula (ej: "azucar" encuentra "Azúcar")
+export const normQ = (s) =>
+  [...String(s ?? "").normalize("NFD")]
+    .filter(c => c.charCodeAt(0) < 0x0300 || c.charCodeAt(0) > 0x036F)
+    .join("")
+    .toLowerCase();
+
 // Elimina todo lo que no sea letra (incluye acentos, ñ, ü) ni espacio
 export const soloLetras = (v) =>
   v.replace(/[^a-zA-ZáéíóúÁÉÍÓÚàèìòùÀÈÌÒÙñÑüÜ\s]/g, '');

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Search, X, Check, Banknote, Building2, Paperclip, Receipt, Tag } from "lucide-react";
 import { getProveedores } from "../../../services/proveedoresService.js";
 import { getInsumos } from "../../../services/insumosService.js";
+import { normQ } from "../../../utils/inputFilters.js";
 import SearchableSelect from "../../../shared/components/SearchableSelect.jsx";
 import "./compras.css";
 
@@ -90,7 +91,7 @@ function InsumoSelect({ value, insumosActivos, idsSeleccionados, onChange, error
   const selected = insumosActivos.find(i => String(i.id) === String(value));
 
   const filtered = insumosActivos.filter(i =>
-    i.nombre.toLowerCase().includes(query.toLowerCase())
+    normQ(i.nombre).includes(normQ(query))
   );
 
   useEffect(() => {

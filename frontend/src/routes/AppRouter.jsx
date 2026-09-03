@@ -18,7 +18,6 @@ import GestionOrdenesProduccion from "../features/produccion/orden_produccion/Ge
 import DashboardCocina from "../features/produccion/cocina/DashboardCocina";
 
 /* ─── VENTAS ADMIN ─── */
-import GestionClientes from "../features/ventas/clientes/GestionClientes";
 import GestionPedidos from "../features/ventas/pedidos/GestionPedidos";
 import GestionLiquidaciones from "../features/ventas/liquidaciones/GestionLiquidaciones";
 
@@ -126,7 +125,6 @@ const AppRouter = () => {
             <Route path="cocina"               element={<CocinaRoute />} />
 
             {/* Ventas */}
-            <Route path="clientes"      element={<PR clave="Pedidos_ver"      el={<GestionClientes />} />} />
             <Route path="pedidos"       element={<PR clave="Pedidos_ver"      el={<GestionPedidos />} />} />
             <Route path="liquidaciones" element={<PR clave="Liquidaciones_ver" el={<GestionLiquidaciones />} />} />
             <Route path="devoluciones"  element={<PR clave="Devoluciones_ver" el={<GestionDevoluciones />} />} />
