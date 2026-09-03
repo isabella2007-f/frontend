@@ -198,13 +198,13 @@ export default function CrearCompra({ onClose, onSave }) {
 
   useEffect(() => {
     getProveedores({ porPagina: 100 }).then(d => setProveedores(d.proveedores || d || [])).catch(() => {});
-    getInsumos({ porPagina: 100 }).then(d => {
+    getInsumos().then(d => {
       const lista = (d.insumos || d || []).map(i => ({
         id:        i.ID_Insumo || i.id,
         nombre:    i.Nombre    || i.nombre    || "",
         unidad:    i.simbolo_unidad || i.unidad || "",
         idUnidad:  i.Unidad_Medida  || i.idUnidad || null,
-        estado:    i.Estado !== 0,
+        estado:    i.Estado === 1,
       }));
       setInsumosActivos(lista.filter(i => i.estado));
     }).catch(() => {});
