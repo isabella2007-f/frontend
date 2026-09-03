@@ -32,6 +32,10 @@ class FichaTecnicaInsumoResponse(BaseModel):
     # insuficientes" teniendo el depósito lleno.
     Stock_Actual:    Optional[float] = None
     simbolo_unidad:  Optional[str] = None
+    # Lo que queda libre: el stock menos lo que ya apartaron las órdenes en
+    # proceso. Es contra esto que hay que comparar la receta, no contra el
+    # stock a secas: la harina de una orden que ya arrancó tiene dueño.
+    Stock_Disponible: Optional[float] = None
 
     class Config:
         from_attributes = True
