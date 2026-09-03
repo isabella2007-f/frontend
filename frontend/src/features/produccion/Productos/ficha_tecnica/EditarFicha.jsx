@@ -3,15 +3,9 @@ import { X, Info, Clock } from "lucide-react";
 import { getCategorias } from "../../../../services/categoriasInsumosService.js";
 import { getInsumos } from "../../../../services/insumosService.js";
 import SearchableSelect from "../../../../shared/components/SearchableSelect.jsx";
+import { unidadesCompatibles } from "../../../../utils/unidades.js";
 import "./FichasTecnicas.css";
 
-  const UNIDADES = ["kg","g","l","ml","unidad","taza","cucharada","cucharadita"];
-  const UNITS_FAMILIES = [
-    ["mg","g","kg","t"],
-    ["ml","l"],
-    ["unidad","docena"],
-    ["taza","cucharada","cucharadita"],
-  ];
 
 export default function EditarFicha({ ficha, mode = "edit", onClose, onSave, productoNombre = "", productoFoto = null }) {
   const [categoriasInsumosActivas, setCategoriasInsumosActivas] = useState([]);
@@ -82,16 +76,14 @@ export default function EditarFicha({ ficha, mode = "edit", onClose, onSave, pro
 
   const delInsumo = id => setForm(p => ({ ...p, insumos: getInsumosList(p).filter(i => i.id !== id) }));
 
+  // Las unidades que la receta puede usar para este insumo, derivadas de cómo
+  // está medido en el depósito. La tabla vive en utils/unidades.js, espejo de
+  // la del servidor: acá había otra distinta que ofrecía "docena" —que el
+  // servidor no sabe convertir, así que elegirla hacía fallar la orden— y se
+  // quedaba con una sola opción si el insumo estaba medido en "gr" o "Kg".
   const getUnidadOptions = (insumoId, categoriaId) => {
     const insumo = (insumosPorCategoriaId[String(categoriaId)] || []).find(i => String(i.id) === String(insumoId));
-    const base = insumo?.unidad ? String(insumo.unidad).toLowerCase() : null;
-    if (base) {
-      for (const fam of UNITS_FAMILIES) {
-        if (fam.includes(base)) return fam;
-      }
-      return [insumo.unidad];
-    }
-    return UNIDADES;
+    return unidadesCompatibles(insumo?.unidad);
   };
 
   const setInsumo = (id, k, v) => setForm(p => ({
