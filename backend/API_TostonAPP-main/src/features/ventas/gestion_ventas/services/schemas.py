@@ -128,8 +128,10 @@ class VentaResponse(BaseModel):
     pago_final_fecha:         Optional[datetime] = None
     estado_pago:              Optional[str]      = None
     # Solo los pedidos sobre stock o de producción necesitan fecha propuesta
-    requiere_fecha_propuesta: bool             = False
-    requiere_produccion:      bool             = False
+    requiere_fecha_propuesta:      bool             = False
+    requiere_produccion:           bool             = False
+    ordenes_produccion_pendientes: int              = 0
+    ordenes_en_espera:             int              = 0
 
     class Config:
         from_attributes = True
