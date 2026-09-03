@@ -260,9 +260,11 @@ _ESTADOS_VENTA_FINALES = {5, 8, 9}  # Cancelado, Entregado, En camino
 # tablas distintas: se nombra aparte para que quede claro a qué se refiere.
 ESTADO_VENTA_LISTO      = 11
 ESTADO_VENTA_CONFIRMADO = 4
-# Solo se avanza a Listo desde estos: Confirmado (el cliente aceptó) o En
-# producción. Un pedido aún Pendiente o esperando fecha no se salta ese paso.
-_ESTADOS_VENTA_PRODUCIENDO = {ESTADO_VENTA_CONFIRMADO, ESTADO_EN_PROCESO}
+ESTADO_VENTA_FECHA_PROPUESTA = 16
+# Solo se avanza a Listo desde estos: Confirmado (el cliente aceptó), En
+# producción, o Fecha propuesta (la producción puede arrancar antes de que el
+# cliente acepte formalmente cuando el admin la inicia directamente).
+_ESTADOS_VENTA_PRODUCIENDO = {ESTADO_VENTA_CONFIRMADO, ESTADO_EN_PROCESO, ESTADO_VENTA_FECHA_PROPUESTA}
 
 
 def _sync_venta_por_ordenes(
