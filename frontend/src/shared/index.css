@@ -775,7 +775,33 @@ button, label, input, p, span {
   padding: 6px;
   z-index: 200;
   min-width: 180px;
+  max-height: 420px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   animation: filterDrop .15s ease;
+}
+
+/* Variante ancha para filtros con muchas secciones */
+.filter-dropdown--wide {
+  min-width: 300px;
+}
+
+/* Sección interna con separador */
+.filter-dropdown__section + .filter-dropdown__section {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid #f0f0f0;
+}
+
+/* Grid de opciones 2 columnas para que no se alarguen verticalmente */
+.filter-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+}
+.filter-grid .filter-option {
+  font-size: 12px;
+  padding: 6px 8px;
 }
 
 .filter-section-title {
