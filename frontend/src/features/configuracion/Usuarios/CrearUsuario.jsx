@@ -244,8 +244,7 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
     if (k === "departamento" && !isEdit && !val) err = "Selecciona un departamento";
     if (k === "municipio" && !isEdit && !val) err = "Selecciona un municipio";
     if (k === "direccion") {
-      if (!isEdit && !val.trim()) err = "La dirección es obligatoria";
-      else if (val.trim() && !esUbicacionValida(val)) err = "La dirección debe tener letras y números (mín. 5 caracteres)";
+      if (val.trim() && !esUbicacionValida(val)) err = "La dirección debe tener letras y números (mín. 5 caracteres)";
     }
     if (k === "rol" && !val) err = "Seleccione un rol";
     if (k === "contrasena") {
@@ -290,8 +289,7 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
       if (!isEdit) {
         if (!form.departamento)      e.departamento = "Selecciona un departamento";
         if (!form.municipio)         e.municipio    = "Selecciona un municipio";
-        if (!form.direccion?.trim()) e.direccion    = "La dirección es obligatoria";
-        else if (!esUbicacionValida(form.direccion)) e.direccion = "La dirección debe tener letras y números (mín. 5 caracteres)";
+        if (form.direccion?.trim() && !esUbicacionValida(form.direccion)) e.direccion = "La dirección debe tener letras y números (mín. 5 caracteres)";
       } else if (form.direccion?.trim() && !esUbicacionValida(form.direccion)) {
         e.direccion = "La dirección debe tener letras y números (mín. 5 caracteres)";
       }
@@ -456,7 +454,6 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
               </div>
               <div style={{ marginTop: 4 }}>
                 <Field
-                  required={!isEdit}
                   label="Dirección"
                   placeholder="Ej: Cra 5 #12-34, Apto 201"
                   value={form.direccion}
