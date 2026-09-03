@@ -15,12 +15,22 @@ from .schemas import OrdenCreate, OrdenUpdate
 _CONV = {
     ("ml", "L"):         1 / 1000,
     ("L",  "ml"):        1000,
+    ("mg", "g"):         1 / 1000,
+    ("g",  "mg"):        1000,
+    ("mg", "kg"):        1 / 1_000_000,
+    ("kg", "mg"):        1_000_000,
     ("g",  "kg"):        1 / 1000,
     ("kg", "g"):         1000,
+    ("t",  "kg"):        1000,
+    ("kg", "t"):         1 / 1000,
+    ("t",  "g"):         1_000_000,
+    ("g",  "t"):         1 / 1_000_000,
     ("lb", "kg"):        0.453592,
     ("kg", "lb"):        2.20462,
     ("lb", "g"):         453.592,
     ("g",  "lb"):        1 / 453.592,
+    ("mg", "lb"):        1 / 453_592,
+    ("lb", "mg"):        453_592,
     # Medidas de cocina → ml
     ("taza",       "ml"): 240,
     ("ml", "taza"):       1 / 240,
@@ -55,16 +65,18 @@ def _convertir(cantidad: float, desde: str, hasta: str) -> float:
 # ── Costo de producción con conversión a unidad base ────────────
 # Convención de mercado colombiano: lb = 500 g (NO 453.592)
 _FAMILIA: dict[str, str] = {
-    "g": "masa", "kg": "masa", "lb": "masa",
+    "mg": "masa", "g": "masa", "kg": "masa", "lb": "masa", "t": "masa",
     "ml": "volumen", "l": "volumen",
     "unidad": "conteo", "uds": "conteo", "und": "conteo", "u": "conteo", "unidades": "conteo",
 }
 
 # Factor para convertir a la unidad base de cada familia (g, ml, unidad)
 _FACTOR: dict[str, Decimal] = {
+    "mg":       Decimal("0.001"),
     "g":        Decimal("1"),
     "kg":       Decimal("1000"),
     "lb":       Decimal("500"),
+    "t":        Decimal("1000000"),
     "ml":       Decimal("1"),
     "l":        Decimal("1000"),
     "unidad":   Decimal("1"),
