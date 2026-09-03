@@ -263,10 +263,21 @@ class OrdenDelFaltanteTests(FlujoProduccionE2EBase):
 # ══════════════════════════════════════════════════════════════════════════
 class InsumosTests(FlujoProduccionE2EBase):
 
-    def test_iniciar_descuenta_la_receta_por_la_cantidad_de_la_orden(self):
-        """200 g por torta × 4 tortas = 800 g de harina."""
+    def test_iniciar_aparta_los_insumos_pero_no_los_descuenta(self):
+        """La harina sigue en bodega hasta que la orden se completa.
+
+        Arrancar solo la pisa: nadie más puede contar con ella, pero todavía
+        está ahí. Antes se descontaba al arrancar, y una orden anulada a mitad
+        obligaba a devolverla a mano al inventario.
+        """
         self.crear()
         self.mover_orden(ORDEN_EN_PROCESO)
+        self.assertAlmostEqual(float(self.harina().Stock_Actual), STOCK_HARINA, places=3)
+
+    def test_completar_descuenta_la_receta_por_la_cantidad_de_la_orden(self):
+        """200 g por torta × 4 tortas = 800 g de harina."""
+        self.crear()
+        self.hornear()
         self.assertAlmostEqual(
             float(self.harina().Stock_Actual), STOCK_HARINA - GASTO_ESPERADO, places=3
         )
@@ -274,7 +285,7 @@ class InsumosTests(FlujoProduccionE2EBase):
     def test_el_descuento_sale_del_lote_que_vence_primero(self):
         """FEFO: se gastan los 500 g del lote corto y 300 del largo."""
         self.crear()
-        self.mover_orden(ORDEN_EN_PROCESO)
+        self.hornear()
         self.assertAlmostEqual(float(self.lote_compra(1).Cantidad_Actual), 0.0, places=3)
         self.assertAlmostEqual(float(self.lote_compra(2).Cantidad_Actual), 1200.0, places=3)
 
@@ -532,12 +543,18 @@ class AnularOrdenTests(FlujoProduccionE2EBase):
         ).first()
         self.assertEqual(fila.Estado, ORDEN_CANCELADA)   # sigue existiendo
 
-    def test_anular_una_orden_en_proceso_devuelve_los_insumos(self):
+    def test_anular_una_orden_en_proceso_no_toca_el_inventario(self):
+        """No hay nada que devolver: arrancar solo había apartado.
+
+        La reserva se suelta sola, porque se calcula sobre las órdenes en
+        proceso y esta deja de serlo. Sumar de vuelta al inventario, como se
+        hacía antes, ahora crearía harina de la nada.
+        """
         orden = self._orden_manual()
         id_orden = orden["ID_Orden_Produccion"]
         cambiar_estado_orden(self.db, id_orden, ORDEN_EN_PROCESO)
         self.db.commit()
-        self.assertLess(float(self.harina().Stock_Actual), STOCK_HARINA)
+        self.assertAlmostEqual(float(self.harina().Stock_Actual), STOCK_HARINA, places=3)
 
         anular_orden(self.db, id_orden)
         self.db.commit()

@@ -287,6 +287,9 @@ class PanelBase(unittest.TestCase):
     def patch(self, ruta, quien, cuerpo=None, **kw):
         return self.client.patch(API + ruta, headers=quien, json=cuerpo or {}, **kw)
 
+    def delete(self, ruta, quien, **kw):
+        return self.client.delete(API + ruta, headers=quien, **kw)
+
     def detalle(self, respuesta):
         """El mensaje de error, para poder afirmar sobre él sin repetir json()."""
         try:
