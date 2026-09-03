@@ -82,9 +82,11 @@ def requiere_permiso(nombre_permiso: str):
     tiene el permiso requerido según su rol en Rol_x_Permiso.
 
     Reglas:
-    - Clientes (ID_Rol=3): bypass total (no acceden al panel de gestión)
     - Admin (ID_Rol=1): bypass total
-    - Otros roles: verificar Rol_x_Permiso
+    - TODOS los demás, clientes incluidos: el permiso tiene que estar en
+      Rol_x_Permiso. El rol Cliente necesita `crear_ventas` cargado ahí para
+      poder comprar; quitárselo deja la tienda entera devolviendo 403 al
+      confirmar el pedido.
     """
     def verificar(
         actual: dict    = Depends(obtener_usuario_actual),

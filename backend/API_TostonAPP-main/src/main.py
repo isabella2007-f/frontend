@@ -123,7 +123,8 @@ def migrate_db():
             "ALTER TABLE Usuarios ADD COLUMN Indicaciones VARCHAR(255) NULL",
             # FCM tokens persistidos en BD para sobrevivir reinicios de Render
             "ALTER TABLE Usuarios ADD COLUMN FCM_Token VARCHAR(300) NULL",
-            # OTP seguro para confirmar entrega de domicilios (reemplaza hash predecible)
+            # Código de entrega, ya fuera de uso. Las columnas se siguen creando
+            # para que una base nueva calce con el modelo.
             "ALTER TABLE Domicilios ADD COLUMN OTP VARCHAR(10) NULL",
             "ALTER TABLE Domicilios ADD COLUMN OTP_Expira DATETIME NULL",
             # Pedidos por encima del stock (preorden): marca, anticipo del 50%

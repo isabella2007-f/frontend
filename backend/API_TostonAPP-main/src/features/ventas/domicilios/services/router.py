@@ -10,12 +10,12 @@ from src.features.auth.services.dependencies import requiere_permiso, obtener_us
 from .schemas import (
     DomicilioCreate, DomicilioUpdate, DomicilioEstado,
     AsignarRepartidor, DomicilioResponse, DomicilioListResponse,
-    OTPVerify, MensajeCreate, MensajeResponse, RegistroPagoEfectivo,
+    MensajeCreate, MensajeResponse, RegistroPagoEfectivo,
 )
 from .service import (
     obtener_domicilios, obtener_domicilio, crear_domicilio,
     editar_domicilio, asignar_repartidor, cambiar_estado,
-    obtener_resumen_dia, verificar_otp, regenerar_otp, obtener_mensajes, enviar_mensaje,
+    obtener_resumen_dia, obtener_mensajes, enviar_mensaje,
     obtener_repartidores, registrar_pago_efectivo,
 )
 
@@ -132,33 +132,6 @@ def asignar_empleado(
 ):
     """Asigna un repartidor. Si estaba Pendiente cambia automáticamente a Asignado."""
     return asignar_repartidor(db, id_domicilio, datos.ID_Empleado)
-
-
-@router.post("/{id_domicilio}/verificar-otp")
-def verificar_otp_domicilio(
-    id_domicilio: int,
-    datos:        OTPVerify,
-    db:           Session = Depends(get_db),
-    actual:       dict    = Depends(requiere_permiso("cambiar_estado_domicilios"))
-):
-    """Verifica el código OTP para confirmar entrega sin necesidad de columna adicional en BD."""
-    _exigir_domicilio_propio(db, actual, id_domicilio)
-    if not verificar_otp(db, id_domicilio, datos.codigo):
-        raise HTTPException(status_code=400, detail="Código incorrecto")
-    return {"valido": True}
-
-
-@router.post("/{id_domicilio}/regenerar-otp")
-def regenerar_otp_domicilio(
-    id_domicilio: int,
-    db:           Session = Depends(get_db),
-    actual:       dict    = Depends(requiere_permiso("editar_domicilios"))
-):
-    """
-    Regenera el OTP de un domicilio cuyo código anterior expiró (>48h) o se perdió.
-    Solo accesible para empleados/admin con permiso 'editar_domicilios'.
-    """
-    return regenerar_otp(db, id_domicilio)
 
 
 def _verificar_acceso_chat(db: Session, id_domicilio: int, actual: dict):

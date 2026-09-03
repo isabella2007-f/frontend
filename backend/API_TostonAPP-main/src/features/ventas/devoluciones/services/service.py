@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 from decimal import Decimal
 
 from src.shared.services.models import (
-    Devolucion, DevolucionDetalle, Venta, VentaXProducto, Usuario,
+    Devolucion, DevolucionDetalle, DetalleVenta, Venta, VentaXProducto, Usuario,
     Producto, CreditoCliente, MovimientoCredito, Domicilio
 )
 from src.shared.services.notificaciones_utils import notificar, descartar_notificacion
@@ -247,6 +247,36 @@ def obtener_devolucion(db: Session, id_devolucion: int) -> dict:
     return _formato_devolucion(dev, db)
 
 
+def _precios_del_catalogo(db: Session, prod_ids: list[int]) -> dict:
+    """Precio de venta real de cada producto, leído de la base.
+
+    Lo que el cliente devuelve vale lo que vale en la panadería, no lo que
+    diga el cuerpo de la petición.
+    """
+    if not prod_ids:
+        return {}
+    return {
+        p.ID_Producto: Decimal(str(p.Precio_venta or 0))
+        for p in db.query(Producto).filter(Producto.ID_Producto.in_(prod_ids)).all()
+    }
+
+
+def _recortar_al_valor_de_la_venta(db: Session, id_venta: int, total: Decimal) -> Decimal:
+    """Nunca se devuelve más de lo que se facturó en esa venta.
+
+    El precio del catálogo es el de hoy; el pedido pudo comprarse con otro.
+    Este tope evita que una subida de precios convierta una devolución en
+    una ganancia.
+    """
+    detalle = db.query(DetalleVenta).filter(
+        DetalleVenta.ID_Venta == id_venta
+    ).first()
+    facturado = Decimal(str(getattr(detalle, "SubTotal", None) or 0))
+    if facturado <= 0:
+        return total
+    return min(total, facturado)
+
+
 def crear_devolucion(db: Session, datos: DevolucionCreate) -> dict:
     """
     Crea una solicitud de devolución con las siguientes validaciones:
@@ -337,10 +367,24 @@ def crear_devolucion(db: Session, datos: DevolucionCreate) -> dict:
                 detail=f"No puedes devolver más unidades de '{nombre}' de las que compraste ({vxp.Cantidad})"
             )
 
-    # 5. Calcular total
-    total = sum(
-        Decimal(str(p.PrecioUnitario)) * Decimal(str(p.Cantidad))
+    # 5. Calcular total con el precio del CATÁLOGO, no con el del request.
+    #
+    # `PrecioUnitario` viene en el cuerpo que manda la pantalla y terminaba
+    # tal cual en `TotalDevuelto`, que al aprobarse se abona como saldo a
+    # favor: un pedido de $20.000 podía pedir la devolución de un millón y
+    # el administrador solo veía una cifra que parecía legítima.
+    #
+    # La venta no guarda el precio unitario de cada línea, así que la mejor
+    # fuente disponible es el precio actual del producto. Para que un cambio
+    # de precio posterior tampoco devuelva de más, el total se recorta a lo
+    # que se facturó en esa venta.
+    precios = _precios_del_catalogo(db, [p.ID_Producto for p in datos.productos])
+    lineas = [
+        (p, precios.get(p.ID_Producto, Decimal("0")) * Decimal(str(p.Cantidad)))
         for p in datos.productos
+    ]
+    total = _recortar_al_valor_de_la_venta(
+        db, datos.ID_Venta, sum((sub for _, sub in lineas), Decimal("0")),
     )
 
     nueva = Devolucion(
@@ -357,13 +401,12 @@ def crear_devolucion(db: Session, datos: DevolucionCreate) -> dict:
     db.add(nueva)
     db.flush()
 
-    for p in datos.productos:
-        subtotal = Decimal(str(p.PrecioUnitario)) * Decimal(str(p.Cantidad))
+    for p, subtotal in lineas:
         db.add(DevolucionDetalle(
             ID_Devolucion  = nueva.ID_Devolucion,
             ID_Producto    = p.ID_Producto,
             Cantidad       = p.Cantidad,
-            PrecioUnitario = p.PrecioUnitario,
+            PrecioUnitario = precios.get(p.ID_Producto, Decimal("0")),
             Subtotal       = subtotal,
         ))
 

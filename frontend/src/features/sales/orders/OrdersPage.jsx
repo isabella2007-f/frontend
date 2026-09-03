@@ -13,6 +13,7 @@ import { updateUser, getProfile } from '../../client/profile/services/profileSer
 import CartAside from './components/CartAside';
 import CheckoutModal from './components/CheckoutModal';
 import { crearPedidoCliente, resolverEntrega } from './services/crearPedidoCliente';
+import { esFabricable } from '../../../utils/anticipo';
 import '../../../styles/Client.css';
 
 /* ─── OrdersPage principal ────────────────────────────── */
@@ -46,7 +47,8 @@ const OrdersPage = () => {
         idCategoria:        p.ID_Categoria|| p.idCategoria || null,
         publicado:          !!p.Publicado,
         imagen:             p.Imagen      || p.imagen      || null,
-        requiereProduccion: !!p.Requiere_Produccion,
+        // La ficha técnica también cuenta: es el criterio del servidor.
+        requiereProduccion: esFabricable(p),
       }));
       const vendibles = lista.filter(p => p.publicado);
       setProductos(vendibles);

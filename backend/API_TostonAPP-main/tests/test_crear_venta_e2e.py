@@ -41,7 +41,16 @@ from src.features.ventas.gestion_ventas.services.service import (
     cambiar_estado,
     crear_venta,
 )
+from src.features.ventas.domicilios.services.service import (
+    cambiar_estado as cambiar_estado_domicilio,
+)
 from src.features.ventas.pedidos.services.estados import EstadoPedido
+from src.features.ventas.pedidos.services.schemas import RegistroCobro
+from src.features.ventas.pedidos.services.service import (
+    aprobar_comprobante,
+    rechazar_comprobante,
+    registrar_cobro_pedido,
+)
 from src.shared.services.models import (
     Base,
     CreditoCliente,
@@ -59,6 +68,7 @@ PRECIO = Decimal("10000")
 ID_CLIENTE = 1
 ID_TOSTON = 1       # stock 10
 ID_TORTA = 2        # stock 2, para forzar el pedido sobre stock
+ESTADO_DOM_ENTREGADO = 8
 
 
 class CrearVentaBase(unittest.TestCase):
@@ -326,9 +336,16 @@ class SaldoAFavorTests(CrearVentaBase):
 # 3. Pedido con anticipo (por encima del stock)
 # ══════════════════════════════════════════════════════════════════════════
 class AnticipoTests(CrearVentaBase):
+    """El anticipo se le pide al pedido que hay que hornear Y que pesa.
 
-    def sobre_stock(self, cantidad=5, **kwargs):
-        """Torta Tropical tiene stock 2: pedir 5 dispara el anticipo."""
+    Las dos condiciones juntas: la Torta Tropical se fabrica (por encargo) y
+    tiene stock 2, así que pedir 6 deja 4 por producir y son $60.000, por
+    encima del umbral. Bajarle cualquiera de las dos lo deja sin anticipo.
+    """
+
+    def sobre_stock(self, cantidad=6, **kwargs):
+        """Pedido que sí pide anticipo: 4 tortas por hornear, $60.000."""
+        self.marcar_por_encargo(ID_TORTA)
         return self.pedido(
             productos=[ProductoVentaInput(ID_Producto=ID_TORTA, Cantidad=cantidad)],
             **kwargs,
@@ -347,8 +364,8 @@ class AnticipoTests(CrearVentaBase):
         ))
         v = self.venta_creada()
         self.assertEqual(v.Sobre_Stock, 1)
-        # 5 tortas × $10.000 = $50.000 → anticipo del 50%.
-        self.assertEqual(v.Anticipo_Requerido, Decimal("25000"))
+        # 6 tortas × $10.000 = $60.000 → anticipo del 50%.
+        self.assertEqual(v.Anticipo_Requerido, Decimal("30000"))
 
     def test_el_saldo_a_favor_baja_el_anticipo(self):
         """El anticipo sale de lo que QUEDA por pagar, como el checkout."""
@@ -357,29 +374,29 @@ class AnticipoTests(CrearVentaBase):
             usar_credito=True,
             credito_monto=Decimal("10000"),
             requiere_anticipo=True,
-            anticipo_monto=20000.0,
+            anticipo_monto=25000.0,
             anticipo_metodo_pago="Transferencia",
             anticipo_comprobante_url="https://cloudinary.test/ant.jpg",
             anticipo_registrado=True,
         ))
         v = self.venta_creada()
-        # $50.000 − $10.000 de saldo = $40.000 por pagar → anticipo $20.000.
-        self.assertEqual(v.Anticipo_Requerido, Decimal("20000"))
+        # $60.000 − $10.000 de saldo = $50.000 por pagar → anticipo $25.000.
+        self.assertEqual(v.Anticipo_Requerido, Decimal("25000"))
         self.assertEqual(v.Anticipo_Pagado, Decimal("10000"))
 
     def test_el_saldo_que_cubre_la_mitad_basta_sin_comprobante(self):
-        self.dar_saldo(25000)
-        self.crear(self.sobre_stock(usar_credito=True, credito_monto=Decimal("25000")))
+        self.dar_saldo(30000)
+        self.crear(self.sobre_stock(usar_credito=True, credito_monto=Decimal("30000")))
         v = self.venta_creada()
-        # $50.000 − $25.000 = $25.000 por pagar → anticipo $12.500, cubierto.
-        self.assertEqual(v.Anticipo_Requerido, Decimal("12500"))
-        self.assertEqual(v.Total, Decimal("25000"))
+        # $60.000 − $30.000 = $30.000 por pagar → anticipo $15.000, cubierto.
+        self.assertEqual(v.Anticipo_Requerido, Decimal("15000"))
+        self.assertEqual(v.Total, Decimal("30000"))
 
     def test_el_flujo_del_checkout_deja_el_anticipo_registrado(self):
         self.crear(self.sobre_stock(
             Metodo_Pago="Transferencia",
             requiere_anticipo=True,
-            anticipo_monto=25000.0,
+            anticipo_monto=30000.0,
             anticipo_metodo_pago="Transferencia",
             anticipo_comprobante_url="https://cloudinary.test/ant.jpg",
             anticipo_registrado=True,
@@ -394,7 +411,7 @@ class AnticipoTests(CrearVentaBase):
         self.crear(self.sobre_stock(
             Metodo_Pago="Transferencia",
             requiere_anticipo=True,
-            anticipo_monto=50000.0,
+            anticipo_monto=60000.0,
             anticipo_metodo_pago="Transferencia",
             anticipo_comprobante_url="https://cloudinary.test/ant.jpg",
             anticipo_registrado=True,
@@ -407,7 +424,7 @@ class AnticipoTests(CrearVentaBase):
         self.crear(self.sobre_stock(
             Metodo_Pago="Efectivo",
             requiere_anticipo=True,
-            anticipo_monto=25000.0,
+            anticipo_monto=30000.0,
             anticipo_metodo_pago="Efectivo",
             anticipo_registrado=True,
         ))
@@ -418,7 +435,7 @@ class AnticipoTests(CrearVentaBase):
         with self.assertRaises(HTTPException) as ctx:
             self.crear(self.sobre_stock(
                 requiere_anticipo=True,
-                anticipo_monto=25000.0,
+                anticipo_monto=30000.0,
                 anticipo_metodo_pago="Efectivo",
                 anticipo_registrado=False,
             ))
@@ -431,15 +448,134 @@ class AnticipoTests(CrearVentaBase):
             domicilio=self.domicilio(),
         ))
         v = self.venta_creada()
-        esperado = (Decimal("50000") + COSTO_DOMICILIO) / 2
+        esperado = (Decimal("60000") + COSTO_DOMICILIO) / 2
         self.assertEqual(v.Anticipo_Requerido, esperado)
 
     def test_el_personal_no_necesita_anticipo(self):
-        """Los pedidos de mostrador se cobran en el acto."""
+        """Los pedidos de mostrador se cobran en el acto.
+
+        Nace directo en producción (13) y no en Confirmado (4): el admin lo creó
+        ya comprometido, así que se le abre la orden de las 4 tortas que faltan.
+        """
         self.crear(self.sobre_stock(creado_por_admin=True))
         v = self.venta_creada()
         self.assertEqual(v.Sobre_Stock, 1)
-        self.assertEqual(v.Estado, 4)  # CONFIRMADO
+        self.assertEqual(v.Estado, EstadoPedido.PREPARANDO)
+        self.assertEqual(
+            self.db.query(OrdenProduccion).filter(
+                OrdenProduccion.ID_Venta == v.ID_Venta
+            ).one().Cantidad,
+            4,
+        )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 3a. Los pedidos que NO piden anticipo
+# ══════════════════════════════════════════════════════════════════════════
+class SinAnticipoTests(CrearVentaBase):
+    """El error que reportó el negocio: se pedía anticipo en todos.
+
+    Cliente y mostrador veían el bloque del anticipo en cualquier pedido, con
+    stock de sobra y por cualquier monto. Se pide en un solo caso: hay que
+    fabricar algo Y el pedido pasa de $50.000.
+    """
+
+    def test_con_stock_de_sobra_no_pide_anticipo_por_caro_que_sea(self):
+        """10 tostones = $100.000, todos en stock: no hay nada que fabricar."""
+        self.crear(self.pedido(
+            productos=[ProductoVentaInput(ID_Producto=ID_TOSTON, Cantidad=10)],
+        ))
+        v = self.venta_creada()
+        self.assertEqual(v.Total, Decimal("100000"))
+        self.assertEqual(v.Sobre_Stock, 0)
+        self.assertEqual(v.Requiere_Anticipo or 0, 0)
+        self.assertIsNone(v.Anticipo_Requerido)
+
+    def test_el_faltante_chico_no_pide_anticipo_pero_queda_marcado(self):
+        """3 tortas por encargo = $30.000: una por hornear, no llega al umbral.
+
+        El pedido igual queda Sobre_Stock, que es lo que dispara la fecha
+        propuesta y la orden de producción. Lo único que no se le pide es
+        plata por adelantado.
+        """
+        self.marcar_por_encargo(ID_TORTA)
+        self.crear(self.pedido(
+            productos=[ProductoVentaInput(ID_Producto=ID_TORTA, Cantidad=3)],
+        ))
+        v = self.venta_creada()
+        self.assertEqual(v.Sobre_Stock, 1)
+        self.assertEqual(v.Necesita_Produccion, 1)
+        self.assertEqual(v.Requiere_Anticipo or 0, 0)
+        self.assertIsNone(v.Anticipo_Requerido)
+
+    def test_justo_en_el_umbral_todavia_no_pide(self):
+        """$50.000 clavados: la regla es ‘más de’, no ‘desde’."""
+        self.marcar_por_encargo(ID_TORTA)
+        self.crear(self.pedido(
+            productos=[ProductoVentaInput(ID_Producto=ID_TORTA, Cantidad=5)],
+        ))
+        v = self.venta_creada()
+        self.assertEqual(v.Total, Decimal("50000"))
+        self.assertEqual(v.Requiere_Anticipo or 0, 0)
+
+    def test_un_peso_arriba_del_umbral_ya_lo_pide(self):
+        """El domicilio empuja el mismo pedido por encima: $50.000 + $5.000."""
+        self.marcar_por_encargo(ID_TORTA)
+        with self.assertRaises(HTTPException) as ctx:
+            self.crear(self.pedido(
+                productos=[ProductoVentaInput(ID_Producto=ID_TORTA, Cantidad=5)],
+                domicilio=self.domicilio(),
+            ))
+        self.assertIn("anticipo", ctx.exception.detail.lower())
+
+    def test_lo_que_la_panaderia_no_fabrica_no_pide_anticipo(self):
+        """Sin ficha técnica ni marca de producción no hay orden que abrir.
+
+        Cobrar por adelantado no acerca el producto: el admin tiene que cargar
+        la ficha o reponer el stock, y hasta entonces el pedido no pasa a Listo.
+        """
+        self.crear(self.pedido(
+            productos=[ProductoVentaInput(ID_Producto=ID_TORTA, Cantidad=8)],
+        ))
+        v = self.venta_creada()
+        self.assertEqual(v.Total, Decimal("80000"))
+        self.assertEqual(v.Sobre_Stock, 1)
+        self.assertEqual(v.Necesita_Produccion, 0)
+        self.assertEqual(v.Requiere_Anticipo or 0, 0)
+
+    def test_la_ficha_tecnica_sola_ya_cuenta_como_fabricable(self):
+        """Igual que las órdenes de producción: la receta manda, no el flag.
+
+        Si el criterio fuera distinto, el checkout no mostraría el anticipo y
+        el servidor rechazaría el pedido por no traerlo.
+        """
+        self.db.add(FichaTecnica(ID_Producto=ID_TORTA, Version="1", Estado=1))
+        self.db.commit()
+        with self.assertRaises(HTTPException) as ctx:
+            self.crear(self.pedido(
+                productos=[ProductoVentaInput(ID_Producto=ID_TORTA, Cantidad=8)],
+            ))
+        self.assertIn("anticipo", ctx.exception.detail.lower())
+
+    def test_el_pedido_sin_anticipo_registra_igual_lo_que_se_pago(self):
+        """Una app vieja manda el flag; la plata que entró no se pierde.
+
+        No se le marca la obligación —esa la decide el servidor—, pero el
+        abono queda registrado para que el saldo se pueda cobrar después.
+        """
+        self.crear(self.pedido(
+            Metodo_Pago="Transferencia",
+            requiere_anticipo=True,
+            anticipo_monto=10000.0,
+            anticipo_metodo_pago="Transferencia",
+            anticipo_comprobante_url="https://cloudinary.test/ant.jpg",
+            anticipo_registrado=True,
+        ))
+        v = self.venta_creada()
+        self.assertEqual(v.Anticipo_Registrado, 1)
+        self.assertEqual(v.Estado_Pago, "anticipo_pagado")
+        # El saldo tiene que poder cobrarse: registrar_pago_final lo exige.
+        self.assertEqual(v.Requiere_Anticipo, 1)
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -454,7 +590,7 @@ class ProductoPorEncargoTests(CrearVentaBase):
     anticipo que la pantalla jamás le había ofrecido pagar.
     """
 
-    def por_encargo(self, cantidad=5, **kwargs):
+    def por_encargo(self, cantidad=6, **kwargs):
         self.marcar_por_encargo(ID_TORTA)
         return self.pedido(
             productos=[ProductoVentaInput(ID_Producto=ID_TORTA, Cantidad=cantidad)],
@@ -471,14 +607,14 @@ class ProductoPorEncargoTests(CrearVentaBase):
         self.crear(self.por_encargo(
             Metodo_Pago="Transferencia",
             requiere_anticipo=True,
-            anticipo_monto=25000.0,
+            anticipo_monto=30000.0,
             anticipo_metodo_pago="Transferencia",
             anticipo_comprobante_url="https://cloudinary.test/ant.jpg",
             anticipo_registrado=True,
         ))
         v = self.venta_creada()
         self.assertEqual(v.Sobre_Stock, 1)
-        self.assertEqual(v.Anticipo_Requerido, Decimal("25000"))
+        self.assertEqual(v.Anticipo_Requerido, Decimal("30000"))
         self.assertEqual(v.Estado_Pago, "anticipo_pagado")
 
     def test_queda_marcado_para_producir(self):
@@ -540,10 +676,11 @@ class PagoMixtoTests(CrearVentaBase):
         self.assertEqual(v.Monto_Transferencia, Decimal("0.00"))
 
     def test_mixto_con_anticipo_se_rechaza(self):
-        """Lo que se acaba de arreglar: el mixto no respalda un anticipo."""
+        """El mixto no respalda un anticipo: su efectivo se cobra al entregar."""
+        self.marcar_por_encargo(ID_TORTA)
         with self.assertRaises(HTTPException) as ctx:
             self.crear(self.pedido(
-                productos=[ProductoVentaInput(ID_Producto=ID_TORTA, Cantidad=5)],
+                productos=[ProductoVentaInput(ID_Producto=ID_TORTA, Cantidad=6)],
                 Metodo_Pago="Mixto",
                 pago_efectivo_monto=Decimal("5000"),
                 comprobante_pago="https://cloudinary.test/comp.jpg",
@@ -551,16 +688,33 @@ class PagoMixtoTests(CrearVentaBase):
         self.assertEqual(ctx.exception.status_code, 400)
         self.assertIn("mixto", ctx.exception.detail.lower())
 
-    def test_mixto_con_anticipo_declarado_tambien_se_rechaza(self):
-        with self.assertRaises(HTTPException) as ctx:
-            self.crear(self.pedido(
-                Metodo_Pago="Mixto",
-                pago_efectivo_monto=Decimal("5000"),
-                requiere_anticipo=True,
-                anticipo_monto=10000.0,
-                anticipo_registrado=True,
-            ))
-        self.assertEqual(ctx.exception.status_code, 400)
+    def test_el_faltante_que_no_pide_anticipo_conserva_el_mixto(self):
+        """Sobre stock pero por debajo del umbral: no hay anticipo que proteger.
+
+        Antes cualquier faltante le cerraba el mixto al cliente.
+        """
+        self.marcar_por_encargo(ID_TORTA)
+        self.crear(self.pedido(
+            productos=[ProductoVentaInput(ID_Producto=ID_TORTA, Cantidad=3)],
+            Metodo_Pago="Mixto",
+            pago_efectivo_monto=Decimal("5000"),
+            comprobante_pago="https://cloudinary.test/comp.jpg",
+        ))
+        v = self.venta_creada()
+        self.assertEqual(v.Sobre_Stock, 1)
+        self.assertEqual(v.Monto_Efectivo, Decimal("5000.00"))
+        self.assertEqual(v.Monto_Efectivo + v.Monto_Transferencia, v.Total)
+
+    def test_el_flag_declarado_ya_no_cierra_el_mixto(self):
+        """La obligación la decide el servidor, no el flag que manda el cliente."""
+        self.crear(self.pedido(
+            Metodo_Pago="Mixto",
+            pago_efectivo_monto=Decimal("5000"),
+            requiere_anticipo=True,
+            anticipo_monto=10000.0,
+            anticipo_registrado=True,
+        ))
+        self.assertEqual(self.venta_creada().Monto_Efectivo, Decimal("5000.00"))
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -776,6 +930,217 @@ class OrdenProduccionDelFaltanteTests(CrearVentaBase):
         id_venta = self.venta_creada().ID_Venta
         cambiar_estado(self.db, id_venta, EstadoPedido.LISTO)
         self.assertEqual(self.venta_creada().Estado, EstadoPedido.LISTO)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 8. El pago manda en el flujo del pedido
+# ══════════════════════════════════════════════════════════════════════════
+class FlujoPagosTests(CrearVentaBase):
+    """Cada paso del pedido exige que el pago de ese paso esté resuelto.
+
+    Confirmar es aceptar el pedido: no se acepta contra un comprobante que
+    nadie miró. Y entregar un domicilio es cerrar la venta: no se cierra sin
+    haber registrado qué pasó con la plata que se cobra en mano.
+    """
+
+    ADMIN = 1  # quien aprueba o rechaza, para la auditoría
+
+    def transferencia(self, **kwargs):
+        base = dict(
+            Metodo_Pago="Transferencia",
+            comprobante_pago="https://cloudinary.test/comp.jpg",
+        )
+        base.update(kwargs)
+        return self.pedido(**base)
+
+    def mixto(self, efectivo=5000.0, **kwargs):
+        base = dict(
+            Metodo_Pago="Mixto",
+            pago_efectivo_monto=efectivo,
+            comprobante_pago="https://cloudinary.test/comp.jpg",
+        )
+        base.update(kwargs)
+        return self.pedido(**base)
+
+    def avanzar(self, id_venta, *estados):
+        for estado in estados:
+            cambiar_estado(self.db, id_venta, estado)
+
+    def cobrar(self, id_venta, recibido=True, motivo=None):
+        return registrar_cobro_pedido(
+            self.db, id_venta,
+            RegistroCobro(recibido=recibido, monto=None, motivo=motivo),
+            self.ADMIN,
+        )
+
+    # ────────────────────── Confirmar exige el comprobante aprobado ──────────────────────
+
+    def test_no_se_confirma_con_el_comprobante_sin_revisar(self):
+        self.crear(self.transferencia())
+        v = self.venta_creada()
+        self.assertEqual(v.Estado_Pago, "pendiente_validacion")
+
+        with self.assertRaises(HTTPException) as ctx:
+            cambiar_estado(self.db, v.ID_Venta, EstadoPedido.CONFIRMADO)
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("comprobante", ctx.exception.detail.lower())
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.PENDIENTE)
+
+    def test_aprobado_el_comprobante_el_pedido_se_confirma(self):
+        self.crear(self.transferencia())
+        id_venta = self.venta_creada().ID_Venta
+        aprobar_comprobante(self.db, id_venta)
+
+        cambiar_estado(self.db, id_venta, EstadoPedido.CONFIRMADO)
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.CONFIRMADO)
+
+    def test_el_comprobante_rechazado_tampoco_deja_confirmar(self):
+        self.crear(self.transferencia())
+        id_venta = self.venta_creada().ID_Venta
+        rechazar_comprobante(self.db, id_venta, "La imagen no se ve", self.ADMIN)
+
+        with self.assertRaises(HTTPException) as ctx:
+            cambiar_estado(self.db, id_venta, EstadoPedido.CONFIRMADO)
+        self.assertIn("rechazado", ctx.exception.detail.lower())
+
+    def test_el_pedido_en_efectivo_se_confirma_sin_comprobante(self):
+        """No hay nada que aprobar: la puerta no se le aplica."""
+        self.crear(self.pedido())
+        id_venta = self.venta_creada().ID_Venta
+
+        cambiar_estado(self.db, id_venta, EstadoPedido.CONFIRMADO)
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.CONFIRMADO)
+
+    # ────────────────────── Entregar un domicilio exige el cobro ──────────────────────
+
+    def _domicilio_en_camino(self, datos):
+        self.crear(datos)
+        id_venta = self.venta_creada().ID_Venta
+        self.avanzar(
+            id_venta,
+            EstadoPedido.CONFIRMADO, EstadoPedido.LISTO, EstadoPedido.EN_CAMINO,
+        )
+        return id_venta
+
+    def test_no_se_entrega_el_domicilio_sin_registrar_el_cobro(self):
+        id_venta = self._domicilio_en_camino(self.pedido(domicilio=self.domicilio()))
+
+        with self.assertRaises(HTTPException) as ctx:
+            cambiar_estado(self.db, id_venta, EstadoPedido.ENTREGADO)
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("efectivo", ctx.exception.detail.lower())
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.EN_CAMINO)
+
+    def test_registrado_el_cobro_el_domicilio_se_entrega(self):
+        id_venta = self._domicilio_en_camino(self.pedido(domicilio=self.domicilio()))
+        self.cobrar(id_venta)
+
+        cambiar_estado(self.db, id_venta, EstadoPedido.ENTREGADO)
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.ENTREGADO)
+
+    def test_declarar_que_no_se_cobro_tambien_deja_cerrar_la_entrega(self):
+        """Con motivo auditado: lo que no vale es entregar sin decir qué pasó."""
+        id_venta = self._domicilio_en_camino(self.pedido(domicilio=self.domicilio()))
+        self.cobrar(id_venta, recibido=False, motivo="el cliente no tenia el efectivo")
+
+        cambiar_estado(self.db, id_venta, EstadoPedido.ENTREGADO)
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.ENTREGADO)
+
+    def test_el_mixto_no_se_entrega_solo_con_el_comprobante_aprobado(self):
+        """La regresión que cerraba en falso: "anticipo_pagado" es media paga.
+
+        Aprobar el comprobante salda la parte transferida; la plata en mano
+        sigue sin cobrarse y el pedido se entregaba igual.
+        """
+        self.crear(self.mixto(domicilio=self.domicilio()))
+        id_venta = self.venta_creada().ID_Venta
+        aprobar_comprobante(self.db, id_venta)
+        self.assertEqual(self.venta_creada().Estado_Pago, "anticipo_pagado")
+        self.avanzar(
+            id_venta,
+            EstadoPedido.CONFIRMADO, EstadoPedido.LISTO, EstadoPedido.EN_CAMINO,
+        )
+
+        with self.assertRaises(HTTPException) as ctx:
+            cambiar_estado(self.db, id_venta, EstadoPedido.ENTREGADO)
+        self.assertIn("efectivo", ctx.exception.detail.lower())
+
+        # Cobrada la otra mitad, el pedido sí se entrega.
+        self.cobrar(id_venta)
+        cambiar_estado(self.db, id_venta, EstadoPedido.ENTREGADO)
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.ENTREGADO)
+
+    def test_el_domicilio_por_transferencia_no_espera_ningun_cobro(self):
+        """No hay plata en mano: exigir el cobro dejaría el pedido trabado."""
+        self.crear(self.transferencia(domicilio=self.domicilio()))
+        id_venta = self.venta_creada().ID_Venta
+        aprobar_comprobante(self.db, id_venta)
+        self.avanzar(
+            id_venta,
+            EstadoPedido.CONFIRMADO, EstadoPedido.LISTO, EstadoPedido.EN_CAMINO,
+            EstadoPedido.ENTREGADO,
+        )
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.ENTREGADO)
+
+    def test_el_domiciliario_tampoco_entrega_sin_registrar_el_cobro(self):
+        """La misma regla por el otro camino: el módulo de domicilios.
+
+        Es el camino real —quien recibe la plata es el repartidor— y mueve la
+        venta directo al estado 8 sin pasar por gestión de pedidos.
+        """
+        self.crear(self.pedido(domicilio=self.domicilio()))
+        dom = self.db.query(Domicilio).first()
+
+        with self.assertRaises(HTTPException) as ctx:
+            cambiar_estado_domicilio(self.db, dom.ID_Domicilio, ESTADO_DOM_ENTREGADO)
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("cobro", ctx.exception.detail.lower())
+
+    def test_el_domiciliario_no_entrega_un_mixto_con_solo_la_transferencia(self):
+        """El agujero que veía el filtro viejo: "anticipo_pagado" lo dejaba pasar."""
+        self.crear(self.mixto(domicilio=self.domicilio()))
+        id_venta = self.venta_creada().ID_Venta
+        aprobar_comprobante(self.db, id_venta)
+        dom = self.db.query(Domicilio).first()
+
+        with self.assertRaises(HTTPException) as ctx:
+            cambiar_estado_domicilio(self.db, dom.ID_Domicilio, ESTADO_DOM_ENTREGADO)
+        self.assertIn("efectivo", ctx.exception.detail.lower())
+
+        # Cobrada la parte en mano, el repartidor sí puede cerrar la entrega.
+        self.cobrar(id_venta)
+        cambiar_estado_domicilio(self.db, dom.ID_Domicilio, ESTADO_DOM_ENTREGADO)
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.ENTREGADO)
+
+    def test_el_pedido_para_recoger_en_tienda_tambien_exige_el_cobro(self):
+        """En el mostrador la plata la recibe quien atiende, pero se registra.
+
+        La puerta era solo del domicilio: en tienda el pedido se cerraba sin
+        dejar rastro de si el efectivo entró.
+        """
+        self.crear(self.pedido())
+        id_venta = self.venta_creada().ID_Venta
+        self.avanzar(id_venta, EstadoPedido.CONFIRMADO, EstadoPedido.LISTO)
+
+        with self.assertRaises(HTTPException) as ctx:
+            cambiar_estado(self.db, id_venta, EstadoPedido.ENTREGADO)
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("efectivo", ctx.exception.detail.lower())
+
+        self.cobrar(id_venta)
+        cambiar_estado(self.db, id_venta, EstadoPedido.ENTREGADO)
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.ENTREGADO)
+
+    def test_el_pedido_por_transferencia_en_tienda_no_espera_ningun_cobro(self):
+        """No hay plata en mano: exigir el cobro lo dejaría trabado."""
+        self.crear(self.transferencia())
+        id_venta = self.venta_creada().ID_Venta
+        aprobar_comprobante(self.db, id_venta)
+        self.avanzar(
+            id_venta,
+            EstadoPedido.CONFIRMADO, EstadoPedido.LISTO, EstadoPedido.ENTREGADO,
+        )
+        self.assertEqual(self.venta_creada().Estado, EstadoPedido.ENTREGADO)
 
 
 if __name__ == "__main__":
