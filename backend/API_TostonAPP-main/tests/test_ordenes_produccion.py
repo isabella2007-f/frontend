@@ -79,17 +79,20 @@ class FakeDB:
         return None
 
 
+def _ficha(id_producto, id_ficha=30):
+    return type("Ficha", (), {"ID_Producto": id_producto, "ID_Ficha": id_ficha, "Estado": 1})()
+
+
 class OrdenesProduccionTests(unittest.TestCase):
-    def test_crea_orden_para_producto_requiere_produccion(self):
+    def test_crea_orden_para_producto_con_ficha(self):
         # Cantidad_Preorden es lo que se fabrica (el déficit contra el stock);
-        # sin stock coincide con lo pedido. Faltaba en este objeto y el test
-        # reventaba con AttributeError contra código que estaba bien.
+        # sin stock coincide con lo pedido.
         venta_producto = type("VentaProducto", (), {
             "ID_Venta": 10, "ID_Producto": 6,
             "Cantidad": 2, "Cantidad_Preorden": 2,
         })()
         producto = type("Producto", (), {"ID_Producto": 6, "Requiere_Produccion": 1, "Stock": 0})()
-        db = FakeDB([venta_producto], [producto])
+        db = FakeDB([venta_producto], [producto], fichas=[_ficha(6, id_ficha=30)])
 
         _crear_ordenes_produccion_para_venta(db, 10, "2026-01-01")
 
@@ -99,6 +102,7 @@ class OrdenesProduccionTests(unittest.TestCase):
         self.assertEqual(orden.ID_Producto, 6)
         self.assertEqual(orden.Cantidad, 2)
         self.assertEqual(orden.Estado, 1)
+        self.assertEqual(orden.ID_Ficha, 30)
 
     def test_la_orden_cubre_solo_el_faltante(self):
         """5 en stock y 10 pedidos → se manda a producir 5, no 10."""
@@ -107,13 +111,27 @@ class OrdenesProduccionTests(unittest.TestCase):
             "Cantidad": 10, "Cantidad_Preorden": 5,
         })()
         producto = type("Producto", (), {"ID_Producto": 6, "Requiere_Produccion": 1, "Stock": 5})()
-        db = FakeDB([venta_producto], [producto])
+        db = FakeDB([venta_producto], [producto], fichas=[_ficha(6)])
 
         creadas = _crear_ordenes_produccion_para_venta(db, 11, "2026-01-01")
 
         self.assertEqual(creadas, 1)
         self.assertEqual(db.added[0].Cantidad, 5)
         self.assertEqual(db.added[0].Estado, 1)  # nace Pendiente
+
+    def test_producto_sin_ficha_no_genera_orden(self):
+        """3.10 — sin ficha técnica no se puede fabricar: no se abre la orden."""
+        venta_producto = type("VentaProducto", (), {
+            "ID_Venta": 12, "ID_Producto": 6,
+            "Cantidad": 4, "Cantidad_Preorden": 4,
+        })()
+        producto = type("Producto", (), {"ID_Producto": 6, "Requiere_Produccion": 1, "Stock": 0})()
+        db = FakeDB([venta_producto], [producto])   # sin fichas
+
+        creadas = _crear_ordenes_produccion_para_venta(db, 12, "2026-01-01")
+
+        self.assertEqual(creadas, 0)
+        self.assertEqual(db.added, [])
 
 
 if __name__ == "__main__":

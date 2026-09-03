@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { fmtFecha, getRecordDate } from "../../../utils/dateUtils.js";
 import DateRangeFilter from "../../../shared/components/DateRangeFilter";
 import { descargarFacturaPedido } from "../../../utils/facturaGenerator.js";
-import { getPedidos, getHistorialPedidos, confirmarPedido, cancelarPedido, crearPedido, editarPedido, eliminarPedido, cambiarEstadoVenta, proponerFechaProduccion, registrarPagoFinal, aprobarComprobante, rechazarComprobante, registrarCobroPedido } from "../../../services/pedidosService.js";
+import { getPedidos, getHistorialPedidos, confirmarPedido, cancelarPedido, crearPedido, editarPedido, cambiarEstadoVenta, proponerFechaProduccion, registrarPagoFinal, aprobarComprobante, rechazarComprobante, registrarCobroPedido } from "../../../services/pedidosService.js";
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
 import { asignarRepartidor } from "../../../services/domiciliosService.js";
 import { registrarSalida } from "../../../services/salidasService.js";
@@ -763,60 +763,6 @@ function ModalProponerFecha({ pedido, saving, onClose, onConfirm }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════
-   MODAL — ELIMINAR PEDIDO
-   ═══════════════════════════════════════════════════════════ */
-function ModalEliminarPedido({ pedido, onClose, onConfirm }) {
-  const [done, setDone] = useState(false);
-
-  if (["Entregado"].includes(pedido.estado)) {
-    return (
-      <div className="modal-overlay" onClick={onClose}>
-        <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()} style={{ overflow: "hidden", padding: 0 }}>
-          <div style={{ background: "linear-gradient(135deg, #b71c1c 0%, #c62828 100%)", padding: "28px 24px 22px", textAlign: "center", position: "relative" }}>
-            <button onClick={onClose} style={{ position: "absolute", top: 12, right: 12, color: "rgba(255,255,255,0.8)", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 8, width: 30, height: 30, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={14} /></button>
-            <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "2px solid rgba(255,255,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}><Ban size={28} color="white" /></div>
-            <h3 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: "#fff", letterSpacing: -0.3 }}>No se puede eliminar</h3>
-            <p style={{ margin: "6px 0 0", fontSize: 13, color: "rgba(255,255,255,0.85)", fontWeight: 500 }}>Pedido #{pedido.numero}</p>
-          </div>
-          <div style={{ padding: "18px 24px" }}>
-            <div style={{ padding: "12px 14px", background: "#ffebee", border: "1.5px solid #ef9a9a", borderRadius: 10, color: "#c62828", fontSize: 13, fontWeight: 600, lineHeight: 1.6 }}>
-              <span style={{display:"inline-flex",alignItems:"center",gap:6}}><Info size={14} /></span> Los pedidos entregados forman parte del historial financiero y <strong>no pueden eliminarse</strong>.
-            </div>
-          </div>
-          <div style={{ padding: "0 24px 20px" }}>
-            <button onClick={onClose} style={{ width: "100%", padding: "11px", borderRadius: 10, border: "none", background: "#c62828", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>Entendido</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()} style={{ overflow: "hidden", padding: 0 }}>
-        <div style={{ background: "linear-gradient(135deg, #e65100 0%, #f57f17 100%)", padding: "28px 24px 22px", textAlign: "center", position: "relative" }}>
-          <button onClick={onClose} style={{ position: "absolute", top: 12, right: 12, color: "rgba(255,255,255,0.8)", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 8, width: 30, height: 30, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={14} /></button>
-          <div style={{ width: 64, height: 64, borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "2px solid rgba(255,255,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px" }}><AlertCircle size={28} color="white" /></div>
-          <h3 style={{ margin: 0, fontSize: 19, fontWeight: 800, color: "#fff", letterSpacing: -0.3 }}>Eliminar pedido</h3>
-          <p style={{ margin: "6px 0 0", fontSize: 13, color: "rgba(255,255,255,0.85)", fontWeight: 500 }}>#{pedido.numero}</p>
-        </div>
-        <div style={{ padding: "18px 24px" }}>
-          <div style={{ padding: "12px 14px", background: "#fff8e1", border: "1.5px solid #ffe082", borderRadius: 10, color: "#e65100", fontSize: 13, fontWeight: 600, lineHeight: 1.6 }}>
-            <span style={{display:"inline-flex",alignItems:"center",gap:6}}><AlertCircle size={14} /></span> Esta acción <strong>no se puede deshacer</strong>. El pedido será eliminado permanentemente.
-          </div>
-        </div>
-        <div style={{ padding: "0 24px 20px", display: "flex", flexDirection: "column", gap: 8 }}>
-          <button disabled={done} onClick={() => { setDone(true); setTimeout(() => onConfirm(pedido.id), 800); }} style={{ width: "100%", padding: "11px", borderRadius: 10, border: "none", background: "#c62828", color: "#fff", fontWeight: 700, fontSize: 14, cursor: done ? "not-allowed" : "pointer", opacity: done ? 0.7 : 1, fontFamily: "inherit" }}>
-            {done ? "Eliminando…" : "Eliminar"}
-          </button>
-          <button onClick={onClose} style={{ width: "100%", padding: "10px", borderRadius: 10, border: "1.5px solid #e0e0e0", background: "#fff", color: "#616161", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}>Cancelar</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ─── ModalRegistrarSaldo ────────────────────────────────── */
 function ModalRegistrarSaldo({ pedido, saving, onClose, onConfirm }) {
   const [metodo,    setMetodo]    = useState("");
@@ -1459,10 +1405,10 @@ export default function GestionPedidos() {
       setHistorial(data.pedidos);
       setHistorialLoaded(true);
     } catch (err) {
-      // El historial se arma con /ventas/, que requiere el permiso ver_ventas.
+      // El historial se arma con /ventas/, que requiere el permiso ver_pedidos.
       // Si falta, antes la pestaña quedaba vacía sin decir por qué.
       const msg = /403|permiso/i.test(err?.message || "")
-        ? "No tienes permiso para ver el historial de ventas (ver_ventas)."
+        ? "No tienes permiso para ver el historial de pedidos (ver_pedidos)."
         : (err?.message || "No se pudo cargar el historial.");
       setErrorHistorial(msg);
       showToast(msg, "error");
@@ -1911,17 +1857,6 @@ export default function GestionPedidos() {
     }
   };
 
-  const handleEliminarPedido = async (id) => {
-    try {
-      await eliminarPedido(id);
-      await cargarDatos();
-      showToast("Pedido eliminado", "warn");
-    } catch (err) {
-      showToast(err.message || "Error al eliminar", "error");
-    }
-    setModal(null);
-  };
-
   return (
     <div className="page-wrapper mod-pedidos">
       <div className="page-header">
@@ -2220,7 +2155,6 @@ export default function GestionPedidos() {
       {modal?.type === "asignarDomiciliario" && <ModalAsignarDomiciliario pedido={modal.pedido} empleados={empleados} repartidores={repartidores} onClose={() => setModal(null)} onConfirm={handleAsignarDomiciliario} />}
       {modal?.type === "crear" && <CrearPedido onClose={() => setModal(null)} onSave={handleCrearPedido} />}
       {modal?.type === "editar" && <EditarPedido pedido={modal.pedido} onClose={() => setModal(null)} onSave={handleEditarPedido} />}
-      {modal?.type === "eliminar" && <ModalEliminarPedido pedido={modal.pedido} onClose={() => setModal(null)} onConfirm={handleEliminarPedido} />}
       {modal?.type === "proponerFecha" && <ModalProponerFecha pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleConfirmarFechaPropuesta} />}
       {modal?.type === "registrarSaldo" && <ModalRegistrarSaldo pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleRegistrarSaldo} />}
       {modal?.type === "registrarCobro"      && <ModalRegistrarCobro      pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleConfirmarCobro} />}

@@ -483,18 +483,24 @@ class PanelProduccionTests(PanelBase):
         self.assertEqual(self.orden().Estado, ORDEN_PENDIENTE)
         self.assertAlmostEqual(self.harina(), 100.0, places=3)
 
-    def test_cancelarla_en_proceso_devuelve_los_insumos(self):
+    def test_no_se_cancela_por_separado_la_orden_de_un_pedido(self):
+        """3.12 — desde el panel de producción no se cancela la orden de un
+        pedido: se cancela cancelando el pedido."""
         pedido = self.pedido_con_faltante()
         id_orden = self.orden(pedido["ID_Venta"]).ID_Orden_Produccion
         self.afirmar_ok(self.patch(
             f"/ordenes-produccion/{id_orden}/estado", self.admin,
             {"Estado": ORDEN_EN_PROCESO},
         ))
-        self.afirmar_ok(self.patch(
+        respuesta = self.patch(
             f"/ordenes-produccion/{id_orden}/estado", self.admin,
             {"Estado": ORDEN_CANCELADA},
-        ))
-        self.assertAlmostEqual(self.harina(), STOCK_HARINA, places=3)
+        )
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn("pedido", self.detalle(respuesta).lower())
+        # Nada se tocó: los insumos siguen descontados.
+        gastado = GRAMOS_POR_TORTA * (6 - STOCK_TORTA)
+        self.assertAlmostEqual(self.harina(), STOCK_HARINA - gastado, places=3)
 
     def test_el_inventario_cierra_al_entregar_en_tienda(self):
         """El faltante horneado también tiene que salir del stock."""

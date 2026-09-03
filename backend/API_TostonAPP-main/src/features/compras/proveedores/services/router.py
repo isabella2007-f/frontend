@@ -19,7 +19,7 @@ def listar_proveedores(
     por_pagina: int           = Query(10, ge=1, le=100),
     busqueda:   Optional[str] = Query(None),
     db:         Session       = Depends(get_db),
-    _:          dict          = Depends(requiere_permiso("ver_insumos"))
+    _:          dict          = Depends(requiere_permiso("ver_proveedores"))
 ):
     """Lista paginada de proveedores. Busca por responsable, correo o teléfono."""
     return obtener_proveedores(db, pagina, por_pagina, busqueda)
@@ -29,7 +29,7 @@ def listar_proveedores(
 def ver_proveedor(
     id_proveedor: int,
     db:           Session = Depends(get_db),
-    _:            dict    = Depends(requiere_permiso("ver_insumos"))
+    _:            dict    = Depends(requiere_permiso("ver_proveedores"))
 ):
     """Retorna el detalle de un proveedor."""
     return obtener_proveedor(db, id_proveedor)
@@ -39,7 +39,7 @@ def ver_proveedor(
 def agregar_proveedor(
     datos: ProveedorCreate,
     db:    Session = Depends(get_db),
-    _:     dict    = Depends(requiere_permiso("crear_insumos"))
+    _:     dict    = Depends(requiere_permiso("crear_proveedores"))
 ):
     """Crea un nuevo proveedor."""
     return crear_proveedor(db, datos)
@@ -50,7 +50,7 @@ def actualizar_proveedor(
     id_proveedor: int,
     datos:        ProveedorUpdate,
     db:           Session = Depends(get_db),
-    _:            dict    = Depends(requiere_permiso("editar_insumos"))
+    _:            dict    = Depends(requiere_permiso("editar_proveedores"))
 ):
     """Edita los datos de un proveedor. Solo se actualizan los campos enviados."""
     return editar_proveedor(db, id_proveedor, datos)
@@ -60,7 +60,7 @@ def actualizar_proveedor(
 def borrar_proveedor(
     id_proveedor: int,
     db:           Session = Depends(get_db),
-    _:            dict    = Depends(requiere_permiso("eliminar_insumos"))
+    _:            dict    = Depends(requiere_permiso("eliminar_proveedores"))
 ):
     """Elimina un proveedor."""
     return eliminar_proveedor(db, id_proveedor)

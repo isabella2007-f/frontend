@@ -3,12 +3,16 @@ import { X, Lock } from "lucide-react";
 import { createPortal } from "react-dom";
 import { soloLetras } from "../../../utils/inputFilters";
 import "./Roles.css";
-import { crearRol, gestionarPermisos } from "../../../services/rolesService.js";
+import { crearRol } from "../../../services/rolesService.js";
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
 import PrivilegiosModal, { buildPrivilegios } from "./PrivilegiosModal.jsx";
+import { usePrivilegios } from "../../../context/PrivilegiosContext.jsx";
 import EmojiPickerGrid from "./EmojiPickerGrid.jsx";
 
+const ERROR_NOMBRE_DUP = "Ya existe un rol con ese nombre";
+
 export default function CrearRol({ onClose, onSave }) {
+  const { privilegios: misClaves, isAdmin } = usePrivilegios();
   const [form, setForm] = useState({
     nombre:       "",
     icono:        "👤",
@@ -55,14 +59,16 @@ export default function CrearRol({ onClose, onSave }) {
       if (iconFile) {
         icono = await subirImagenCloudinary(iconFile);
       }
-      const data = await crearRol({ Rol: form.nombre.trim(), Icono: icono });
-      const activeIds = form.privilegios.filter(p => p.estado).map(p => p.id);
-      if (activeIds.length > 0 && data?.ID_Rol) {
-        await gestionarPermisos(data.ID_Rol, activeIds);
-      }
+      const activeClaves = form.privilegios.filter(p => p.estado).map(p => p.id);
+      await crearRol({ Rol: form.nombre.trim(), Icono: icono }, activeClaves);
       onSave?.();
     } catch (e) {
-      setErrors({ _api: e.message || "Error al crear rol" });
+      const msg = e.message || "Error al crear rol";
+      if (e.statusCode === 400 && msg.toLowerCase().includes("nombre")) {
+        setErrors({ nombre: ERROR_NOMBRE_DUP });
+      } else {
+        setErrors({ _api: msg });
+      }
     }
     setSaving(false);
   };
@@ -156,6 +162,8 @@ export default function CrearRol({ onClose, onSave }) {
         <PrivilegiosModal
           privilegios={form.privilegios}
           esAdmin={false}
+          misClaves={new Set(misClaves)}
+          bypass={isAdmin}
           onChange={privilegios => set("privilegios", privilegios)}
           onClose={() => setShowPrivilegios(false)}
         />

@@ -19,7 +19,7 @@ Guía de contexto para Claude Code. Léela completa antes de tocar cualquier arc
 
 - **NO actualizar bcrypt** — está fijado en 4.0.1 en requirements.txt, versiones superiores rompen el hashing
 - **NO usar `solo_empleados()`** en routers nuevos — está deprecado, usar siempre `requiere_permiso("nombre_permiso")`
-- **NO crear permisos `gestionar_X`** — solo existen `ver_`, `crear_`, `editar_`, `eliminar_`
+- **NO crear permisos `gestionar_X`** — solo existen `ver_`, `crear_`, `editar_`, `eliminar_`, ademas de otros especiales por modulos
 - **NO tocar el módulo `configuracion/descuentos`** — postergado para una fase futura
 - **NO hardcodear contraseñas ni secrets** — usar variables de entorno via `python-dotenv`
 - **CORS**: actualizar a `allow_origins=["https://frontend-ten-xi-31.vercel.app", "http://localhost:5173"]` y `allow_credentials=True`. Actualmente está en `["*"]` con `allow_credentials=False` — PENDIENTE corregir
@@ -103,7 +103,7 @@ if id_rol == 1:
 ```
 
 ### Regla de permisos ver_
-Si un rol tiene `editar_X` o `eliminar_X` pero NO `ver_X`, el sistema otorga `ver_X` automáticamente.
+Si un rol tiene, por ejemplo: `editar_X` o `eliminar_X` pero NO `ver_X`, el sistema otorga `ver_X` automáticamente. Todos los usuarios sin excepción pueden ver la landing page
 
 ### Cómo proteger un endpoint
 ```python
@@ -123,14 +123,7 @@ from src.features.auth.services.dependencies import solo_empleados
 ## Base de datos
 
 ### Modelos críticos
-- `Rol`: SIN columna `Fecha_creacion`. `Icono` es `VARCHAR(500)` — puede ser emoji o URL de Cloudinary
-- `Usuario`: PK autoincremental (`ID_Usuario`). `Cedula`, `Telefono`, `Direccion`, `Municipio`, `Departamento`, `Foto_perfil` son opcionales (NULL)
-- `Empleado`: PK autoincremental (`ID_Empleado`). Tiene `ID_Rol` directo
-- `Domicilios.ID_Empleado` → apunta a `Empleados`, NO a `Usuarios`
-- `Usuario_x_Rol`: asigna rol a clientes
-- `CategoriaProducto.Icono`, `CategoriaInsumo.Icono`: `VARCHAR(500)` — emoji o URL
-- `ProductoImagen.imagen`: `VARCHAR(500)` — URL de Cloudinary
-- `Usuario.Foto_perfil`, `Empleado.Foto_perfil`: `VARCHAR(500)` — URL de Cloudinary
+(Revisar models.py en src -> shared -> services)
 
 ### Imágenes — Cloudinary
 Los campos de imagen ya NO son LONGBLOB. Son `VARCHAR(500)` con una URL de Cloudinary o un emoji como string.
@@ -151,6 +144,7 @@ Los campos de imagen ya NO son LONGBLOB. Son `VARCHAR(500)` con una URL de Cloud
 1=Activo        2=Inactivo      3=Pendiente     4=Confirmado    5=Cancelado
 6=Aprobada      7=Rechazada     8=Entregado     9=En camino     10=Asignado
 11=Completada   12=Anulada      13=En proceso   14=Stock bajo   15=Agotado
+(pueden ser mas)
 ```
 
 ### Estados automáticos de stock
@@ -179,7 +173,7 @@ Reglas críticas del sistema de lotes:
 - **Si un lote no alcanza** para cubrir la cantidad requerida, el sistema toma el remanente del siguiente lote con la siguiente fecha de vencimiento más próxima, y así sucesivamente hasta completar la cantidad. Esto se hace en una sola operación transaccional.
 - **Los lotes pueden quedar en cantidad 0** y siguen existiendo en la BD como historial — no se eliminan ni se inactivan automáticamente.
 - **Los lotes de insumos** se crean al registrar una compra.
-- **Los lotes de productos** se crean únicamente cuando se completa una `OrdenProduccion` — la única forma de que exista stock de un producto es mediante una orden de producción completada (ya sea creada automáticamente por el sistema o manualmente por un empleado/admin).
+- **Los lotes de productos** se crean únicamente cuando se completa una `OrdenProduccion` — la única forma de que exista stock de un producto es mediante una orden de producción completada (ya sea creada automáticamente por el sistema o manualmente por un rol con permisos/admin).
 
 ### Órdenes de producción y ficha técnica
 Cada producto tiene una **ficha técnica** (`FichaTecnica`) que es la referencia obligatoria para producirlo. La ficha técnica especifica:
@@ -234,7 +228,7 @@ Una vez el pedido es entregado (`Estado=8`), el cliente puede solicitar una **de
 
 ---
 
-## Endpoints de Auth (todos implementados)
+## Endpoints de Auth (todos implementados) (pueden estar incompletos)
 
 ```
 POST /api/auth/login                 Login unificado empleados y clientes
@@ -251,7 +245,7 @@ PUT  /api/auth/perfil                Edita Telefono, Direccion, Municipio, Depar
 
 ## Contexto del frontend (para saber qué debe devolver la API)
 
-El frontend es React + Vite, desplegado en https://frontend-ten-xi-31.vercel.app La API debe estar lista para responder a tres tipos de usuario:
+El frontend es React + Vite, desplegado en https://tostonapp.vercel.app/ La API debe estar lista para responder a tres tipos de usuario:
 
 ### 1. Invitado (sin sesión)
 - Ve catálogo de productos públicamente → `GET /api/produccion/productos` debe funcionar sin token
@@ -293,3 +287,5 @@ GET /api/auth/mis-permisos   → retorna lista de nombres de permisos del usuari
 2. Pedir `models.py` si vas a tocar lógica de BD
 3. No asumir que un campo es NOT NULL — revisar el modelo
 4. Si el cambio afecta stock, permisos o roles → revisar las reglas de negocio de este archivo primero
+
+ESTE ARCHIVO NO ESTA ACTUALIZADO CON LAS ULTIMAS METRICAS, PUEDEN HABER ERRORES O FALTA DE ESPECIFICACIÓN

@@ -19,6 +19,7 @@ const adaptCompra = (c) => ({
   })(),
   fecha:        c.Fecha_Compra     || c.fecha_compra    || c.fecha || "",
   fecha_llegada: c.Fecha_Llegada  ? new Date(c.Fecha_Llegada).toISOString().split('T')[0] : null,
+  fecha_anulada: c.Fecha_Anulada  ? new Date(c.Fecha_Anulada).toISOString().split('T')[0] : null,
   notas:        c.Notas            || c.notas           || "",
   stockAplicado: [4, 11].includes(c.Estado ?? c.estado) || ["confirmado", "completada"].includes((c.estado_label || "").toLowerCase()),
   transporte:         Number(c.Costo_Transporte     ?? c.transporte)          || 0,
@@ -26,22 +27,26 @@ const adaptCompra = (c) => ({
   descuentoPorcentaje: Number(c.Descuento_Porcentaje ?? c.descuento_porcentaje) || 0,
   otros:              Number(c.Otros_Costos         ?? c.otros_costos)        || 0,
   items: (c.items || c.detalles || []).map(i => ({
-    idDetalle:        i.ID_Detalle        || i.id_detalle        || null,
+    idDetalle:        i.ID_Detalle_Compra || i.ID_Detalle        || i.id_detalle        || null,
     idInsumo:         i.ID_Insumo         || i.id_insumo         || null,
+    idLoteCompra:     i.ID_Lote_Compra    || i.id_lote_compra    || null,
+    idUnidad:         i.ID_Unidad_Medida  ?? i.id_unidad_medida  ?? null,
     nombre:           i.nombre_insumo     || i.nombre            || "",
     categoria:        i.nombre_categoria  || i.categoria         || "",
     unidad:           i.simbolo_unidad    || i.unidad            || "",
-    cantidad:         i.Cantidad          || i.cantidad          || 0,
-    precioUnd:        i.Precio_Und        || i.precio_und        || 0,
+    cantidad:         Number(i.Cantidad   ?? i.cantidad          ?? 0),
+    precioUnd:        Number(i.Precio_Und  ?? i.precio_und        ?? 0),
     subtotal:         i.Subtotal          || i.subtotal          || 0,
     fechaVencimiento: i.Fecha_Vencimiento || i.fecha_vencimiento || null,
   })),
 });
 
-export async function getCompras({ pagina = 1, porPagina = 100, busqueda = "", idProveedor = null } = {}) {
+export async function getCompras({ pagina = 1, porPagina = 100, busqueda = "", idProveedor = null, fechaDesde = "", fechaHasta = "" } = {}) {
   const params = new URLSearchParams({ pagina, por_pagina: porPagina });
   if (busqueda)    params.append("busqueda",     busqueda);
   if (idProveedor) params.append("id_proveedor", idProveedor);
+  if (fechaDesde)  params.append("fecha_desde",  fechaDesde);
+  if (fechaHasta)  params.append("fecha_hasta",  fechaHasta);
   const data = await apiFetch(`/compras/?${params}`);
   return {
     total:   data.total,
@@ -94,6 +99,26 @@ export async function editarCompra(id, payload) {
   // Solo si la compra está pendiente el proveedor y fecha son editables
   if (payload.idProveedor) body.ID_Proveedor = Number(payload.idProveedor);
   if (payload.fecha)        body.Fecha_Compra = payload.fecha;
+
+  // Gastos adicionales — el componente solo los envía cuando son editables (compra pendiente)
+  if (payload.gastos) {
+    const g = payload.gastos;
+    body.Costo_Transporte     = Number(g.transporte) || null;
+    body.IVA_Porcentaje       = Number(g.iva)        || null; // porcentaje
+    body.Descuento_Porcentaje = Number(g.descuento)  || null; // porcentaje
+    body.Otros_Costos         = Number(g.otros)      || null;
+  }
+
+  // Insumos — idem: solo cuando la compra es editable a nivel de líneas
+  if (Array.isArray(payload.detalles)) {
+    body.detalles = payload.detalles.map(i => ({
+      ID_Insumo:         Number(i.idInsumo),
+      Cantidad:          Number(i.cantidad),
+      Precio_Und:        Number(i.precioUnd),
+      Notas:             i.notas || null,
+      Fecha_Vencimiento: i.fechaVencimiento || null,
+    }));
+  }
 
   const data = await apiFetch(`/compras/${id}`, {
     method: "PUT",

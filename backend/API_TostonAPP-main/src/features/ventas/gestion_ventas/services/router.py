@@ -28,7 +28,7 @@ def ver_mi_credito(
 def ver_credito_cliente(
     id_usuario: int,
     db:         Session = Depends(get_db),
-    _:          dict    = Depends(requiere_permiso("ver_ventas")),
+    _:          dict    = Depends(requiere_permiso("ver_pedidos")),
 ):
     """Retorna el saldo de crédito de un cliente específico (uso admin)."""
     return obtener_credito_cliente(db, id_usuario)
@@ -53,7 +53,7 @@ def listar_ventas(
     id_usuario:  Optional[int] = Query(None),
     estado:      Optional[int] = Query(None),
     db:          Session       = Depends(get_db),
-    _:           dict          = Depends(requiere_permiso("ver_ventas"))
+    _:           dict          = Depends(requiere_permiso("ver_pedidos"))
 ):
     """Lista paginada de ventas. Filtra por id_usuario, estado o busca por nombre."""
     return obtener_ventas(db, pagina, por_pagina, busqueda, id_usuario, estado)
@@ -73,7 +73,7 @@ def ver_mi_venta(
 def ver_venta(
     id_venta: int,
     db:       Session = Depends(get_db),
-    _:        dict    = Depends(requiere_permiso("ver_ventas"))
+    _:        dict    = Depends(requiere_permiso("ver_pedidos"))
 ):
     """Retorna el detalle completo de una venta con productos, crédito y descuento."""
     return obtener_venta(db, id_venta)
@@ -83,7 +83,7 @@ def ver_venta(
 def registrar_venta(
     datos:  VentaCreate,
     db:     Session = Depends(get_db),
-    actual: dict    = Depends(requiere_permiso("crear_ventas"))
+    actual: dict    = Depends(requiere_permiso("crear_pedidos"))
 ):
     """
     Crea una venta aplicando el flujo completo:
@@ -114,7 +114,7 @@ def actualizar_estado(
     id_venta: int,
     datos:    VentaEstado,
     db:       Session = Depends(get_db),
-    _:        dict    = Depends(requiere_permiso("editar_ventas"))
+    _:        dict    = Depends(requiere_permiso("editar_pedidos"))
 ):
     """Cambia el estado de la venta."""
     return cambiar_estado(db, id_venta, datos.Estado)
@@ -125,7 +125,7 @@ def proponer_fecha_endpoint(
     id_venta: int,
     datos:    FechaEntregaInput,
     db:       Session = Depends(get_db),
-    _:        dict    = Depends(requiere_permiso("editar_ventas")),
+    _:        dict    = Depends(requiere_permiso("editar_pedidos")),
 ):
     """Admin propone una fecha de entrega para un pedido de producción. Pasa el pedido a estado Fecha propuesta (16)."""
     return proponer_fecha(db, id_venta, datos.fecha_entrega)
@@ -146,7 +146,7 @@ def registrar_pago_final_endpoint(
     id_venta: int,
     datos:    PagoFinalCreate,
     db:       Session = Depends(get_db),
-    _:        dict    = Depends(requiere_permiso("editar_ventas")),
+    _:        dict    = Depends(requiere_permiso("editar_pedidos")),
 ):
     """Registra el pago del saldo restante al momento de entrega. Solo para pedidos con anticipo."""
     return registrar_pago_final(db, id_venta, datos)

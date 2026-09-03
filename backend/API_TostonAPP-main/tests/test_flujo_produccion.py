@@ -133,7 +133,7 @@ def orden(id_producto, estado=1):
 
 class CrearOrdenesTests(unittest.TestCase):
     def test_devuelve_cuantas_ordenes_creo(self):
-        db = FakeDB([item(1, 3)], [producto(1, requiere_produccion=1)])
+        db = FakeDB([item(1, 3)], [producto(1, requiere_produccion=1)], fichas=[ficha(1)])
         self.assertEqual(_crear_ordenes_produccion_para_venta(db, 10, None), 1)
         self.assertEqual(len(db.added), 1)
 
@@ -142,29 +142,36 @@ class CrearOrdenesTests(unittest.TestCase):
         self.assertEqual(_crear_ordenes_produccion_para_venta(db, 10, None), 0)
         self.assertEqual(db.added, [])
 
+    def test_producto_sin_ficha_no_crea_orden(self):
+        """3.10 — marcado como producción pero sin receta: no se abre la orden."""
+        db = FakeDB([item(1, 3)], [producto(1, requiere_produccion=1)])  # sin fichas
+        self.assertEqual(_crear_ordenes_produccion_para_venta(db, 10, None), 0)
+        self.assertEqual(db.added, [])
+
     def test_venta_sin_items_devuelve_cero(self):
         db = FakeDB([], [])
         self.assertEqual(_crear_ordenes_produccion_para_venta(db, 10, None), 0)
 
     def test_cantidad_cero_no_genera_orden(self):
-        db = FakeDB([item(1, 0)], [producto(1, requiere_produccion=1)])
+        db = FakeDB([item(1, 0)], [producto(1, requiere_produccion=1)], fichas=[ficha(1)])
         self.assertEqual(_crear_ordenes_produccion_para_venta(db, 10, None), 0)
 
     def test_se_fabrica_el_deficit_no_lo_pedido(self):
         """Con stock parcial solo se produce lo que falta."""
-        db = FakeDB([item(1, 10, preorden=7)], [producto(1, requiere_produccion=1)])
+        db = FakeDB([item(1, 10, preorden=7)], [producto(1, requiere_produccion=1)], fichas=[ficha(1)])
         self.assertEqual(_crear_ordenes_produccion_para_venta(db, 10, None), 1)
         self.assertEqual(db.added[0].Cantidad, 7)
 
     def test_stock_suficiente_no_genera_orden(self):
         """Sin déficit no hay nada que fabricar, aunque sea por encargo."""
-        db = FakeDB([item(1, 5, preorden=0)], [producto(1, requiere_produccion=1)])
+        db = FakeDB([item(1, 5, preorden=0)], [producto(1, requiere_produccion=1)], fichas=[ficha(1)])
         self.assertEqual(_crear_ordenes_produccion_para_venta(db, 10, None), 0)
 
     def test_cuenta_una_orden_por_producto_de_produccion(self):
         db = FakeDB(
             [item(1, 2), item(2, 5), item(3, 1)],
             [producto(1, 1), producto(2, 0), producto(3, 1)],
+            fichas=[ficha(1, id_ficha=1), ficha(3, id_ficha=3)],
         )
         self.assertEqual(_crear_ordenes_produccion_para_venta(db, 10, None), 2)
 
@@ -197,6 +204,7 @@ class CrearOrdenesTests(unittest.TestCase):
         db = FakeDB(
             [item(1, 10, preorden=5)],
             [producto(1, requiere_produccion=1)],
+            fichas=[ficha(1)],
             ordenes=[orden(1, estado=5)],
         )
         self.assertEqual(_crear_ordenes_produccion_para_venta(db, 10, None), 1)

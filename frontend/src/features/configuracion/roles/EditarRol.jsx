@@ -23,7 +23,7 @@ export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
   const [iconFile, setIconFile]               = useState(null);
   const fileRef   = useRef();
   const isView    = mode === "view";
-  const { recargar: recargarPrivilegios } = usePrivilegios();
+  const { recargar: recargarPrivilegios, privilegios: misClaves, isAdmin } = usePrivilegios();
 
   useEffect(() => {
     if (rol) setForm({ ...rol, privilegios: normalize(rol.permisos, rol.esAdmin) });
@@ -67,12 +67,17 @@ export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
         payload.limpiar_icono = true;
       }
       await editarRol(rol.id, payload);
-      const activeIds = (form.privilegios || []).filter(p => p.estado).map(p => p.id);
-      await gestionarPermisos(rol.id, activeIds);
+      const activeClaves = (form.privilegios || []).filter(p => p.estado).map(p => p.id);
+      await gestionarPermisos(rol.id, activeClaves);
       recargarPrivilegios();
       onSave?.();
     } catch (e) {
-      setErrors({ _api: e.message || "Error al guardar" });
+      const msg = e.message || "Error al guardar";
+      if (e.statusCode === 400 && msg.toLowerCase().includes("nombre")) {
+        setErrors({ nombre: "Ya existe un rol con ese nombre" });
+      } else {
+        setErrors({ _api: msg });
+      }
     }
     setSaving(false);
   };
@@ -203,6 +208,8 @@ export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
           privilegios={form.privilegios}
           esAdmin={rol?.esAdmin}
           isView={isView}
+          misClaves={new Set(misClaves)}
+          bypass={isAdmin}
           onChange={privilegios => set("privilegios", privilegios)}
           onClose={() => setShowPrivilegios(false)}
         />

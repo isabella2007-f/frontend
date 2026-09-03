@@ -1,15 +1,39 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, AreaChart, Area,
-  CartesianGrid, Legend,
+  PieChart, Pie, Cell, AreaChart, Area, CartesianGrid,
 } from "recharts";
 import "./dashboard.css";
-import { getDashboard } from "../../services/dashboardService";
-import { AlertTriangle, Banknote, Package, User, Tag } from "lucide-react";
+import { getDashboard, getDashboardDetalle } from "../../services/dashboardService";
+import { AlertTriangle, Banknote, Package, User, Tag, Info } from "lucide-react";
+import { fmtFecha } from "../../utils/dateUtils";
+import { ESTADOS_FLUJO } from "./estados";
+import { datasetsGlobales, exportarDatasets } from "./dashboardExport";
+import DetalleModal from "./DetalleModal";
+import ExportMenu from "./ExportMenu";
 
-const PERIODOS      = ["hoy", "semana", "mes", "custom"];
-const PERIODO_LABEL = { hoy: "Hoy", semana: "Esta semana", mes: "Este mes", custom: "Rango" };
+const PRESETS = [
+  { key: "hoy",    label: "Hoy" },
+  { key: "semana", label: "Esta semana" },
+  { key: "mes",    label: "Este mes" },
+  { key: "custom", label: "Rango" },
+];
+const PRESET_LABEL = Object.fromEntries(PRESETS.map(p => [p.key, p.label]));
+
+const hoyISO = () => new Date().toISOString().slice(0, 10);
+
+const EMPTY = {
+  periodo: "hoy", granularidad: "hora", rango: null,
+  periodoActual: { disponible: true, parcial: false, mensaje: null },
+  comparacion:   { disponible: false, parcial: false, mensaje: null },
+  kpis: {
+    ventas:   { raw: 0, valor: "$0", delta: null, positive: null },
+    pedidos:  { raw: 0, valor: "0",  delta: null, positive: null },
+    clientes: { raw: 0, valor: "0",  delta: null, positive: null },
+    ticket:   { raw: 0, valor: "$0", delta: null, positive: null },
+  },
+  flujo: [], ventasTiempo: [], productosTop: [], detalle: null,
+};
 
 /* ── Custom Tooltip ─────────────────────────────────────── */
 function CustomTooltip({ active, payload, label, prefix = "" }) {
@@ -17,31 +41,17 @@ function CustomTooltip({ active, payload, label, prefix = "" }) {
   return (
     <div style={{ background: "#fff", border: "1px solid #e0e0e0", borderRadius: 10, padding: "8px 14px", boxShadow: "0 4px 16px rgba(0,0,0,0.1)", fontSize: 13 }}>
       <p style={{ margin: "0 0 4px", fontWeight: 700, color: "#424242" }}>{label}</p>
-      {payload.map((p, i) => (
+      {payload.filter(p => p.value).map((p, i) => (
         <p key={i} style={{ margin: "2px 0", color: p.fill || p.color || p.stroke || "#43a047", fontWeight: 600 }}>
-          {p.name}: {prefix === "$"
-            ? `$${(p.value || 0).toLocaleString("es-CO")}`
-            : p.value}
+          {p.name}: {prefix === "$" ? `$${(p.value || 0).toLocaleString("es-CO")}` : p.value}
         </p>
       ))}
     </div>
   );
 }
 
-/* ── Period Selector ────────────────────────────────────── */
-function PeriodSelect({ value, onChange }) {
-  return (
-    <div className="period-select-wrap">
-      <select className="period-select" value={value} onChange={e => onChange(e.target.value)}>
-        {PERIODOS.map(p => <option key={p} value={p}>{PERIODO_LABEL[p]}</option>)}
-      </select>
-      <span className="period-arrow">▼</span>
-    </div>
-  );
-}
-
 /* ── KPI Card ───────────────────────────────────────────── */
-function KpiCard({ icon, label, valor, delta, positive, color }) {
+function KpiCard({ icon, label, valor, delta, positive, color, comparar }) {
   return (
     <div className="kpi-card">
       <div className="kpi-icon" style={{ background: color + "20", color }}>{icon}</div>
@@ -49,86 +59,142 @@ function KpiCard({ icon, label, valor, delta, positive, color }) {
         <p className="kpi-label">{label}</p>
         <p className="kpi-valor">{valor}</p>
       </div>
-      <span className={"kpi-delta" + (positive ? " kpi-delta--up" : " kpi-delta--down")}>
-        {positive ? "↑" : "↓"} {delta}
-      </span>
+      {comparar && delta && (
+        <span className={"kpi-delta" + (positive ? " kpi-delta--up" : " kpi-delta--down")}>
+          {positive ? "↑" : "↓"} {delta}
+        </span>
+      )}
     </div>
   );
 }
 
-/* ── Chart Card desplegable ─────────────────────────────── */
-function ChartCard({ title, period, onPeriod, children, defaultOpen = true, className = "" }) {
-  const [open, setOpen] = useState(defaultOpen);
+/* ── Chart Card ─────────────────────────────────────────── */
+function ChartCard({ title, onDetalle, children, className = "" }) {
   return (
-    <div className={`chart-card${open ? " chart-card--open" : ""} ${className}`.trim()}>
-      <div className="chart-card__header" onClick={() => setOpen(v => !v)}>
+    <div className={`chart-card ${className}`.trim()}>
+      <div className="chart-card__header">
         <h3 className="chart-card__title">{title}</h3>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {onPeriod && (
-            <div onClick={e => e.stopPropagation()}>
-              <PeriodSelect value={period} onChange={onPeriod} />
-            </div>
-          )}
-          <div className="chart-card__chevron">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M2 4l4 4 4-4" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-        </div>
+        {onDetalle && (
+          <button type="button" className="dash-detalle-btn" onClick={onDetalle}>
+            Ver detalles
+          </button>
+        )}
       </div>
       <div className="chart-card__body">{children}</div>
     </div>
   );
 }
 
-const EMPTY_DATA = { kpi: { ventas: {}, pedidos: {}, clientes: {}, ticket: {} }, graficaVentas: [], productosTop: [] };
+const emptyBox = (msg) => (
+  <div style={{ height: 210, display: "flex", alignItems: "center", justifyContent: "center", color: "#bdbdbd", fontSize: 13 }}>
+    {msg}
+  </div>
+);
 
 /* ── Main Dashboard ─────────────────────────────────────── */
 export default function Dashboard() {
-  const [datos,    setDatos]    = useState(EMPTY_DATA);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState(false);
+  const [datos,   setDatos]   = useState(EMPTY);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState(false);
   const [animated, setAnimated] = useState(false);
-  const [periodo,  setPeriodo]  = useState("hoy");
-  const [periodoCharts, setPeriodoCharts] = useState("hoy");
-  const [fechaInicio, setFechaInicio] = useState("");
-  const [fechaFin, setFechaFin] = useState("");
+
+  const [periodo, setPeriodo] = useState("hoy");
+  const [desde,   setDesde]   = useState("");
+  const [hasta,   setHasta]   = useState("");
+
+  const [modalCard,     setModalCard]     = useState(null);
+  const [detalleExtra,  setDetalleExtra]  = useState(null);
+  const [detalleBusy,   setDetalleBusy]   = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setAnimated(true), 50);
     return () => clearTimeout(t);
   }, []);
 
-  const cargar = useCallback(async (p, desde, hasta) => {
+  const cargar = useCallback(async (p, d1, d2) => {
     setLoading(true);
     setError(false);
+    setDetalleExtra(null);
     try {
-      const d = await getDashboard(p, desde, hasta);
-      setDatos(d);
-    } catch {
+      setDatos(await getDashboard(p, d1, d2));
+    } catch (e) {
+      console.error("Dashboard:", e);
       setError(true);
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // Presets cargan al instante; el rango custom carga con el botón "Aplicar".
   useEffect(() => {
-    if (periodo !== "custom" || (fechaInicio && fechaFin)) {
-      cargar(periodo, fechaInicio, fechaFin);
+    if (periodo !== "custom") cargar(periodo, "", "");
+  }, [periodo, cargar]);
+
+  const aplicarRango = () => {
+    if (desde && hasta) cargar("custom", desde, hasta);
+  };
+
+  const detalle = datos.detalle || detalleExtra;
+
+  const asegurarDetalle = useCallback(async () => {
+    if (detalle) return detalle;
+    setDetalleBusy(true);
+    try {
+      const d = await getDashboardDetalle(periodo, desde, hasta);
+      setDetalleExtra(d);
+      return d;
+    } catch (e) {
+      console.error("Dashboard detalle:", e);
+      return null;
+    } finally {
+      setDetalleBusy(false);
     }
-  }, [periodo, fechaInicio, fechaFin]);
+  }, [detalle, periodo, desde, hasta]);
 
-  const { kpi, graficaVentas, productosTop } = datos;
-  const totalUds = productosTop.reduce((s, p) => s + p.value, 0) || 1;
-  const rangoLabel = periodo === "custom" && fechaInicio && fechaFin
-    ? `${fechaInicio} → ${fechaFin}`
-    : PERIODO_LABEL[periodo] || "Periodo";
+  const abrirDetalle = async (card) => {
+    const d = await asegurarDetalle();
+    if (d) setModalCard(card);
+  };
 
-  // Bar chart: ventas por hora/día/semana
-  const barData = graficaVentas.map(p => ({ hora: p.etiqueta, ventas: p.actual }));
+  const rangoLabel = useMemo(() => {
+    if (datos.rango?.inicio && datos.rango?.fin) {
+      return `${fmtFecha(datos.rango.inicio)} → ${fmtFecha(datos.rango.fin)}`;
+    }
+    if (periodo === "custom" && desde && hasta) return `${fmtFecha(desde)} → ${fmtFecha(hasta)}`;
+    return PRESET_LABEL[periodo];
+  }, [datos.rango, periodo, desde, hasta]);
 
-  // Area chart: comparativa actual vs anterior
-  const areaData = graficaVentas.map(p => ({ t: p.etiqueta, actual: p.actual, anterior: p.anterior }));
+  const filenameBase = `dashboard-${rangoLabel.replace(/[^0-9a-zA-Z]+/g, "-").replace(/^-|-$/g, "")}`;
+
+  const exportarGlobal = async (formato) => {
+    const d = await asegurarDetalle();
+    if (!d) return;
+    try {
+      await exportarDatasets(
+        formato,
+        filenameBase,
+        `Dashboard de ventas · ${rangoLabel}`,
+        datasetsGlobales(formato, { kpis: datos.kpis, detalle: d }),
+      );
+    } catch (e) {
+      console.error("Export dashboard:", e);
+    }
+  };
+
+  const { kpis, productosTop, flujo, ventasTiempo, comparacion, periodoActual } = datos;
+  const comparar = comparacion.disponible;
+  const sinDatos = !periodoActual.disponible;
+
+  const totalUds   = useMemo(() => productosTop.reduce((s, p) => s + p.value, 0) || 1, [productosTop]);
+  const flujoVacio = useMemo(() => flujo.every(b => ESTADOS_FLUJO.every(e => !b[e.key])), [flujo]);
+  const estadosPresentes = useMemo(
+    () => ESTADOS_FLUJO.filter(e => flujo.some(b => b[e.key])),
+    [flujo],
+  );
+  const tiempoVacio = useMemo(
+    () => ventasTiempo.every(d => !d.actual && !d.anterior),
+    [ventasTiempo],
+  );
 
   if (loading) {
     return (
@@ -148,7 +214,7 @@ export default function Dashboard() {
           <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: "#424242" }}>No se pudieron cargar los datos del dashboard</p>
           <p style={{ margin: 0, fontSize: 13, color: "#9e9e9e" }}>Verifica tu conexión o que el servidor esté activo.</p>
           <button
-            onClick={() => cargar(periodo)}
+            onClick={() => (periodo === "custom" ? aplicarRango() : cargar(periodo, "", ""))}
             style={{ marginTop: 8, padding: "8px 20px", borderRadius: 10, border: "1.5px solid #c8e6c9", background: "#fff", color: "#2e7d32", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
           >
             Reintentar
@@ -162,115 +228,112 @@ export default function Dashboard() {
     <div className={`dash-wrapper${animated ? " dash-wrapper--in" : ""}`}>
       <div className="dash-inner">
 
-        {/* Print-only header — invisible en pantalla, visible al imprimir */}
-        <div className="print-report-header">
-          <div>
-            <p className="print-report-brand">Tostón App</p>
-            <p className="print-report-sub">Dashboard de ventas</p>
+        {/* ── Filtro de periodo centralizado ── */}
+        <div className="dash-toolbar">
+          <div className="dash-presets">
+            {PRESETS.map(p => (
+              <button
+                key={p.key}
+                type="button"
+                className={`dash-preset${periodo === p.key ? " dash-preset--on" : ""}`}
+                onClick={() => setPeriodo(p.key)}
+              >
+                {p.label}
+              </button>
+            ))}
           </div>
-          <div>
-            <p className="print-report-label">Período del reporte</p>
-            <p className="print-report-dates">{rangoLabel}</p>
-          </div>
-        </div>
 
-        {/* KPI Strip */}
-        <div className="kpi-strip" style={{ marginBottom: 20 }}>
-          <KpiStripInner
-            kpi={kpi}
-            periodo={periodo}
-            setPeriodo={p => {
-              setPeriodo(p);
-              setPeriodoCharts(p);
-              if (p !== "custom") {
-                setFechaInicio("");
-                setFechaFin("");
-              }
-            }}
-          />
-        </div>
-
-        {periodo === "custom" && (
-          <div className="dashboard-report-toolbar">
-            <div className="dashboard-report-label">
-              <span>Rango personalizado</span>
-              <span className="dashboard-report-range">{rangoLabel}</span>
-            </div>
-            <div className="dashboard-report-fields">
+          {periodo === "custom" && (
+            <div className="dash-custom-range">
               <label className="dashboard-report-field">
                 <span>Desde</span>
-                <input
-                  type="date"
-                  value={fechaInicio}
-                  onChange={e => setFechaInicio(e.target.value)}
-                />
+                <input type="date" max={hoyISO()} value={desde} onChange={e => setDesde(e.target.value)} />
               </label>
               <label className="dashboard-report-field">
                 <span>Hasta</span>
-                <input
-                  type="date"
-                  value={fechaFin}
-                  onChange={e => setFechaFin(e.target.value)}
-                />
+                <input type="date" max={hoyISO()} value={hasta} onChange={e => setHasta(e.target.value)} />
               </label>
-              <button
-                className="report-btn"
-                type="button"
-                disabled={!fechaInicio || !fechaFin}
-                onClick={() => cargar("custom", fechaInicio, fechaFin)}
-                data-tooltip="Aplicar el rango de fechas seleccionado"
-              >
+              <button className="report-btn" type="button" disabled={!desde || !hasta} onClick={aplicarRango}>
                 Aplicar rango
               </button>
-              <button
-                className="report-btn report-btn--pdf"
-                type="button"
-                disabled={!fechaInicio || !fechaFin}
-                onClick={() => window.print()}
-                data-tooltip="Exportar dashboard como PDF"
-              >
-                Exportar PDF
-              </button>
             </div>
+          )}
+
+          <span className="dash-rango-actual">{rangoLabel}</span>
+        </div>
+
+        {/* ── Avisos de disponibilidad de historial ── */}
+        {sinDatos && (
+          <div className="dash-banner dash-banner--warn">
+            <AlertTriangle size={16} />
+            <span>{periodoActual.mensaje || "No hay datos en el rango seleccionado."}</span>
+          </div>
+        )}
+        {!sinDatos && periodoActual.parcial && periodoActual.mensaje && (
+          <div className="dash-banner dash-banner--info">
+            <Info size={16} /><span>{periodoActual.mensaje}</span>
+          </div>
+        )}
+        {!sinDatos && !comparar && (
+          <div className="dash-banner dash-banner--info">
+            <Info size={16} />
+            <span>{comparacion.mensaje || "No hay periodo anterior disponible para comparar."}</span>
+          </div>
+        )}
+        {!sinDatos && comparar && comparacion.parcial && comparacion.mensaje && (
+          <div className="dash-banner dash-banner--info">
+            <Info size={16} /><span>{comparacion.mensaje}</span>
           </div>
         )}
 
-        <div className="charts-row" style={{ animationDelay: "0.1s" }}>
-          <ChartCard title="Flujo de Ventas" period={periodoCharts} onPeriod={p => { setPeriodoCharts(p); setPeriodo(p); }}>
-            {barData.length === 0 || barData.every(d => d.ventas === 0) ? (
-              <div style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center", color: "#bdbdbd", fontSize: 13 }}>
-                Sin pedidos en este período
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={barData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#43a047" stopOpacity={1} />
-                      <stop offset="100%" stopColor="#2e7d32" stopOpacity={0.8} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="hora" tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <Tooltip content={<CustomTooltip />} cursor={{ fill: "#f1f8f1" }} />
-                  <Bar dataKey="ventas" name="Pedidos" fill="url(#barGradient)" radius={[6,6,0,0]} maxBarSize={36} />
-                </BarChart>
-              </ResponsiveContainer>
+        {/* ── Resumen general (vista general — sin "ver detalles") ── */}
+        <div className="chart-card kpi-strip" style={{ marginBottom: 18 }}>
+          <div className="chart-card__header">
+            <h3 className="chart-card__title">Resumen general</h3>
+          </div>
+          <div className="chart-card__body">
+            <div className="kpi-grid">
+              <KpiCard icon={<Banknote size={20} />} label="Total ventas"    valor={kpis.ventas.valor}   delta={kpis.ventas.delta}   positive={kpis.ventas.positive}   comparar={comparar} color="#2e7d32" />
+              <KpiCard icon={<Package size={20} />}  label="Pedidos"         valor={kpis.pedidos.valor}  delta={kpis.pedidos.delta}  positive={kpis.pedidos.positive}  comparar={comparar} color="#fb8c00" />
+              <KpiCard icon={<User size={20} />}     label="Clientes nuevos" valor={kpis.clientes.valor} delta={kpis.clientes.delta} positive={kpis.clientes.positive} comparar={comparar} color="#5c6bc0" />
+              <KpiCard icon={<Tag size={20} />}      label="Ticket promedio" valor={kpis.ticket.valor}   delta={kpis.ticket.delta}   positive={kpis.ticket.positive}   comparar={comparar} color="#26c6da" />
+            </div>
+          </div>
+        </div>
+
+        <div className="charts-row">
+          {/* Flujo de Ventas — barras apiladas por estado */}
+          <ChartCard title="Flujo de Ventas" onDetalle={sinDatos ? undefined : () => abrirDetalle("flujo")}>
+            {flujoVacio ? emptyBox("Sin pedidos en este período") : (
+              <>
+                <ResponsiveContainer width="100%" height={210}>
+                  <BarChart data={flujo} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+                    <XAxis dataKey="etiqueta" tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <Tooltip content={<CustomTooltip />} cursor={{ fill: "#f1f8f1" }} />
+                    {ESTADOS_FLUJO.map(e => (
+                      <Bar key={e.key} dataKey={e.key} name={e.label} stackId="flujo" fill={e.color} maxBarSize={40} />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+                <div className="dash-legend">
+                  {estadosPresentes.map(e => (
+                    <span key={e.key} className="dash-legend__item">
+                      <span className="dash-dot" style={{ background: e.color }} />{e.label}
+                    </span>
+                  ))}
+                </div>
+              </>
             )}
           </ChartCard>
 
-          {/* Top Productos — Pie Chart */}
-          <ChartCard title="Top Productos">
-            {productosTop.length === 0 ? (
-              <div style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center", color: "#bdbdbd", fontSize: 13 }}>
-                Sin ventas en este período
-              </div>
-            ) : (
+          {/* Top Productos — Pie */}
+          <ChartCard title="Top Productos" onDetalle={sinDatos ? undefined : () => abrirDetalle("top")}>
+            {productosTop.length === 0 ? emptyBox("Sin ventas en este período") : (
               <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                <ResponsiveContainer width="55%" height={200}>
+                <ResponsiveContainer width="55%" height={210}>
                   <PieChart>
-                    <Pie data={productosTop} cx="50%" cy="50%" innerRadius={50} outerRadius={85}
-                      dataKey="value" paddingAngle={3} strokeWidth={0}>
+                    <Pie data={productosTop} cx="50%" cy="50%" innerRadius={50} outerRadius={85} dataKey="value" paddingAngle={3} strokeWidth={0}>
                       {productosTop.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                     </Pie>
                     <Tooltip formatter={(v) => [`${v} uds (${Math.round(v / totalUds * 100)}%)`, ""]} />
@@ -291,14 +354,15 @@ export default function Dashboard() {
         </div>
 
         <div className="charts-row charts-row--bottom">
-
           {/* Ingresos Reales */}
-          <ChartCard title="Ingresos Reales" className="chart-card--stat">
+          <ChartCard title="Ingresos Reales" className="chart-card--stat" onDetalle={sinDatos ? undefined : () => abrirDetalle("ingresos")}>
             <div className="stat-big">
-              <div className="stat-amount">{kpi.ventas?.valor ?? "$0"}</div>
-              <div className={"stat-change" + (kpi.ventas?.positive ? " stat-change--up" : " stat-change--down")}>
-                <span>{kpi.ventas?.positive ? "↑" : "↓"}</span> {kpi.ventas?.delta ?? "0%"} vs período anterior
-              </div>
+              <div className="stat-amount">{kpis.ventas.valor}</div>
+              {comparar && kpis.ventas.delta && (
+                <div className={"stat-change" + (kpis.ventas.positive ? " stat-change--up" : " stat-change--down")}>
+                  <span>{kpis.ventas.positive ? "↑" : "↓"}</span> {kpis.ventas.delta} vs período anterior
+                </div>
+              )}
             </div>
             {productosTop.length > 0 && (
               <div className="stat-badges">
@@ -313,69 +377,55 @@ export default function Dashboard() {
             )}
           </ChartCard>
 
-          {/* Ventas en el Tiempo — Area Chart */}
-          <ChartCard title="Ventas en el Tiempo">
-            {areaData.length === 0 || areaData.every(d => d.actual === 0 && d.anterior === 0) ? (
-              <div style={{ height: 200, display: "flex", alignItems: "center", justifyContent: "center", color: "#bdbdbd", fontSize: 13 }}>
-                Sin datos en este período
-              </div>
-            ) : (
-            <ResponsiveContainer width="100%" height={200}>
-              <AreaChart data={areaData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorActual" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#43a047" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#43a047" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorAnterior" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#fb8c00" stopOpacity={0.2}/>
-                    <stop offset="95%" stopColor="#fb8c00" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f5" vertical={false} />
-                <XAxis dataKey="t" tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} allowDecimals={false}
-                  tickFormatter={v => v >= 1000 ? `$${(v/1000).toFixed(0)}k` : `$${v}`} />
-                <Tooltip content={<CustomTooltip prefix="$" />} />
-                <Legend wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
-                <Area type="monotone" dataKey="actual"   name="Actual"   stroke="#43a047" strokeWidth={2.5} fill="url(#colorActual)"   />
-                <Area type="monotone" dataKey="anterior" name="Anterior" stroke="#fb8c00" strokeWidth={2}   fill="url(#colorAnterior)" strokeDasharray="5 5" />
-              </AreaChart>
-            </ResponsiveContainer>
+          {/* Ventas en el Tiempo — Area */}
+          <ChartCard title="Ventas en el Tiempo" onDetalle={sinDatos ? undefined : () => abrirDetalle("tiempo")}>
+            {tiempoVacio ? emptyBox("Sin datos en este período") : (
+              <ResponsiveContainer width="100%" height={210}>
+                <AreaChart data={ventasTiempo} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorActual" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#43a047" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#43a047" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="colorAnterior" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#fb8c00" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#fb8c00" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f5" vertical={false} />
+                  <XAxis dataKey="etiqueta" tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: "#9e9e9e" }} axisLine={false} tickLine={false} allowDecimals={false}
+                    tickFormatter={v => v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`} />
+                  <Tooltip content={<CustomTooltip prefix="$" />} />
+                  <Area type="monotone" dataKey="actual" name="Actual" stroke="#43a047" strokeWidth={2.5} fill="url(#colorActual)" />
+                  {comparar && (
+                    <Area type="monotone" dataKey="anterior" name="Anterior" stroke="#fb8c00" strokeWidth={2} fill="url(#colorAnterior)" strokeDasharray="5 5" connectNulls={false} />
+                  )}
+                </AreaChart>
+              </ResponsiveContainer>
             )}
           </ChartCard>
         </div>
 
+        {/* ── Exportar dashboard completo ── */}
+        <div className="dash-footer-export">
+          <ExportMenu
+            label={detalleBusy ? "Preparando…" : "Exportar dashboard"}
+            disabled={sinDatos || detalleBusy}
+            onExport={exportarGlobal}
+          />
+        </div>
       </div>
-    </div>
-  );
-}
 
-function KpiStripInner({ kpi, periodo, setPeriodo }) {
-  const [open, setOpen] = useState(true);
-  return (
-    <div className={`kpi-strip-inner${open ? " kpi-strip-inner--open" : ""}`}>
-      <div className="kpi-strip__top" onClick={() => setOpen(v => !v)} style={{ cursor: "pointer" }}>
-        <span className="kpi-strip__label">Resumen general</span>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div onClick={e => e.stopPropagation()}>
-            <PeriodSelect value={periodo} onChange={setPeriodo} />
-          </div>
-          <div className="chart-card__chevron" style={{ width: 28, height: 28 }}>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M2 4l4 4 4-4" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
-        </div>
-      </div>
-      <div className="kpi-strip__body">
-        <div className="kpi-grid">
-          <KpiCard icon={<Banknote size={20} />} label="Total ventas"    valor={kpi.ventas?.valor   ?? "$0"} delta={kpi.ventas?.delta   ?? "0%"} positive={kpi.ventas?.positive   ?? true} color="#2e7d32" />
-          <KpiCard icon={<Package size={20} />} label="Pedidos"         valor={kpi.pedidos?.valor  ?? "0"}  delta={kpi.pedidos?.delta  ?? "0%"} positive={kpi.pedidos?.positive  ?? true} color="#fb8c00" />
-          <KpiCard icon={<User size={20} />}    label="Clientes nuevos" valor={kpi.clientes?.valor ?? "0"}  delta={kpi.clientes?.delta ?? "0%"} positive={kpi.clientes?.positive ?? true} color="#5c6bc0" />
-          <KpiCard icon={<Tag size={20} />}     label="Ticket promedio" valor={kpi.ticket?.valor   ?? "$0"} delta={kpi.ticket?.delta   ?? "0%"} positive={kpi.ticket?.positive   ?? true} color="#26c6da" />
-        </div>
-      </div>
+      {modalCard && detalle && (
+        <DetalleModal
+          card={modalCard}
+          detalle={detalle}
+          rangoLabel={rangoLabel}
+          filenameBase={filenameBase}
+          onClose={() => setModalCard(null)}
+        />
+      )}
     </div>
   );
 }

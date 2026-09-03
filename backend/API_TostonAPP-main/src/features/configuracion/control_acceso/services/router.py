@@ -15,7 +15,7 @@ router = APIRouter(prefix="/control-acceso", tags=["Control de Acceso"])
 
 
 class AsignarPermisosBody(BaseModel):
-    permisos_ids: list[int]
+    permisos: list[str] = []
 
 
 @router.get("/permisos", response_model=PermisoListResponse)
@@ -53,10 +53,11 @@ def asignar_permisos(
     id_rol: int,
     datos:  AsignarPermisosBody,
     db:     Session = Depends(get_db),
-    _:      dict    = Depends(requiere_permiso("editar_roles")),
+    actual: dict    = Depends(requiere_permiso("editar_roles")),
 ):
     """
-    Reemplaza todos los permisos de un rol con la lista enviada.
+    Reemplaza todos los permisos de un rol con la lista de NOMBRES enviada.
     Lista vacía = quitar todos los permisos.
+    Aplica anti-escalación y forzado de `ver_` (igual que `PUT /roles/{id}/permisos`).
     """
-    return asignar_permisos_rol(db, id_rol, datos.permisos_ids)
+    return asignar_permisos_rol(db, id_rol, datos.permisos, actual)

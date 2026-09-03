@@ -223,6 +223,12 @@
 .chevron.rotated { transform: rotate(180deg); }
 .section-btn:hover .section-icon-wrap { color: var(--g); }
 
+/* Sección que es un enlace directo (sin submenú) */
+.section-btn--link { text-decoration: none; }
+.section-btn--link.active { background: var(--g-soft); color: var(--g); }
+.section-btn--link.active .section-icon-wrap { color: var(--g); }
+.section-btn--link.active .section-label { font-weight: 800; }
+
 /* ─── SUBMENU ────────────────────────────────────────────── */
 .submenu {
   max-height: 0;

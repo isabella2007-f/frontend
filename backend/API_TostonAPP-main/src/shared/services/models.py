@@ -223,7 +223,8 @@ class Compra(Base):
     ID_Proveedor         = Column(Integer, ForeignKey("Proveedores.ID_Proveedor"))
     Total_Pago           = Column(Numeric(30, 2))
     Fecha_Compra         = Column(DateTime)
-    Fecha_Llegada        = Column(DateTime, nullable=True)
+    Fecha_Llegada        = Column(DateTime, nullable=True)  # fecha en que se completó la compra
+    Fecha_Anulada        = Column(DateTime, nullable=True)  # fecha en que se anuló la compra
     Estado               = Column(Integer, ForeignKey("Estados.ID_Estados"))
     Metodo_Pago          = Column(String(20))
     Notas                = Column(Text, nullable=True)
@@ -338,9 +339,10 @@ class OrdenProduccion(Base):
     ID_Insumo           = Column(Integer, ForeignKey("Insumos.ID_Insumo"), nullable=True)
     ID_Ficha            = Column(Integer, ForeignKey("Ficha_Tecnica.ID_Ficha"), nullable=True)
     Cantidad            = Column(Integer)
+    Fecha_Creacion      = Column(DateTime, nullable=True)   # cuándo se registró la orden (automático)
     Fecha_inicio        = Column(DateTime)
     Fecha_Entrega       = Column(DateTime)
-    Fecha_fin           = Column(DateTime, nullable=True)
+    Fecha_fin           = Column(DateTime, nullable=True)   # cuándo pasó a Completada (automático)
     Estado              = Column(Integer, ForeignKey("Estados.ID_Estados"))
     Costo               = Column(Numeric(30, 2))
 

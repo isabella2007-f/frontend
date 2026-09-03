@@ -1322,6 +1322,15 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
 
     # Bloquear paso a LISTO si hay órdenes de producción sin completar
     if nuevo_estado == EstadoPedido.LISTO:
+        # Reintento idempotente: si un producto llegó al pedido sin ficha técnica
+        # no se le abrió orden; cuando el admin la carga y vuelve a intentar
+        # marcar Listo, aquí se abre la orden que faltaba (en vez de dejar el
+        # pedido trabado sin forma de destrabarlo). Una orden que se canceló no
+        # se reabre: respetar_canceladas.
+        _crear_ordenes_produccion_para_venta(
+            db, id_venta, venta.Fecha_entrega_esperada, respetar_canceladas=True
+        )
+
         ordenes_incompletas = db.query(OrdenProduccion).filter(
             OrdenProduccion.ID_Venta == id_venta,
             OrdenProduccion.Estado.notin_([11, 5]),
@@ -1473,6 +1482,13 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
         # insumos quedaban gastados sin nada que los devolviera—. Se cancela por
         # el servicio de producción para que la devolución de insumos y los
         # lotes se hagan con las mismas reglas de siempre.
+        #
+        # El pedido queda marcado como cancelado ANTES de la cascada: así la
+        # sincronización pedido↔orden que corre dentro de cada cancelación ve el
+        # estado final y no intenta reabrir el pedido. Y las órdenes se cancelan
+        # con commit=False para que todo (pedido + órdenes + insumos) cierre en
+        # una sola transacción: si algo falla, no queda nada a medias.
+        venta.Estado = EstadoPedido.CANCELADO
         from src.features.produccion.ordenes_produccion.services.service import (
             cambiar_estado as _cambiar_estado_orden,
         )
@@ -1481,7 +1497,7 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
             OrdenProduccion.Estado.notin_([11, 5]),   # completada / cancelada
         ).all()
         for _orden in ordenes_vivas:
-            _cambiar_estado_orden(db, _orden.ID_Orden_Produccion, 5)
+            _cambiar_estado_orden(db, _orden.ID_Orden_Produccion, 5, commit=False)
 
         # Devolver crédito si se usó al crear el pedido
         detalle = db.query(DetalleVenta).filter(DetalleVenta.ID_Venta == id_venta).first()
@@ -1724,7 +1740,9 @@ def _faltantes_sin_cubrir(db: Session, id_venta: int, tiene_domicilio: bool) -> 
     return pendientes
 
 
-def _crear_ordenes_produccion_para_venta(db: Session, id_venta: int, fecha_entrega) -> int:
+def _crear_ordenes_produccion_para_venta(
+    db: Session, id_venta: int, fecha_entrega, *, respetar_canceladas: bool = False
+) -> int:
     """Abre las órdenes de producción del faltante de un pedido.
 
     Por cada línea que pide más unidades de las que hay en stock
@@ -1735,6 +1753,15 @@ def _crear_ordenes_produccion_para_venta(db: Session, id_venta: int, fecha_entre
     Es idempotente: se puede llamar en cada punto del recorrido del pedido (al
     crearlo con el anticipo cubierto, al confirmarlo, al aceptar la fecha
     propuesta) y solo abre las que falten, nunca duplica la producción.
+
+    - `respetar_canceladas`: cuando es True, un producto cuya orden ya fue
+      cancelada tampoco vuelve a generar orden. Se usa al intentar marcar el
+      pedido como Listo: ahí solo interesa abrir la orden que nunca existió
+      (producto sin ficha al confirmar, ficha cargada después), no reabrir una
+      que se canceló a propósito.
+
+    Un producto sin ficha técnica no genera orden (no podría iniciarse): el
+    pedido queda bloqueado para pasar a Listo hasta que se cargue la ficha.
 
     Devuelve cuántas creó, para que quien llama deje el pedido en el estado que
     corresponde: con producción pendiente el pedido no está listo para
@@ -1749,33 +1776,28 @@ def _crear_ordenes_produccion_para_venta(db: Session, id_venta: int, fecha_entre
     if not req_ids:
         return 0
 
-    # Productos que ya tienen orden viva (pendiente, en proceso o completada)
-    # para este pedido: llamar dos veces no puede duplicar la producción.
-    ya_con_orden = {
-        pid for (pid,) in db.query(OrdenProduccion.ID_Producto).filter(
-            OrdenProduccion.ID_Venta == id_venta,
-            OrdenProduccion.Estado != 5,          # 5 = Cancelada
-        ).all()
-    }
+    # Productos que ya tienen orden para este pedido: llamar dos veces no puede
+    # duplicar la producción. Por defecto una orden cancelada no bloquea (se
+    # puede reintentar); con respetar_canceladas sí bloquea.
+    _q_ya = db.query(OrdenProduccion.ID_Producto).filter(
+        OrdenProduccion.ID_Venta == id_venta,
+    )
+    if not respetar_canceladas:
+        _q_ya = _q_ya.filter(OrdenProduccion.Estado != 5)   # 5 = Cancelada
+    ya_con_orden = {pid for (pid,) in _q_ya.all()}
 
     req_lista = list(req_ids)
     fichas_m: dict = {}
-    templates_m: dict = {}
-    # Se prefiere la ficha activa; si no hay, sirve la última registrada, que es
-    # la misma que el módulo de producción resuelve al iniciar la orden.
+    # Se prefiere la ficha activa; si no hay, la última registrada (la misma que
+    # el módulo de producción resuelve al iniciar la orden).
     for estado_ficha in (1, None):
         q = db.query(FichaTecnica).filter(FichaTecnica.ID_Producto.in_(req_lista))
         if estado_ficha is not None:
             q = q.filter(FichaTecnica.Estado == estado_ficha)
         for f in q.order_by(FichaTecnica.ID_Ficha.desc()).all():
             fichas_m.setdefault(f.ID_Producto, f)
-    for t in (db.query(OrdenProduccion)
-                .filter(OrdenProduccion.ID_Producto.in_(req_lista),
-                        OrdenProduccion.ID_Insumo != None,
-                        OrdenProduccion.Estado != 5)
-                .order_by(OrdenProduccion.ID_Orden_Produccion.desc()).all()):
-        templates_m.setdefault(t.ID_Producto, t)
 
+    ahora = _now()
     creadas = 0
     for item in items_venta:
         if item.ID_Producto not in req_ids or item.ID_Producto in ya_con_orden:
@@ -1783,20 +1805,24 @@ def _crear_ordenes_produccion_para_venta(db: Session, id_venta: int, fecha_entre
         cantidad = item.Cantidad_Preorden or 0
         if cantidad <= 0:
             continue  # stock cubría todo; no se necesita producción
-        ficha    = fichas_m.get(item.ID_Producto)
-        template = templates_m.get(item.ID_Producto)
-        id_ficha  = ficha.ID_Ficha     if ficha    else (template.ID_Ficha  if template else None)
-        id_insumo = template.ID_Insumo if template else None
+        ficha = fichas_m.get(item.ID_Producto)
+        if not ficha:
+            # Sin ficha técnica el producto no se puede fabricar: no se abre una
+            # orden que nunca podría iniciarse. El pedido queda bloqueado para
+            # pasar a Listo (ver _faltantes_sin_cubrir) hasta que se cargue la
+            # ficha; al reintentar "marcar Listo" esta función se vuelve a correr.
+            continue
         db.add(OrdenProduccion(
-            ID_Venta      = id_venta,
-            ID_Producto   = item.ID_Producto,
-            ID_Insumo     = id_insumo,
-            ID_Ficha      = id_ficha,
-            Cantidad      = cantidad,
-            Fecha_inicio  = _now(),
-            Fecha_Entrega = fecha_entrega or _now(),
-            Estado        = 1,
-            Costo         = Decimal("0"),
+            ID_Venta       = id_venta,
+            ID_Producto    = item.ID_Producto,
+            ID_Insumo      = None,
+            ID_Ficha       = ficha.ID_Ficha,
+            Cantidad       = cantidad,
+            Fecha_Creacion = ahora,
+            Fecha_inicio   = ahora,
+            Fecha_Entrega  = fecha_entrega or ahora,
+            Estado         = 1,
+            Costo          = Decimal("0"),
         ))
         # El producto ya quedó cubierto: si la venta trae la misma línea dos
         # veces no se abren dos órdenes por lo mismo.

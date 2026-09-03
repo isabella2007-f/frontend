@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from src.shared.services.database import get_db
-from src.features.auth.services.dependencies import requiere_permiso, obtener_usuario_actual
+from src.features.auth.services.dependencies import obtener_usuario_actual
 from .schemas import (
     NotificacionResponse, NotificacionesResponse,
     NotificacionesClienteResponse,
@@ -14,6 +14,17 @@ from .service import (
 )
 
 router = APIRouter(prefix="/notificaciones", tags=["Notificaciones"])
+
+
+def _solo_panel(actual: dict = Depends(obtener_usuario_actual)) -> dict:
+    """
+    Notificaciones internas del panel (stock, devoluciones, domicilios…).
+    Las ve cualquier empleado/admin, no solo quien tenga `ver_dashboard`:
+    ese permiso ahora controla únicamente las estadísticas del dashboard.
+    """
+    if actual.get("tipo") == "cliente":
+        raise HTTPException(status_code=403, detail="Solo disponible para el panel de gestión")
+    return actual
 
 
 @router.get("/cocina", response_model=NotificacionesClienteResponse)
@@ -56,7 +67,7 @@ def mis_notificaciones(
 @router.get("/", response_model=NotificacionesResponse)
 def listar_notificaciones(
     db: Session = Depends(get_db),
-    _:  dict    = Depends(requiere_permiso("ver_dashboard")),
+    _:  dict    = Depends(_solo_panel),
 ):
     return obtener_notificaciones(db)
 
@@ -65,7 +76,7 @@ def listar_notificaciones(
 def leer_notificacion(
     id_notificacion: int,
     db: Session = Depends(get_db),
-    _:  dict    = Depends(requiere_permiso("ver_dashboard")),
+    _:  dict    = Depends(_solo_panel),
 ):
     return marcar_leida(db, id_notificacion)
 
@@ -73,7 +84,7 @@ def leer_notificacion(
 @router.delete("/limpiar")
 def limpiar_notificaciones(
     db: Session = Depends(get_db),
-    _:  dict    = Depends(requiere_permiso("ver_dashboard")),
+    _:  dict    = Depends(_solo_panel),
 ):
     return limpiar_leidas(db)
 
@@ -82,6 +93,6 @@ def limpiar_notificaciones(
 def borrar_notificacion(
     id_notificacion: int,
     db: Session = Depends(get_db),
-    _:  dict    = Depends(requiere_permiso("ver_dashboard")),
+    _:  dict    = Depends(_solo_panel),
 ):
     return eliminar_notificacion(db, id_notificacion)

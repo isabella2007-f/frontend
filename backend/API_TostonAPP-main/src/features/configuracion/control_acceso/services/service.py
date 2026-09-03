@@ -2,6 +2,10 @@ from sqlalchemy.orm import Session
 from fastapi import HTTPException
 
 from src.shared.services.models import Permiso, RolXPermiso, Rol
+from src.features.configuracion.roles.services.service import (
+    normalizar_y_validar_permisos,
+)
+from src.features.configuracion.roles.services.schemas import ROLES_PROTEGIDOS
 
 
 def obtener_permisos(db: Session, busqueda: str = None) -> dict:
@@ -68,28 +72,29 @@ def obtener_permisos_de_rol(db: Session, id_rol: int) -> dict:
     }
 
 
-def asignar_permisos_rol(db: Session, id_rol: int, permisos_ids: list[int]) -> dict:
+def asignar_permisos_rol(db: Session, id_rol: int, permisos: list[str], actual: dict) -> dict:
     """
-    Reemplaza todos los permisos del rol con la nueva lista.
+    Reemplaza todos los permisos del rol con la nueva lista de NOMBRES.
     Lista vacía = quitar todos los permisos.
-    Hace db.commit() después de cada cambio.
+
+    Comparte la validación con `roles`: anti-escalación de privilegios y forzado
+    del permiso `ver_` de cada módulo (`normalizar_y_validar_permisos`).
     """
     rol = db.query(Rol).filter(Rol.ID_Rol == id_rol).first()
     if not rol:
         raise HTTPException(status_code=404, detail="Rol no encontrado")
 
-    # Elimina todos los permisos actuales del rol
-    db.query(RolXPermiso).filter(RolXPermiso.ID_Rol == id_rol).delete(synchronize_session=False)
+    if id_rol in ROLES_PROTEGIDOS:
+        raise HTTPException(
+            status_code=403,
+            detail="El rol Admin está protegido: tiene todos los permisos por defecto",
+        )
 
-    # Valida y asigna todos los permisos en batch
-    if permisos_ids:
-        encontrados = {p.ID_Permiso for p in db.query(Permiso).filter(Permiso.ID_Permiso.in_(permisos_ids)).all()}
-        faltantes = [pid for pid in permisos_ids if pid not in encontrados]
-        if faltantes:
-            db.rollback()
-            raise HTTPException(status_code=404, detail=f"Permiso(s) con ID {faltantes} no encontrado(s)")
-        for id_permiso in permisos_ids:
-            db.add(RolXPermiso(ID_Rol=id_rol, ID_Permiso=id_permiso))
+    ids_final = normalizar_y_validar_permisos(db, actual, permisos)
+
+    db.query(RolXPermiso).filter(RolXPermiso.ID_Rol == id_rol).delete(synchronize_session=False)
+    for id_permiso in dict.fromkeys(ids_final):
+        db.add(RolXPermiso(ID_Rol=id_rol, ID_Permiso=id_permiso))
 
     db.commit()
     return obtener_permisos_de_rol(db, id_rol)

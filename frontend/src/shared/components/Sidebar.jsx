@@ -7,9 +7,9 @@ import LogoutModal from "./LogoutModal";
 import "./Sidebar.css";
 import {
   Globe, LayoutDashboard, Settings, ShoppingCart, Layers, TrendingUp, User,
-  Home, Pencil, Monitor, Shield, Users, Upload, FolderOpen, Package, Receipt,
+  Home, Pencil, Shield, Users, Upload, FolderOpen, Package, Receipt,
   Building2, Tag, Box, ClipboardList, Utensils, ShoppingBag, Truck,
-  Navigation, History, Banknote, Bell, UserCircle, RotateCcw, BarChart2,
+  Navigation, History, Banknote, Bell, UserCircle, RotateCcw,
   Search, ChevronLeft, ChevronRight, ChevronDown, LogOut,
 } from "lucide-react";
 
@@ -22,17 +22,15 @@ const adminMenuItems = [
     section: "Sitio Web",
     Icon: Globe,
     items: [
-      { label: "Ver Landing Page",    Icon: Home,    link: "/",              privilegioKey: "LandingPage" },
-      { label: "Editar Landing Page", Icon: Pencil,  link: "/admin/landing", privilegioKey: "LandingPage" },
+      // La landing pública es visible para todos; aquí solo la edición.
+      { label: "Editar Landing Page", Icon: Pencil, link: "/admin/landing", clave: "LandingPage_editar" },
     ],
   },
   {
     section: "Dashboard",
     Icon: LayoutDashboard,
-    items: [
-      { label: "Vista General", Icon: Monitor,   link: "/admin",          privilegioKey: "Dashboard" },
-      { label: "Reportes",      Icon: BarChart2, link: "/admin/reportes", privilegioKey: "Dashboard" },
-    ],
+    link: "/admin",
+    privilegioKey: "Dashboard",
   },
   {
     section: "Configuración",
@@ -61,7 +59,6 @@ const adminMenuItems = [
       { label: "Gestión de Productos",   Icon: Box,           link: "/admin/products",             privilegioKey: "GestionProductos" },
       { label: "Órdenes de Producción",  Icon: ClipboardList, link: "/admin/ordenes-produccion",   privilegioKey: "OrdenesProduccion" },
       { label: "Cocina",                 Icon: Utensils,      link: "/admin/cocina",               roleRequired: "Cocinero" },
-      { label: "Reportes",               Icon: BarChart2,     link: "/admin/reportes",             roleRequired: "Cocinero" },
     ],
   },
   {
@@ -121,7 +118,6 @@ const clienteMenuItems = [
 
 export default function Sidebar({ isOpen, onToggle }) {
   const [openSections, setOpenSections] = useState({
-    Dashboard: true,
     Ventas: true,
     "Mi Trabajo": true,
     "Mi Cuenta": true,
@@ -202,7 +198,26 @@ export default function Sidebar({ isOpen, onToggle }) {
           <div className="nav-group-label">Módulos</div>
 
           <nav className="sidebar-nav">
-            {menuItems.map(({ section, Icon: SectionIcon, items }) => {
+            {menuItems.map((entry) => {
+              const { section, Icon: SectionIcon, items, link } = entry;
+
+              // Sección de enlace directo (sin submenú): al clicar navega, no despliega.
+              if (link && !items) {
+                if (!canSeeItem(entry)) return null;
+                if (search && !section.toLowerCase().includes(search.toLowerCase())) return null;
+                return (
+                  <Link
+                    key={section}
+                    to={link}
+                    data-tooltip={!isOpen ? section : undefined}
+                    className={`section-btn section-btn--link ${location.pathname === link ? "active" : ""}`}
+                  >
+                    <span className="section-icon-wrap"><SectionIcon size={15} /></span>
+                    <span className="section-label">{section}</span>
+                  </Link>
+                );
+              }
+
               const filtered = search
                 ? items.filter(it => it.label.toLowerCase().includes(search.toLowerCase()))
                 : items;

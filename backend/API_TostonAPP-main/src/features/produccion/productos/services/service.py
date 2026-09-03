@@ -487,8 +487,35 @@ def eliminar_imagen(db: Session, id_imagen: int) -> dict:
     return {"mensaje": f"Imagen {id_imagen} eliminada"}
 
 
+# Estados de orden de producción que "congelan" la ficha: una orden En proceso
+# (13) o Completada (11) siguió usando la receta con la que arrancó, aunque
+# después se edite la ficha del producto.
+_ESTADOS_ORDEN_CONGELAN_FICHA = (13, 11)
+
+
+def _insumos_desde_payload(db: Session, id_ficha: int, insumos) -> None:
+    """Reemplaza los insumos de una ficha con los del payload."""
+    db.query(FichaTecnicaInsumo).filter(
+        FichaTecnicaInsumo.ID_Ficha == id_ficha
+    ).delete(synchronize_session=False)
+    for ins in insumos:
+        db.add(FichaTecnicaInsumo(
+            ID_Ficha  = id_ficha,
+            ID_Insumo = ins.ID_Insumo,
+            Cantidad  = ins.Cantidad,
+            Unidad    = ins.Unidad,
+        ))
+
+
 def gestionar_ficha(db: Session, id_producto: int, datos: FichaTecnicaInput) -> dict:
-    """Upsert de ficha técnica: crea si no existe, edita si ya existe. Reemplaza insumos."""
+    """Crea o actualiza la ficha técnica de un producto.
+
+    Si la ficha vigente ya está enganchada a órdenes de producción En proceso o
+    Completadas, NO se muta: se crea una versión nueva y la anterior queda
+    congelada como snapshot de esas órdenes. Las órdenes pendientes del producto
+    se repuntan a la versión nueva. Si no hay órdenes que congelar, se edita
+    in-place como antes.
+    """
     producto = db.query(Producto).filter(Producto.ID_Producto == id_producto).first()
     if not producto:
         raise HTTPException(status_code=404, detail="Producto no encontrado")
@@ -499,33 +526,83 @@ def gestionar_ficha(db: Session, id_producto: int, datos: FichaTecnicaInput) -> 
 
     campos = datos.model_dump(exclude_none=True, exclude={"insumos"})
 
-    if ficha:
-        for campo, valor in campos.items():
-            setattr(ficha, campo, valor)
-    else:
+    # ── Primera ficha del producto ────────────────────────────────────────────
+    if not ficha:
         ficha = FichaTecnica(
-            ID_Producto    = id_producto,
-            ID_Categoria   = producto.ID_Categoria,
-            Version        = datos.Version or "1.0",
-            Observaciones  = datos.Observaciones,
-            Procedimiento  = datos.Procedimiento,
-            Estado         = 1,
-            Fecha_Creacion = datetime.now(),
+            ID_Producto      = id_producto,
+            ID_Categoria     = producto.ID_Categoria,
+            Version          = datos.Version or "1.0",
+            Observaciones    = datos.Observaciones,
+            Procedimiento    = datos.Procedimiento,
+            Estado           = 1,
+            Fecha_Creacion   = datetime.now(),
+            Dias_Vida_Util   = datos.Dias_Vida_Util,
+            Vida_Util_Unidad = datos.Vida_Util_Unidad,
         )
         db.add(ficha)
         db.flush()
+        if datos.insumos is not None:
+            _insumos_desde_payload(db, ficha.ID_Ficha, datos.insumos)
+        db.commit()
+        db.refresh(producto)
+        return _formato_producto(producto, db)
+
+    congeladas = db.query(OrdenProduccion).filter(
+        OrdenProduccion.ID_Ficha == ficha.ID_Ficha,
+        OrdenProduccion.Estado.in_(_ESTADOS_ORDEN_CONGELAN_FICHA),
+    ).count()
+
+    # ── Sin órdenes que congelar: edición in-place ────────────────────────────
+    if congeladas == 0:
+        for campo, valor in campos.items():
+            setattr(ficha, campo, valor)
+        if datos.insumos is not None:
+            _insumos_desde_payload(db, ficha.ID_Ficha, datos.insumos)
+        db.commit()
+        db.refresh(producto)
+        return _formato_producto(producto, db)
+
+    # ── Fork: versión nueva; la anterior queda congelada ─────────────────────
+    n_versiones = db.query(FichaTecnica).filter(
+        FichaTecnica.ID_Producto == id_producto
+    ).count()
+    nueva = FichaTecnica(
+        ID_Producto      = id_producto,
+        ID_Categoria     = ficha.ID_Categoria,
+        Version          = datos.Version or str(n_versiones + 1),
+        Observaciones    = campos.get("Observaciones", ficha.Observaciones),
+        Procedimiento    = campos.get("Procedimiento", ficha.Procedimiento),
+        Estado           = 1,
+        Fecha_Creacion   = datetime.now(),
+        Dias_Vida_Util   = campos.get("Dias_Vida_Util", ficha.Dias_Vida_Util),
+        Vida_Util_Unidad = campos.get("Vida_Util_Unidad", ficha.Vida_Util_Unidad),
+    )
+    db.add(nueva)
+    db.flush()
 
     if datos.insumos is not None:
-        db.query(FichaTecnicaInsumo).filter(
-            FichaTecnicaInsumo.ID_Ficha == ficha.ID_Ficha
-        ).delete(synchronize_session=False)
         for ins in datos.insumos:
             db.add(FichaTecnicaInsumo(
-                ID_Ficha  = ficha.ID_Ficha,
-                ID_Insumo = ins.ID_Insumo,
-                Cantidad  = ins.Cantidad,
-                Unidad    = ins.Unidad,
+                ID_Ficha=nueva.ID_Ficha, ID_Insumo=ins.ID_Insumo,
+                Cantidad=ins.Cantidad, Unidad=ins.Unidad,
             ))
+    else:
+        # Solo cambió metadata: la versión nueva clona los insumos actuales.
+        for fi in db.query(FichaTecnicaInsumo).filter(
+            FichaTecnicaInsumo.ID_Ficha == ficha.ID_Ficha
+        ).all():
+            db.add(FichaTecnicaInsumo(
+                ID_Ficha=nueva.ID_Ficha, ID_Insumo=fi.ID_Insumo,
+                Cantidad=fi.Cantidad, Unidad=fi.Unidad,
+            ))
+
+    ficha.Estado = 2   # inactiva; sigue existiendo para las órdenes que la usan
+
+    # Las órdenes pendientes del producto pasan a la versión nueva.
+    db.query(OrdenProduccion).filter(
+        OrdenProduccion.ID_Producto == id_producto,
+        OrdenProduccion.Estado == 1,   # Pendiente
+    ).update({OrdenProduccion.ID_Ficha: nueva.ID_Ficha}, synchronize_session=False)
 
     db.commit()
     db.refresh(producto)
@@ -533,12 +610,19 @@ def gestionar_ficha(db: Session, id_producto: int, datos: FichaTecnicaInput) -> 
 
 
 def eliminar_ficha(db: Session, id_producto: int) -> dict:
-    """Elimina la ficha técnica y sus insumos de un producto."""
+    """Elimina la ficha técnica vigente del producto y sus insumos."""
     ficha = db.query(FichaTecnica).filter(
         FichaTecnica.ID_Producto == id_producto
-    ).first()
+    ).order_by(FichaTecnica.Fecha_Creacion.desc()).first()
     if not ficha:
         raise HTTPException(status_code=404, detail="Ficha técnica no encontrada")
+
+    if db.query(OrdenProduccion).filter(OrdenProduccion.ID_Ficha == ficha.ID_Ficha).count():
+        raise HTTPException(
+            status_code=400,
+            detail="La ficha técnica está asociada a órdenes de producción y no puede eliminarse.",
+        )
+
     db.query(FichaTecnicaInsumo).filter(
         FichaTecnicaInsumo.ID_Ficha == ficha.ID_Ficha
     ).delete(synchronize_session=False)
