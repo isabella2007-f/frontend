@@ -281,7 +281,13 @@ ESTADO_VENTA_FECHA_PROPUESTA = 16
 # Solo se avanza a Listo desde estos: Confirmado (el cliente aceptó), En
 # producción, o Fecha propuesta (la producción puede arrancar antes de que el
 # cliente acepte formalmente cuando el admin la inicia directamente).
-_ESTADOS_VENTA_PRODUCIENDO = {ESTADO_VENTA_CONFIRMADO, ESTADO_EN_PROCESO, ESTADO_VENTA_FECHA_PROPUESTA}
+# Estados del PEDIDO desde los que terminar la producción sí lo mueve.
+#
+# "Fecha propuesta" NO está: ese pedido está esperando que el cliente acepte
+# o rechace la fecha, y terminar de hornear no responde por él. Con el 16 en
+# esta lista, el pedido saltaba a Listo solo y el cliente se quedaba sin
+# decidir. Quien lo mueve es su respuesta: ver `aceptar_fecha`.
+_ESTADOS_VENTA_PRODUCIENDO = {ESTADO_VENTA_CONFIRMADO, ESTADO_EN_PROCESO}
 
 
 def _sync_venta_por_ordenes(

@@ -1851,7 +1851,12 @@ def aceptar_fecha(db: Session, id_venta: int, actual: dict) -> dict:
     # Si el pedido lleva producción, aceptar la fecha no lo deja listo para
     # despachar: arranca la fabricación. Queda "En producción" y pasará a Listo
     # cuando se completen sus órdenes.
-    if _crear_ordenes_produccion_para_venta(db, id_venta, venta.Fecha_entrega_esperada) > 0:
+    _crear_ordenes_produccion_para_venta(db, id_venta, venta.Fecha_entrega_esperada)
+    _ordenes_abiertas = db.query(OrdenProduccion).filter(
+        OrdenProduccion.ID_Venta == id_venta,
+        OrdenProduccion.Estado.notin_([11, 5]),   # completada / cancelada
+    ).count()
+    if _ordenes_abiertas > 0:
         venta.Estado = EstadoPedido.PREPARANDO
 
     # Reservar del stock la porción disponible para pedidos de recoger en tienda:
@@ -1874,6 +1879,18 @@ def aceptar_fecha(db: Session, id_venta: int, actual: dict) -> dict:
             _actualizar_estado_producto(prod_av)
             notificar_stock_producto(db, prod_av)
 
+    # La panadería pudo terminar de hornear mientras el cliente decidía. En
+    # ese caso ya no falta nada: aceptar la fecha deja el pedido Listo para
+    # despachar, sin pasar por un "Confirmado" en el que nadie tiene nada que
+    # hacer. Es la respuesta del cliente la que lo mueve, no el horno.
+    #
+    # Se exige lo mismo que exigiría cambiar_estado(LISTO): ninguna orden
+    # abierta —ya cubierto arriba— y ningún faltante sin cubrir, para no
+    # dejar listo un pedido al que le falta producto de verdad.
+    if (venta.Estado == EstadoPedido.CONFIRMADO
+            and not _faltantes_sin_cubrir(db, id_venta, _tiene_domicilio)):
+        venta.Estado = EstadoPedido.LISTO
+
     notificar(
         db, "fecha_aceptada", "Fecha aceptada por el cliente",
         f"El cliente aceptó la fecha propuesta para el pedido #{id_venta}",
@@ -1886,8 +1903,8 @@ def aceptar_fecha(db: Session, id_venta: int, actual: dict) -> dict:
         notificar_cambio_pedido_push(
             id_usuario_cliente=venta.ID_Usuario,
             id_venta=id_venta,
-            # El estado real tras aceptar: Confirmado, o En producción si el
-            # pedido arrancó fabricación.
+            # El estado real tras aceptar: Listo si ya no falta nada, En
+            # producción si todavía hay que fabricar, Confirmado si no.
             nuevo_estado=venta.Estado,
             db=db,
         )
