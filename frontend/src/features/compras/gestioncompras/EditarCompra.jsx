@@ -200,7 +200,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
           nombre:   i.Nombre    || i.nombre || "",
           unidad:   i.simbolo_unidad || i.unidad || "",
           idUnidad: i.Unidad_Medida  || i.idUnidad || null,
-          estado:   i.Estado === 1,
+          estado:   i.Estado !== 2,
         }));
         setInsumosActivos(lista.filter(i => i.estado));
       })
