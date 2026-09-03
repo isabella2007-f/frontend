@@ -144,7 +144,7 @@ def obtener_insumos(
 
     total   = query.count()
     offset  = (pagina - 1) * por_pagina
-    insumos = query.offset(offset).limit(por_pagina).all()
+    insumos = query.order_by(Insumo.ID_Insumo.asc()).offset(offset).limit(por_pagina).all()
 
     if not insumos:
         return {

@@ -17,7 +17,7 @@ router = APIRouter(prefix="/insumos", tags=["Gestión de Insumos"])
 @router.get("/")
 def listar_insumos(
     pagina:     int           = Query(1, ge=1),
-    por_pagina: int           = Query(10, ge=1, le=100),
+    por_pagina: int           = Query(10, ge=1, le=500),
     busqueda:   Optional[str] = Query(None),
     db:         Session       = Depends(get_db),
     _:          dict          = Depends(requiere_permiso("ver_insumos"))
