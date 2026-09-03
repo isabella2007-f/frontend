@@ -808,6 +808,59 @@ button, label, input, p, span {
   flex-shrink: 0;
 }
 
+/* Chips de estado (fila horizontal) */
+.filter-chips-row {
+  display: flex;
+  gap: 5px;
+  padding: 4px 8px 8px;
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 20px;
+  border: 1.5px solid #e0e0e0;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  color: #616161;
+  cursor: pointer;
+  transition: all .12s;
+  white-space: nowrap;
+}
+.filter-chip:hover  { border-color: #4caf50; color: #2e7d32; background: #f1f8f1; }
+.filter-chip.active { border-color: var(--chip-color, #2e7d32); background: #e8f5e9; color: #2e7d32; }
+
+/* Grid de roles en chips */
+.filter-roles-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 4px 8px 8px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.filter-roles-grid::-webkit-scrollbar { width: 3px; }
+.filter-roles-grid::-webkit-scrollbar-thumb { background: #c8e6c9; border-radius: 3px; }
+
+.filter-role-chip {
+  padding: 4px 11px;
+  border-radius: 20px;
+  border: 1.5px solid #e0e0e0;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  color: #616161;
+  cursor: pointer;
+  transition: all .12s;
+  white-space: nowrap;
+}
+.filter-role-chip:hover  { border-color: #4caf50; color: #2e7d32; background: #f1f8f1; }
+.filter-role-chip.active { border-color: #2e7d32; background: #e8f5e9; color: #2e7d32; }
+
 .btn-agregar {
   display: inline-flex;
   align-items: center;

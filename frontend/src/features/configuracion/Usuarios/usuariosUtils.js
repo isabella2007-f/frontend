@@ -126,4 +126,4 @@ export const EMPTY_FILTERS = { roles: [], estado: "", desde: "", hasta: "" };
 
 export const PER_PAGE = 5;
 
-export const TIPO_DOC = ['CC', 'CE', 'TI', 'NIT', 'PPT', 'Pasaporte'];
+export const TIPO_DOC = ['CC', 'CE', 'NIT', 'PPT', 'Pasaporte'];

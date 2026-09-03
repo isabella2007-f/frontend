@@ -434,7 +434,7 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
                     className="field-select"
                   />
                 </Field>
-                <Field required label="Cédula" placeholder="Ej: 1023456789" value={form.cedula} onChange={e => set("cedula", e.target.value)} error={errors.cedula} />
+                <Field required label="N° Documento" placeholder="Ej: 1023456789" value={form.cedula} onChange={e => set("cedula", e.target.value)} error={errors.cedula} />
               </div>
               <Field required label="Teléfono" placeholder="Ej: 3001234567" value={form.telefono} onChange={e => set("telefono", e.target.value)} error={errors.telefono} />
             </>

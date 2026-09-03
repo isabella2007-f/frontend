@@ -196,40 +196,46 @@ export default function GestionUsuarios() {
               data-tooltip="Filtrar usuarios"
             >▼</button>
             {showFilter && (
-              <div className="filter-dropdown" style={{ minWidth: 170 }}>
+              <div className="filter-dropdown" style={{ minWidth: 240 }}>
                 <p className="filter-section-title">Estado</p>
-                {[
-                  { val: "todos",    label: "Todos",     dot: "#bdbdbd" },
-                  { val: "activo",   label: "Activos",   dot: "#43a047" },
-                  { val: "inactivo", label: "Inactivos", dot: "#ef5350" },
-                ].map(f => (
-                  <button key={f.val}
-                    className={"filter-option" + (filter === f.val ? " active" : "")}
-                    onClick={() => { setFilter(f.val); setPage(1); }}>
-                    <span className="filter-dot" style={{ background: f.dot }} />{f.label}
-                  </button>
-                ))}
-                <div style={{ height: 1, background: "#f0f0f0", margin: "4px 0" }} />
+                <div className="filter-chips-row">
+                  {[
+                    { val: "todos",    label: "Todos",     color: "#bdbdbd" },
+                    { val: "activo",   label: "Activos",   color: "#43a047" },
+                    { val: "inactivo", label: "Inactivos", color: "#ef5350" },
+                  ].map(f => (
+                    <button key={f.val}
+                      className={"filter-chip" + (filter === f.val ? " active" : "")}
+                      style={{ "--chip-color": f.color }}
+                      onClick={() => { setFilter(f.val); setPage(1); }}>
+                      <span className="filter-dot" style={{ background: f.color }} />{f.label}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ height: 1, background: "#f0f0f0", margin: "4px 6px" }} />
                 <p className="filter-section-title">Rol</p>
-                <button
-                  className={"filter-option" + (filterRol === "todos" ? " active" : "")}
-                  onClick={() => { setFilterRol("todos"); setPage(1); setShowFilter(false); }}>
-                  <span className="filter-dot" style={{ background: "#bdbdbd" }} />Todos
-                </button>
-                {todosLosRoles.map(r => (
-                  <button key={r}
-                    className={"filter-option" + (filterRol === r ? " active" : "")}
-                    onClick={() => { setFilterRol(r); setPage(1); setShowFilter(false); }}>
-                    <span className="filter-dot" style={{ background: "#2e7d32" }} />{r}
+                <div className="filter-roles-grid">
+                  <button
+                    className={"filter-role-chip" + (filterRol === "todos" ? " active" : "")}
+                    onClick={() => { setFilterRol("todos"); setPage(1); }}>
+                    Todos
                   </button>
-                ))}
-                <div style={{ padding: 8 }}>
+                  {todosLosRoles.map(r => (
+                    <button key={r}
+                      className={"filter-role-chip" + (filterRol === r ? " active" : "")}
+                      onClick={() => { setFilterRol(r); setPage(1); }}>
+                      {r}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ height: 1, background: "#f0f0f0", margin: "4px 6px" }} />
+                <div style={{ padding: "4px 8px 8px" }}>
                   <DateRangeFilter
                     desde={filterDesde}
                     hasta={filterHasta}
                     onApply={({desde, hasta}) => { setFilterDesde(desde || ''); setFilterHasta(hasta || ''); setShowFilter(false); }}
                     onClear={() => { setFilterDesde(''); setFilterHasta(''); setShowFilter(false); }}
-                    label="Filtrar por fecha de registro"
+                    label="Fecha de registro"
                   />
                 </div>
               </div>
@@ -254,7 +260,7 @@ export default function GestionUsuarios() {
                 <tr>
                   <th style={{ width: 48 }}>Nº</th>
                   <th>Usuario</th>
-                  <th>Cédula</th>
+                  <th>N° Documento</th>
                   <th>Teléfono</th>
                   <th>Ubicación</th>
                   <th>Rol</th>
