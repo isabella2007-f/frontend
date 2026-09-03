@@ -51,16 +51,22 @@ const esProductoConProduccion = (producto) => {
 };
 
 const ESTADO_CONFIG = {
-  "Pendiente":     { bg: "#fff8e1", color: "#f9a825", border: "#ffe082", dot: "#f9a825" },
-  "En producción": { bg: "#e3f2fd", color: "#1565c0", border: "#90caf9", dot: "#1976d2" },
-  "Confirmado":    { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7", dot: "#43a047" },
-  "Listo":         { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7", dot: "#43a047" },
-  "Asignado":      { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7", dot: "#43a047" },
-  "En camino":     { bg: "#f3e5f5", color: "#6a1b9a", border: "#ce93d8", dot: "#8e24aa" },
-  "Fecha propuesta": { bg: "#e8eaf6", color: "#283593", border: "#9fa8da", dot: "#3949ab" },
-  "Cancelado":       { bg: "#ffebee", color: "#c62828", border: "#ef9a9a", dot: "#e53935" },
-  "Entregado":     { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7", dot: "#43a047" },
+  "Pendiente":               { bg: "#fff8e1", color: "#f9a825", border: "#ffe082", dot: "#f9a825" },
+  "Pendiente de producción": { bg: "#fff3e0", color: "#e65100", border: "#ffcc80", dot: "#ef6c00" },
+  "En producción":           { bg: "#e3f2fd", color: "#1565c0", border: "#90caf9", dot: "#1976d2" },
+  "Confirmado":              { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7", dot: "#43a047" },
+  "Listo":                   { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7", dot: "#43a047" },
+  "Asignado":                { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7", dot: "#43a047" },
+  "En camino":               { bg: "#f3e5f5", color: "#6a1b9a", border: "#ce93d8", dot: "#8e24aa" },
+  "Fecha propuesta":         { bg: "#e8eaf6", color: "#283593", border: "#9fa8da", dot: "#3949ab" },
+  "Cancelado":               { bg: "#ffebee", color: "#c62828", border: "#ef9a9a", dot: "#e53935" },
+  "Entregado":               { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7", dot: "#43a047" },
 };
+
+const getEstadoDisplay = (pedido) =>
+  (pedido?.ordenes_en_espera > 0 && pedido?.estado === "En producción")
+    ? "Pendiente de producción"
+    : (pedido?.estado ?? "Pendiente");
 
 /* ─── EstadoBadge ────────────────────────────────────────── */
 function EstadoBadge({ estado }) {
@@ -121,7 +127,7 @@ function ModalConfirmarEstado({ pedido, nuevoEstado, onClose, onConfirm }) {
           <div className="flex items-center justify-between px-6 py-4 bg-gray-50 rounded-2xl border border-gray-100 relative overflow-hidden mb-6">
             <div className="text-center flex-1">
               <p className="text-[8px] font-black text-gray-400 uppercase tracking-widest mb-2">Actual</p>
-              <EstadoBadge estado={pedido.estado} />
+              <EstadoBadge estado={getEstadoDisplay(pedido)} />
             </div>
             <div className="px-4 text-gray-300 animate-pulse">
               <ArrowRight size={20} strokeWidth={3} />
@@ -216,7 +222,7 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit }) {
             <h2 className="modal-header__title">{pedido.numero}</h2>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <EstadoBadge estado={pedido.estado} />
+            <EstadoBadge estado={getEstadoDisplay(pedido)} />
             <button className="modal-close-btn" onClick={onClose}><X size={16} /></button>
           </div>
         </div>
@@ -2135,12 +2141,7 @@ export default function GestionPedidos() {
                       </td>
                       <td>
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 3 }}>
-                          <EstadoBadge estado={ped.estado} />
-                          {ped.estado === "En producción" && (
-                            <span style={{ fontSize: 9, fontWeight: 700, color: "#1976d2", letterSpacing: 0.3 }}>
-                              <Clock size={9} style={{ display:"inline", verticalAlign:"middle", marginRight:2 }} /> Esperando producción
-                            </span>
-                          )}
+                          <EstadoBadge estado={getEstadoDisplay(ped)} />
                           {ped.fecha_rechazada && (
                             <span style={{ fontSize: 9, fontWeight: 700, color: "#c62828", letterSpacing: 0.3, display: "flex", alignItems: "center", gap: 3 }}>
                               <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#e53935", display: "inline-block", flexShrink: 0 }} />

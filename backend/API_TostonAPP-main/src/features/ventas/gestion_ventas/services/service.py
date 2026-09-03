@@ -10,7 +10,7 @@ _BOGOTA = ZoneInfo("America/Bogota")
 def _now():
     return datetime.now(_BOGOTA).replace(tzinfo=None)
 
-from sqlalchemy import func
+from sqlalchemy import func, case
 from src.shared.services.models import (
     Venta, VentaXProducto, DetalleVenta, Producto, ProductoImagen, Usuario,
     Estado, Domicilio, CreditoCliente, MovimientoCredito,
@@ -388,6 +388,10 @@ def _formato_venta(venta: Venta, db: Session, *, dxv_map=None) -> dict:
         1 for o in venta.ordenes_produccion
         if o.Estado not in (11, 5)
     )
+    ordenes_en_espera = sum(
+        1 for o in venta.ordenes_produccion
+        if o.Estado == 1
+    )
 
     return {
         "ID_Venta":           venta.ID_Venta,
@@ -421,6 +425,7 @@ def _formato_venta(venta: Venta, db: Session, *, dxv_map=None) -> dict:
         "nombre_domiciliario":          domiciliario,
         "ID_Empleado":                  domicilio.ID_Empleado if domicilio else None,
         "ordenes_produccion_pendientes": ordenes_pendientes,
+        "ordenes_en_espera":             ordenes_en_espera,
         "requiere_produccion":           requiere_produccion,
         # Pedido especial por encima del stock + anticipo del 50% (calculado y
         # verificado en backend al crear la venta).
@@ -605,16 +610,20 @@ def _batch_ventas(ventas: list, db: Session) -> list:
     repartidores = {u.ID_Usuario: u for u in
                     db.query(Usuario).filter(Usuario.ID_Usuario.in_(emp_ids)).all()} if emp_ids else {}
 
-    # Batch 9: órdenes pendientes por venta (COUNT)
+    # Batch 9: órdenes pendientes por venta (COUNT total + en espera=Pendiente)
     ordenes_rows = (
-        db.query(OrdenProduccion.ID_Venta,
-                 func.count(OrdenProduccion.ID_Orden_Produccion).label("cnt"))
+        db.query(
+            OrdenProduccion.ID_Venta,
+            func.count(OrdenProduccion.ID_Orden_Produccion).label("cnt"),
+            func.sum(case((OrdenProduccion.Estado == 1, 1), else_=0)).label("espera"),
+        )
         .filter(OrdenProduccion.ID_Venta.in_(venta_ids),
                 OrdenProduccion.Estado.notin_([11, 5]))
         .group_by(OrdenProduccion.ID_Venta)
         .all()
     )
-    ordenes_counts = {row.ID_Venta: row.cnt for row in ordenes_rows}
+    ordenes_counts  = {row.ID_Venta: row.cnt    for row in ordenes_rows}
+    ordenes_espera  = {row.ID_Venta: row.espera for row in ordenes_rows}
 
     result = []
     for venta in ventas:
@@ -683,6 +692,7 @@ def _batch_ventas(ventas: list, db: Session) -> list:
             "nombre_domiciliario":          domiciliario,
             "ID_Empleado":                  dom.ID_Empleado if dom else None,
             "ordenes_produccion_pendientes": ordenes_counts.get(venta.ID_Venta, 0),
+            "ordenes_en_espera":             ordenes_espera.get(venta.ID_Venta, 0),
             "requiere_produccion":           requiere_produccion,
             "sobre_stock":             bool(getattr(venta, "Sobre_Stock", 0)),
             "anticipo_requerido":      getattr(venta, "Anticipo_Requerido", None),
