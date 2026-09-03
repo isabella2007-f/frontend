@@ -35,6 +35,8 @@ class RegistroInput(BaseModel):
     Correo:               str = Field(example="ana@gmail.com")
     Contrasena:           str = Field(example="MiClave123@")
     Confirmar_contrasena: str = Field(example="MiClave123@")
+    Tipo_documento:       Optional[str] = Field(default="CC", example="CC")
+    Numero_documento:     Optional[str] = Field(default=None, example="1234567890")
 
     @model_validator(mode="after")
     def validar_contrasenas(self):

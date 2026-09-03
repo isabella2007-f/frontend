@@ -203,8 +203,8 @@ def registrar_cliente(db: Session, datos):
         # directamente para que el segundo login no quede bloqueado.
         Correo_Verificado = 0 if (GMAIL_CLIENT_ID or BREVO_API_KEY or RESEND_API_KEY) else 1,
         ID_Rol         = rol_cliente.ID_Rol,
-        Cedula         = None,
-        Tipo_Documento = None,
+        Cedula         = getattr(datos, "Numero_documento", None) or None,
+        Tipo_Documento = getattr(datos, "Tipo_documento", None) or None,
         Direccion      = None,
         Municipio      = None,
         Departamento   = None,
