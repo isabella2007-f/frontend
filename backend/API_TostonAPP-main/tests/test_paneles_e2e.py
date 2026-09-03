@@ -1417,5 +1417,124 @@ class FechaPropuestaTests(PanelBase):
         self.assertEqual(self.venta(id_venta).Estado, PEDIDO_CANCELADO)
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# 12. La receta se lee en las unidades en que está escrita
+# ══════════════════════════════════════════════════════════════════════════
+class RecetaEnDistintasUnidadesTests(PanelBase):
+    """El caso del azúcar: 4 tortas × 20 g contra 100 kg en bodega.
+
+    Decía "insumos insuficientes" y daba la azúcar por cero. Dos cosas la
+    rompían: el servidor comparaba los símbolos tal cual venían escritos, y el
+    stock de la ficha ni siquiera llegaba al panel —el esquema lo borraba al
+    responder—, así que la pantalla lo buscaba en un listado aparte y, si no
+    estaba ahí, asumía cero.
+    """
+
+    AZUCAR = 9
+    POR_TORTA = 20.0     # gramos de azúcar por torta
+    EN_BODEGA = 100.0    # kilos
+
+    def receta_de_azucar(self, unidad_insumo="kg", unidad_ficha="g"):
+        from src.shared.services.models import (
+            FichaTecnica as _F, FichaTecnicaInsumo as _FI, Insumo as _I,
+            LoteCompra as _LC, UnidadMedida as _UM,
+        )
+        self.db.query(_FI).delete()
+        self.db.query(_F).delete()
+        self.db.add(_UM(ID_Unidad_Medida=9, Simbolo=unidad_insumo,
+                        Unidad_Medida=unidad_insumo))
+        self.db.add(_I(ID_Insumo=self.AZUCAR, Nombre="Azúcar blanca",
+                       Unidad_Medida=9, Stock_Actual=self.EN_BODEGA,
+                       Stock_Minimo=1, Estado=1))
+        self.db.add(_LC(
+            ID_Lote_Compra=9, ID_Insumo=self.AZUCAR,
+            Fecha_Vencimiento=datetime.now() + timedelta(days=200),
+            Cantidad_Inicial=self.EN_BODEGA, Cantidad_Actual=self.EN_BODEGA,
+            Estado=1,
+        ))
+        self.db.add(_F(ID_Ficha=9, ID_Producto=ID_TORTA, Version="1", Estado=1,
+                       Dias_Vida_Util=5, Vida_Util_Unidad="dias"))
+        self.db.add(_FI(ID_Ficha_Insumo=9, ID_Ficha=9, ID_Insumo=self.AZUCAR,
+                        Cantidad=self.POR_TORTA, Unidad=unidad_ficha))
+        self.db.commit()
+
+    def azucar(self):
+        from src.shared.services.models import Insumo as _I
+        self.db.expire_all()
+        return float(self.db.query(_I).filter(
+            _I.ID_Insumo == self.AZUCAR
+        ).first().Stock_Actual)
+
+    def iniciar_la_orden(self):
+        pedido = self.pedido_con_faltante()      # 6 tortas, stock 2 → orden de 4
+        orden = self.orden(pedido["ID_Venta"])
+        self.assertEqual(orden.Cantidad, 4)
+        return self.patch(
+            f"/ordenes-produccion/{orden.ID_Orden_Produccion}/estado",
+            self.admin, {"Estado": ORDEN_EN_PROCESO},
+        )
+
+    def test_la_orden_arranca_y_descuenta_lo_que_pesa(self):
+        self.receta_de_azucar()
+        self.afirmar_ok(self.iniciar_la_orden())
+        # 20 g × 4 = 80 g = 0,08 kg de los 100 que hay.
+        self.assertAlmostEqual(self.azucar(), 99.92, places=4)
+
+    def test_da_igual_como_esté_escrita_la_unidad(self):
+        for unidad_insumo, unidad_ficha in (("kg", "g"), ("Kg", "gr"),
+                                            ("KG", "G"), ("kilos", "gramos")):
+            with self.subTest(insumo=unidad_insumo, ficha=unidad_ficha):
+                self.setUp()
+                self.receta_de_azucar(unidad_insumo, unidad_ficha)
+                self.afirmar_ok(self.iniciar_la_orden())
+                self.assertAlmostEqual(self.azucar(), 99.92, places=4)
+
+    def test_el_panel_recibe_el_stock_y_la_unidad_del_insumo(self):
+        """Sin estos dos campos el panel no puede comparar nada.
+
+        El esquema de respuesta no los declaraba y Pydantic los borraba, así
+        que la pantalla caía a un listado de insumos limitado a 100 y al que no
+        estuviera ahí le daba stock cero.
+        """
+        self.receta_de_azucar()
+        producto = self.afirmar_ok(self.get(f"/productos/{ID_TORTA}", self.admin))
+        insumo = producto["ficha_tecnica"]["insumos"][0]
+        self.assertEqual(insumo["nombre_insumo"], "Azúcar blanca")
+        self.assertEqual(insumo["Stock_Actual"], self.EN_BODEGA)
+        self.assertEqual(insumo["simbolo_unidad"], "kg")
+        self.assertEqual(insumo["Unidad"], "g")
+
+    def test_el_listado_de_productos_también_los_trae(self):
+        self.receta_de_azucar()
+        listado = self.afirmar_ok(self.get("/productos/?por_pagina=50", self.admin))
+        fichas = [p["ficha_tecnica"] for p in listado["productos"]
+                  if p.get("ficha_tecnica")]
+        self.assertTrue(fichas)
+        insumo = fichas[0]["insumos"][0]
+        self.assertEqual(insumo["Stock_Actual"], self.EN_BODEGA)
+        self.assertEqual(insumo["simbolo_unidad"], "kg")
+
+    def test_cuando_de_verdad_falta_insumo_lo_dice_en_su_unidad(self):
+        self.receta_de_azucar()
+        from src.shared.services.models import Insumo as _I
+        azucar = self.db.query(_I).filter(_I.ID_Insumo == self.AZUCAR).first()
+        azucar.Stock_Actual = 0.01          # 10 g, hacen falta 80
+        self.db.commit()
+
+        respuesta = self.iniciar_la_orden()
+        self.assertEqual(respuesta.status_code, 400)
+        detalle = self.detalle(respuesta).lower()
+        self.assertIn("insuficiente", detalle)
+        self.assertIn("azúcar blanca", detalle)
+        self.assertIn("kg", detalle)
+
+    def test_unidades_que_no_se_pueden_comparar_lo_dicen(self):
+        """Litros contra gramos: hay que arreglar la ficha, no comprar azúcar."""
+        self.receta_de_azucar(unidad_insumo="l", unidad_ficha="g")
+        respuesta = self.iniciar_la_orden()
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn("no se puede convertir", self.detalle(respuesta).lower())
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
