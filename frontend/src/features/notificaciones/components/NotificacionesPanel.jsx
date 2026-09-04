@@ -24,7 +24,7 @@ const fmtFecha = (iso) => {
 export default function NotificacionesPanel({ isOpen, onClose }) {
   const {
     notificaciones, noLeidas,
-    marcarLeida, marcarTodasLeidas, eliminarNotificacion,
+    marcarLeida, marcarTodasLeidas, eliminarNotificacion, eliminarTodasNotificaciones,
     filtrar,
   } = useNotificaciones();
 
@@ -110,6 +110,11 @@ export default function NotificacionesPanel({ isOpen, onClose }) {
             {noLeidas > 0 && (
               <button className="notif-link-btn" onClick={marcarTodasLeidas}>
                 Marcar todas como leídas
+              </button>
+            )}
+            {lista.length > 0 && (
+              <button className="notif-link-btn notif-link-btn--danger" onClick={eliminarTodasNotificaciones} data-tooltip="Eliminar todas las notificaciones" style={{display:"flex",alignItems:"center",gap:4}}>
+                <Trash2 size={12} /> Eliminar todas
               </button>
             )}
             <button className="notif-close-btn" onClick={onClose} data-tooltip="Cerrar panel" style={{display:"flex",alignItems:"center",justifyContent:"center"}}><X size={16} /></button>

@@ -121,6 +121,9 @@ export async function crearPedidoCliente({
     anticipo_metodo_pago:     anticipoData?.requiere ? metodoAnticipoApi(anticipoData.metodo) : null,
     anticipo_comprobante_url: anticipoComprobanteUrl,
     anticipo_registrado:      anticipoRegistrado,
+    // Señal explícita de que el cliente eligió pagar el total ahora: el backend
+    // la usa para marcar pago_final_registrado=1 sin comparar montos exactos.
+    pagar_todo:               !!(anticipoData?.requiere && anticipoData?.pagarTodo),
 
     domicilio: entrega.tieneDomicilio && entrega.address ? {
       Direccion_entrega:    entrega.address,

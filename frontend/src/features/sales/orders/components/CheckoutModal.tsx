@@ -121,7 +121,9 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   const [anticipoEfectivo,    setAnticipoEfectivo]    = useState(false);
   const [anticipoComprobante, setAnticipoComprobante] = useState<File | null>(null);
   const [anticipoError,       setAnticipoError]       = useState('');
-  const [pagarTodo,           setPagarTodo]           = useState(false);
+  // 'mitad' = 50%, 'todo' = 100%, 'personalizado' = monto elegido por el cliente
+  const [anticipoOpcion,      setAnticipoOpcion]      = useState<'mitad' | 'todo' | 'personalizado'>('mitad');
+  const [montoPersonalizado,  setMontoPersonalizado]  = useState<number | ''>('');
   const [terminosAceptados,  setTerminosAceptados]   = useState(false);
 
   useEffect(() => {
@@ -161,7 +163,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
     getMiCredito()
       .then((data: any) => setCredito(data?.saldo || 0))
       .catch(() => setCredito(0));
-    setPagarTodo(false);
+    setAnticipoOpcion('mitad');
+    setMontoPersonalizado('');
     setAnticipoMetodo('');
     setAnticipoEfectivo(false);
     setAnticipoComprobante(null);
@@ -227,7 +230,14 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
     ? Math.min(Math.max(Number(creditoMonto) || 0, 0), creditoMaximo)
     : 0;
   const totalFinal       = Math.max(0, orderDetails.total + costoDomicilio - creditoAplicar);
-  const montoAnticipo        = requiereAnticipo ? (pagarTodo ? totalFinal : Math.ceil(totalFinal * 0.5)) : 0;
+  const montoMitad = Math.ceil(totalFinal * 0.5);
+  const montoAnticipo = requiereAnticipo
+    ? anticipoOpcion === 'todo'          ? totalFinal
+    : anticipoOpcion === 'personalizado' ? Math.max(montoMitad, Math.min(Math.round(Number(montoPersonalizado) || 0), totalFinal))
+    : montoMitad
+    : 0;
+  // El cliente paga todo si eligió "Pagar total" o si el monto personalizado alcanza el total
+  const pagarTodo            = anticipoOpcion === 'todo' || (anticipoOpcion === 'personalizado' && montoAnticipo >= totalFinal);
   const creditoCubreAnticipo = requiereAnticipo && usarCredito
     && creditoAplicar >= montoAnticipo;
 
@@ -613,22 +623,48 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                 </div>
               </div>
 
-              {/* Toggle: anticipo 50% vs pagar total ahora */}
-              <div className="grid grid-cols-2 gap-2">
+              {/* Toggle: anticipo 50% / monto elegido / pagar total */}
+              <div className="grid grid-cols-3 gap-2">
                 {([
-                  { id: false, label: 'Anticipo 50%' },
-                  { id: true,  label: 'Pagar total ahora' },
-                ] as Array<{ id: boolean; label: string }>).map(opt => (
-                  <button key={String(opt.id)}
-                    onClick={() => { setPagarTodo(opt.id); setAnticipoMetodo(''); setAnticipoEfectivo(false); setAnticipoComprobante(null); setAnticipoError(''); }}
-                    className={`p-2 rounded-xl border-2 text-xs font-black transition-all ${pagarTodo === opt.id ? 'border-yellow-500 bg-yellow-100 text-yellow-900' : 'border-gray-200 bg-white text-gray-400 hover:border-yellow-200'}`}>
+                  { id: 'mitad',         label: 'Anticipo 50%'     },
+                  { id: 'personalizado', label: 'Elegir monto'     },
+                  { id: 'todo',          label: 'Pagar total ahora' },
+                ] as Array<{ id: 'mitad' | 'todo' | 'personalizado'; label: string }>).map(opt => (
+                  <button key={opt.id}
+                    onClick={() => { setAnticipoOpcion(opt.id); setMontoPersonalizado(''); setAnticipoMetodo(''); setAnticipoEfectivo(false); setAnticipoComprobante(null); setAnticipoError(''); }}
+                    className={`p-2 rounded-xl border-2 text-xs font-black transition-all ${anticipoOpcion === opt.id ? 'border-yellow-500 bg-yellow-100 text-yellow-900' : 'border-gray-200 bg-white text-gray-400 hover:border-yellow-200'}`}>
                     {opt.label}
                   </button>
                 ))}
               </div>
 
+              {/* Input para monto personalizado */}
+              {anticipoOpcion === 'personalizado' && (
+                <div className="space-y-1">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={montoMitad}
+                    max={totalFinal}
+                    step={100}
+                    placeholder={`Entre ${COP(montoMitad)} y ${COP(totalFinal)}`}
+                    value={montoPersonalizado}
+                    onChange={e => setMontoPersonalizado(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full bg-gray-50 border border-yellow-300 rounded-xl py-2.5 px-3 text-sm text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-yellow-200 focus:border-yellow-400 transition-all"
+                  />
+                  {montoPersonalizado !== '' && Number(montoPersonalizado) < montoMitad && (
+                    <p className="text-[10px] font-bold text-red-500">El mínimo es {COP(montoMitad)} (50%)</p>
+                  )}
+                  {montoPersonalizado !== '' && Number(montoPersonalizado) > totalFinal && (
+                    <p className="text-[10px] font-bold text-red-500">No puede superar el total ({COP(totalFinal)})</p>
+                  )}
+                </div>
+              )}
+
               <div className="flex items-center justify-between bg-white rounded-xl px-3 py-2 border border-yellow-200">
-                <span className="text-xs font-bold text-gray-600">{pagarTodo ? 'Total a pagar ahora' : 'Anticipo (50%)'}</span>
+                <span className="text-xs font-bold text-gray-600">
+                  {anticipoOpcion === 'todo' ? 'Total a pagar ahora' : anticipoOpcion === 'personalizado' ? 'Anticipo elegido' : 'Anticipo (50%)'}
+                </span>
                 <span className="text-base font-black text-yellow-700">{COP(montoAnticipo)}</span>
               </div>
 
@@ -792,7 +828,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                   <span>Total del pedido</span><span>{COP(totalFinal)}</span>
                 </div>
                 <div className="flex justify-between text-xs font-bold text-yellow-700">
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Banknote size={13} /> {pagarTodo ? 'Total pagado ahora' : 'Anticipo ahora (50%)'}</span><span>{COP(montoAnticipo)}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Banknote size={13} /> {pagarTodo ? 'Total pagado ahora' : anticipoOpcion === 'personalizado' ? 'Anticipo elegido' : 'Anticipo ahora (50%)'}</span><span>{COP(montoAnticipo)}</span>
                 </div>
                 {!pagarTodo && (
                   <div className="flex justify-between text-xs font-bold text-gray-400">

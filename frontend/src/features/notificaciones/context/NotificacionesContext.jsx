@@ -627,6 +627,32 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
     });
   }, []);
 
+  const eliminarTodasNotificaciones = useCallback(() => {
+    setNotificaciones(prev => {
+      const currentUser    = JSON.parse(localStorage.getItem("usuario") || "null") || user;
+      const rol            = currentUser?.rol?.toLowerCase();
+      const isAdmin        = rol === 'admin' || rol === 'administrador';
+      const isCook         = ['cocina', 'cocinero', 'produccion', 'producción'].includes(rol);
+      const isDomiciliario = rol === 'domiciliario';
+
+      prev.forEach(n => {
+        const mine = (isAdmin && n.idDestinatario === 'admin')
+          || (isCook && n.idDestinatario === 'produccion')
+          || (isDomiciliario && n.idDestinatario === 'domiciliario')
+          || (!isAdmin && !isCook && !isDomiciliario && n.idDestinatario === String(currentUser?.id));
+        if (mine && n.id_backend) eliminarNotificacionAPI(n.id_backend).catch(() => {});
+      });
+
+      return prev.filter(n => {
+        const mine = (isAdmin && n.idDestinatario === 'admin')
+          || (isCook && n.idDestinatario === 'produccion')
+          || (isDomiciliario && n.idDestinatario === 'domiciliario')
+          || (!isAdmin && !isCook && !isDomiciliario && n.idDestinatario === String(currentUser?.id));
+        return !mine;
+      });
+    });
+  }, [user]);
+
   const notifUsuario = notificaciones.filter(n => {
     const rol            = user?.rol?.toLowerCase();
     const isAdmin        = rol === 'admin' || rol === 'administrador';
@@ -656,6 +682,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
       marcarLeida,
       marcarTodasLeidas,
       eliminarNotificacion,
+      eliminarTodasNotificaciones,
       agregarNotificacion,
       configurarNivelMinimo,
       setAutoActivo,

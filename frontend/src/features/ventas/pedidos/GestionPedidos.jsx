@@ -919,6 +919,36 @@ function ModalErrorEstadoPedido({ mensaje, onClose }) {
   );
 }
 
+function ModalAvisoProduccion({ items, pedidoNumero, onClose }) {
+  if (!items?.length) return null;
+  return (
+    <div className="modal-overlay">
+      <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()} style={{ overflow: "hidden", padding: 0 }}>
+        <div style={{ background: "linear-gradient(135deg, #1565c0 0%, #1976d2 100%)", padding: "24px 24px 20px", textAlign: "center", position: "relative" }}>
+          <button onClick={onClose} style={{ position: "absolute", top: 12, right: 12, color: "rgba(255,255,255,0.8)", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 8, width: 30, height: 30, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={14} /></button>
+          <div style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "2px solid rgba(255,255,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}><Package size={26} color="white" /></div>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: "#fff" }}>Pedido #{pedidoNumero} confirmado</h3>
+          <p style={{ margin: "6px 0 0", fontSize: 11, color: "rgba(255,255,255,0.7)", fontWeight: 600 }}>Los siguientes productos irán a producción</p>
+        </div>
+        <div style={{ padding: "16px 24px" }}>
+          <div style={{ background: "#e3f2fd", border: "1.5px solid #90caf9", borderRadius: 10, padding: "10px 14px", marginBottom: 12 }}>
+            {items.map((it, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: i < items.length - 1 ? "1px solid #bbdefb" : "none" }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#1565c0" }}>{it.nombre}</span>
+                <span style={{ fontSize: 12, fontWeight: 800, color: "#0d47a1", background: "#bbdefb", borderRadius: 6, padding: "2px 8px" }}>×{it.cantidad_preorden} a producir</span>
+              </div>
+            ))}
+          </div>
+          <p style={{ margin: 0, fontSize: 11, color: "#546e7a", lineHeight: 1.5 }}>El equipo de producción recibirá la orden automáticamente. Propone una fecha de entrega cuando esté listo.</p>
+        </div>
+        <div style={{ padding: "0 24px 20px" }}>
+          <button onClick={onClose} style={{ width: "100%", padding: "11px", borderRadius: 10, border: "none", background: "#1976d2", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>Entendido</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ModalAsignarDomiciliario({ pedido, empleados, repartidores, onClose, onConfirm }) {
   const [empId, setEmpId] = useState(pedido.idEmpleado || "");
   const [error, setError] = useState("");
@@ -1702,7 +1732,16 @@ export default function GestionPedidos() {
         nuevoEstado === "Entregado" ? `Pedido ${ped.numero} marcado como entregado` :
         `Pedido ${ped.numero} confirmado exitosamente`
       );
-      setModal(null);
+      // Tras confirmar, avisar qué unidades van a producción para que el admin
+      // proponga una fecha de entrega una vez esté listo.
+      const itemsProduccion = nuevoEstado === "Confirmado"
+        ? (ped.productosItems || []).filter(it => (it.cantidad_preorden || 0) > 0)
+        : [];
+      if (itemsProduccion.length > 0) {
+        setModal({ type: "avisoProduccion", items: itemsProduccion, pedidoNumero: ped.numero });
+      } else {
+        setModal(null);
+      }
     } catch (err) {
       const errorMsg = err.message || "No se pudo cambiar el estado del pedido.";
       setModal({ type: "errorEstado", mensaje: errorMsg });
@@ -2161,6 +2200,7 @@ export default function GestionPedidos() {
       {modal?.type === "subirComprobante"    && <ModalSubirComprobante    pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleConfirmarSubirComprobante} />}
       {modal?.type === "rechazarComprobante" && <ModalRechazarComprobante pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleConfirmarRechazoComprobante} />}
       {modal?.type === "errorEstado" && <ModalErrorEstadoPedido mensaje={modal.mensaje} onClose={() => setModal(null)} />}
+      {modal?.type === "avisoProduccion" && <ModalAvisoProduccion items={modal.items} pedidoNumero={modal.pedidoNumero} onClose={() => setModal(null)} />}
 
       <Toast toast={toast} />
     </div>

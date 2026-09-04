@@ -357,7 +357,7 @@ export default function EditarProducto({ product, categorias = [], onClose, onSa
 
             <div className="form-group">
               <label className="form-label">Estado</label>
-              <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+              <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <Toggle value={form.activo} onChange={(v) => set("activo", v)} />
                   <span className="estado-label" style={{ color: form.activo ? "#2e7d32" : "#9e9e9e" }}>

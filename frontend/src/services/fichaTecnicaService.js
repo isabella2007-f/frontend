@@ -24,7 +24,7 @@ const adaptFicha = (producto) => {
       nombreCategoria: i.nombre_categoria || "",
       nombre:          i.nombre_insumo || "",
       cantidad:        String(i.Cantidad || ""),
-      unidad:          i.Unidad || "",
+      unidad:          i.simbolo_unidad || i.Unidad || i.unidad || "",
     })),
   };
 };

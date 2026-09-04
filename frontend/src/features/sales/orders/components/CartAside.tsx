@@ -33,6 +33,7 @@ const mensajeFueraHorario = () => {
 
 const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLoginRequired }) => {
   const [cart, setCart]               = useState<CartItem[]>(() => getCart());
+  const [qtyDrafts, setQtyDrafts]     = useState<{[id: number]: string}>({});
   const [address, setAddress]         = useState('');
   const [departamento, setDepartamento] = useState('Antioquia');
   const [municipio, setMunicipio]     = useState('');
@@ -51,6 +52,7 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
     const c = getCart();
     setCart(c);
     setTotal(c.reduce((acc, i) => acc + i.precio * i.cantidad, 0));
+    setQtyDrafts({});
   }, []);
 
   useEffect(() => { syncCart(); }, [isOpen, syncCart]);
@@ -293,8 +295,13 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
                             <input
                               type="number"
                               min="1"
-                              value={item.cantidad}
-                              onChange={e => handleQtyDirect(item.id, e.target.value)}
+                              value={qtyDrafts[item.id] ?? String(item.cantidad)}
+                              onChange={e => setQtyDrafts(prev => ({ ...prev, [item.id]: e.target.value }))}
+                              onBlur={e => {
+                                const val = e.target.value;
+                                setQtyDrafts(prev => { const n = { ...prev }; delete n[item.id]; return n; });
+                                handleQtyDirect(item.id, val);
+                              }}
                               className="w-8 text-center text-[10px] font-black text-gray-800 bg-transparent border-none outline-none"
                               style={{ appearance: 'textfield', MozAppearance: 'textfield', WebkitAppearance: 'none' } as React.CSSProperties}
                             />

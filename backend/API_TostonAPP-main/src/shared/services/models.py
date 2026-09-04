@@ -416,6 +416,9 @@ class Venta(Base):
     # Usar este valor (snapshot) evita que el botón "proponer fecha" aparezca incorrectamente
     # cuando el stock cambia después de crear el pedido.
     Necesita_Produccion      = Column(Integer,      default=0,           nullable=True)
+    # Respuesta del cliente a "¿Quiere que enviemos todo el pedido junto el domingo?"
+    # NULL = no respondió todavía, 1 = sí, 0 = no.
+    Envio_Completo_Domingo   = Column(Integer,                           nullable=True)
 
     usuario            = relationship("Usuario", back_populates="ventas")
     productos          = relationship("VentaXProducto", back_populates="venta")
