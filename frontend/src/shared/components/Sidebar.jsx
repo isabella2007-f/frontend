@@ -211,6 +211,7 @@ export default function Sidebar({ isOpen, onToggle }) {
                     to={link}
                     data-tooltip={!isOpen ? section : undefined}
                     className={`section-btn section-btn--link ${location.pathname === link ? "active" : ""}`}
+                    onClick={(e) => { if (!isOpen) { e.preventDefault(); onToggle(); } }}
                   >
                     <span className="section-icon-wrap"><SectionIcon size={15} /></span>
                     <span className="section-label">{section}</span>
@@ -231,7 +232,7 @@ export default function Sidebar({ isOpen, onToggle }) {
                 <div key={section}>
                   <button
                     className={`section-btn ${isSectionOpen ? "open" : ""}`}
-                    onClick={() => toggle(section)}
+                    onClick={() => !isOpen ? onToggle() : toggle(section)}
                     data-tooltip={!isOpen ? section : undefined}
                   >
                     <span className="section-icon-wrap">

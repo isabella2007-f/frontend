@@ -87,6 +87,9 @@
 
 .notif-link-btn:hover { color: #388e3c; }
 
+.notif-link-btn--danger { color: #b91c1c; text-decoration: none; }
+.notif-link-btn--danger:hover { color: #991b1b; }
+
 .notif-close-btn {
   width: 30px;
   height: 30px;

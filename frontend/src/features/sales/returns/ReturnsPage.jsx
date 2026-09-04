@@ -365,14 +365,15 @@ const ReturnsPage = () => {
         {/* ── Info card ── */}
         <div style={{
           marginTop: 28,
-          background: 'linear-gradient(135deg, #111827, #1f2937)',
+          background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)',
+          border: '1px solid #a7f3d0',
           borderRadius: 18, padding: '18px 22px',
           display: 'flex', alignItems: 'flex-start', gap: 12,
         }}>
-          <AlertCircle size={17} color="#34d399" style={{ flexShrink: 0, marginTop: 2 }} />
-          <p style={{ margin: 0, fontSize: 12, color: '#9ca3af', lineHeight: 1.65, fontFamily: 'var(--font-body)' }}>
+          <AlertCircle size={17} color="#059669" style={{ flexShrink: 0, marginTop: 2 }} />
+          <p style={{ margin: 0, fontSize: 12, color: '#065f46', lineHeight: 1.65, fontFamily: 'var(--font-body)' }}>
             Nuestro equipo revisará tu solicitud en un plazo máximo de{' '}
-            <span style={{ color: '#34d399', fontWeight: 700 }}>24 a 48 horas hábiles</span>.
+            <span style={{ color: '#047857', fontWeight: 700 }}>24 a 48 horas hábiles</span>.
             Recibirás una notificación en la app cuando se tome una decisión.
           </p>
         </div>

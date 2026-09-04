@@ -4,12 +4,12 @@ from typing import Optional
 
 from src.shared.services.database import get_db
 from src.features.auth.services.dependencies import requiere_permiso, obtener_usuario_actual
-from .schemas import VentaCreate, VentaEstado, VentaResponse, VentaListResponse, FechaEntregaInput, PagoFinalCreate
+from .schemas import VentaCreate, VentaEstado, VentaResponse, VentaListResponse, FechaEntregaInput, PagoFinalCreate, EnvioCompletoDomingoInput
 from .service import (
     obtener_ventas, obtener_venta, obtener_mi_venta, crear_venta, cambiar_estado,
     obtener_mis_ventas, obtener_mi_credito, obtener_credito_cliente,
     proponer_fecha, aceptar_fecha, rechazar_fecha,
-    registrar_pago_final,
+    registrar_pago_final, guardar_envio_completo_domingo,
 )
 
 router = APIRouter(prefix="/ventas", tags=["Gestión de Ventas"])
@@ -150,6 +150,17 @@ def registrar_pago_final_endpoint(
 ):
     """Registra el pago del saldo restante al momento de entrega. Solo para pedidos con anticipo."""
     return registrar_pago_final(db, id_venta, datos)
+
+
+@router.patch("/{id_venta}/envio-completo-domingo", response_model=VentaResponse)
+def envio_completo_domingo_endpoint(
+    id_venta: int,
+    datos:    EnvioCompletoDomingoInput,
+    db:       Session = Depends(get_db),
+    actual:   dict    = Depends(obtener_usuario_actual),
+):
+    """El cliente responde si quiere recibir todo el pedido junto el domingo."""
+    return guardar_envio_completo_domingo(db, id_venta, datos.envio_completo_domingo, actual)
 
 
 @router.patch("/{id_venta}/rechazar-fecha", response_model=VentaResponse)

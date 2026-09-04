@@ -19,6 +19,12 @@ const COP = (n) =>
 
 /* ── fila de un producto ── */
 function ProductRow({ item, checked, motivo, cantidadDev, onToggle, onMotivo, onCantidad }) {
+  const [draft, setDraft] = useState(String(cantidadDev));
+
+  useEffect(() => {
+    setDraft(String(cantidadDev));
+  }, [cantidadDev]);
+
   return (
     <div style={{
       borderRadius: 14,
@@ -85,8 +91,13 @@ function ProductRow({ item, checked, motivo, cantidadDev, onToggle, onMotivo, on
                 type="number"
                 min={1}
                 max={item.cantidad}
-                value={cantidadDev}
-                onChange={e => onCantidad(e.target.value)}
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                onBlur={() => {
+                  const n = Math.max(1, Math.min(item.cantidad, parseInt(draft, 10) || 1));
+                  onCantidad(n);
+                  setDraft(String(n));
+                }}
                 style={{
                   width: 56, textAlign: 'center', padding: '5px 6px', borderRadius: 8,
                   border: '1.5px solid #a7f3d0', background: 'white',

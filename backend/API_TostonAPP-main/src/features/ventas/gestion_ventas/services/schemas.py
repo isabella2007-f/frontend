@@ -45,6 +45,14 @@ class VentaCreate(BaseModel):
     anticipo_metodo_pago:     Optional[str]       = None
     anticipo_comprobante_url: Optional[str]       = None
     anticipo_registrado:      bool                = False
+    # El cliente eligió pagar el total ahora (no solo el 50%). El servidor lo
+    # usa para marcar pago_final_registrado=1 sin comparar montos exactos,
+    # evitando fallos por diferencias de redondeo entre el total del cliente
+    # (JS) y el total del servidor (Decimal).
+    pagar_todo:               bool                = False
+    # Respuesta a "¿Quiere que le enviemos todo junto el domingo?"
+    # None = no se preguntó aún; True = sí; False = no.
+    envio_completo_domingo:   Optional[bool]      = None
 
 
 # ── Registrar pago del saldo final al entregar ──
@@ -132,6 +140,8 @@ class VentaResponse(BaseModel):
     requiere_produccion:           bool             = False
     ordenes_produccion_pendientes: int              = 0
     ordenes_en_espera:             int              = 0
+    # Respuesta del cliente a "¿Todo junto el domingo?"
+    envio_completo_domingo:        Optional[bool]   = None
 
     class Config:
         from_attributes = True
@@ -143,6 +153,11 @@ class VentaListResponse(BaseModel):
     pagina:     int
     por_pagina: int
     ventas:     list[VentaResponse]
+
+
+# ── Respuesta del cliente: ¿todo junto el domingo? ──
+class EnvioCompletoDomingoInput(BaseModel):
+    envio_completo_domingo: bool
 
 
 # ── Rechazar comprobante de transferencia ──

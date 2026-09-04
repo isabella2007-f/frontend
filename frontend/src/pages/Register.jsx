@@ -6,7 +6,7 @@ import { User, Mail, Lock, Eye, EyeOff, Check, X, AlertTriangle, Leaf, ChevronRi
 import { validatePassword } from '../features/configuracion/Usuarios/usuariosUtils.js';
 import './Auth.css';
 
-const TIPOS_DOC = ['CC', 'TI', 'CE', 'Pasaporte', 'NIT', 'PPT'];
+const TIPOS_DOC = ['CC', 'CE', 'Pasaporte', 'NIT', 'PPT'];
 
 const PASS_RULES = [
   { test: p => p.length >= 8,          label: 'Mínimo 8 caracteres' },

@@ -32,7 +32,8 @@ const InicioPage = () => {
         stock:       p.Stock       || p.stock       || 0,
         publicado:   !!p.Publicado,
         imagen:      p.Imagen      || p.imagen      || null,
-        categoria:   p.nombre_categoria || "",
+        categoria:          p.nombre_categoria || "",
+        requiereProduccion: !!(p.Requiere_Produccion || p.requiere_produccion),
       }));
       setProductos(lista.filter(p => p.publicado));
     }).catch(() => {});

@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMisVentas, cancelarMiPedido, aceptarFechaProduccion, rechazarFechaProduccion } from '../../../services/pedidosService';
+import { getMisVentas, cancelarMiPedido, aceptarFechaProduccion, rechazarFechaProduccion, guardarEnvioCompletoDomingo } from '../../../services/pedidosService';
 import { crearDevolucion } from '../../../services/devolucionesService';
 import { fmtFecha } from '../../../utils/dateUtils.js';
 import { getCurrentUser } from '../../client/profile/services/profileService.js';
@@ -354,8 +354,9 @@ const PedidosClientePage = () => {
   const [cancelError,    setCancelError]    = useState('');
   const [accionFecha,    setAccionFecha]    = useState(null); // "aceptar" | "rechazar"
   const [accionFechaErr, setAccionFechaErr] = useState('');
-  const [devModal,       setDevModal]       = useState(null);
-  const [devToast,       setDevToast]       = useState(null);
+  const [devModal,             setDevModal]             = useState(null);
+  const [devToast,             setDevToast]             = useState(null);
+  const [guardandoEnvio,       setGuardandoEnvio]       = useState(false);
   const navigate = useNavigate();
 
   // Ref para acceder al pedido seleccionado dentro del interval sin recrear el callback
@@ -394,6 +395,19 @@ const PedidosClientePage = () => {
     const matchEstado = filterEstado === 'todos' || p.estado === filterEstado;
     return matchSearch && matchEstado;
   }).sort((a, b) => new Date(b.fecha_pedido) - new Date(a.fecha_pedido));
+
+  const handleEnvioCompletoDomingo = async (pedido, valor) => {
+    setGuardandoEnvio(true);
+    try {
+      const actualizado = await guardarEnvioCompletoDomingo(pedido.id, valor);
+      setPedidos(prev => prev.map(p => p.id === actualizado.id ? actualizado : p));
+      setSelectedPedido(actualizado);
+    } catch {
+      // silencioso: la UI ya muestra el estado
+    } finally {
+      setGuardandoEnvio(false);
+    }
+  };
 
   const handleRequestReturn = (pedido) => {
     closeModal();
@@ -747,6 +761,49 @@ const PedidosClientePage = () => {
                       {accionFecha === 'rechazar' ? 'Rechazando…' : <><X size={14} /> Rechazar fecha</>}
                     </button>
                   </div>
+                </div>
+              )}
+
+              {/* ── Pregunta: ¿envío completo el domingo? ── */}
+              {(selectedPedido.requiereFechaPropuesta || selectedPedido.sobre_stock) && (
+                <div style={{ background: selectedPedido.envio_completo_domingo === null ? '#fffde7' : '#e8f5e9', border: `1.5px solid ${selectedPedido.envio_completo_domingo === null ? '#ffe082' : '#a5d6a7'}`, borderRadius: 14, padding: '14px 16px' }}>
+                  <p style={{ fontSize: 10, fontWeight: 800, color: '#f57f17', letterSpacing: 1, textTransform: 'uppercase', margin: '0 0 6px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Truck size={12} /> Coordinar entrega
+                  </p>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#4a4a4a', margin: '0 0 12px', lineHeight: 1.5 }}>
+                    ¿Está de acuerdo con que le enviemos todo el pedido junto el domingo?
+                  </p>
+                  {selectedPedido.envio_completo_domingo === null ? (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        disabled={guardandoEnvio}
+                        onClick={() => handleEnvioCompletoDomingo(selectedPedido, true)}
+                        style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: '#2e7d32', color: '#fff', fontWeight: 800, fontSize: 13, cursor: guardandoEnvio ? 'not-allowed' : 'pointer', opacity: guardandoEnvio ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                        <Check size={14} /> Sí, el domingo está bien
+                      </button>
+                      <button
+                        disabled={guardandoEnvio}
+                        onClick={() => handleEnvioCompletoDomingo(selectedPedido, false)}
+                        style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #e0e0e0', background: '#fff', color: '#424242', fontWeight: 700, fontSize: 13, cursor: guardandoEnvio ? 'not-allowed' : 'pointer', opacity: guardandoEnvio ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                        <X size={14} /> Prefiero recibir antes lo disponible
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '1px solid #c8e6c9', borderRadius: 10, padding: '10px 14px' }}>
+                      <Check size={14} color="#2e7d32" />
+                      <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#2e7d32' }}>
+                        {selectedPedido.envio_completo_domingo
+                          ? 'Elegiste recibir todo junto el domingo.'
+                          : 'Elegiste recibir primero lo que ya está disponible.'}
+                      </p>
+                      <button
+                        disabled={guardandoEnvio}
+                        onClick={() => handleEnvioCompletoDomingo(selectedPedido, !selectedPedido.envio_completo_domingo)}
+                        style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: '#757575', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                        Cambiar
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 

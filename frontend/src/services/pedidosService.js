@@ -61,6 +61,8 @@ const adaptPedido = (p) => {
     pago_final_comprobante_url: p.pago_final_comprobante_url || null,
     pago_final_fecha:          p.pago_final_fecha    || null,
     estado_pago:               p.estado_pago         || null,
+    envio_completo_domingo:
+      p.envio_completo_domingo == null ? null : !!p.envio_completo_domingo,
     cliente: {
       nombre:   p.nombre_cliente   || "",
       correo:   p.correo_cliente   || "",
@@ -164,6 +166,14 @@ export const aceptarFechaProduccion = async (id) =>
 
 export const rechazarFechaProduccion = async (id) =>
   apiFetch(`/ventas/${id}/rechazar-fecha`, { method: "PATCH" });
+
+export const guardarEnvioCompletoDomingo = async (id, valor) => {
+  const data = await apiFetch(`/ventas/${id}/envio-completo-domingo`, {
+    method: "PATCH",
+    body: JSON.stringify({ envio_completo_domingo: valor }),
+  });
+  return adaptPedido(data);
+};
 
 export const aprobarComprobante = async (id) =>
   apiFetch(`/pedidos/${id}/aprobar-comprobante`, { method: "PATCH" });

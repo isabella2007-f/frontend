@@ -447,6 +447,11 @@ def _formato_venta(venta: Venta, db: Session, *, dxv_map=None) -> dict:
         # (sobre stock o producción). Los normales no la necesitan.
         "requiere_fecha_propuesta": requiere_fecha_propuesta(db, venta),
         "fecha_rechazada": getattr(venta, "Fecha_Rechazada", None),
+        # None = no contestó, True = quiere todo junto el domingo, False = prefiere recibir lo disponible ya
+        "envio_completo_domingo": (
+            None if getattr(venta, "Envio_Completo_Domingo", None) is None
+            else bool(venta.Envio_Completo_Domingo)
+        ),
     }
 
 
@@ -941,7 +946,29 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
         l["ID_Producto"] in _producibles and l["preorden"] > 0 for l in lineas
     )
 
+    # Productos sin ficha técnica ni bandera de producción: no se pueden fabricar.
+    # Si el cliente pidió más de lo que hay, rechazar ya con info clara en vez de
+    # crear un pedido que nadie puede cumplir.
+    lineas_sin_produccion_con_deficit = [
+        l for l in lineas
+        if l["ID_Producto"] not in _producibles and l["preorden"] > 0
+    ]
+    if lineas_sin_produccion_con_deficit:
+        detalle = "; ".join(
+            f"{l['nombre']}: disponible {l['stock']}, pediste {l['cantidad']}"
+            for l in lineas_sin_produccion_con_deficit
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=f"No hay stock suficiente y estos productos no se fabrican por encargo: {detalle}",
+        )
+
     nueva_venta.Necesita_Produccion = 1 if necesita_produccion else 0
+    # Guardar la respuesta del cliente si ya viene en la creación del pedido.
+    # Normalmente llega None (se pregunta en el detalle del pedido) pero se
+    # acepta aquí también para no necesitar un PATCH inmediato.
+    _envio = getattr(datos, "envio_completo_domingo", None)
+    nueva_venta.Envio_Completo_Domingo = (None if _envio is None else (1 if _envio else 0))
     if necesita_produccion:
         notificar(
             db, "produccion_requerida", "Pedido requiere producción",
@@ -1109,11 +1136,17 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
         nueva_venta.Anticipo_Comprobante_Url = datos.anticipo_comprobante_url
         nueva_venta.Anticipo_Registrado      = 1 if datos.anticipo_registrado else 0
         nueva_venta.Estado_Pago              = "anticipo_pagado" if datos.anticipo_registrado else "pendiente"
-        # Si el monto registrado cubre el total completo → ya está saldado
-        if datos.anticipo_registrado and datos.anticipo_monto is not None:
-            if float(datos.anticipo_monto) >= float(nueva_venta.Total or 0):
-                nueva_venta.Pago_Final_Registrado = 1
-                nueva_venta.Estado_Pago           = "pagado_completo"
+        # El cliente eligió pagar el total completo ahora. Se usa la bandera
+        # explícita (pagar_todo) en vez de comparar montos: la diferencia de
+        # redondeo entre el total del cliente (JS) y el servidor (Decimal) puede
+        # dejar el pedido en "anticipo_pagado" aunque el cliente pagara todo.
+        _pago_total = getattr(datos, "pagar_todo", False)
+        if datos.anticipo_registrado and (
+            _pago_total
+            or (datos.anticipo_monto is not None and float(datos.anticipo_monto) >= float(nueva_venta.Total or 0))
+        ):
+            nueva_venta.Pago_Final_Registrado = 1
+            nueva_venta.Estado_Pago           = "pagado_completo"
 
     db.add(DetalleVenta(
         ID_Venta    = nueva_venta.ID_Venta,
@@ -1224,28 +1257,42 @@ def registrar_pago_final(db: Session, id_venta: int, datos) -> dict:
     """
     from .schemas import PagoFinalCreate  # importación local para evitar circular
 
+    # Buscar la venta; si no existe, no hay nada que registrar
     venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
 
+    # ── D1: Estado del pedido ──────────────────────────
+    # Rechaza el registro si el pedido ya está en un estado final
+    # (Entregado o Cancelado), donde no tiene sentido cobrar un saldo.
     if venta.Estado in (EstadoPedido.ENTREGADO, EstadoPedido.CANCELADO):
         raise HTTPException(
             status_code=400,
             detail="El pedido no está en un estado válido para registrar el pago final",
         )
 
+    # ── D2: ¿El pedido requiere anticipo? ──────────────
+    # Solo los pedidos que exigieron anticipo (sobre stock o especiales)
+    # pueden tener un "pago final" pendiente; los demás no aplican aquí.
     if not getattr(venta, "Requiere_Anticipo", 0):
         raise HTTPException(
             status_code=400,
             detail="Este pedido no requiere anticipo; el pago final no aplica",
         )
 
+    # ── D3 (compuesta A AND B): Transferencia SIN comprobante ──
+    # A: el método de pago es transferencia o digital
+    # B: no se adjuntó comprobante_url
+    # Si ambas se cumplen a la vez, se exige el comprobante antes de continuar.
     if datos.metodo_pago.lower() in ("transferencia", "digital") and not datos.comprobante_url:
         raise HTTPException(
             status_code=400,
             detail="Se requiere comprobante para pago por transferencia",
         )
 
+    # ── Registro del pago final ────────────────────────
+    # Si pasó las 3 validaciones anteriores, se guarda el pago
+    # y se marca la venta como completamente pagada.
     venta.Pago_Final_Monto           = datos.monto
     venta.Pago_Final_Metodo_Pago     = datos.metodo_pago
     venta.Pago_Final_Comprobante_Url = datos.comprobante_url
@@ -1976,6 +2023,29 @@ def rechazar_fecha(db: Session, id_venta: int, actual: dict) -> dict:
                 Fecha         = _now(),
             ))
 
+    db.commit()
+    db.refresh(venta)
+    return _formato_venta(venta, db)
+
+
+def guardar_envio_completo_domingo(
+    db: Session, id_venta: int, valor: bool, actual: dict
+) -> dict:
+    """Registra la respuesta del cliente a '¿Todo el pedido junto el domingo?'.
+
+    Solo el propio cliente puede responder. No bloquea ningún estado: se puede
+    actualizar en cualquier momento mientras el pedido existe.
+    """
+    if actual["tipo"] != "cliente":
+        raise HTTPException(status_code=403, detail="Solo disponible para clientes")
+
+    venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+    if venta.ID_Usuario != actual["registro"].ID_Usuario:
+        raise HTTPException(status_code=403, detail="No puedes modificar pedidos de otros clientes")
+
+    venta.Envio_Completo_Domingo = 1 if valor else 0
     db.commit()
     db.refresh(venta)
     return _formato_venta(venta, db)
