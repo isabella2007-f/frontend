@@ -64,7 +64,7 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
 
   const mostrarLimiteStock = (nombre: string, stock: number) => {
     setStockLimitMsg(`En este momento no puedes pedir más de ${stock} unidad${stock !== 1 ? 'es' : ''} de "${nombre}". Inténtalo más tarde o contáctanos.`);
-    setTimeout(() => setStockLimitMsg(''), 5000);
+    setTimeout(() => setStockLimitMsg(''), 9000);
   };
 
   const handleQty = (id: number, delta: number) => {
