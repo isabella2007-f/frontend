@@ -517,7 +517,7 @@ function VerProducto({ product, catObj, onClose, onOpenFicha }) {
                 </div>
                 <div className="ver-ins-field" style={{ gridColumn: "1 / -1" }}>
                   <span className="ver-ins-field__label">Estado</span>
-                  <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
+                  <div style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <Toggle value={product.activo !== false} disabled={true} onChange={() => {}} />
                       <span style={{ fontSize: 13, fontWeight: 700, color: product.activo !== false ? "#2e7d32" : "#616161" }}>
@@ -528,6 +528,12 @@ function VerProducto({ product, catObj, onClose, onOpenFicha }) {
                       <Toggle value={product.publicado} disabled={true} onChange={() => {}} />
                       <span style={{ fontSize: 13, fontWeight: 700, color: product.publicado ? "#1565c0" : "#616161" }}>
                         {product.publicado ? "Visible en tienda" : "No publicado"}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <Toggle value={product.requiereProduccion} disabled={true} onChange={() => {}} />
+                      <span style={{ fontSize: 13, fontWeight: 700, color: product.requiereProduccion ? "#1565c0" : "#616161" }}>
+                        {product.requiereProduccion ? "Requiere producción" : "Stock directo"}
                       </span>
                     </div>
                   </div>
