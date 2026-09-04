@@ -43,6 +43,7 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
   const [checkoutError,     setCheckoutError]     = useState('');
   const [confirmVaciar,     setConfirmVaciar]     = useState(false);
   const [showDeliveryInfo,  setShowDeliveryInfo]  = useState(false);
+  const [stockLimitMsg,     setStockLimitMsg]     = useState('');
   const [total, setTotal]             = useState(() =>
     getCart().reduce((acc, i) => acc + i.precio * i.cantidad, 0)
   );
@@ -61,12 +62,20 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
     return () => window.removeEventListener('cart-updated', syncCart);
   }, [syncCart]);
 
+  const mostrarLimiteStock = (nombre: string, stock: number) => {
+    setStockLimitMsg(`En este momento no puedes pedir más de ${stock} unidad${stock !== 1 ? 'es' : ''} de "${nombre}". Inténtalo más tarde o contáctanos.`);
+    setTimeout(() => setStockLimitMsg(''), 5000);
+  };
+
   const handleQty = (id: number, delta: number) => {
     const item = cart.find(i => i.id === id);
     if (!item) return;
     const newQty = item.cantidad + delta;
     if (newQty <= 0) { removeFromCart(id); return; }
-    if (item.stock && !((item as any).pedidoProgramado) && !((item as any).requiereProduccion) && newQty > item.stock) return;
+    if (item.stock && !((item as any).pedidoProgramado) && !((item as any).requiereProduccion) && newQty > item.stock) {
+      mostrarLimiteStock(item.nombre, item.stock);
+      return;
+    }
     updateQuantity(id, newQty);
   };
 
@@ -75,6 +84,7 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
     if (isNaN(num) || num < 1) { removeFromCart(id); return; }
     const item = cart.find(i => i.id === id);
     if (item?.stock && !((item as any).pedidoProgramado) && !((item as any).requiereProduccion) && num > item.stock) {
+      mostrarLimiteStock(item.nombre, item.stock);
       updateQuantity(id, item.stock);
       return;
     }
@@ -267,6 +277,13 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
                   </button>
                 )}
               </div>
+
+              {stockLimitMsg && (
+                <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-2xl p-3 text-[11px] font-semibold text-amber-800">
+                  <AlertTriangle size={14} className="flex-shrink-0 mt-0.5 text-amber-500" />
+                  <span>{stockLimitMsg}</span>
+                </div>
+              )}
 
               <div className="grid gap-2.5">
                 {cart.map((item) => (
