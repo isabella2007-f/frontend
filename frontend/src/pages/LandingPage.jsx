@@ -21,7 +21,6 @@ import {
   clearCart
 } from '../features/sales/orders/services/cartService';
 import { getLandingConfig } from '../services/landingConfigService';
-import { esFabricable } from '../utils/anticipo';
 
 /* ═══════════════════════════════════════════
    PRODUCT DETAIL MODAL
@@ -326,7 +325,7 @@ const LandingPage = ({ hideNavbar = false }) => {
           imagenes:           p.imagenes?.map(i => i.url) || [],
           descripcion_corta:  p.Descripcion_Corta ?? "",
           descripcion_larga:  p.Descripcion_Larga ?? "",
-          requiereProduccion: esFabricable(p),
+          requiereProduccion: !!p.Requiere_Produccion,
         }));
       setProductos(vendibles);
       // Lo que dejó de estar publicado sale del carrito de quien ya lo tenía:
