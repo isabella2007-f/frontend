@@ -250,34 +250,6 @@ def _descontar_fefo(db: Session, id_insumo: int, cantidad: float) -> None:
         )
 
 
-def _restaurar_fefo(db: Session, id_insumo: int, cantidad: float) -> None:
-    """Devuelve `cantidad` al insumo en orden FEFO inverso (del último al primero en vencer)."""
-    lotes = (
-        db.query(LoteCompra)
-        .filter(
-            LoteCompra.ID_Insumo == id_insumo,
-            LoteCompra.Estado == 1,
-        )
-        .order_by(
-            case((LoteCompra.Fecha_Vencimiento.is_(None), 0), else_=1),
-            LoteCompra.Fecha_Vencimiento.desc(),
-            LoteCompra.ID_Lote_Compra.desc(),
-        )
-        .with_for_update()
-        .all()
-    )
-    restante = float(cantidad)
-    for lote in lotes:
-        if restante <= 0:
-            break
-        inicial   = float(lote.Cantidad_Inicial or 0)
-        actual    = float(lote.Cantidad_Actual  or 0)
-        espacio   = max(0.0, inicial - actual)
-        devolver  = min(espacio, restante)
-        lote.Cantidad_Actual = round(actual + devolver, 4)
-        restante -= devolver
-
-
 ESTADO_PENDIENTE  = 1
 ESTADO_EN_PROCESO = 13
 ESTADO_COMPLETADA = 11
@@ -302,6 +274,111 @@ ESTADO_VENTA_FECHA_PROPUESTA = 16
 # esta lista, el pedido saltaba a Listo solo y el cliente se quedaba sin
 # decidir. Quien lo mueve es su respuesta: ver `aceptar_fecha`.
 _ESTADOS_VENTA_PRODUCIENDO = {ESTADO_VENTA_CONFIRMADO, ESTADO_EN_PROCESO}
+
+
+def _plan_de_insumos(db: Session, orden, *, bloquear: bool = False) -> list:
+    """Qué insumo y cuánto hace falta para esta orden, en la unidad del insumo.
+
+    La receta pide gramos y el depósito guarda kilos: acá se hace esa cuenta
+    una sola vez, y la usan tanto la validación al iniciar como el descuento al
+    completar. Antes cada una la repetía por su lado.
+
+    Con `bloquear` se toman las filas de insumo con `with_for_update()` en orden
+    de ID: dos órdenes que comparten un insumo se serializan y no pueden ambas
+    pasar la validación sobre el mismo saldo.
+    """
+    if not orden.ID_Ficha:
+        raise HTTPException(
+            status_code=400,
+            detail="El producto debe tener una ficha técnica asignada antes de iniciar la producción",
+        )
+    insumos_ficha = db.query(FichaTecnicaInsumo).filter(
+        FichaTecnicaInsumo.ID_Ficha == orden.ID_Ficha
+    ).all()
+    if not insumos_ficha:
+        raise HTTPException(
+            status_code=400,
+            detail="La ficha técnica no tiene insumos registrados. Agrégalos antes de iniciar producción.",
+        )
+
+    ids_insumo = [fi.ID_Insumo for fi in insumos_ficha]
+    consulta = db.query(Insumo).filter(Insumo.ID_Insumo.in_(ids_insumo)).order_by(
+        Insumo.ID_Insumo.asc()
+    )
+    if bloquear:
+        consulta = consulta.with_for_update()
+    insumos_map = {i.ID_Insumo: i for i in consulta.all()}
+
+    unidad_ids = {i.Unidad_Medida for i in insumos_map.values() if i.Unidad_Medida}
+    unidades_map = (
+        {
+            u.ID_Unidad_Medida: u
+            for u in db.query(UnidadMedida).filter(
+                UnidadMedida.ID_Unidad_Medida.in_(unidad_ids)
+            ).all()
+        }
+        if unidad_ids else {}
+    )
+
+    plan = []
+    for fi in insumos_ficha:
+        insumo = insumos_map.get(fi.ID_Insumo)
+        if not insumo:
+            raise HTTPException(status_code=404, detail=f"Insumo ID {fi.ID_Insumo} no encontrado")
+        unidad_ins = unidades_map.get(insumo.Unidad_Medida)
+        simbolo = unidad_ins.Simbolo if unidad_ins else None
+        necesario = _convertir(
+            float(fi.Cantidad or 0) * orden.Cantidad,
+            fi.Unidad or simbolo,
+            simbolo,
+        )
+        plan.append((insumo, simbolo, necesario))
+    return plan
+
+
+def insumos_reservados(db: Session, ids_insumo, excluir_orden: int = None) -> dict:
+    """Cuánto de cada insumo está apartado por órdenes que ya arrancaron.
+
+    Una orden En proceso pisa sus insumos aunque todavía no se hayan
+    descontado: la harina de esa producción ya tiene dueño. Sin esto, dos
+    órdenes de 2 kg podían arrancar las dos con 2 kg en bodega, y la segunda se
+    quedaba a medias en la mesa de trabajo.
+
+    Se calcula sobre las órdenes mismas, no sobre una columna aparte: así no
+    hay reservas que queden colgadas si algo se cae a mitad de camino.
+    """
+    ids = list(ids_insumo or [])
+    if not ids:
+        return {}
+
+    filas = (
+        db.query(OrdenProduccion, FichaTecnicaInsumo, Insumo, UnidadMedida)
+        .join(FichaTecnicaInsumo, FichaTecnicaInsumo.ID_Ficha == OrdenProduccion.ID_Ficha)
+        .join(Insumo, Insumo.ID_Insumo == FichaTecnicaInsumo.ID_Insumo)
+        .outerjoin(UnidadMedida, UnidadMedida.ID_Unidad_Medida == Insumo.Unidad_Medida)
+        .filter(
+            OrdenProduccion.Estado == ESTADO_EN_PROCESO,
+            FichaTecnicaInsumo.ID_Insumo.in_(ids),
+        )
+    )
+    if excluir_orden is not None:
+        filas = filas.filter(OrdenProduccion.ID_Orden_Produccion != excluir_orden)
+
+    reservado: dict = {}
+    for orden_otra, fi, _insumo, unidad in filas.all():
+        simbolo = unidad.Simbolo if unidad else None
+        try:
+            cantidad = _convertir(
+                float(fi.Cantidad or 0) * (orden_otra.Cantidad or 0),
+                fi.Unidad or simbolo,
+                simbolo,
+            )
+        except HTTPException:
+            # Ficha con unidades que no se pueden leer: esa orden no llegó a
+            # arrancar por su cuenta, así que tampoco aparta nada.
+            continue
+        reservado[fi.ID_Insumo] = reservado.get(fi.ID_Insumo, 0.0) + cantidad
+    return reservado
 
 
 def _sync_venta_por_ordenes(
@@ -823,75 +900,36 @@ def cambiar_estado(
                     status_code=400,
                     detail="El producto debe tener una ficha técnica asignada antes de iniciar la producción"
                 )
-            logger.debug(f"[4] query FichaTecnicaInsumo id_ficha={orden.ID_Ficha} | +{time.time()-_t0:.3f}s")
-            insumos_ficha = db.query(FichaTecnicaInsumo).filter(
-                FichaTecnicaInsumo.ID_Ficha == orden.ID_Ficha
-            ).all()
-            logger.debug(f"[5] insumos_ficha count={len(insumos_ficha)} | +{time.time()-_t0:.3f}s")
-            if not insumos_ficha:
-                raise HTTPException(
-                    status_code=400,
-                    detail="La ficha técnica no tiene insumos registrados. Agrégalos antes de iniciar producción."
-                )
-            # Batch-load: 2 queries en lugar de 4N (N insumos × 2 loops × 2 tablas).
-            # Bloqueo de filas de insumo con orden determinista (por ID): dos
-            # órdenes concurrentes que comparten un insumo se serializan y no
-            # pueden ambas pasar la validación de stock sobre el mismo saldo.
-            ids_insumo = [fi.ID_Insumo for fi in insumos_ficha]
-            logger.debug(f"[6] batch query Insumo IN {ids_insumo} | +{time.time()-_t0:.3f}s")
-            insumos_map = {
-                i.ID_Insumo: i
-                for i in db.query(Insumo)
-                    .filter(Insumo.ID_Insumo.in_(ids_insumo))
-                    .order_by(Insumo.ID_Insumo.asc())
-                    .with_for_update()
-                    .all()
-            }
-            unidad_ids = {i.Unidad_Medida for i in insumos_map.values() if i.Unidad_Medida}
-            logger.debug(f"[7] batch query UnidadMedida IN {unidad_ids} | +{time.time()-_t0:.3f}s")
-            unidades_map = (
-                {
-                    u.ID_Unidad_Medida: u
-                    for u in db.query(UnidadMedida).filter(
-                        UnidadMedida.ID_Unidad_Medida.in_(unidad_ids)
-                    ).all()
-                }
-                if unidad_ids else {}
+            # Arrancar la orden APARTA los insumos; no los descuenta. El
+            # descuento ocurre al completarla, que es cuando la harina de
+            # verdad se convirtió en producto. Mientras tanto quedan pisados:
+            # otra orden que los necesite no puede arrancar.
+            plan = _plan_de_insumos(db, orden, bloquear=True)
+            apartado = insumos_reservados(
+                db, [i.ID_Insumo for i, _s, _n in plan], excluir_orden=id_orden,
             )
-            logger.debug(f"[8] batch done, validando stock | +{time.time()-_t0:.3f}s")
+            for insumo, simbolo, necesario in plan:
+                en_bodega = float(insumo.Stock_Actual or 0)
+                reservado = apartado.get(insumo.ID_Insumo, 0.0)
+                disponible = en_bodega - reservado
+                if disponible + 1e-9 < necesario:
+                    # Se distingue "no hay" de "lo tiene otra orden": mandar a
+                    # comprar harina que está en el depósito no arregla nada.
+                    if reservado > 0:
+                        detalle = (
+                            f"'{insumo.Nombre}' está apartado por otra orden en proceso: "
+                            f"hacen falta {necesario:.4g} {simbolo}, hay {en_bodega:.4g} "
+                            f"y {reservado:.4g} ya están comprometidos. "
+                            "Completá o anulá esa orden primero."
+                        )
+                    else:
+                        detalle = (
+                            f"Stock insuficiente de '{insumo.Nombre}': necesario "
+                            f"{necesario:.4g} {simbolo}, disponible {en_bodega:.4g} {simbolo}"
+                        )
+                    raise HTTPException(status_code=400, detail=detalle)
 
-            # Validar stock (en memoria, sin queries adicionales a BD)
-            ficha_plan = []
-            for fi in insumos_ficha:
-                insumo = insumos_map.get(fi.ID_Insumo)
-                if not insumo:
-                    raise HTTPException(status_code=404, detail=f"Insumo ID {fi.ID_Insumo} no encontrado")
-                unidad_ins = unidades_map.get(insumo.Unidad_Medida)
-                simbolo_ins = unidad_ins.Simbolo if unidad_ins else None
-                necesario = _convertir(
-                    float(fi.Cantidad or 0) * orden.Cantidad,
-                    fi.Unidad or simbolo_ins,
-                    simbolo_ins,
-                )
-                if float(insumo.Stock_Actual or 0) < necesario:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Stock insuficiente de '{insumo.Nombre}': necesario {necesario:.4g} {simbolo_ins}, disponible {float(insumo.Stock_Actual or 0):.4g} {simbolo_ins}"
-                    )
-                ficha_plan.append((insumo, necesario))
-
-            logger.debug(f"[9] validacion OK {len(ficha_plan)} insumos, iniciando FEFO | +{time.time()-_t0:.3f}s")
-            # Descontar FEFO (todos los stocks validados → descuento atómico)
-            for _i, (insumo, necesario) in enumerate(ficha_plan):
-                logger.debug(f"[10a] _descontar_fefo insumo={insumo.ID_Insumo} necesario={necesario} | +{time.time()-_t0:.3f}s")
-                _descontar_fefo(db, insumo.ID_Insumo, necesario)
-                insumo.Stock_Actual = round(max(0.0, float(insumo.Stock_Actual or 0) - necesario), 4)
-                _actualizar_estado_insumo(insumo)
-                logger.debug(f"[10b] notificar_stock_insumo insumo={insumo.ID_Insumo} | +{time.time()-_t0:.3f}s")
-                notificar_stock_insumo(db, insumo)
-                logger.debug(f"[10c] insumo {_i+1}/{len(ficha_plan)} completo | +{time.time()-_t0:.3f}s")
-
-            logger.debug(f"[11] FEFO done, ID_Venta={orden.ID_Venta} | +{time.time()-_t0:.3f}s")
+            logger.debug(f"[9] insumos apartados, ID_Venta={orden.ID_Venta} | +{time.time()-_t0:.3f}s")
             if orden.ID_Venta:
                 logger.debug(f"[11a] _sync_venta START | +{time.time()-_t0:.3f}s")
                 _sync_venta_por_ordenes(db, orden.ID_Venta, orden.ID_Orden_Produccion, ESTADO_EN_PROCESO)
@@ -900,6 +938,34 @@ def cambiar_estado(
         # Al completar (11=Completada): incrementar stock del producto y crear lote
         elif nuevo_estado == ESTADO_COMPLETADA and orden.Estado == ESTADO_EN_PROCESO:
             from dateutil.relativedelta import relativedelta
+
+            # Completar es el momento en que la harina dejó de ser harina: acá
+            # se descuenta de verdad, del stock y de los lotes (FEFO). Al
+            # arrancar solo se había apartado.
+            #
+            # Se usa la ficha con la que arrancó la orden, no la vigente: si
+            # alguien cambió la receta mientras se horneaba, se descuenta lo que
+            # de verdad se usó.
+            plan = _plan_de_insumos(db, orden, bloquear=True)
+            for insumo, simbolo, necesario in plan:
+                en_bodega = float(insumo.Stock_Actual or 0)
+                if en_bodega + 1e-9 < necesario:
+                    # Con los insumos apartados desde que arrancó, llegar acá
+                    # significa que alguien movió el inventario por fuera.
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            f"No se puede completar: falta '{insumo.Nombre}'. "
+                            f"La orden usa {necesario:.4g} {simbolo} y en el "
+                            f"inventario quedan {en_bodega:.4g} {simbolo}. "
+                            "Revisá si el stock se movió desde que arrancó."
+                        ),
+                    )
+            for insumo, _simbolo, necesario in plan:
+                _descontar_fefo(db, insumo.ID_Insumo, necesario)
+                insumo.Stock_Actual = round(max(0.0, float(insumo.Stock_Actual or 0) - necesario), 4)
+                _actualizar_estado_insumo(insumo)
+                notificar_stock_insumo(db, insumo)
 
             producto = db.query(Producto).filter(
                 Producto.ID_Producto == orden.ID_Producto
@@ -949,48 +1015,11 @@ def cambiar_estado(
 
         # Al cancelar (5): restaurar insumos si la orden estaba en proceso
         elif nuevo_estado == ESTADO_CANCELADA and orden.Estado == ESTADO_EN_PROCESO:
-            if orden.ID_Ficha:
-                insumos_ficha = db.query(FichaTecnicaInsumo).filter(
-                    FichaTecnicaInsumo.ID_Ficha == orden.ID_Ficha
-                ).all()
-                # Batch: precargar insumos y unidades en 2 queries (con bloqueo
-                # de filas en orden determinista, igual que al iniciar la orden).
-                fi_insumo_ids = [fi.ID_Insumo for fi in insumos_ficha if fi.ID_Insumo]
-                fi_insumos_map = {
-                    i.ID_Insumo: i
-                    for i in db.query(Insumo)
-                        .filter(Insumo.ID_Insumo.in_(fi_insumo_ids))
-                        .order_by(Insumo.ID_Insumo.asc())
-                        .with_for_update()
-                        .all()
-                } if fi_insumo_ids else {}
-                unidad_ids_fi  = list({i.Unidad_Medida for i in fi_insumos_map.values() if i.Unidad_Medida})
-                unidades_fi    = {u.ID_Unidad_Medida: u for u in db.query(UnidadMedida).filter(UnidadMedida.ID_Unidad_Medida.in_(unidad_ids_fi)).all()} if unidad_ids_fi else {}
-                for fi in insumos_ficha:
-                    insumo = fi_insumos_map.get(fi.ID_Insumo)
-                    if insumo:
-                        unidad_ins  = unidades_fi.get(insumo.Unidad_Medida)
-                        simbolo_ins = unidad_ins.Simbolo if unidad_ins else None
-                        devolver = _convertir(
-                            float(fi.Cantidad or 0) * orden.Cantidad,
-                            fi.Unidad or simbolo_ins,
-                            simbolo_ins,
-                        )
-                        _restaurar_fefo(db, insumo.ID_Insumo, devolver)
-                        insumo.Stock_Actual = round(float(insumo.Stock_Actual or 0) + devolver, 4)
-                        _actualizar_estado_insumo(insumo)
-                        notificar_stock_insumo(db, insumo)
-            elif orden.ID_Insumo:
-                insumo = db.query(Insumo).filter(
-                    Insumo.ID_Insumo == orden.ID_Insumo
-                ).with_for_update().first()
-                if insumo:
-                    devolver = float(orden.Cantidad)
-                    _restaurar_fefo(db, insumo.ID_Insumo, devolver)
-                    insumo.Stock_Actual = round(float(insumo.Stock_Actual or 0) + devolver, 4)
-                    _actualizar_estado_insumo(insumo)
-                    notificar_stock_insumo(db, insumo)
-
+            # No hay insumos que devolver: arrancar solo los apartaba, y anular
+            # la orden suelta esa reserva sola —se calcula sobre las órdenes en
+            # proceso, y esta deja de serlo—. Antes acá se sumaba de vuelta al
+            # inventario lo que se había descontado al arrancar; hacerlo ahora
+            # crearía harina de la nada.
             if orden.ID_Venta:
                 _sync_venta_por_ordenes(db, orden.ID_Venta, orden.ID_Orden_Produccion, ESTADO_CANCELADA)
 

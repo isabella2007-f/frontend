@@ -423,13 +423,21 @@ class PanelProduccionTests(PanelBase):
         self.assertEqual(orden["Cantidad"], 6 - STOCK_TORTA)
         self.assertEqual(orden["Estado"], ORDEN_PENDIENTE)
 
-    def test_iniciarla_descuenta_los_insumos_de_la_receta(self):
+    def test_iniciarla_aparta_los_insumos_y_completarla_los_descuenta(self):
         pedido = self.pedido_con_faltante()
-        id_orden = self.orden(pedido["ID_Venta"]).ID_Orden_Produccion
+        id_venta = pedido["ID_Venta"]
+        id_orden = self.orden(id_venta).ID_Orden_Produccion
 
         self.afirmar_ok(self.patch(
             f"/ordenes-produccion/{id_orden}/estado", self.admin,
             {"Estado": ORDEN_EN_PROCESO},
+        ))
+        # Apartada, no gastada: la harina sigue en bodega.
+        self.assertAlmostEqual(self.harina(), STOCK_HARINA, places=3)
+
+        self.afirmar_ok(self.patch(
+            f"/ordenes-produccion/{id_orden}/estado", self.admin,
+            {"Estado": ORDEN_COMPLETADA},
         ))
         gastado = GRAMOS_POR_TORTA * (6 - STOCK_TORTA)
         self.assertAlmostEqual(self.harina(), STOCK_HARINA - gastado, places=3)
@@ -498,9 +506,9 @@ class PanelProduccionTests(PanelBase):
         )
         self.assertEqual(respuesta.status_code, 400)
         self.assertIn("pedido", self.detalle(respuesta).lower())
-        # Nada se tocó: los insumos siguen descontados.
-        gastado = GRAMOS_POR_TORTA * (6 - STOCK_TORTA)
-        self.assertAlmostEqual(self.harina(), STOCK_HARINA - gastado, places=3)
+        # Nada se tocó: la orden sigue en proceso con sus insumos apartados.
+        self.assertEqual(self.orden().Estado, ORDEN_EN_PROCESO)
+        self.assertAlmostEqual(self.harina(), STOCK_HARINA, places=3)
 
     def test_el_inventario_cierra_al_entregar_en_tienda(self):
         """El faltante horneado también tiene que salir del stock."""
@@ -971,8 +979,8 @@ class CancelarTests(PanelBase):
         self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/cancelar", self.admin))
         self.assertEqual(self.orden(id_venta).Estado, ORDEN_CANCELADA)
 
-    def test_cancelar_con_la_orden_ya_empezada_devuelve_los_insumos(self):
-        """La harina ya estaba en la masa contable: hay que devolverla."""
+    def test_cancelar_con_la_orden_ya_empezada_suelta_los_insumos(self):
+        """La harina nunca salió de bodega: se suelta la reserva y ya."""
         pedido = self.pedido_con_faltante()
         id_venta = pedido["ID_Venta"]
         self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/confirmar", self.admin))
@@ -981,8 +989,6 @@ class CancelarTests(PanelBase):
             f"/ordenes-produccion/{id_orden}/estado", self.admin,
             {"Estado": ORDEN_EN_PROCESO},
         ))
-        gastado = GRAMOS_POR_TORTA * (6 - STOCK_TORTA)
-        self.assertAlmostEqual(self.harina(), STOCK_HARINA - gastado, places=3)
 
         self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/cancelar", self.admin))
         self.assertEqual(self.orden(id_venta).Estado, ORDEN_CANCELADA)
@@ -1474,9 +1480,19 @@ class RecetaEnDistintasUnidadesTests(PanelBase):
             self.admin, {"Estado": ORDEN_EN_PROCESO},
         )
 
-    def test_la_orden_arranca_y_descuenta_lo_que_pesa(self):
+    def completar_la_orden(self):
+        return self.patch(
+            f"/ordenes-produccion/{self.orden().ID_Orden_Produccion}/estado",
+            self.admin, {"Estado": ORDEN_COMPLETADA},
+        )
+
+    def test_la_orden_arranca_y_al_completarse_descuenta_lo_que_pesa(self):
         self.receta_de_azucar()
         self.afirmar_ok(self.iniciar_la_orden())
+        # Apartada: la bodega todavía tiene los 100 kg.
+        self.assertAlmostEqual(self.azucar(), self.EN_BODEGA, places=4)
+
+        self.afirmar_ok(self.completar_la_orden())
         # 20 g × 4 = 80 g = 0,08 kg de los 100 que hay.
         self.assertAlmostEqual(self.azucar(), 99.92, places=4)
 
@@ -1487,6 +1503,7 @@ class RecetaEnDistintasUnidadesTests(PanelBase):
                 self.setUp()
                 self.receta_de_azucar(unidad_insumo, unidad_ficha)
                 self.afirmar_ok(self.iniciar_la_orden())
+                self.afirmar_ok(self.completar_la_orden())
                 self.assertAlmostEqual(self.azucar(), 99.92, places=4)
 
     def test_el_panel_recibe_el_stock_y_la_unidad_del_insumo(self):
@@ -1534,6 +1551,177 @@ class RecetaEnDistintasUnidadesTests(PanelBase):
         respuesta = self.iniciar_la_orden()
         self.assertEqual(respuesta.status_code, 400)
         self.assertIn("no se puede convertir", self.detalle(respuesta).lower())
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 13. Dos órdenes que necesitan la misma harina
+# ══════════════════════════════════════════════════════════════════════════
+class InsumoApartadoTests(PanelBase):
+    """Arrancar una orden pisa sus insumos; completarla es lo que los gasta.
+
+    Con 2 kg de harina en bodega y dos órdenes que necesitan 2 kg cada una,
+    solo una puede arrancar. Antes las dos arrancaban —la primera descontaba y
+    la segunda encontraba el stock en cero, o peor, ambas pasaban la validación
+    antes de que la otra descontara— y la panadería se quedaba con una masa a
+    medias en la mesa.
+    """
+
+    HARINA = 1
+
+    def dos_ordenes(self, gramos_por_torta=500.0, harina=4000.0):
+        """Dos órdenes de 4 tortas cada una sobre la misma harina.
+
+        Con 500 g por torta, cada orden necesita 2 kg y en bodega hay 4 kg:
+        alcanza justo para las dos, y bajando la bodega alcanza para una.
+        """
+        from src.shared.services.models import (
+            FichaTecnicaInsumo as _FI, Insumo as _I, LoteCompra as _LC,
+        )
+        self.db.query(_FI).filter(_FI.ID_Ficha == 1).update(
+            {"Cantidad": gramos_por_torta}
+        )
+        insumo = self.db.query(_I).filter(_I.ID_Insumo == self.HARINA).first()
+        insumo.Stock_Actual = harina
+        for lote in self.db.query(_LC).all():
+            lote.Cantidad_Actual = harina / 2
+            lote.Cantidad_Inicial = harina / 2
+        self.db.commit()
+
+        primera = self.pedido_con_faltante()
+        segunda = self.pedido_con_faltante()
+        self.venta_primera = primera["ID_Venta"]
+        self.venta_segunda = segunda["ID_Venta"]
+        return (self.orden_de(self.venta_primera), self.orden_de(self.venta_segunda))
+
+    def orden_de(self, id_venta):
+        from src.shared.services.models import OrdenProduccion as _OP
+        self.db.expire_all()
+        return self.db.query(_OP).filter(
+            _OP.ID_Venta == id_venta
+        ).first().ID_Orden_Produccion
+
+    def arrancar(self, id_orden):
+        return self.patch(
+            f"/ordenes-produccion/{id_orden}/estado", self.admin,
+            {"Estado": ORDEN_EN_PROCESO},
+        )
+
+    def completar(self, id_orden):
+        return self.patch(
+            f"/ordenes-produccion/{id_orden}/estado", self.admin,
+            {"Estado": ORDEN_COMPLETADA},
+        )
+
+    def test_la_segunda_orden_no_arranca_con_la_harina_apartada(self):
+        """Justo para una: la primera la pisa y la segunda espera."""
+        primera, segunda = self.dos_ordenes(harina=2000.0)
+
+        self.afirmar_ok(self.arrancar(primera))
+        respuesta = self.arrancar(segunda)
+
+        self.assertEqual(respuesta.status_code, 400)
+        detalle = self.detalle(respuesta).lower()
+        self.assertIn("apartado por otra orden", detalle)
+        self.assertIn("harina", detalle)
+        # Y la harina sigue en bodega: apartada, no gastada.
+        self.assertAlmostEqual(self.harina(), 2000.0, places=3)
+
+    def test_completada_la_primera_la_segunda_ya_no_puede(self):
+        """Ahí la harina sí se gastó: no queda para la otra."""
+        primera, segunda = self.dos_ordenes(harina=2000.0)
+        self.afirmar_ok(self.arrancar(primera))
+        self.afirmar_ok(self.completar(primera))
+        self.assertAlmostEqual(self.harina(), 0.0, places=3)
+
+        respuesta = self.arrancar(segunda)
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn("stock insuficiente", self.detalle(respuesta).lower())
+
+    def test_cancelado_el_primer_pedido_la_segunda_orden_arranca(self):
+        """La reserva se suelta sola al dejar de estar en proceso.
+
+        La orden de un pedido no se anula por su cuenta: se cancela el pedido.
+        """
+        primera, segunda = self.dos_ordenes(harina=2000.0)
+        self.afirmar_ok(self.arrancar(primera))
+        self.assertEqual(self.arrancar(segunda).status_code, 400)
+
+        self.afirmar_ok(self.patch(
+            f"/pedidos/{self.venta_primera}/cancelar", self.admin
+        ))
+        self.afirmar_ok(self.arrancar(segunda))
+        # Y la harina nunca se movió: solo cambió de dueño.
+        self.assertAlmostEqual(self.harina(), 2000.0, places=3)
+
+    def test_si_alcanza_para_las_dos_las_dos_arrancan(self):
+        primera, segunda = self.dos_ordenes(harina=4000.0)
+
+        self.afirmar_ok(self.arrancar(primera))
+        self.afirmar_ok(self.arrancar(segunda))
+        self.assertAlmostEqual(self.harina(), 4000.0, places=3)
+
+        self.afirmar_ok(self.completar(primera))
+        self.assertAlmostEqual(self.harina(), 2000.0, places=3)
+        self.afirmar_ok(self.completar(segunda))
+        self.assertAlmostEqual(self.harina(), 0.0, places=3)
+
+    def test_una_tercera_orden_no_pasa_con_las_dos_apartadas(self):
+        primera, segunda = self.dos_ordenes(harina=4000.0)
+        self.afirmar_ok(self.arrancar(primera))
+        self.afirmar_ok(self.arrancar(segunda))
+
+        tercera = self.orden_de(self.pedido_con_faltante()["ID_Venta"])
+        respuesta = self.arrancar(tercera)
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn("apartado por otra orden", self.detalle(respuesta).lower())
+
+    def test_el_mensaje_distingue_apartado_de_agotado(self):
+        """No es lo mismo: mandar a comprar harina que está en bodega no arregla nada."""
+        primera, segunda = self.dos_ordenes(harina=2000.0)
+        self.afirmar_ok(self.arrancar(primera))
+
+        apartado = self.detalle(self.arrancar(segunda)).lower()
+        self.assertIn("complet", apartado)          # "completá o anulá esa orden"
+        self.assertNotIn("stock insuficiente", apartado)
+
+        self.afirmar_ok(self.completar(primera))
+        agotado = self.detalle(self.arrancar(segunda)).lower()
+        self.assertIn("stock insuficiente", agotado)
+
+    def test_el_panel_ve_lo_que_queda_libre_y_no_el_stock_a_secas(self):
+        """Si el panel mira el stock total, da luz verde a algo que el servidor
+        va a rechazar. La ficha viaja con lo que de verdad queda disponible."""
+        primera, _segunda = self.dos_ordenes(harina=4000.0)
+
+        antes = self.afirmar_ok(self.get(f"/productos/{ID_TORTA}", self.admin))
+        harina = antes["ficha_tecnica"]["insumos"][0]
+        self.assertEqual(harina["Stock_Actual"], 4000.0)
+        self.assertEqual(harina["Stock_Disponible"], 4000.0)
+
+        self.afirmar_ok(self.arrancar(primera))
+        despues = self.afirmar_ok(self.get(f"/productos/{ID_TORTA}", self.admin))
+        harina = despues["ficha_tecnica"]["insumos"][0]
+        # El stock no se movió; lo que bajó es lo que queda libre.
+        self.assertEqual(harina["Stock_Actual"], 4000.0)
+        self.assertEqual(harina["Stock_Disponible"], 2000.0)
+
+    def test_completar_libera_la_reserva_y_baja_el_stock(self):
+        primera, _segunda = self.dos_ordenes(harina=4000.0)
+        self.afirmar_ok(self.arrancar(primera))
+        self.afirmar_ok(self.completar(primera))
+
+        harina = self.afirmar_ok(
+            self.get(f"/productos/{ID_TORTA}", self.admin)
+        )["ficha_tecnica"]["insumos"][0]
+        self.assertEqual(harina["Stock_Actual"], 2000.0)
+        self.assertEqual(harina["Stock_Disponible"], 2000.0)
+
+    def test_la_reserva_no_bloquea_a_la_orden_que_ya_la_tiene(self):
+        """Completar la propia orden no puede chocar con su propia reserva."""
+        primera, _segunda = self.dos_ordenes(harina=2000.0)
+        self.afirmar_ok(self.arrancar(primera))
+        self.afirmar_ok(self.completar(primera))
+        self.assertAlmostEqual(self.harina(), 0.0, places=3)
 
 
 if __name__ == "__main__":

@@ -484,7 +484,9 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
           nombre:      i.nombre_insumo || "",
           cantidadUnitaria: Number(i.Cantidad ?? 0),
           unidad:      i.Unidad || "",
-          stock:         i.Stock_Actual ?? alterno.stock ?? 0,
+          // Lo que queda LIBRE, no el stock a secas: la harina que ya apartó
+          // una orden en proceso tiene dueño, y el servidor la va a rechazar.
+          stock:         i.Stock_Disponible ?? i.Stock_Actual ?? alterno.stock ?? 0,
           simboloInsumo: i.simbolo_unidad || alterno.simbolo || i.Unidad || "",
         };
       });
