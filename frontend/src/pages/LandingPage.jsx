@@ -273,6 +273,7 @@ const LandingPage = ({ hideNavbar = false }) => {
   const [orderDone,   setOrderDone]   = useState(false);
   const [errorToast,  setErrorToast]  = useState('');
   const [confirmPending, setConfirmPending] = useState(null);
+  const [stockLimitMsg,  setStockLimitMsg]  = useState('');
 
   // Sincronizar contador del carrito
   const syncCartInfo = useCallback(() => {
@@ -370,16 +371,22 @@ const LandingPage = ({ hideNavbar = false }) => {
     syncCartInfo();
   };
 
+  const mostrarLimiteStock = (nombre, stock) => {
+    setStockLimitMsg(`En este momento no puedes pedir más de ${stock} unidad${stock !== 1 ? 'es' : ''} de "${nombre}". Inténtalo más tarde o contáctanos.`);
+    setTimeout(() => setStockLimitMsg(''), 12000);
+  };
+
   const handleAddToCart = (product) => {
     const qty = getQty(product.id);
     const stock = product.stock ?? 0;
-    if (stock === 0 || (product.requiereProduccion && qty > stock)) {
+    if (product.requiereProduccion && (stock === 0 || qty > stock)) {
       realizarAdd(product, qty, true);
       setCartOpen(true);
       return;
     }
-    if (qty > stock) {
-      setConfirmPending({ product, qty });
+    if (!product.requiereProduccion && qty > stock) {
+      mostrarLimiteStock(product.nombre, stock);
+      if (stock > 0) { realizarAdd(product, stock, false); setCartOpen(true); }
       return;
     }
     realizarAdd(product, qty, false);
@@ -388,14 +395,15 @@ const LandingPage = ({ hideNavbar = false }) => {
 
   const handleAddFromModal = (product, qty) => {
     const stock = product.stock ?? 0;
-    if (stock === 0 || (product.requiereProduccion && qty > stock)) {
+    if (product.requiereProduccion && (stock === 0 || qty > stock)) {
       realizarAdd(product, qty, true);
       setSelectedProduct(null);
       setCartOpen(true);
       return;
     }
-    if (qty > stock) {
-      setConfirmPending({ product, qty });
+    if (!product.requiereProduccion && qty > stock) {
+      mostrarLimiteStock(product.nombre, stock);
+      if (stock > 0) { realizarAdd(product, stock, false); setSelectedProduct(null); setCartOpen(true); }
       return;
     }
     realizarAdd(product, qty, false);
@@ -506,6 +514,14 @@ const LandingPage = ({ hideNavbar = false }) => {
         <div className="fixed top-6 left-1/2 z-[10000] flex items-center gap-3 px-6 py-4 bg-[#b71c1c] text-white rounded-2xl shadow-2xl animate-slide-down-toast">
           <X className="w-5 h-5 text-[#ef9a9a]" />
           <span className="font-black">{errorToast}</span>
+        </div>
+      )}
+
+      {/* ── Aviso de límite de stock ── */}
+      {stockLimitMsg && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[10000] flex items-center gap-3 px-6 py-4 bg-amber-50 border border-amber-300 text-amber-900 rounded-2xl shadow-2xl max-w-sm text-sm font-semibold">
+          <span>⚠️</span>
+          <span>{stockLimitMsg}</span>
         </div>
       )}
 
