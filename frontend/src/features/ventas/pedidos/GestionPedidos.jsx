@@ -2010,7 +2010,13 @@ export default function GestionPedidos() {
               Direccion_entrega:    formData.direccion_entrega || "",
               Municipio_entrega:    formData.municipio         || "",
               Departamento_entrega: formData.departamento      || "",
-              Observaciones:        formData.notas             || null,
+              // Todavía no es columna en el servidor: se manda para cuando
+              // exista y el costo del domicilio dependa de él.
+              Barrio_entrega:       formData.barrio_entrega    || null,
+              // El barrio, el complemento y las indicaciones van con las notas:
+              // es todo lo que lee quien entrega.
+              Observaciones: [formData.observaciones_entrega, formData.notas]
+                .filter(Boolean).join(". ") || null,
             }
           : null,
       };
