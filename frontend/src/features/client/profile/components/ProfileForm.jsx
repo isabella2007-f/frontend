@@ -7,6 +7,7 @@ import { Mail, Phone, MapPin, Camera, Save, X, CreditCard, Lock, Eye, EyeOff, Ke
 import { apiFetch } from '../../../../utils/api';
 import { soloDigitos } from '../../../../utils/inputFilters';
 import { subirImagenCloudinary } from '../../../../utils/cloudinary.js';
+import Avatar from '../../../../shared/components/Avatar';
 
 const TIPO_DOC_OPTS = ['CC', 'CE', 'TI', 'NIT', 'PP'];
 
@@ -279,7 +280,7 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
             }}
           >
             {form.fotoPerfil
-              ? <img src={form.fotoPerfil} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ? <Avatar url={form.fotoPerfil} lado={88} alt="Tu foto" />
               : <User size={36} strokeWidth={1} style={{color:"#bdbdbd"}} />
             }
           </div>

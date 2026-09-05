@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { clearSession } from '../../../../utils/api';
 import LogoutModal from '../../../../shared/components/LogoutModal';
+import Avatar from '../../../../shared/components/Avatar';
 
 const InfoBlock = ({ icon: Icon, label, value, span = 1 }) => (
   <div style={{
@@ -65,7 +66,7 @@ const ProfileView = ({ user, totalPedidos, onEdit }) => {
           overflow: 'hidden', fontSize: 36,
         }}>
           {user.fotoPerfil
-            ? <img src={user.fotoPerfil} alt="Perfil" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ? <Avatar url={user.fotoPerfil} lado={80} alt="Perfil" />
             : <User size={36} strokeWidth={1} style={{color:"#bdbdbd"}} />
           }
         </div>

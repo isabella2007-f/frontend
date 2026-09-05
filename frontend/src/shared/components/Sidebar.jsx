@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { getUser, logout } from "../../services/authService";
 import { esRolRepartidor } from "../../utils/roles";
+import Avatar from "./Avatar";
 import { usePrivilegios } from "../../context/PrivilegiosContext";
 import LogoutModal from "./LogoutModal";
 import "./Sidebar.css";
@@ -271,7 +272,8 @@ export default function Sidebar({ isOpen, onToggle }) {
               title="Ver mi perfil"
             >
               {(user?.fotoPerfil || user?.Foto_perfil)
-                ? <img src={user.fotoPerfil || user.Foto_perfil} alt={user.nombre} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 9 }} />
+                ? <Avatar url={user.fotoPerfil || user.Foto_perfil} lado={40}
+                          alt={user.nombre} style={{ borderRadius: 9 }} />
                 : (user?.nombre?.charAt(0) || "U")
               }
             </div>

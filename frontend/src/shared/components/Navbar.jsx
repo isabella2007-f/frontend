@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { getUser, logout } from "../../services/authService";
 import { getMiCredito } from "../../services/pedidosService";
+import Avatar from "./Avatar";
 import { crearPedidoCliente, resolverEntrega } from "../../features/sales/orders/services/crearPedidoCliente";
 import { Menu, X, ShoppingCart, Bell, LogOut, Gift, CheckCircle2, AlertCircle } from "lucide-react";
 import "./Navbar.css";
@@ -218,7 +219,8 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
               >
                 <div className="avatar">
                   {(user.fotoPerfil || user.Foto_perfil)
-                    ? <img src={user.fotoPerfil || user.Foto_perfil} alt={user.nombre} />
+                    ? <Avatar url={user.fotoPerfil || user.Foto_perfil}
+                              lado={32} alt={user.nombre} />
                     : user.nombre.charAt(0)
                   }
                 </div>
