@@ -2178,7 +2178,7 @@ def resolver_escalado_cancelar(db: Session, id_venta: int, actual: dict) -> dict
     # CreditoCliente asegura que quede trazabilidad y que el cliente pueda usarlo
     # en el próximo pedido si lo prefiere.
     _anticipo = Decimal(str(getattr(venta, "Anticipo_Monto", None) or 0))
-    if getattr(venta, "Anticipo_Pagado", False) and _anticipo > 0:
+    if getattr(venta, "Anticipo_Registrado", 0) and _anticipo > 0:
         _abonar_credito(db, venta.ID_Usuario, _anticipo, id_venta)
 
     # Cancelar OPs abiertas (defensivo: no debería haber ninguna en ESCALADO_A_ADMIN,
