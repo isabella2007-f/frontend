@@ -137,6 +137,10 @@ class VentaResponse(BaseModel):
     estado_pago:              Optional[str]      = None
     # Solo los pedidos sobre stock o de producción necesitan fecha propuesta
     requiere_fecha_propuesta:      bool             = False
+    # Cuándo el cliente rechazó la última fecha propuesta. Con domicilio el
+    # pedido vuelve a Pendiente, y sin esto no había forma de distinguirlo de
+    # uno recién hecho.
+    fecha_rechazada:               Optional[datetime] = None
     requiere_produccion:           bool             = False
     ordenes_produccion_pendientes: int              = 0
     ordenes_en_espera:             int              = 0
