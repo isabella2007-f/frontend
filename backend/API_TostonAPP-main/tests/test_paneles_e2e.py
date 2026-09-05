@@ -1405,11 +1405,47 @@ class FechaPropuestaTests(PanelBase):
         self.hornear(id_venta)
         self.assertEqual(self.venta(id_venta).Estado, PEDIDO_LISTO)
 
-    def test_aceptar_no_deja_listo_lo_que_no_se_pudo_fabricar(self):
-        """Sin ficha técnica no hay orden que abrir: el producto no existe.
+    def test_aceptar_no_deja_listo_lo_que_ya_no_se_puede_fabricar(self):
+        """Aceptar la fecha no inventa el producto.
 
-        Aceptar la fecha no puede inventarlo, así que el pedido no llega a
-        Listo por más que el cliente diga que sí.
+        El pedido se hizo cuando la torta tenía receta; después alguien la
+        borró y le quitó la marca de producción. El cliente dice que sí a la
+        fecha y el pedido queda Confirmado —no Listo—: sigue faltando la
+        mercancía y nadie la va a hornear.
+        """
+        from src.shared.services.models import Producto
+
+        pedido = self.pedido_con_faltante(cantidad=6)
+        id_venta = pedido["ID_Venta"]
+
+        torta = self.db.query(Producto).filter(
+            Producto.ID_Producto == ID_TORTA
+        ).first()
+        torta.Requiere_Produccion = 0
+        self.db.query(FichaTecnica).delete()
+        # Y la orden que se había abierto se cancela: nadie la va a hornear.
+        for orden in self.db.query(OrdenProduccion).filter(
+            OrdenProduccion.ID_Venta == id_venta
+        ).all():
+            orden.Estado = ORDEN_CANCELADA
+        self.db.commit()
+
+        fecha = (datetime.now() + timedelta(days=3)).isoformat()
+        self.afirmar_ok(self.patch(
+            f"/ventas/{id_venta}/proponer-fecha", self.admin, {"fecha_entrega": fecha}
+        ))
+        self.afirmar_ok(self.patch(f"/ventas/{id_venta}/aceptar-fecha", self.cliente))
+        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_CONFIRMADO)
+
+        # Y sigue sin poder darse por Listo: la mercancía no existe.
+        respuesta = self.patch(f"/ventas/{id_venta}/estado", self.admin,
+                               {"Estado": PEDIDO_LISTO})
+        self.assertEqual(respuesta.status_code, 400, self.detalle(respuesta))
+
+    def test_lo_que_no_se_fabrica_ni_se_puede_pedir(self):
+        """La puerta de entrada: sin receta y sin stock, el pedido se rechaza.
+
+        Antes se creaba y quedaba trabado esperando a que alguien repusiera.
         """
         from src.shared.services.models import Producto
         torta = self.db.query(Producto).filter(
@@ -1419,16 +1455,11 @@ class FechaPropuestaTests(PanelBase):
         self.db.query(FichaTecnica).delete()
         self.db.commit()
 
-        pedido = self.crear_pedido(
+        respuesta = self.post("/ventas/", self.cliente, self.cuerpo_pedido(
             productos=[{"ID_Producto": ID_TORTA, "Cantidad": 6}],
-        )
-        id_venta = pedido["ID_Venta"]
-        fecha = (datetime.now() + timedelta(days=3)).isoformat()
-        self.afirmar_ok(self.patch(
-            f"/ventas/{id_venta}/proponer-fecha", self.admin, {"fecha_entrega": fecha}
         ))
-        self.afirmar_ok(self.patch(f"/ventas/{id_venta}/aceptar-fecha", self.cliente))
-        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_CONFIRMADO)
+        self.assertEqual(respuesta.status_code, 400, self.detalle(respuesta))
+        self.assertIn("no se fabrican por encargo", self.detalle(respuesta))
 
     def test_rechazar_con_lo_ya_horneado_deja_el_pedido_esperando_fecha(self):
         """Lo que ya se horneó no obliga al cliente a aceptar la fecha.
