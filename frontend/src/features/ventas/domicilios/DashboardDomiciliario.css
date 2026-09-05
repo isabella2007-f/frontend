@@ -1,0 +1,281 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   DASHBOARD DEL DOMICILIARIO — lo propio del panel de inicio
+   ──────────────────────────────────────────────────────────────────────────
+   El hero, los botones, badges, modal, toast y vacíos viven en
+   DomiciliarioUI.css (clase `.dom-ui`). Aquí quedan las tarjetas de resumen
+   del día, el bloque del pedido en curso y los accesos rápidos.
+
+   Los colores de estado llegan como variables (--e-dot / --e-bg / --e-border)
+   desde estadosDomicilio.js, que sigue siendo la fuente única.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.dash-domi .db-col {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   SECCIONES
+   ───────────────────────────────────────────────────────────── */
+.dash-domi .db-seccion__titulo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 14px;
+  font-family: var(--font-head, 'Nunito', sans-serif);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -.2px;
+  color: var(--du-verde-800);
+}
+/* Barrita verde a la izquierda del título, como firma de sección */
+.dash-domi .db-seccion__titulo::before {
+  content: "";
+  width: 4px;
+  height: 17px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--du-verde-500), var(--du-verde-700));
+}
+
+/* ─────────────────────────────────────────────────────────────
+   RESUMEN DEL DÍA
+   ───────────────────────────────────────────────────────────── */
+.dash-domi .db-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 16px;
+}
+
+.dash-domi .db-stat {
+  position: relative;
+  overflow: hidden;
+  padding: 20px;
+  border-radius: 20px;
+  border: 1.5px solid var(--du-borde);
+  background: #fff;
+  box-shadow: var(--du-sombra-sm);
+  animation: duFadeUp .45s cubic-bezier(.16, 1, .3, 1) both;
+  transition: transform .2s cubic-bezier(.16, 1, .3, 1), box-shadow .2s, border-color .2s;
+}
+.dash-domi .db-stat:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--du-sombra-md);
+  border-color: var(--s-color, var(--du-verde-400));
+}
+
+/* Cinta superior y halo de color: cada métrica se distingue sin salirse de
+   la paleta (las tres primeras en la gama verde, el efectivo en dorado). */
+.dash-domi .db-stat::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, var(--s-color, var(--du-verde-500)), transparent 92%);
+}
+.dash-domi .db-stat::after {
+  content: "";
+  position: absolute;
+  top: -46px;
+  right: -46px;
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
+  background: var(--s-bg, var(--du-crema));
+  opacity: .6;
+  pointer-events: none;
+}
+
+.dash-domi .db-stat__icon {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 14px;
+  border-radius: 14px;
+  background: var(--s-bg, var(--du-crema));
+  border: 1.5px solid var(--s-borde, var(--du-borde));
+  color: var(--s-color, var(--du-verde-600));
+}
+.dash-domi .db-stat__valor {
+  position: relative;
+  z-index: 1;
+  font-family: var(--font-head, 'Nunito', sans-serif);
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -1px;
+  color: var(--s-color, var(--du-verde-700));
+}
+.dash-domi .db-stat__valor--money { font-size: 24px; letter-spacing: -.6px; }
+.dash-domi .db-stat__label {
+  position: relative;
+  z-index: 1;
+  margin-top: 7px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: var(--du-tinta-2);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   PEDIDO EN CURSO
+   ───────────────────────────────────────────────────────────── */
+.dash-domi .db-curso {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 22px 24px;
+  border-radius: 22px;
+  border: 1.5px solid var(--e-border, var(--du-borde));
+  background:
+    radial-gradient(70% 130% at 100% 0%, var(--e-bg, #f4fbf5) 0%, transparent 62%),
+    linear-gradient(180deg, #fff 0%, #fbfefb 100%);
+  box-shadow: var(--du-sombra-sm);
+  flex-wrap: wrap;
+  animation: duFadeUp .45s cubic-bezier(.16, 1, .3, 1) both;
+}
+.dash-domi .db-curso::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: linear-gradient(180deg, var(--e-dot, var(--du-verde-500)), transparent 130%);
+}
+
+.dash-domi .db-curso__avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  flex-shrink: 0;
+  border-radius: 18px;
+  background: var(--e-bg, var(--du-crema));
+  border: 1.5px solid var(--e-border, var(--du-borde));
+  color: var(--e-dot, var(--du-verde-600));
+}
+
+.dash-domi .db-curso__txt { flex: 1 1 220px; min-width: 0; }
+.dash-domi .db-curso__num {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--du-tinta-3);
+}
+.dash-domi .db-curso__cliente {
+  margin: 2px 0 6px;
+  font-family: var(--font-head, 'Nunito', sans-serif);
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -.3px;
+  color: var(--du-tinta);
+}
+.dash-domi .db-curso__dir {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--du-tinta-2);
+}
+.dash-domi .db-curso__dir svg { flex-shrink: 0; margin-top: 2px; color: var(--du-verde-500); }
+
+.dash-domi .db-curso__lado {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   ACCESOS RÁPIDOS
+   ───────────────────────────────────────────────────────────── */
+.dash-domi .db-accesos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+
+.dash-domi .db-acceso {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 17px 18px;
+  border-radius: 18px;
+  border: 1.5px solid var(--du-borde);
+  background: #fff;
+  box-shadow: var(--du-sombra-sm);
+  text-decoration: none;
+  color: inherit;
+  animation: duFadeUp .45s cubic-bezier(.16, 1, .3, 1) both;
+  transition: transform .2s cubic-bezier(.16, 1, .3, 1), box-shadow .2s, border-color .2s;
+}
+.dash-domi .db-acceso:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--du-sombra-md);
+  border-color: var(--du-verde-400);
+}
+
+.dash-domi .db-acceso__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  border-radius: 15px;
+  background: linear-gradient(140deg, var(--du-crema) 0%, #e6f4e8 100%);
+  border: 1.5px solid #d6ebda;
+  color: var(--du-verde-600);
+  transition: background .2s, color .2s, border-color .2s;
+}
+.dash-domi .db-acceso:hover .db-acceso__icon {
+  background: linear-gradient(140deg, var(--du-verde-700) 0%, var(--du-verde-500) 100%);
+  border-color: transparent;
+  color: #fff;
+}
+
+.dash-domi .db-acceso__txt { flex: 1; min-width: 0; }
+.dash-domi .db-acceso__label {
+  font-family: var(--font-head, 'Nunito', sans-serif);
+  font-size: 14.5px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--du-tinta);
+}
+.dash-domi .db-acceso__desc {
+  margin-top: 2px;
+  font-size: 11.5px;
+  line-height: 1.35;
+  color: var(--du-tinta-3);
+}
+.dash-domi .db-acceso__flecha {
+  flex-shrink: 0;
+  color: #c4d3c8;
+  transition: transform .2s, color .2s;
+}
+.dash-domi .db-acceso:hover .db-acceso__flecha { transform: translateX(3px); color: var(--du-verde-500); }
+
+/* ─────────────────────────────────────────────────────────────
+   RESPONSIVE
+   ───────────────────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  .dash-domi .db-stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .dash-domi .db-stat { padding: 17px; }
+  .dash-domi .db-stat__valor { font-size: 27px; }
+  .dash-domi .db-stat__valor--money { font-size: 20px; }
+  .dash-domi .db-curso__lado { align-items: stretch; width: 100%; }
+  .dash-domi .db-curso__lado .du-btn { width: 100%; }
+}
