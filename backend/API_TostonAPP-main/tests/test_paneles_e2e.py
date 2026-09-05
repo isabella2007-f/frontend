@@ -23,7 +23,8 @@ from panel import (
     ID_OTRO_REPARTIDOR, ID_TORTA, ID_TOSTON, ORDEN_CANCELADA, ORDEN_COMPLETADA,
     ORDEN_EN_PROCESO, ORDEN_PENDIENTE, PEDIDO_CANCELADO, PEDIDO_CONFIRMADO,
     PEDIDO_EN_CAMINO, PEDIDO_EN_PRODUCCION, PEDIDO_ENTREGADO,
-    PEDIDO_FECHA_PROPUESTA, PEDIDO_LISTO, PEDIDO_PENDIENTE, PRECIO,
+    PEDIDO_FECHA_PROPUESTA,
+    PEDIDO_FECHA_RECHAZADA, PEDIDO_LISTO, PEDIDO_PENDIENTE, PRECIO,
     STOCK_HARINA, STOCK_TORTA, STOCK_TOSTON, PanelBase,
 )
 
@@ -249,7 +250,12 @@ class PanelClienteTests(PanelBase):
             self.venta(id_venta).Estado, (PEDIDO_CONFIRMADO, PEDIDO_EN_PRODUCCION)
         )
 
-    def test_rechazar_la_fecha_cancela_el_pedido(self):
+    def test_rechazar_la_fecha_no_cancela_el_pedido(self):
+        """Rechazar deja el pedido esperando otra fecha, no lo mata.
+
+        Antes se cancelaba, y el de recoger en tienda se perdía sin que nadie
+        pudiera proponer una segunda fecha.
+        """
         pedido = self.pedido_con_faltante()
         id_venta = pedido["ID_Venta"]
         fecha = (datetime.now() + timedelta(days=3)).isoformat()
@@ -258,7 +264,16 @@ class PanelClienteTests(PanelBase):
         ))
 
         self.afirmar_ok(self.patch(f"/ventas/{id_venta}/rechazar-fecha", self.cliente))
-        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_CANCELADO)
+        venta = self.venta(id_venta)
+        self.assertEqual(venta.Estado, PEDIDO_FECHA_RECHAZADA)
+        self.assertEqual(venta.intentos_rechazo, 1)
+
+        # Y se le puede proponer otra, que es de lo que se trataba.
+        otra = (datetime.now() + timedelta(days=5)).isoformat()
+        self.afirmar_ok(self.patch(
+            f"/ventas/{id_venta}/proponer-fecha", self.admin, {"fecha_entrega": otra}
+        ))
+        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_FECHA_PROPUESTA)
 
     def test_no_acepta_la_fecha_de_un_pedido_ajeno(self):
         pedido = self.pedido_con_faltante()
@@ -1415,12 +1430,17 @@ class FechaPropuestaTests(PanelBase):
         self.afirmar_ok(self.patch(f"/ventas/{id_venta}/aceptar-fecha", self.cliente))
         self.assertEqual(self.venta(id_venta).Estado, PEDIDO_CONFIRMADO)
 
-    def test_rechazar_sigue_cancelando_aunque_ya_este_horneado(self):
+    def test_rechazar_con_lo_ya_horneado_deja_el_pedido_esperando_fecha(self):
+        """Lo que ya se horneó no obliga al cliente a aceptar la fecha.
+
+        Tampoco tira el pedido: queda esperando otra propuesta, con la
+        mercancía hecha y en stock.
+        """
         id_venta = self.esperando_respuesta()
         self.hornear(id_venta)
 
         self.afirmar_ok(self.patch(f"/ventas/{id_venta}/rechazar-fecha", self.cliente))
-        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_CANCELADO)
+        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_FECHA_RECHAZADA)
 
 
 # ══════════════════════════════════════════════════════════════════════════

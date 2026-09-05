@@ -137,16 +137,13 @@ class VentaResponse(BaseModel):
     estado_pago:              Optional[str]      = None
     # Solo los pedidos sobre stock o de producción necesitan fecha propuesta
     requiere_fecha_propuesta:      bool             = False
-    # Cuándo el cliente rechazó la última fecha propuesta. Con domicilio el
-    # pedido vuelve a Pendiente, y sin esto no había forma de distinguirlo de
-    # uno recién hecho.
-    fecha_rechazada:               Optional[datetime] = None
     requiere_produccion:           bool             = False
     ordenes_produccion_pendientes: int              = 0
     ordenes_en_espera:             int              = 0
     # Respuesta del cliente a "¿Todo junto el domingo?"
     envio_completo_domingo:        Optional[bool]   = None
-    # Negociación de fecha
+    # Negociación de fecha: cuándo rechazó la última propuesta y cuántas van.
+    # Sin esto el pedido reaparecía idéntico a uno recién hecho.
     fecha_rechazada:               Optional[datetime] = None
     intentos_rechazo:              int              = 0
 

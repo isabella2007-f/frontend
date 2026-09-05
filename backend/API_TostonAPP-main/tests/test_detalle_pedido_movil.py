@@ -48,7 +48,7 @@ CAMPOS_DEL_PEDIDO = [
     "pago_final_registrado", "pago_final_monto", "pago_final_metodo_pago",
     "pago_final_comprobante_url", "pago_final_fecha",
     # Producción
-    "requiere_produccion", "requiere_fecha_propuesta", "fecha_rechazada",
+    "requiere_produccion", "requiere_fecha_propuesta", "fecha_rechazada", "intentos_rechazo",
     "ordenes_produccion_pendientes", "ordenes_en_espera",
     # Qué se pidió
     "productos",
@@ -213,31 +213,63 @@ class DetalleDelPedidoTests(PanelBase):
         self.assertIsNone(pedido["direccion_entrega"])
         self.assertIsNone(pedido["nombre_domiciliario"])
 
-    def test_la_fecha_rechazada_llega(self):
-        """Cuándo el cliente rechazó la última fecha propuesta.
+    def proponer(self, idv, dia="20"):
+        return self.afirmar_ok(self.patch(
+            f"/ventas/{idv}/proponer-fecha", self.admin,
+            {"fecha_entrega": f"2027-09-{dia}T10:00:00"}))
 
-        Con domicilio el pedido vuelve a Pendiente para que se le proponga
-        otra, y sin esta marca reaparece idéntico a uno recién hecho: ni el
-        panel web ni la app tenían forma de decir que hay un rechazo esperando
-        respuesta. El servicio la armaba desde siempre; el esquema la borraba.
+    def test_rechazar_la_fecha_no_mata_el_pedido(self):
+        """Rechazar deja el pedido en Fecha rechazada (17), esperando otra.
+
+        Antes se cancelaba —y el de recoger en tienda se perdía—, así que la
+        app lo mandaba al historial. Ahora sigue vivo y el admin propone otra.
         """
         creado = self.pedido_completo()
         idv = creado["ID_Venta"]
-        self.afirmar_ok(self.patch(
-            f"/ventas/{idv}/proponer-fecha", self.admin,
-            {"fecha_entrega": "2026-09-20T10:00:00"}))
+        self.proponer(idv)
 
         antes = self.afirmar_ok(self.get(f"/ventas/{idv}", self.admin))
         self.assertIsNone(antes["fecha_rechazada"], "nadie rechazó nada todavía")
+        self.assertEqual(antes["intentos_rechazo"], 0)
 
         self.afirmar_ok(self.patch(f"/ventas/{idv}/rechazar-fecha", self.cliente))
         despues = self.afirmar_ok(self.get(f"/ventas/{idv}", self.admin))
 
+        self.assertEqual(despues["Estado"], 17, "Fecha rechazada")
         self.assertIsNotNone(despues["fecha_rechazada"])
-        # Con domicilio el pedido sigue vivo y sin fecha: hay que proponer otra.
-        self.assertEqual(despues["Estado"], 1)
+        self.assertEqual(despues["intentos_rechazo"], 1)
         self.assertIsNone(despues["Fecha_entrega_esperada"])
         self.assertTrue(despues["requiere_fecha_propuesta"])
+
+    def test_al_tercer_rechazo_el_pedido_se_escala(self):
+        """Tres rechazos y lo resuelve un administrador a mano.
+
+        La app necesita los dos números para explicarlo: en cuál va y cuál es
+        el tope.
+        """
+        creado = self.pedido_completo()
+        idv = creado["ID_Venta"]
+
+        for intento, dia in enumerate(("20", "21", "22"), start=1):
+            self.proponer(idv, dia)
+            self.afirmar_ok(
+                self.patch(f"/ventas/{idv}/rechazar-fecha", self.cliente))
+            v = self.afirmar_ok(self.get(f"/ventas/{idv}", self.admin))
+            self.assertEqual(v["intentos_rechazo"], intento)
+            esperado = 19 if intento >= 3 else 17
+            self.assertEqual(v["Estado"], esperado, f"intento {intento}")
+
+    def test_aceptar_la_fecha_borra_la_cuenta_de_rechazos(self):
+        """Si acordaron, los rechazos anteriores dejan de importar."""
+        creado = self.pedido_completo()
+        idv = creado["ID_Venta"]
+        self.proponer(idv, "20")
+        self.afirmar_ok(self.patch(f"/ventas/{idv}/rechazar-fecha", self.cliente))
+        self.proponer(idv, "21")
+        self.afirmar_ok(self.patch(f"/ventas/{idv}/aceptar-fecha", self.cliente))
+
+        v = self.afirmar_ok(self.get(f"/ventas/{idv}", self.admin))
+        self.assertEqual(v["intentos_rechazo"], 0)
 
     def test_el_cliente_no_puede_leer_el_pedido_de_otro(self):
         """La puerta del cliente devuelve lo suyo y nada más."""
