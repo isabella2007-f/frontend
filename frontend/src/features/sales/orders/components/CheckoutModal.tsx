@@ -4,7 +4,10 @@ import { CartItem } from '../services/cartService';
 import { getUser } from '../../../../services/authService';
 import { getMiCredito } from '../../../../services/pedidosService';
 import { apiFetch } from '../../../../utils/api';
-import { MUNICIPIOS_VALLE_ABURRA } from '../../../../utils/departamentosYCiudades';
+import FormularioDireccion from '../../../../shared/components/FormularioDireccion';
+import {
+  desdeTexto, direccionVacia, lineaGuardada, observacionesDe, queFalta,
+} from '../../../../utils/direccionEntrega';
 // La regla del anticipo vive en un solo lugar, espejo del servidor.
 import { pideAnticipo } from '../../../../utils/anticipo';
 import SaldoMonto from '../../../../shared/components/SaldoMonto';
@@ -37,7 +40,7 @@ interface CheckoutModalProps {
     observaciones?: string;
     tieneDomicilio?: boolean;
   } | null;
-  onConfirm: (paymentMethod: string, onBehalfOf: string, comprobante?: File | null, saldoAFavor?: { usar: boolean; monto: number; efectivoMonto?: number }, deliveryInfo?: { tieneDomicilio: boolean; address: string; municipio: string; departamento: string; date: string; time: string; observaciones: string }, anticipoData?: { requiere: boolean; metodo: string; efectivo: boolean; comprobante: File | null; monto: number; saldo: number; pagarTodo?: boolean; creditoCubreAnticipo?: boolean }) => Promise<void> | void;
+  onConfirm: (paymentMethod: string, onBehalfOf: string, comprobante?: File | null, saldoAFavor?: { usar: boolean; monto: number; efectivoMonto?: number }, deliveryInfo?: { tieneDomicilio: boolean; address: string; municipio: string; barrio: string; departamento: string; date: string; time: string; observaciones: string }, anticipoData?: { requiere: boolean; metodo: string; efectivo: boolean; comprobante: File | null; monto: number; saldo: number; pagarTodo?: boolean; creditoCubreAnticipo?: boolean }) => Promise<void> | void;
 }
 
 const COSTO_DOMICILIO = 5000;
@@ -101,8 +104,9 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   // pone creditoMaximo; el atajo "Todo" cubre el caso mas comun.
   const [creditoMonto,       setCreditoMonto]       = useState<number | ''>('');
   const [tieneDomicilio,     setTieneDomicilio]     = useState(false);
-  const [address,            setAddress]            = useState('');
-  const [municipio,          setMunicipio]          = useState('');
+  /// La dirección de entrega, campo por campo. Antes eran dos campos sueltos:
+  /// un renglón de texto libre y el municipio, sin barrio en ninguna parte.
+  const [direccion,          setDireccion]          = useState(direccionVacia());
   const [date,               setDate]               = useState('');
   const [time,               setTime]               = useState('');
   const [observaciones,      setObservaciones]      = useState('');
@@ -114,8 +118,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   // Dirección guardada
   const [direccionRegistrada, setDireccionRegistrada] = useState('');
   const [guardarDireccion,    setGuardarDireccion]    = useState(true);
-  const [addressTocada,       setAddressTocada]       = useState(false);
-  const [municipioTocado,     setMunicipioTocado]     = useState(false);
+  /// Si ya se intentó confirmar: hasta entonces no se marca nada en rojo.
+  const [direccionTocada,     setDireccionTocada]     = useState(false);
   // Anticipo
   const [anticipoMetodo,      setAnticipoMetodo]      = useState('');
   const [anticipoEfectivo,    setAnticipoEfectivo]    = useState(false);
@@ -131,15 +135,15 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
     const user = getUser();
     setOnBehalfOf(user?.nombre || orderDetails.clientName || '');
     setTieneDomicilio(orderDetails.tieneDomicilio ?? false);
-    setAddress(orderDetails.address || '');
-    setMunicipio(orderDetails.municipio || '');
+    setDireccion(desdeTexto(orderDetails.address, {
+      municipio: orderDetails.municipio || '',
+    }));
     setDate(orderDetails.date || '');
     setTime('');
     setObservaciones(orderDetails.observaciones || '');
     setComprobante(null);
     setTelefonoTocado(false);
-    setAddressTocada(false);
-    setMunicipioTocado(false);
+    setDireccionTocada(false);
 
     // Cargar perfil para verificar teléfono y dirección
     apiFetch('/auth/perfil')
@@ -149,10 +153,16 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
         setTelefonoRegistrado(!!tel);
         const dir = perfil?.Direccion || '';
         setDireccionRegistrada(dir);
-        // Pre-llenar dirección si hay y no vino del carrito
+        // La dirección guardada se ofrece ya puesta, separada en sus campos:
+        // lo que hay en la base es texto libre de antes y lo que no se entienda
+        // lo completa el cliente.
         if (dir && !orderDetails.address) {
-          setAddress(dir);
-          setMunicipio(perfil?.Municipio || '');
+          setDireccion(desdeTexto(dir, {
+            departamento: perfil?.Departamento || 'Antioquia',
+            municipio:    perfil?.Municipio    || '',
+            barrio:       perfil?.Barrio       || '',
+            indicaciones: perfil?.Indicaciones || '',
+          }));
         }
       })
       .catch(() => {
@@ -212,14 +222,16 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
     ? soloDigitos(telefono).length === 0 ? 'El teléfono es obligatorio' : 'Debe tener exactamente 10 dígitos'
     : null;
 
-  const addressValida = address.trim().length >= 5 && /\d/.test(address);
-  const addressError = addressTocada && !addressValida
-    ? address.trim().length === 0 ? 'La dirección es obligatoria'
-      : address.trim().length < 5  ? 'La dirección es demasiado corta'
-      : 'Debe incluir un número (Ej: Calle 10 #20-30)'
-    : null;
-  const municipioValido = municipio.trim().length > 0;
-  const municipioError = municipioTocado && !municipioValido ? 'Selecciona el municipio de entrega' : null;
+  // Qué le falta a la dirección, campo por campo. Antes eran dos preguntas
+  // sueltas —¿tiene 5 caracteres?, ¿tiene un número?— sobre un renglón de texto
+  // libre, que dejaban pasar "asdfg 1" y no pedían el barrio en ninguna parte.
+  const faltaDireccion  = queFalta(direccion);
+  const direccionValida = faltaDireccion === null;
+  const direccionError  = direccionTocada ? faltaDireccion : null;
+  // Lo que se manda al servidor: la vía en la columna de 50 caracteres y el
+  // resto en las observaciones.
+  const address   = lineaGuardada(direccion);
+  const municipio = direccion.municipio;
 
   const user = getUser();
   const costoDomicilio   = tieneDomicilio ? COSTO_DOMICILIO : 0;
@@ -243,12 +255,9 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
 
   const handleFinalConfirm = async () => {
     setTelefonoTocado(true);
-    if (tieneDomicilio) {
-      setAddressTocada(true);
-      setMunicipioTocado(true);
-    }
+    if (tieneDomicilio) setDireccionTocada(true);
     if (!telefonoValido) return;
-    if (tieneDomicilio && (!addressValida || !municipioValido)) return;
+    if (tieneDomicilio && !direccionValida) return;
 
     // Pagando por transferencia el comprobante es obligatorio: sin él, el pedido
     // se creaba igual y quedaba sin soporte de pago, sin avisar a nadie.
@@ -292,11 +301,20 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
       }).catch(() => {});
     }
 
-    // Guardar dirección si aplica
-    if (tieneDomicilio && guardarDireccion && (!direccionRegistrada || address)) {
+    // Guardar dirección si aplica. Va partida igual que en el perfil: la vía
+    // en Direccion —50 caracteres en el servidor— y el barrio, el complemento
+    // y las indicaciones en Indicaciones.
+    if (tieneDomicilio && guardarDireccion && address) {
       await apiFetch('/auth/perfil', {
         method: 'PUT',
-        body: JSON.stringify({ Direccion: address, Municipio: municipio }),
+        body: JSON.stringify({
+          Direccion: address,
+          Municipio: municipio,
+          Departamento: direccion.departamento,
+          // Todavía no es columna; se manda para cuando exista.
+          Barrio: direccion.barrio.trim(),
+          Indicaciones: observacionesDe(direccion),
+        }),
       }).catch(() => {});
     }
 
@@ -309,7 +327,17 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
 
     try {
       await onConfirm(metodoPedido, onBehalfOf, comprobante, { usar: usarCredito, monto: creditoAplicar, efectivoMonto: Number(efectivoMonto) || 0 }, {
-        tieneDomicilio, address, municipio, departamento: orderDetails.departamento || 'Antioquia', date, time, observaciones,
+        tieneDomicilio,
+        address,
+        municipio,
+        barrio: direccion.barrio.trim(),
+        departamento: direccion.departamento || orderDetails.departamento || 'Antioquia',
+        date,
+        time,
+        // El barrio, el complemento y las indicaciones del formulario van con
+        // lo que el cliente haya escrito aparte: es lo que lee quien entrega.
+        observaciones: [observacionesDe(direccion), observaciones]
+          .filter(Boolean).join('. '),
       }, requiereAnticipo ? {
         requiere: true,
         metodo: creditoCubreAnticipo ? 'credito' : anticipoMetodo,
@@ -474,33 +502,22 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
 
             {tieneDomicilio && (
               <div className="space-y-2">
-                <div>
-                  <div className={`relative ${addressError ? 'ring-1 ring-red-300 rounded-xl' : ''}`}>
-                    <MapPin size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Dirección (Ej: Calle 10 #20-30)"
-                      value={address}
-                      onChange={e => { setAddress(e.target.value); setAddressTocada(true); }}
-                      onBlur={() => setAddressTocada(true)}
-                      className={inputCls + " pl-8"}
-                    />
-                  </div>
-                  {addressError && <p className="text-[10px] font-bold text-red-500 mt-1 pl-1">{addressError}</p>}
-                </div>
-                <div>
-                  <select
-                    value={municipio}
-                    onChange={e => { setMunicipio(e.target.value); setMunicipioTocado(true); }}
-                    onBlur={() => setMunicipioTocado(true)}
-                    className={inputCls + (municipioError ? ' border-red-300 ring-1 ring-red-200' : '')}
-                  >
-                    <option value="">— Municipio —</option>
-                    {MUNICIPIOS_VALLE_ABURRA.map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                  {municipioError && <p className="text-[10px] font-bold text-red-500 mt-1 pl-1">{municipioError}</p>}
-                </div>
-                {addressValida && address.trim() !== direccionRegistrada.trim() && (
+                {/* La dirección, campo por campo: el mismo formulario del
+                    perfil y de la app. Era un renglón de texto libre, así que
+                    un pedido de la web no traía barrio y su costo no se podía
+                    calcular. */}
+                <FormularioDireccion
+                  tema="checkout"
+                  mostrarAvisoCosto
+                  valor={direccion}
+                  onCambio={setDireccion}
+                />
+                {direccionError && (
+                  <p className="text-[10px] font-bold text-red-500 mt-1 pl-1">
+                    {direccionError}
+                  </p>
+                )}
+                {direccionValida && address.trim() !== direccionRegistrada.trim() && (
                   <label className="flex items-center gap-2 cursor-pointer select-none">
                     <input type="checkbox" checked={guardarDireccion} onChange={e => setGuardarDireccion(e.target.checked)}
                       className="w-3.5 h-3.5 rounded accent-green-600" />

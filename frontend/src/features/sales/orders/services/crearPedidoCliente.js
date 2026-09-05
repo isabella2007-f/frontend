@@ -26,6 +26,7 @@ export const resolverEntrega = (deliveryInfo, orderDetails) => ({
   tieneDomicilio: deliveryInfo?.tieneDomicilio ?? orderDetails?.tieneDomicilio ?? false,
   address:        deliveryInfo?.address        || orderDetails?.address        || '',
   municipio:      deliveryInfo?.municipio      || orderDetails?.municipio      || '',
+  barrio:         deliveryInfo?.barrio         || orderDetails?.barrio         || '',
   departamento:   deliveryInfo?.departamento   || orderDetails?.departamento   || '',
   date:           deliveryInfo?.date           || orderDetails?.date           || '',
   time:           deliveryInfo?.time           || '',
@@ -129,6 +130,10 @@ export async function crearPedidoCliente({
       Direccion_entrega:    entrega.address,
       Municipio_entrega:    entrega.municipio    || 'Sin municipio',
       Departamento_entrega: entrega.departamento || 'Sin departamento',
+      // El barrio todavía no es columna en el servidor —de él va a depender el
+      // costo del domicilio— pero se manda desde ya: el esquema descarta lo que
+      // no conoce, así que hoy no molesta y el día que exista empieza a llegar.
+      Barrio_entrega:       entrega.barrio || null,
       Observaciones:        entrega.observaciones,
     } : null,
   };

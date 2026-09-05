@@ -39,6 +39,33 @@ const focusOff = (e) => {
   e.target.style.boxShadow = 'none';
 };
 
+/**
+ * Cómo se ve el formulario en cada pantalla.
+ *
+ * Lo único que cambia entre el perfil y el checkout es esto. Los campos, su
+ * orden y qué es obligatorio son los mismos en los dos.
+ */
+const TEMAS = {
+  perfil: {
+    campoProps: () => ({ style: inputBase, onFocus: focusOn, onBlur: focusOff }),
+    etiquetaVisible: true,
+    hueco: 16,
+  },
+  checkout: {
+    // Las mismas clases que el resto del modal.
+    campoProps: () => ({
+      className:
+        'w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 ' +
+        'text-sm text-gray-700 font-medium placeholder:text-gray-300 ' +
+        'focus:outline-none focus:ring-2 focus:ring-green-200 ' +
+        'focus:border-green-400 transition-all',
+    }),
+    // En el checkout el espacio es corto: la etiqueta va como placeholder.
+    etiquetaVisible: false,
+    hueco: 8,
+  },
+};
+
 const Etiqueta = ({ icon: Icon, children }) => (
   <label style={{
     display: 'flex', alignItems: 'center', gap: 6,
@@ -50,9 +77,9 @@ const Etiqueta = ({ icon: Icon, children }) => (
   </label>
 );
 
-const Campo = ({ label, icon, children }) => (
-  <div style={{ marginBottom: 16 }}>
-    <Etiqueta icon={icon}>{label}</Etiqueta>
+const Campo = ({ label, icon, tema, children }) => (
+  <div style={{ marginBottom: tema.hueco }}>
+    {tema.etiquetaVisible && <Etiqueta icon={icon}>{label}</Etiqueta>}
     {children}
   </div>
 );
@@ -62,7 +89,11 @@ export default function FormularioDireccion({
   onCambio,
   /** El aviso del costo. En el perfil no aplica: ahí no se cobra nada. */
   mostrarAvisoCosto = false,
+  /** 'perfil' (estilos en línea) o 'checkout' (Tailwind, más compacto). */
+  tema: nombreTema = 'perfil',
 }) {
+  const tema = TEMAS[nombreTema] || TEMAS.perfil;
+  const campo = tema.campoProps();
   const d = valor;
   const barrios = barriosDe(d.municipio);
   // Un barrio escrito a mano (o uno de una lista vieja) cae en "otro".
@@ -95,21 +126,21 @@ export default function FormularioDireccion({
       )}
 
       {/* Municipio */}
-      <Campo label="Municipio (Valle de Aburrá)" icon={MapPin}>
+      <Campo label="Municipio (Valle de Aburrá)" icon={MapPin} tema={tema}>
         <select
           value={d.municipio || ''}
           // Cambiar de municipio deja el barrio anterior sin sentido.
           onChange={(e) => onCambio({ ...d, municipio: e.target.value, barrio: '' })}
-          style={{ ...inputBase, cursor: 'pointer' }}
-          onFocus={focusOn} onBlur={focusOff}
+          {...campo}
+          style={{ ...campo.style, cursor: 'pointer' }}
         >
-          <option value="">— Seleccionar —</option>
+          <option value="">— Municipio —</option>
           {MUNICIPIOS_VALLE_ABURRA.map((m) => <option key={m} value={m}>{m}</option>)}
         </select>
       </Campo>
 
       {/* Barrio */}
-      <Campo label="Barrio" icon={Home}>
+      <Campo label="Barrio" icon={Home} tema={tema}>
         <select
           value={barrioEnLista ? d.barrio : (eligioOtro ? BARRIO_OTRO : '')}
           onChange={(e) => onCambio({
@@ -119,11 +150,11 @@ export default function FormularioDireccion({
             barrio: e.target.value === BARRIO_OTRO ? ' ' : e.target.value,
           })}
           disabled={!d.municipio}
-          style={{ ...inputBase, cursor: d.municipio ? 'pointer' : 'not-allowed' }}
-          onFocus={focusOn} onBlur={focusOff}
+          {...campo}
+          style={{ ...campo.style, cursor: d.municipio ? 'pointer' : 'not-allowed' }}
         >
           <option value="">
-            {d.municipio ? '— Seleccionar —' : 'Primero elige el municipio'}
+            {d.municipio ? '— Barrio —' : 'Primero elige el municipio'}
           </option>
           {barrios.map((b) => <option key={b} value={b}>{b}</option>)}
         </select>
@@ -133,50 +164,49 @@ export default function FormularioDireccion({
           viva en uno que falte no puede pedir, y eso es peor que una lista
           incompleta. */}
       {eligioOtro && (
-        <Campo label="¿Cómo se llama tu barrio?" icon={Home}>
+        <Campo label="¿Cómo se llama tu barrio?" icon={Home} tema={tema}>
           <input
             type="text" value={d.barrio.trim()} onChange={set('barrio')}
-            style={inputBase} onFocus={focusOn} onBlur={focusOff}
+            placeholder="¿Cómo se llama tu barrio?" {...campo}
           />
         </Campo>
       )}
 
       {/* La vía */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 12 }}>
-        <Campo label="Tipo de vía" icon={Signpost}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 8 }}>
+        <Campo label="Tipo de vía" icon={Signpost} tema={tema}>
           <select
             value={d.tipoVia || ''} onChange={set('tipoVia')}
-            style={{ ...inputBase, cursor: 'pointer' }}
-            onFocus={focusOn} onBlur={focusOff}
+            {...campo}
+            style={{ ...campo.style, cursor: 'pointer' }}
           >
-            <option value="">— Seleccionar —</option>
+            <option value="">— Tipo de vía —</option>
             {TIPOS_VIA.map((t) => (
               <option key={t.valor} value={t.valor}>{t.etiqueta}</option>
             ))}
           </select>
         </Campo>
-        <Campo label="Número">
+        <Campo label="Número" tema={tema}>
           <input type="text" value={d.numero || ''} onChange={set('numero')}
-            style={inputBase} onFocus={focusOn} onBlur={focusOff} />
+            placeholder="Número" {...campo} />
         </Campo>
       </div>
 
-      <Campo label="Número después del #" icon={Hash}>
+      <Campo label="Número después del #" icon={Hash} tema={tema}>
         <input type="text" value={d.numeral || ''} onChange={set('numeral')}
-          placeholder="Como 59-56" style={inputBase}
-          onFocus={focusOn} onBlur={focusOff} />
+          placeholder="Número después del # (como 59-56)" {...campo} />
       </Campo>
 
-      <Campo label="Complemento (opcional)" icon={Building2}>
+      <Campo label="Complemento (opcional)" icon={Building2} tema={tema}>
         <input type="text" value={d.complemento || ''} onChange={set('complemento')}
-          placeholder="Apartamento, torre, interior, local" style={inputBase}
-          onFocus={focusOn} onBlur={focusOff} />
+          placeholder="Apartamento, torre, interior, local (opcional)"
+          {...campo} />
       </Campo>
 
-      <Campo label="Indicaciones (opcional)" icon={Info}>
+      <Campo label="Indicaciones (opcional)" icon={Info} tema={tema}>
         <input type="text" value={d.indicaciones || ''} onChange={set('indicaciones')}
-          placeholder="Cómo reconocer la casa, a quién preguntar" style={inputBase}
-          onFocus={focusOn} onBlur={focusOff} />
+          placeholder="Cómo reconocer la casa, a quién preguntar (opcional)"
+          {...campo} />
       </Campo>
 
       {/* Cómo va a quedar: para corregir acá y no cuando el domiciliario esté
