@@ -3,7 +3,10 @@ import { X, MapPin, Trash2, Plus, Minus, ShoppingBag, LogIn, Sparkles, ChevronRi
 import { CartItem, removeFromCart, updateQuantity, clearCart, getCart } from '../services/cartService';
 import { isAuthenticated } from '../../../../services/authService';
 import { apiFetch } from '../../../../utils/api';
-import { MUNICIPIOS_VALLE_ABURRA } from '../../../../utils/departamentosYCiudades';
+import SelectorDireccionEntrega from '../../../../shared/components/SelectorDireccionEntrega';
+import {
+  direccionVacia, lineaGuardada, queFalta,
+} from '../../../../utils/direccionEntrega';
 
 const COSTO_DOMICILIO = 5000;
 const HORA_APERTURA  = 8;   // 8:00 am
@@ -34,16 +37,16 @@ const mensajeFueraHorario = () => {
 const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLoginRequired }) => {
   const [cart, setCart]               = useState<CartItem[]>(() => getCart());
   const [qtyDrafts, setQtyDrafts]     = useState<{[id: number]: string}>({});
-  const [address, setAddress]         = useState('');
-  const [departamento, setDepartamento] = useState('Antioquia');
-  const [municipio, setMunicipio]     = useState('');
   const [tieneDomicilio,    setTieneDomicilio]    = useState(false);
   const [observaciones,     setObservaciones]     = useState('');
-  const [sinDireccionMsg,   setSinDireccionMsg]   = useState(false);
   const [checkoutError,     setCheckoutError]     = useState('');
   const [confirmVaciar,     setConfirmVaciar]     = useState(false);
-  const [showDeliveryInfo,  setShowDeliveryInfo]  = useState(false);
-  const [stockLimitMsg,     setStockLimitMsg]     = useState('');
+  const [stockLimitMsg,  setStockLimitMsg]  = useState('');
+  /// Lo que el cliente tiene guardado. No se toca desde acá: para cambiarlo
+  /// está "Mis datos".
+  const [registrada,     setRegistrada]     = useState<any>(null);
+  const [usarRegistrada, setUsarRegistrada] = useState(true);
+  const [otraDireccion,  setOtraDireccion]  = useState(direccionVacia());
   const [total, setTotal]             = useState(() =>
     getCart().reduce((acc, i) => acc + i.precio * i.cantidad, 0)
   );
@@ -91,34 +94,48 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
     updateQuantity(id, num);
   };
 
-  const usarDireccionRegistrada = async () => {
-    try {
-      const perfil = await apiFetch('/auth/perfil');
-      const dir  = perfil?.Direccion   || '';
-      const depto = perfil?.Departamento || '';
-      const mun  = perfil?.Municipio   || '';
-      if (!dir && !depto && !mun) {
-        setSinDireccionMsg(true);
-        setTimeout(() => setSinDireccionMsg(false), 3500);
-        return;
-      }
-      if (dir)  setAddress(dir);
-      if (depto) setDepartamento(depto);
-      if (mun)  setMunicipio(mun);
-      setSinDireccionMsg(false);
-    } catch {
-      setSinDireccionMsg(true);
-      setTimeout(() => setSinDireccionMsg(false), 3500);
-    }
-  };
+  // La dirección guardada se trae al abrir el carrito, no cuando se toca un
+  // botón: es la que se va a usar casi siempre y tiene que estar a la vista.
+  useEffect(() => {
+    if (!isOpen || !isAuthenticated()) return;
+    let vigente = true;
+    apiFetch('/auth/perfil')
+      .then((perfil: any) => {
+        if (!vigente) return;
+        const dir = perfil?.Direccion || '';
+        setRegistrada({
+          direccion:    dir,
+          municipio:    perfil?.Municipio    || '',
+          departamento: perfil?.Departamento || 'Antioquia',
+          barrio:       perfil?.Barrio       || '',
+          indicaciones: perfil?.Indicaciones || '',
+        });
+        setUsarRegistrada(!!dir);
+      })
+      .catch(() => {
+        if (!vigente) return;
+        setRegistrada(null);
+        setUsarRegistrada(false);
+      });
+    return () => { vigente = false; };
+  }, [isOpen]);
+
+  /// La dirección con la que sale este pedido.
+  const conRegistrada = usarRegistrada && !!registrada?.direccion;
+  const address       = conRegistrada ? registrada.direccion : lineaGuardada(otraDireccion);
+  const municipio     = conRegistrada ? (registrada.municipio || '') : otraDireccion.municipio;
+  const departamento  = conRegistrada
+    ? (registrada.departamento || 'Antioquia')
+    : otraDireccion.departamento;
+  const faltaDireccion = conRegistrada ? null : queFalta(otraDireccion);
 
   const costoTotal = tieneDomicilio ? total + COSTO_DOMICILIO : total;
 
   const handleCheckout = () => {
     if (cart.length === 0) return;
-    if (tieneDomicilio) {
-      if (!address)   { setCheckoutError('Ingresa una dirección de entrega'); return; }
-      if (!municipio) { setCheckoutError('Selecciona un municipio de entrega'); return; }
+    if (tieneDomicilio && faltaDireccion) {
+      setCheckoutError(faltaDireccion);
+      return;
     }
     setCheckoutError('');
     if (!isAuthenticated()) { onClose(); onLoginRequired(); return; }
@@ -172,14 +189,14 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
         <div className="px-5 py-4 bg-white border-b border-gray-100 shrink-0">
           <div className="grid grid-cols-2 bg-gray-100 rounded-2xl p-1.5 gap-1.5">
             <button
-              onClick={() => { setTieneDomicilio(false); setShowDeliveryInfo(false); }}
+              onClick={() => { setTieneDomicilio(false); }}
               className={`flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-black uppercase tracking-wider transition-all duration-200 ${!tieneDomicilio ? 'bg-white text-green-800 shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
             >
               <ShoppingBag size={16} />
               Recogida
             </button>
             <button
-              onClick={() => { setTieneDomicilio(true); setShowDeliveryInfo(true); }}
+              onClick={() => { setTieneDomicilio(true); }}
               className={`flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-black uppercase tracking-wider transition-all duration-200 ${tieneDomicilio ? 'bg-white text-green-800 shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
             >
               <Truck size={16} />
@@ -190,44 +207,15 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
           {/* Formulario de entrega (solo si domicilio) */}
           {tieneDomicilio && (
             <div className="mt-3 space-y-2">
-              {loggedIn && (
-                <div>
-                  <button
-                    onClick={usarDireccionRegistrada}
-                    className="w-full py-2 px-3 bg-green-50 hover:bg-green-100 border border-green-200 rounded-xl text-xs font-black text-green-800 uppercase tracking-widest transition-all text-center"
-                  >
-                    <MapPin size={13} /> Usar mi dirección registrada
-                  </button>
-                  {sinDireccionMsg && (
-                    <div className="mt-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2">
-                      <AlertTriangle size={13} className="text-amber-600 shrink-0" />
-                      <p className="text-xs font-bold text-amber-700 leading-tight">
-                        No tienes dirección registrada. Ve a tu <strong>Perfil</strong> para agregarla.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="relative">
-                <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Dirección (Ej: Calle 10 #20-30)"
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 pl-9 pr-3 text-sm placeholder:text-gray-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400 transition-all font-medium text-gray-700"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
+              {loggedIn ? (
+                <SelectorDireccionEntrega
+                  registrada={registrada}
+                  usarRegistrada={usarRegistrada}
+                  onUsarRegistrada={setUsarRegistrada}
+                  otra={otraDireccion}
+                  onOtra={setOtraDireccion}
                 />
-              </div>
-
-              <select
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400 transition-all font-medium text-gray-700"
-                value={municipio}
-                onChange={(e) => setMunicipio(e.target.value)}
-              >
-                <option value="">— Municipio (Valle de Aburrá) —</option>
-                {MUNICIPIOS_VALLE_ABURRA.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
+              ) : null}
 
               {!loggedIn && (
                 <div className="flex items-center gap-2 py-2 px-3 bg-amber-50 border border-amber-200 rounded-xl">

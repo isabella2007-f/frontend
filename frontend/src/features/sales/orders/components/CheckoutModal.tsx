@@ -4,7 +4,7 @@ import { CartItem } from '../services/cartService';
 import { getUser } from '../../../../services/authService';
 import { getMiCredito } from '../../../../services/pedidosService';
 import { apiFetch } from '../../../../utils/api';
-import FormularioDireccion from '../../../../shared/components/FormularioDireccion';
+import SelectorDireccionEntrega from '../../../../shared/components/SelectorDireccionEntrega';
 import {
   desdeTexto, direccionVacia, lineaGuardada, observacionesDe, queFalta,
 } from '../../../../utils/direccionEntrega';
@@ -116,8 +116,10 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   const [telefonoRegistrado, setTelefonoRegistrado] = useState(false);
   const [guardarTelefono,    setGuardarTelefono]    = useState(true);
   // Dirección guardada
-  const [direccionRegistrada, setDireccionRegistrada] = useState('');
-  const [guardarDireccion,    setGuardarDireccion]    = useState(true);
+  /// Lo que el cliente tiene guardado en su perfil. No se toca desde acá.
+  const [registrada,     setRegistrada]     = useState<any>(null);
+  /// true = se entrega en la de siempre; false = en la que escriba ahora.
+  const [usarRegistrada, setUsarRegistrada] = useState(true);
   /// Si ya se intentó confirmar: hasta entonces no se marca nada en rojo.
   const [direccionTocada,     setDireccionTocada]     = useState(false);
   // Anticipo
@@ -138,6 +140,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
     setDireccion(desdeTexto(orderDetails.address, {
       municipio: orderDetails.municipio || '',
     }));
+    setUsarRegistrada(true);
     setDate(orderDetails.date || '');
     setTime('');
     setObservaciones(orderDetails.observaciones || '');
@@ -152,22 +155,20 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
         setTelefono(tel);
         setTelefonoRegistrado(!!tel);
         const dir = perfil?.Direccion || '';
-        setDireccionRegistrada(dir);
-        // La dirección guardada se ofrece ya puesta, separada en sus campos:
-        // lo que hay en la base es texto libre de antes y lo que no se entienda
-        // lo completa el cliente.
-        if (dir && !orderDetails.address) {
-          setDireccion(desdeTexto(dir, {
-            departamento: perfil?.Departamento || 'Antioquia',
-            municipio:    perfil?.Municipio    || '',
-            barrio:       perfil?.Barrio       || '',
-            indicaciones: perfil?.Indicaciones || '',
-          }));
-        }
+        setRegistrada({
+          direccion:    dir,
+          municipio:    perfil?.Municipio    || '',
+          departamento: perfil?.Departamento || 'Antioquia',
+          barrio:       perfil?.Barrio       || '',
+          indicaciones: perfil?.Indicaciones || '',
+        });
+        // Sin dirección guardada no hay nada que ofrecer: se escribe una.
+        setUsarRegistrada(!!dir);
       })
       .catch(() => {
         setTelefonoRegistrado(false);
-        setDireccionRegistrada('');
+        setRegistrada(null);
+        setUsarRegistrada(false);
       });
 
     getMiCredito()
@@ -225,13 +226,16 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   // Qué le falta a la dirección, campo por campo. Antes eran dos preguntas
   // sueltas —¿tiene 5 caracteres?, ¿tiene un número?— sobre un renglón de texto
   // libre, que dejaban pasar "asdfg 1" y no pedían el barrio en ninguna parte.
-  const faltaDireccion  = queFalta(direccion);
+  // La de siempre ya está completa por definición: se guardó completa. La
+  // otra se revisa campo por campo.
+  const conRegistrada   = usarRegistrada && !!registrada?.direccion;
+  const faltaDireccion  = conRegistrada ? null : queFalta(direccion);
   const direccionValida = faltaDireccion === null;
   const direccionError  = direccionTocada ? faltaDireccion : null;
   // Lo que se manda al servidor: la vía en la columna de 50 caracteres y el
   // resto en las observaciones.
-  const address   = lineaGuardada(direccion);
-  const municipio = direccion.municipio;
+  const address   = conRegistrada ? registrada.direccion    : lineaGuardada(direccion);
+  const municipio = conRegistrada ? (registrada.municipio || '') : direccion.municipio;
 
   const user = getUser();
   const costoDomicilio   = tieneDomicilio ? COSTO_DOMICILIO : 0;
@@ -301,10 +305,10 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
       }).catch(() => {});
     }
 
-    // Guardar dirección si aplica. Va partida igual que en el perfil: la vía
-    // en Direccion —50 caracteres en el servidor— y el barrio, el complemento
-    // y las indicaciones en Indicaciones.
-    if (tieneDomicilio && guardarDireccion && address) {
+    // La dirección del perfil solo se escribe cuando NO había ninguna: una
+    // dirección puntual —"hoy déjalo donde mi mamá"— no puede pisar la de
+    // siempre. Para cambiarla está "Mis datos".
+    if (tieneDomicilio && !conRegistrada && !registrada?.direccion && address) {
       await apiFetch('/auth/perfil', {
         method: 'PUT',
         body: JSON.stringify({
@@ -502,30 +506,26 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
 
             {tieneDomicilio && (
               <div className="space-y-2">
-                {/* La dirección, campo por campo: el mismo formulario del
-                    perfil y de la app. Era un renglón de texto libre, así que
-                    un pedido de la web no traía barrio y su costo no se podía
-                    calcular. */}
-                <FormularioDireccion
-                  tema="checkout"
-                  mostrarAvisoCosto
-                  valor={direccion}
-                  onCambio={setDireccion}
+                {/* La de siempre o una nueva. La guardada se muestra tal
+                    cual y no se edita: corregirla acá pisaba el perfil sin
+                    querer y el pedido siguiente salía a otro lado. */}
+                <SelectorDireccionEntrega
+                  registrada={registrada}
+                  usarRegistrada={usarRegistrada}
+                  onUsarRegistrada={setUsarRegistrada}
+                  otra={direccion}
+                  onOtra={setDireccion}
                 />
                 {direccionError && (
                   <p className="text-[10px] font-bold text-red-500 mt-1 pl-1">
                     {direccionError}
                   </p>
                 )}
-                {direccionValida && address.trim() !== direccionRegistrada.trim() && (
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input type="checkbox" checked={guardarDireccion} onChange={e => setGuardarDireccion(e.target.checked)}
-                      className="w-3.5 h-3.5 rounded accent-green-600" />
-                    <span className="text-xs font-bold text-gray-500 flex items-center gap-1">
-                      <Save size={11} className="text-green-600" />
-                      {direccionRegistrada ? 'Actualizar mi dirección registrada' : 'Guardar como dirección principal'}
-                    </span>
-                  </label>
+                {direccionValida && !registrada?.direccion && (
+                  <p className="text-xs font-bold text-gray-500 flex items-center gap-1.5">
+                    <Save size={12} className="text-green-600 shrink-0" />
+                    Como es tu primera dirección, la guardamos en tu perfil.
+                  </p>
                 )}
               </div>
             )}

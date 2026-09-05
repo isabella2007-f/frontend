@@ -2,6 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import { X, Check, AlertCircle, AlertTriangle, CheckCircle2, Package, Bike, Store, Banknote, Building2, CreditCard, Calendar, PenLine, ClipboardList, Phone, Mail, User, MapPin, ShoppingCart, Truck, Paperclip, Camera, Search, Gift } from "lucide-react";
 import { MUNICIPIOS_VALLE_ABURRA } from "../../../utils/departamentosYCiudades.js";
 import SearchableSelect from "../../../shared/components/SearchableSelect.jsx";
+import SelectorDireccionEntrega from "../../../shared/components/SelectorDireccionEntrega";
+import { direccionVacia, lineaGuardada, observacionesDe, queFalta }
+  from "../../../utils/direccionEntrega";
 import { getUsuarios } from "../../../services/usuariosService.js";
 import { getProductos } from "../../../services/productosService.js";
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
@@ -37,9 +40,10 @@ const EMPTY_FORM = {
   comprobante:          null,
   comprobantePreview:   null,
   domicilio:            false,
-  direccion_entrega:    "",
-  departamento:         "",
-  municipio:            "",
+  // true = se entrega en la dirección registrada del cliente; false = en otra,
+  // que vale solo para este pedido y no toca su perfil.
+  usar_direccion_registrada: true,
+  otra_direccion:       direccionVacia(),
   notas:                "",
   descuento:            0,
   fecha_entrega:        "",
@@ -317,7 +321,6 @@ export default function CrearPedido({ onClose, onSave }) {
     setForm(f => ({ ...f, [k]: v }));
     let err = "";
     if (k === "idCliente"         && !v)        err = "Selecciona un cliente para continuar";
-    if (k === "direccion_entrega" && !v.trim()) err = "Ingresa la dirección de entrega";
     if (k === "departamento"      && !v.trim()) err = "El departamento es obligatorio";
     if (k === "municipio"         && !v.trim()) err = "El municipio es obligatorio";
     if (k === "metodo_pago"       && !v)        err = "Selecciona un método de pago";
@@ -335,6 +338,29 @@ export default function CrearPedido({ onClose, onSave }) {
   const COSTO_DOMICILIO = 5000;
   const subtotal      = form.productosItems.reduce((a, p) => a + p.precio * p.cantidad, 0);
   const descuento     = Number(form.descuento) || 0;
+  // La dirección con la que sale este pedido: la registrada del cliente o la
+  // alternativa. La registrada no se toca; la otra no altera su perfil.
+  const conRegistrada = form.usar_direccion_registrada
+    && !!clienteSeleccionado?.direccion;
+  const entrega = conRegistrada
+    ? {
+        direccion:     clienteSeleccionado.direccion,
+        municipio:     clienteSeleccionado.municipio    || "",
+        departamento:  clienteSeleccionado.departamento || "Antioquia",
+        barrio:        clienteSeleccionado.barrio       || "",
+        observaciones: clienteSeleccionado.indicaciones || "",
+      }
+    : {
+        direccion:     lineaGuardada(form.otra_direccion),
+        municipio:     form.otra_direccion.municipio,
+        departamento:  form.otra_direccion.departamento,
+        barrio:        form.otra_direccion.barrio,
+        observaciones: observacionesDe(form.otra_direccion),
+      };
+  /// Qué le falta a la dirección, o null si está lista.
+  const faltaEnLaDireccion = () =>
+    conRegistrada ? null : queFalta(form.otra_direccion);
+
   const costoEnvio    = form.domicilio ? COSTO_DOMICILIO : 0;
   const total         = Math.max(0, subtotal - descuento + costoEnvio);
   // Tope: ni mas saldo del que tiene el cliente ni mas de lo que cuesta el
@@ -392,9 +418,8 @@ export default function CrearPedido({ onClose, onSave }) {
       else if (new Date(form.fecha_entrega + "T00:00:00") < new Date(new Date().toDateString()))
         e.fecha_entrega = "La fecha no puede ser en el pasado";
       if (form.domicilio) {
-        if (!form.direccion_entrega.trim()) e.direccion_entrega = "Ingresa la dirección de entrega";
-        if (!form.departamento.trim())       e.departamento = "El departamento es obligatorio";
-        if (!form.municipio.trim())          e.municipio = "El municipio es obligatorio";
+        const falta = faltaEnLaDireccion();
+        if (falta) e.direccion_entrega = falta;
         const tel = (clienteSeleccionado?.telefono || "").replace(/\D/g, "");
         if (tel.length !== 10) e.telefono_cliente = "El cliente debe tener un teléfono de 10 dígitos válido para pedidos con domicilio";
       }
@@ -493,9 +518,13 @@ export default function CrearPedido({ onClose, onSave }) {
         form.anticipo_metodo === "Efectivo" ? form.anticipo_efectivo : !!anticipoUrl
       ),
       domicilio:         form.domicilio,
-      direccion_entrega: form.domicilio ? form.direccion_entrega : null,
-      departamento:      form.domicilio ? form.departamento      : null,
-      municipio:         form.domicilio ? form.municipio         : null,
+      direccion_entrega: form.domicilio ? entrega.direccion    : null,
+      departamento:      form.domicilio ? entrega.departamento : null,
+      municipio:         form.domicilio ? entrega.municipio    : null,
+      // El barrio todavía no es columna en el servidor; se manda para cuando
+      // exista, igual que en el checkout del cliente.
+      barrio_entrega:    form.domicilio ? entrega.barrio       : null,
+      observaciones_entrega: form.domicilio ? entrega.observaciones : null,
       fecha_entrega:     form.fecha_entrega || null,
       notas:             form.notas,
       descuento,
@@ -590,7 +619,12 @@ export default function CrearPedido({ onClose, onSave }) {
                   error={errors.idCliente}
                   onChange={cli => {
                     if (!cli) {
-                      setForm(f => ({ ...f, idCliente: "", departamento: "", municipio: "", direccion_entrega: "" }));
+                      setForm(f => ({
+                        ...f,
+                        idCliente: "",
+                        usar_direccion_registrada: true,
+                        otra_direccion: direccionVacia(),
+                      }));
                       setCreditoCliente(0);
                       setCreditoMonto("");
                       setUsarCredito(false);
@@ -599,9 +633,10 @@ export default function CrearPedido({ onClose, onSave }) {
                     setForm(f => ({
                       ...f,
                       idCliente: String(cli.id),
-                      departamento: cli.departamento || "",
-                      municipio: cli.municipio || "",
-                      direccion_entrega: cli.direccion || "",
+                      // Cada cliente trae la suya: se vuelve a ofrecer la
+                      // registrada y se descarta la alternativa del anterior.
+                      usar_direccion_registrada: !!cli.direccion,
+                      otra_direccion: direccionVacia(),
                     }));
                     setUsarCredito(false);
                     setCreditoMonto("");
@@ -748,37 +783,30 @@ export default function CrearPedido({ onClose, onSave }) {
                       </div>
                     );
                   })()}
-                  <div className="field-wrap">
-                    <label className="field-label">Dirección exacta <span className="required">*</span></label>
-                    <input
-                      className={`field-input${errors.direccion_entrega ? " error" : ""}`}
-                      placeholder="Calle, número, barrio, apto..."
-                      value={form.direccion_entrega}
-                      onChange={e => set("direccion_entrega", e.target.value)}
-                      onBlur={e => {
-                        if (!e.target.value.trim())
-                          setErrors(p => ({ ...p, direccion_entrega: "Ingresa la dirección de entrega" }));
-                      }}
-                    />
-                    {errors.direccion_entrega && <span className="field-error">{errors.direccion_entrega}</span>}
-                  </div>
-
-                  <div className="field-wrap" style={{ marginTop: 15 }}>
-                      <label className="field-label">Municipio <span className="required">*</span></label>
-                      <SearchableSelect
-                        options={MUNICIPIOS_VALLE_ABURRA.map(m => ({ value: m, label: m }))}
-                        value={form.municipio}
-                        onChange={e => {
-                          setForm(f => ({ ...f, municipio: e.target.value, departamento: "Antioquia" }));
-                          setErrors(err => ({ ...err, municipio: e.target.value ? "" : "El municipio es obligatorio" }));
-                        }}
-                        getValue={o => o.value}
-                        getLabel={o => o.label}
-                        placeholder="— Valle de Aburrá —"
-                        searchPlaceholder="Buscar municipio…"
-                        className={`field-select${errors.municipio ? " error" : ""}`}
-                      />
-                    </div>
+                  {/* La registrada se muestra tal cual y no se edita:
+                      corregirla acá pisaba la del cliente sin querer. */}
+                  <SelectorDireccionEntrega
+                    nombreCliente={clienteSeleccionado?.nombre}
+                    registrada={{
+                      direccion:    clienteSeleccionado?.direccion    || "",
+                      municipio:    clienteSeleccionado?.municipio    || "",
+                      departamento: clienteSeleccionado?.departamento || "Antioquia",
+                      indicaciones: clienteSeleccionado?.indicaciones || "",
+                    }}
+                    usarRegistrada={form.usar_direccion_registrada}
+                    onUsarRegistrada={v => {
+                      setForm(f => ({ ...f, usar_direccion_registrada: v }));
+                      setErrors(p => ({ ...p, direccion_entrega: "" }));
+                    }}
+                    otra={form.otra_direccion}
+                    onOtra={d => {
+                      setForm(f => ({ ...f, otra_direccion: d }));
+                      setErrors(p => ({ ...p, direccion_entrega: "" }));
+                    }}
+                  />
+                  {errors.direccion_entrega && (
+                    <span className="field-error">{errors.direccion_entrega}</span>
+                  )}
                 </div>
               )}
 
@@ -1093,7 +1121,7 @@ export default function CrearPedido({ onClose, onSave }) {
                     <p className="resumen-card__title" style={{display:"flex",alignItems:"center",gap:5}}><MapPin size={13} /> Entrega</p>
                     <p className="resumen-card__val"><strong>{form.domicilio ? "Domicilio" : "En Tienda"}</strong></p>
                     <p className="resumen-card__sub" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {form.domicilio ? form.direccion_entrega : "Recoger en local"}
+                      {form.domicilio ? entrega.direccion : "Recoger en local"}
                     </p>
                     {form.domicilio && form.fecha_entrega && (
                       <p className="resumen-card__sub" style={{display:"flex",alignItems:"center",gap:4}}>
