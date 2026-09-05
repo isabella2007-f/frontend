@@ -2117,12 +2117,36 @@ def resolver_escalado_acuerdo_manual(
     venta.Estado = EstadoPedido.CONFIRMADO
 
     _crear_ordenes_produccion_para_venta(db, id_venta, fecha_acordada)
-    ordenes_abiertas = db.query(OrdenProduccion).filter(
+    _ordenes_abiertas = db.query(OrdenProduccion).filter(
         OrdenProduccion.ID_Venta == id_venta,
         OrdenProduccion.Estado.notin_([11, 5]),
     ).count()
-    if ordenes_abiertas > 0:
+    if _ordenes_abiertas > 0:
         venta.Estado = EstadoPedido.PREPARANDO
+
+    # Igual que aceptar_fecha: reservar stock de tienda y saltar a LISTO si ya
+    # no falta nada (la producción terminó mientras duró la negociación).
+    _tiene_domicilio = db.query(Domicilio).filter(Domicilio.ID_Venta == id_venta).first() is not None
+    if not _tiene_domicilio:
+        for av in db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all():
+            en_stock_reservado = (av.Cantidad or 0) - (av.Cantidad_Preorden or 0)
+            if en_stock_reservado <= 0:
+                continue
+            prod_av = (
+                db.query(Producto)
+                .filter(Producto.ID_Producto == av.ID_Producto)
+                .with_for_update()
+                .first()
+            )
+            if not prod_av or not getattr(prod_av, "Requiere_Produccion", 0):
+                continue
+            prod_av.Stock = max(0, (prod_av.Stock or 0) - en_stock_reservado)
+            _actualizar_estado_producto(prod_av)
+            notificar_stock_producto(db, prod_av)
+
+    if (venta.Estado == EstadoPedido.CONFIRMADO
+            and not _faltantes_sin_cubrir(db, id_venta, _tiene_domicilio)):
+        venta.Estado = EstadoPedido.LISTO
 
     _guardar_historial_fecha(db, id_venta, "propuesta", fecha_acordada, id_usuario=id_admin)
     notificar(
@@ -2148,6 +2172,14 @@ def resolver_escalado_cancelar(db: Session, id_venta: int, actual: dict) -> dict
 
     venta.Estado = EstadoPedido.CANCELADO
     _devolver_credito_venta(db, venta)
+
+    # Si se pagó anticipo, abonarlo como saldo a favor. La devolución en efectivo
+    # o transferencia la gestiona el admin fuera del sistema; el registro en
+    # CreditoCliente asegura que quede trazabilidad y que el cliente pueda usarlo
+    # en el próximo pedido si lo prefiere.
+    _anticipo = Decimal(str(getattr(venta, "Anticipo_Monto", None) or 0))
+    if getattr(venta, "Anticipo_Pagado", False) and _anticipo > 0:
+        _abonar_credito(db, venta.ID_Usuario, _anticipo, id_venta)
 
     # Cancelar OPs abiertas (defensivo: no debería haber ninguna en ESCALADO_A_ADMIN,
     # pero si por algún estado corrupto las hay, hay que cerrarlas igual).
