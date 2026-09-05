@@ -13,6 +13,9 @@ const ESTADO_PEDIDO_MAP = {
   11: "Listo",
   13: "En producción",
   16: "Fecha propuesta",
+  17: "Fecha rechazada",
+  18: "Parcialmente entregado",
+  19: "Escalado a admin",
 };
 
 const adaptPedido = (p) => {
@@ -45,6 +48,7 @@ const adaptPedido = (p) => {
     requiereFechaPropuesta: !!(p.requiere_fecha_propuesta),
     fecha_propuesta:  p.Fecha_Propuesta || p.fecha_propuesta || p.Fecha_entrega_esperada || null,
     fecha_rechazada:  p.fecha_rechazada || null,
+    intentos_rechazo: p.intentos_rechazo || 0,
     comprobante:             p.comprobante_pago || p.Comprobante || p.comprobante || null,
     observaciones_domicilio: p.observaciones_domicilio || null,
     sobre_stock:      !!(p.sobre_stock),
@@ -164,8 +168,24 @@ export const proponerFechaProduccion = async (id, fecha) =>
 export const aceptarFechaProduccion = async (id) =>
   apiFetch(`/ventas/${id}/aceptar-fecha`, { method: "PATCH" });
 
-export const rechazarFechaProduccion = async (id) =>
-  apiFetch(`/ventas/${id}/rechazar-fecha`, { method: "PATCH" });
+export const rechazarFechaProduccion = async (id, motivo = null) =>
+  apiFetch(`/ventas/${id}/rechazar-fecha`, {
+    method: "PATCH",
+    body: JSON.stringify({ motivo: motivo || null }),
+  });
+
+export const resolverEscaladoAcuerdo = async (id, fechaAcordada) => {
+  const data = await apiFetch(`/ventas/${id}/resolver-escalado-acuerdo`, {
+    method: "PATCH",
+    body: JSON.stringify({ fecha_acordada: fechaAcordada }),
+  });
+  return adaptPedido(data);
+};
+
+export const resolverEscaladoCancelar = async (id) => {
+  const data = await apiFetch(`/ventas/${id}/resolver-escalado-cancelar`, { method: "PATCH" });
+  return adaptPedido(data);
+};
 
 export const guardarEnvioCompletoDomingo = async (id, valor) => {
   const data = await apiFetch(`/ventas/${id}/envio-completo-domingo`, {

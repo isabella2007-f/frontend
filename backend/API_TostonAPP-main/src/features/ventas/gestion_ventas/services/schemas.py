@@ -142,6 +142,9 @@ class VentaResponse(BaseModel):
     ordenes_en_espera:             int              = 0
     # Respuesta del cliente a "¿Todo junto el domingo?"
     envio_completo_domingo:        Optional[bool]   = None
+    # Negociación de fecha
+    fecha_rechazada:               Optional[datetime] = None
+    intentos_rechazo:              int              = 0
 
     class Config:
         from_attributes = True
@@ -158,6 +161,16 @@ class VentaListResponse(BaseModel):
 # ── Respuesta del cliente: ¿todo junto el domingo? ──
 class EnvioCompletoDomingoInput(BaseModel):
     envio_completo_domingo: bool
+
+
+# ── Rechazo de fecha con motivo opcional ──
+class RechazarFechaInput(BaseModel):
+    motivo: Optional[str] = None
+
+
+# ── Acuerdo manual admin para escalado ──
+class AcuerdoManualInput(BaseModel):
+    fecha_acordada: datetime
 
 
 # ── Rechazar comprobante de transferencia ──

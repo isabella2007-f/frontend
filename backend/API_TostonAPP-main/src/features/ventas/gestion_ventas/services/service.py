@@ -15,7 +15,7 @@ from src.shared.services.models import (
     Venta, VentaXProducto, DetalleVenta, Producto, ProductoImagen, Usuario,
     Estado, Domicilio, CreditoCliente, MovimientoCredito,
     Descuento, DescuentoXUsuario, DescuentoXVenta, OrdenProduccion, FichaTecnica,
-    LoteProducto,
+    LoteProducto, HistorialFechasPropuestas,
 )
 
 
@@ -185,10 +185,23 @@ def _evaluar_lineas_pedido(db: Session, productos_input) -> tuple[list[dict], De
 
 
 _ESTADO_VENTA_LABEL = {
-    1: "Pendiente", 4: "Confirmado", 5: "Cancelado",
-    8: "Entregado", 9: "En camino", 10: "Asignado",
-    11: "Listo", 13: "En producción", 16: "Fecha propuesta",
+    1:  "Pendiente",
+    4:  "Confirmado",
+    5:  "Cancelado",
+    8:  "Entregado",
+    9:  "En camino",
+    10: "Asignado",
+    11: "Listo",
+    13: "En producción",
+    16: "Fecha propuesta",
+    17: "Fecha rechazada",
+    18: "Parcialmente entregado",
+    19: "Escalado a admin",
 }
+
+# Cuántas veces puede el cliente rechazar una fecha antes de que el pedido
+# pase a ESCALADO_A_ADMIN para que un administrador lo gestione manualmente.
+LIMITE_INTENTOS_RECHAZO = 3
 
 def _label_estado(db: Session, id_estado: int) -> str:
     if id_estado in _ESTADO_VENTA_LABEL:
@@ -447,6 +460,7 @@ def _formato_venta(venta: Venta, db: Session, *, dxv_map=None) -> dict:
         # (sobre stock o producción). Los normales no la necesitan.
         "requiere_fecha_propuesta": requiere_fecha_propuesta(db, venta),
         "fecha_rechazada": getattr(venta, "Fecha_Rechazada", None),
+        "intentos_rechazo": int(getattr(venta, "intentos_rechazo", 0) or 0),
         # None = no contestó, True = quiere todo junto el domingo, False = prefiere recibir lo disponible ya
         "envio_completo_domingo": (
             None if getattr(venta, "Envio_Completo_Domingo", None) is None
@@ -714,6 +728,12 @@ def _batch_ventas(ventas: list, db: Session) -> list:
             "pago_final_fecha":          getattr(venta, "Pago_Final_Fecha", None),
             "estado_pago":               getattr(venta, "Estado_Pago", "pendiente"),
             "requiere_fecha_propuesta": rfp,
+            "fecha_rechazada":  getattr(venta, "Fecha_Rechazada", None),
+            "intentos_rechazo": int(getattr(venta, "intentos_rechazo", 0) or 0),
+            "envio_completo_domingo": (
+                None if getattr(venta, "Envio_Completo_Domingo", None) is None
+                else bool(venta.Envio_Completo_Domingo)
+            ),
         })
 
     return result
@@ -1675,20 +1695,46 @@ def requiere_fecha_propuesta(db: Session, venta: Venta) -> bool:
     return bool(getattr(venta, "Necesita_Produccion", 0))
 
 
-def proponer_fecha(db: Session, id_venta: int, fecha_entrega) -> dict:
-    """Admin propone una fecha de entrega. Solo válido en ventas Pendientes o con Fecha propuesta."""
+def _guardar_historial_fecha(
+    db: Session,
+    id_venta: int,
+    tipo_accion: str,
+    fecha_propuesta=None,
+    motivo_rechazo: str | None = None,
+    id_usuario: int | None = None,
+) -> None:
+    """Registra un evento de negociación de fecha en el historial."""
+    db.add(HistorialFechasPropuestas(
+        ID_Venta        = id_venta,
+        ID_Usuario      = id_usuario,
+        Fecha_Propuesta = fecha_propuesta,
+        Fecha_Accion    = _now(),
+        Tipo_Accion     = tipo_accion,
+        Motivo_Rechazo  = motivo_rechazo,
+    ))
+
+
+def proponer_fecha(db: Session, id_venta: int, fecha_entrega, id_admin: int | None = None) -> dict:
+    """Admin propone una fecha de entrega.
+    Válido en ventas Pendientes, Fecha propuesta, Fecha rechazada o Escalado a admin.
+    """
     venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
-    if venta.Estado not in (EstadoPedido.PENDIENTE, EstadoPedido.FECHA_PROPUESTA):
+    estados_permitidos = (
+        EstadoPedido.PENDIENTE,
+        EstadoPedido.FECHA_PROPUESTA,
+        EstadoPedido.FECHA_RECHAZADA,
+        EstadoPedido.ESCALADO_A_ADMIN,
+    )
+    if venta.Estado not in estados_permitidos:
         raise HTTPException(
             status_code=400,
-            detail="Solo se puede proponer fecha en ventas Pendientes o en estado Fecha propuesta",
+            detail="Solo se puede proponer fecha en ventas Pendientes, Fecha propuesta, Fecha rechazada o Escalado a admin",
         )
     # La fecha propuesta es SOLO para los pedidos que no se pueden entregar de
     # inmediato: los que superan el stock disponible (preorden) y los que
-    # incluyen productos por encargo con déficit. Un pedido normal —haya o no
-    # domicilio— se confirma directamente, sin proponer fecha.
+    # incluyen productos por encargo con déficit.
     if not requiere_fecha_propuesta(db, venta):
         raise HTTPException(
             status_code=400,
@@ -1697,11 +1743,19 @@ def proponer_fecha(db: Session, id_venta: int, fecha_entrega) -> dict:
                 "o que requieren producción"
             ),
         )
+    # La fecha propuesta no puede ser en el pasado
+    hoy = _now().date()
+    fecha_propuesta_date = fecha_entrega.date() if hasattr(fecha_entrega, "date") else fecha_entrega
+    if fecha_propuesta_date < hoy:
+        raise HTTPException(
+            status_code=400,
+            detail="La fecha de entrega propuesta no puede ser en el pasado",
+        )
     descartar_notificacion(db, "produccion_requerida", id_venta)
     descartar_notificacion(db, "pedido_sobre_stock",   id_venta)
     venta.Estado = EstadoPedido.FECHA_PROPUESTA
     venta.Fecha_entrega_esperada = fecha_entrega
-    venta.Fecha_Rechazada = None
+    _guardar_historial_fecha(db, id_venta, "propuesta", fecha_entrega, id_usuario=id_admin)
     notificar(
         db, "fecha_propuesta", "Fecha de entrega propuesta",
         f"El administrador propuso una fecha de entrega para tu pedido #{id_venta}",
@@ -1709,7 +1763,6 @@ def proponer_fecha(db: Session, id_venta: int, fecha_entrega) -> dict:
     )
     db.commit()
     db.refresh(venta)
-    # Aviso push al cliente para que la revise (aceptar/rechazar).
     try:
         from src.shared.services.fcm_service import notificar_cambio_pedido_push
         notificar_cambio_pedido_push(
@@ -1894,6 +1947,8 @@ def aceptar_fecha(db: Session, id_venta: int, actual: dict) -> dict:
         raise HTTPException(status_code=400, detail="El pedido no está en estado 'Fecha propuesta'")
 
     venta.Estado = EstadoPedido.CONFIRMADO
+    venta.intentos_rechazo = 0
+    _guardar_historial_fecha(db, id_venta, "aceptada", venta.Fecha_entrega_esperada, id_usuario=id_usuario)
 
     # Si el pedido lleva producción, aceptar la fecha no lo deja listo para
     # despachar: arranca la fabricación. Queda "En producción" y pasará a Listo
@@ -1960,8 +2015,10 @@ def aceptar_fecha(db: Session, id_venta: int, actual: dict) -> dict:
     return _formato_venta(venta, db)
 
 
-def rechazar_fecha(db: Session, id_venta: int, actual: dict) -> dict:
-    """El cliente rechaza la fecha propuesta → Estado Cancelado (5). Devuelve crédito si aplica."""
+def rechazar_fecha(db: Session, id_venta: int, actual: dict, motivo: str | None = None) -> dict:
+    """El cliente rechaza la fecha propuesta → Estado Fecha rechazada (17).
+    Si supera LIMITE_INTENTOS_RECHAZO, pasa a Escalado a admin (19).
+    """
     if actual["tipo"] != "cliente":
         raise HTTPException(status_code=403, detail="Solo disponible para clientes")
     id_usuario = actual["registro"].ID_Usuario
@@ -1974,55 +2031,128 @@ def rechazar_fecha(db: Session, id_venta: int, actual: dict) -> dict:
     if venta.Estado != EstadoPedido.FECHA_PROPUESTA:
         raise HTTPException(status_code=400, detail="El pedido no está en estado 'Fecha propuesta'")
 
-    # Pedidos con DOMICILIO: el pedido sigue vivo. Vuelve a Pendiente para que el
-    # administrador pueda proponer OTRA fecha (no se cancela ni se devuelve crédito).
-    tiene_domicilio = db.query(Domicilio).filter(
-        Domicilio.ID_Venta == id_venta
-    ).first() is not None
-    if tiene_domicilio:
-        venta.Estado = EstadoPedido.PENDIENTE
-        venta.Fecha_entrega_esperada = None
-        venta.Fecha_Rechazada = _now()
-        descartar_notificacion(db, "fecha_rechazada", id_venta)  # limpiar anterior para evitar dedup
+    fecha_anterior = venta.Fecha_entrega_esperada
+    venta.Fecha_Rechazada = _now()
+    venta.Fecha_entrega_esperada = None
+    venta.intentos_rechazo = (int(getattr(venta, "intentos_rechazo", 0) or 0)) + 1
+
+    _guardar_historial_fecha(db, id_venta, "rechazada", fecha_anterior, motivo, id_usuario=id_usuario)
+
+    if venta.intentos_rechazo >= LIMITE_INTENTOS_RECHAZO:
+        venta.Estado = EstadoPedido.ESCALADO_A_ADMIN
+        descartar_notificacion(db, "fecha_rechazada", id_venta)
         notificar(
-            db, "fecha_rechazada", "Fecha rechazada por el cliente",
-            f"El cliente rechazó la fecha del pedido #{id_venta}. Propone una nueva fecha.",
+            db, "fecha_rechazada", "Pedido escalado: demasiados rechazos de fecha",
+            f"El cliente rechazó {venta.intentos_rechazo} veces la fecha del pedido #{id_venta}. Requiere gestión manual.",
             id_venta, "/ventas/pedidos",
         )
-        db.commit()
-        db.refresh(venta)
-        return _formato_venta(venta, db)
+    else:
+        venta.Estado = EstadoPedido.FECHA_RECHAZADA
+        descartar_notificacion(db, "fecha_rechazada", id_venta)
+        notificar(
+            db, "fecha_rechazada", "Fecha rechazada por el cliente",
+            f"El cliente rechazó la fecha del pedido #{id_venta}. Propón una nueva fecha.",
+            id_venta, "/ventas/pedidos",
+        )
 
-    # Pedidos de producción (sin domicilio): flujo existente → se cancela y se
-    # devuelve el crédito usado.
-    venta.Fecha_Rechazada = _now()
-    venta.Estado = EstadoPedido.CANCELADO
-    descartar_notificacion(db, "fecha_rechazada", id_venta)  # limpiar anterior para evitar dedup
-    notificar(
-        db, "fecha_rechazada", "Fecha rechazada por el cliente",
-        f"El cliente rechazó la fecha propuesta para el pedido #{id_venta}",
-        id_venta, "/ventas/pedidos",
-    )
-    descartar_notificacion(db, "produccion_requerida", id_venta)
+    db.commit()
+    db.refresh(venta)
+    try:
+        from src.shared.services.fcm_service import notificar_cambio_pedido_push
+        notificar_cambio_pedido_push(
+            id_usuario_cliente=venta.ID_Usuario,
+            id_venta=id_venta,
+            nuevo_estado=venta.Estado,
+            db=db,
+        )
+    except Exception:
+        pass
+    return _formato_venta(venta, db)
 
-    # Devolver crédito si se usó al crear el pedido
-    detalle = db.query(DetalleVenta).filter(DetalleVenta.ID_Venta == id_venta).first()
+
+def _devolver_credito_venta(db: Session, venta: Venta) -> None:
+    """Devuelve el crédito aplicado al crear una venta (si lo hubo)."""
+    detalle = db.query(DetalleVenta).filter(DetalleVenta.ID_Venta == venta.ID_Venta).first()
     if detalle and detalle.Descuento and detalle.Descuento > 0:
         credito = db.query(CreditoCliente).filter(
             CreditoCliente.ID_Usuario == venta.ID_Usuario
         ).first()
         if credito:
-            credito.Saldo        += detalle.Descuento
-            credito.Fecha_Update  = _now()
+            credito.Saldo       += detalle.Descuento
+            credito.Fecha_Update = _now()
             db.add(MovimientoCredito(
                 ID_Credito    = credito.ID_Credito,
                 ID_Devolucion = None,
-                ID_Venta      = id_venta,
+                ID_Venta      = venta.ID_Venta,
                 Tipo          = "recarga",
                 Monto         = detalle.Descuento,
                 Fecha         = _now(),
             ))
 
+
+def resolver_escalado_acuerdo_manual(
+    db: Session, id_venta: int, fecha_acordada, actual: dict
+) -> dict:
+    """Admin acuerda una fecha manualmente con el cliente escalado.
+    El pedido pasa directamente al flujo de producción/confirmación.
+    Resetea intentos_rechazo.
+    """
+    if actual["tipo"] not in ("admin", "empleado"):
+        raise HTTPException(status_code=403, detail="Solo disponible para administradores")
+
+    venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+    if venta.Estado != EstadoPedido.ESCALADO_A_ADMIN:
+        raise HTTPException(status_code=400, detail="El pedido no está en estado 'Escalado a admin'")
+
+    hoy = _now().date()
+    fecha_date = fecha_acordada.date() if hasattr(fecha_acordada, "date") else fecha_acordada
+    if fecha_date < hoy:
+        raise HTTPException(status_code=400, detail="La fecha acordada no puede ser en el pasado")
+
+    id_admin = getattr(actual.get("registro"), "ID_Usuario", None)
+    venta.Fecha_entrega_esperada = fecha_acordada
+    venta.intentos_rechazo = 0
+    venta.Estado = EstadoPedido.CONFIRMADO
+
+    _crear_ordenes_produccion_para_venta(db, id_venta, fecha_acordada)
+    ordenes_abiertas = db.query(OrdenProduccion).filter(
+        OrdenProduccion.ID_Venta == id_venta,
+        OrdenProduccion.Estado.notin_([11, 5]),
+    ).count()
+    if ordenes_abiertas > 0:
+        venta.Estado = EstadoPedido.PREPARANDO
+
+    _guardar_historial_fecha(db, id_venta, "propuesta", fecha_acordada, id_usuario=id_admin)
+    notificar(
+        db, "fecha_propuesta", "Fecha de entrega acordada por el administrador",
+        f"El administrador acordó una fecha de entrega para tu pedido #{id_venta}",
+        id_venta, "/ventas/pedidos",
+    )
+    db.commit()
+    db.refresh(venta)
+    return _formato_venta(venta, db)
+
+
+def resolver_escalado_cancelar(db: Session, id_venta: int, actual: dict) -> dict:
+    """Admin cancela el pedido escalado y devuelve el crédito usado."""
+    if actual["tipo"] not in ("admin", "empleado"):
+        raise HTTPException(status_code=403, detail="Solo disponible para administradores")
+
+    venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+    if venta.Estado != EstadoPedido.ESCALADO_A_ADMIN:
+        raise HTTPException(status_code=400, detail="El pedido no está en estado 'Escalado a admin'")
+
+    venta.Estado = EstadoPedido.CANCELADO
+    _devolver_credito_venta(db, venta)
+    notificar(
+        db, "fecha_rechazada", "Pedido cancelado por el administrador",
+        f"Tu pedido #{id_venta} fue cancelado por el administrador tras múltiples rechazos de fecha.",
+        id_venta, "/ventas/pedidos",
+    )
     db.commit()
     db.refresh(venta)
     return _formato_venta(venta, db)

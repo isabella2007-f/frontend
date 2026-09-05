@@ -173,6 +173,33 @@ const ESTADO_CONFIG = {
     border: 'border-indigo-200',
     badge: 'bg-indigo-100 text-indigo-700'
   },
+  'Fecha rechazada': {
+    color: 'orange',
+    icon: AlertTriangle,
+    label: 'Fecha rechazada',
+    bg: 'bg-orange-50',
+    text: 'text-orange-700',
+    border: 'border-orange-200',
+    badge: 'bg-orange-100 text-orange-700'
+  },
+  'Escalado a admin': {
+    color: 'red',
+    icon: AlertTriangle,
+    label: 'Escalado a admin',
+    bg: 'bg-red-50',
+    text: 'text-red-800',
+    border: 'border-red-300',
+    badge: 'bg-red-200 text-red-800'
+  },
+  'Parcialmente entregado': {
+    color: 'emerald',
+    icon: Package,
+    label: 'Parcialmente entregado',
+    bg: 'bg-emerald-50',
+    text: 'text-emerald-700',
+    border: 'border-emerald-200',
+    badge: 'bg-emerald-100 text-emerald-700'
+  },
 };
 
 const normalizeComprobanteSrc = (c) => {
@@ -449,9 +476,10 @@ const PedidosClientePage = () => {
     try {
       await rechazarFechaProduccion(pedido.id);
       fetchPedidos();
-      closeModal();
+      // keep modal open so user sees the "Fecha rechazada" / "Escalado a admin" state
     } catch (e) {
       setAccionFechaErr(e.message || 'No se pudo rechazar la fecha');
+    } finally {
       setAccionFecha(null);
     }
   };
@@ -539,7 +567,7 @@ const PedidosClientePage = () => {
               >
                 Todos
               </button>
-              {['Pendiente', 'En producción', 'Fecha propuesta', 'En camino', 'Entregado', 'Cancelado'].map(estado => (
+              {['Pendiente', 'En producción', 'Fecha propuesta', 'Fecha rechazada', 'Escalado a admin', 'En camino', 'Entregado', 'Cancelado'].map(estado => (
                 <button
                   key={estado}
                   className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
@@ -748,7 +776,7 @@ const PedidosClientePage = () => {
                     </div>
                   )}
                   <p style={{ fontSize: 11, color: '#3949ab', marginBottom: 12, lineHeight: 1.5 }}>
-                    ¿Puedes recibir tu pedido en esta fecha? Si rechazas, el pedido quedará cancelado.
+                    ¿Puedes recibir tu pedido en esta fecha? Si rechazas, te propondremos una nueva fecha.
                   </p>
                   {accionFechaErr && <p style={{ fontSize: 11, color: '#c62828', fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}><AlertTriangle size={12} /> {accionFechaErr}</p>}
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -764,6 +792,33 @@ const PedidosClientePage = () => {
                 </div>
               )}
 
+              {/* Aviso: fecha rechazada */}
+              {selectedPedido.estado === 'Fecha rechazada' && (
+                <div style={{ background: 'linear-gradient(135deg,#fff3e0 0%,#fbe9e7 100%)', border: '2px solid #ffb74d', borderRadius: 16, padding: '16px 18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <AlertTriangle size={20} color="#e65100" />
+                    <p style={{ fontSize: 13, fontWeight: 800, color: '#bf360c', margin: 0 }}>Rechazaste la fecha propuesta</p>
+                  </div>
+                  <p style={{ fontSize: 11, color: '#e65100', lineHeight: 1.5, margin: 0 }}>
+                    El equipo te propondrá una nueva fecha pronto.
+                    {selectedPedido.intentos_rechazo > 0 && ` (intento ${selectedPedido.intentos_rechazo} de 3)`}
+                  </p>
+                </div>
+              )}
+
+              {/* Aviso: escalado a admin */}
+              {selectedPedido.estado === 'Escalado a admin' && (
+                <div style={{ background: 'linear-gradient(135deg,#fce4ec 0%,#f3e5f5 100%)', border: '2px solid #f48fb1', borderRadius: 16, padding: '16px 18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <AlertTriangle size={20} color="#880e4f" />
+                    <p style={{ fontSize: 13, fontWeight: 800, color: '#880e4f', margin: 0 }}>Pedido en revisión por el administrador</p>
+                  </div>
+                  <p style={{ fontSize: 11, color: '#ad1457', lineHeight: 1.5, margin: 0 }}>
+                    Rechazaste la fecha propuesta varias veces. Un administrador revisará tu pedido y te contactará para acordar una solución.
+                  </p>
+                </div>
+              )}
+
               {/* ── Pregunta: ¿envío completo el domingo? ── */}
               {(selectedPedido.requiereFechaPropuesta || selectedPedido.sobre_stock) && (
                 <div style={{ background: selectedPedido.envio_completo_domingo === null ? '#fffde7' : '#e8f5e9', border: `1.5px solid ${selectedPedido.envio_completo_domingo === null ? '#ffe082' : '#a5d6a7'}`, borderRadius: 14, padding: '14px 16px' }}>
@@ -771,7 +826,9 @@ const PedidosClientePage = () => {
                     <Truck size={12} /> Coordinar entrega
                   </p>
                   <p style={{ fontSize: 13, fontWeight: 700, color: '#4a4a4a', margin: '0 0 12px', lineHeight: 1.5 }}>
-                    ¿Está de acuerdo con que le enviemos todo el pedido junto el domingo?
+                    {selectedPedido.fecha_propuesta
+                      ? `¿Está de acuerdo con que le enviemos todo el pedido junto el ${new Date(selectedPedido.fecha_propuesta.slice(0, 10) + 'T00:00:00').toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}?`
+                      : '¿Está de acuerdo con que le enviemos todo el pedido junto en la fecha propuesta?'}
                   </p>
                   {selectedPedido.envio_completo_domingo === null ? (
                     <div style={{ display: 'flex', gap: 8 }}>

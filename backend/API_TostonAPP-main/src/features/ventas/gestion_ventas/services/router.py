@@ -4,12 +4,17 @@ from typing import Optional
 
 from src.shared.services.database import get_db
 from src.features.auth.services.dependencies import requiere_permiso, obtener_usuario_actual
-from .schemas import VentaCreate, VentaEstado, VentaResponse, VentaListResponse, FechaEntregaInput, PagoFinalCreate, EnvioCompletoDomingoInput
+from .schemas import (
+    VentaCreate, VentaEstado, VentaResponse, VentaListResponse,
+    FechaEntregaInput, PagoFinalCreate, EnvioCompletoDomingoInput,
+    RechazarFechaInput, AcuerdoManualInput,
+)
 from .service import (
     obtener_ventas, obtener_venta, obtener_mi_venta, crear_venta, cambiar_estado,
     obtener_mis_ventas, obtener_mi_credito, obtener_credito_cliente,
     proponer_fecha, aceptar_fecha, rechazar_fecha,
     registrar_pago_final, guardar_envio_completo_domingo,
+    resolver_escalado_acuerdo_manual, resolver_escalado_cancelar,
 )
 
 router = APIRouter(prefix="/ventas", tags=["Gestión de Ventas"])
@@ -125,10 +130,13 @@ def proponer_fecha_endpoint(
     id_venta: int,
     datos:    FechaEntregaInput,
     db:       Session = Depends(get_db),
-    _:        dict    = Depends(requiere_permiso("editar_pedidos")),
+    actual:   dict    = Depends(requiere_permiso("editar_pedidos")),
 ):
-    """Admin propone una fecha de entrega para un pedido de producción. Pasa el pedido a estado Fecha propuesta (16)."""
-    return proponer_fecha(db, id_venta, datos.fecha_entrega)
+    """Admin propone una fecha de entrega para un pedido. Válido en Pendiente, Fecha propuesta,
+    Fecha rechazada o Escalado a admin. La fecha no puede ser en el pasado.
+    """
+    id_admin = getattr(actual.get("registro"), "ID_Usuario", None) if isinstance(actual, dict) else None
+    return proponer_fecha(db, id_venta, datos.fecha_entrega, id_admin=id_admin)
 
 
 @router.patch("/{id_venta}/aceptar-fecha", response_model=VentaResponse)
@@ -166,8 +174,32 @@ def envio_completo_domingo_endpoint(
 @router.patch("/{id_venta}/rechazar-fecha", response_model=VentaResponse)
 def rechazar_fecha_endpoint(
     id_venta: int,
+    datos:    RechazarFechaInput = RechazarFechaInput(),
     db:       Session = Depends(get_db),
     actual:   dict    = Depends(obtener_usuario_actual),
 ):
-    """El cliente rechaza la fecha propuesta → pedido pasa a Cancelado (5). Devuelve crédito si aplica."""
-    return rechazar_fecha(db, id_venta, actual)
+    """El cliente rechaza la fecha propuesta → pedido pasa a Fecha rechazada (17).
+    Si supera el límite de intentos, pasa a Escalado a admin (19).
+    """
+    return rechazar_fecha(db, id_venta, actual, motivo=datos.motivo)
+
+
+@router.patch("/{id_venta}/resolver-escalado-acuerdo", response_model=VentaResponse)
+def resolver_escalado_acuerdo_endpoint(
+    id_venta: int,
+    datos:    AcuerdoManualInput,
+    db:       Session = Depends(get_db),
+    actual:   dict    = Depends(requiere_permiso("editar_pedidos")),
+):
+    """Admin acuerda una fecha manualmente con el cliente escalado → pasa al flujo de producción."""
+    return resolver_escalado_acuerdo_manual(db, id_venta, datos.fecha_acordada, actual)
+
+
+@router.patch("/{id_venta}/resolver-escalado-cancelar", response_model=VentaResponse)
+def resolver_escalado_cancelar_endpoint(
+    id_venta: int,
+    db:       Session = Depends(get_db),
+    actual:   dict    = Depends(requiere_permiso("editar_pedidos")),
+):
+    """Admin cancela el pedido escalado y devuelve el crédito usado."""
+    return resolver_escalado_cancelar(db, id_venta, actual)

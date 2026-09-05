@@ -419,6 +419,9 @@ class Venta(Base):
     # Respuesta del cliente a "¿Quiere que enviemos todo el pedido junto el domingo?"
     # NULL = no respondió todavía, 1 = sí, 0 = no.
     Envio_Completo_Domingo   = Column(Integer,                           nullable=True)
+    # Cuántas veces el cliente ha rechazado fechas propuestas. Al llegar a
+    # LIMITE_INTENTOS_RECHAZO el pedido pasa a ESCALADO_A_ADMIN.
+    intentos_rechazo         = Column(Integer,      default=0,           nullable=True)
 
     usuario            = relationship("Usuario", back_populates="ventas")
     productos          = relationship("VentaXProducto", back_populates="venta")
@@ -440,6 +443,18 @@ class VentaXProducto(Base):
 
     venta    = relationship("Venta", back_populates="productos")
     producto = relationship("Producto", back_populates="ventas")
+
+
+class HistorialFechasPropuestas(Base):
+    __tablename__ = "Historial_Fechas_Propuestas"
+
+    ID_Historial   = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    ID_Venta       = Column(Integer, ForeignKey("Ventas.ID_Venta"), nullable=False)
+    ID_Usuario     = Column(Integer, ForeignKey("Usuarios.ID_Usuario"), nullable=True)
+    Fecha_Propuesta = Column(DateTime, nullable=True)   # la fecha de entrega propuesta/aceptada
+    Fecha_Accion   = Column(DateTime, nullable=False)   # cuándo ocurrió la acción
+    Tipo_Accion    = Column(String(20), nullable=False)  # 'propuesta' | 'aceptada' | 'rechazada'
+    Motivo_Rechazo = Column(Text, nullable=True)
 
 
 class DetalleVenta(Base):

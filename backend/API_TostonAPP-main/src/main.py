@@ -349,6 +349,61 @@ def migrate_db():
         except Exception:
             pass
 
+    # ── Estados de negociación de fecha ─────────────────────────────────────────
+    # 16 = Fecha de entrega propuesta (puede existir ya en BD; INSERT IGNORE es seguro)
+    # 17 = Fecha rechazada (cliente rechazó; admin propone de nuevo)
+    # 18 = Parcialmente entregado (grupo A entregado, grupo B pendiente)
+    # 19 = Escalado a admin (demasiados rechazos; admin gestiona manualmente)
+    with engine.connect() as conn:
+        for stmt in [
+            "INSERT IGNORE INTO Estados (ID_Estados, Codigo, Estado) VALUES (16, 16, 'Fecha de entrega propuesta')",
+            "INSERT IGNORE INTO Estados (ID_Estados, Codigo, Estado) VALUES (17, 17, 'Fecha rechazada')",
+            "INSERT IGNORE INTO Estados (ID_Estados, Codigo, Estado) VALUES (18, 18, 'Parcialmente entregado')",
+            "INSERT IGNORE INTO Estados (ID_Estados, Codigo, Estado) VALUES (19, 19, 'Escalado a admin')",
+        ]:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception:
+                pass
+
+    # ── Columna intentos_rechazo en Ventas ────────────────────────────────────
+    with engine.connect() as conn:
+        try:
+            existe = conn.execute(text("""
+                SELECT COUNT(*) FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME   = 'Ventas'
+                  AND COLUMN_NAME  = 'intentos_rechazo'
+            """)).scalar()
+            if not existe:
+                conn.execute(text(
+                    "ALTER TABLE Ventas ADD COLUMN intentos_rechazo INT NOT NULL DEFAULT 0"
+                ))
+                conn.commit()
+        except Exception:
+            pass
+
+    # ── Tabla de historial de fechas propuestas ───────────────────────────────
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS Historial_Fechas_Propuestas (
+                    ID_Historial    INT AUTO_INCREMENT PRIMARY KEY,
+                    ID_Venta        INT NOT NULL,
+                    ID_Usuario      INT NULL,
+                    Fecha_Propuesta DATETIME NULL,
+                    Fecha_Accion    DATETIME NOT NULL,
+                    Tipo_Accion     VARCHAR(20) NOT NULL,
+                    Motivo_Rechazo  TEXT NULL,
+                    FOREIGN KEY (ID_Venta)   REFERENCES Ventas(ID_Venta),
+                    FOREIGN KEY (ID_Usuario) REFERENCES Usuarios(ID_Usuario)
+                )
+            """))
+            conn.commit()
+        except Exception:
+            pass
+
     # ── Refactor del catálogo de permisos ─────────────────────────────────────
     # Renombres, fusión de "ventas" en "pedidos", retiro de permisos sin uso y
     # migración de los endpoints que usaban un permiso "proxy" de otro módulo a
