@@ -195,7 +195,7 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
 
@@ -212,8 +212,12 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
         : { Direccion: null, Municipio: direccion.municipio || null }),
     };
 
-    if (form.fotoPerfil && form.fotoPerfil !== (perfil?.Foto_perfil || ''))
-      payload.Foto_perfil = form.fotoPerfil;
+    // La foto NO va acá: `PerfilUpdate` no la declara y el esquema la
+    // descarta en silencio. Tiene su propio endpoint.
+    const fotoNueva =
+      form.fotoPerfil && form.fotoPerfil !== (perfil?.Foto_perfil || '')
+        ? form.fotoPerfil
+        : null;
 
     if (showPassSection && passForm.nueva)
       payload.Contrasena = passForm.nueva;
@@ -222,6 +226,14 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
     if (!cedulaYaEstablecida && form.cedula.trim()) {
       payload.Cedula         = form.cedula.trim();
       payload.Tipo_Documento = form.tipo_documento || null;
+    }
+
+    // Primero la foto: si falla, que el resto del perfil se guarde igual.
+    if (fotoNueva) {
+      await apiFetch('/auth/foto-perfil', {
+        method: 'POST',
+        body: JSON.stringify({ url: fotoNueva }),
+      }).catch(() => {});
     }
 
     onSave(payload);
