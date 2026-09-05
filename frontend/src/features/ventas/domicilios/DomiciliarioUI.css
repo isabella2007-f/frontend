@@ -263,6 +263,60 @@
 .dom-ui .du-search__clear:hover { background: #dbeedd; color: var(--du-verde-700); }
 
 /* ─────────────────────────────────────────────────────────────
+   FILTROS SEGMENTADOS
+   ──────────────────────────────────────────────────────────────
+   El contador (.du-filtro__count) es opcional: Mis Entregas lo usa,
+   Historial no.
+   ───────────────────────────────────────────────────────────── */
+.dom-ui .du-filtros {
+  display: flex;
+  width: fit-content;
+  gap: 5px;
+  padding: 5px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1.5px solid var(--du-borde);
+  box-shadow: var(--du-sombra-sm);
+  flex-wrap: wrap;
+}
+
+.dom-ui .du-filtro {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--du-tinta-2);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .18s, color .18s, box-shadow .18s;
+}
+.dom-ui .du-filtro:hover { background: var(--du-crema); color: var(--du-verde-700); }
+.dom-ui .du-filtro--on,
+.dom-ui .du-filtro--on:hover {
+  background: linear-gradient(135deg, var(--du-verde-700) 0%, var(--du-verde-500) 100%);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(46, 125, 50, .32);
+}
+
+.dom-ui .du-filtro__count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #eef4ef;
+  color: var(--du-tinta-2);
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+}
+.dom-ui .du-filtro--on .du-filtro__count { background: rgba(255, 255, 255, .26); color: #fff; }
+
+/* ─────────────────────────────────────────────────────────────
    PANELES
    ───────────────────────────────────────────────────────────── */
 .dom-ui .du-panel {
@@ -734,6 +788,10 @@
 @media (max-width: 900px) {
   .dom-ui .du-hero { margin: 0 16px 22px; padding: 26px 22px 22px; border-radius: 22px; }
   .dom-ui .du-inner { padding: 0 16px; }
+  /* Los filtros pasan a ocupar el ancho: en pantalla chica son el control
+     principal y así se pulsan cómodos. */
+  .dom-ui .du-filtros { width: 100%; }
+  .dom-ui .du-filtro { flex: 1; justify-content: center; }
 }
 
 @media (max-width: 560px) {

@@ -1,0 +1,193 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   HISTORIAL DE ENTREGAS — lo propio del registro del repartidor
+   ──────────────────────────────────────────────────────────────────────────
+   El hero, los filtros, botones, badges, vacíos y skeletons viven en
+   DomiciliarioUI.css (clase `.dom-ui`). Aquí queda la línea de tiempo: los
+   días agrupados y cada entrega colgando de la guía vertical.
+
+   Los colores de estado llegan como variables (--e-dot / --e-bg / --e-border)
+   desde estadosDomicilio.js, que sigue siendo la fuente única.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.historial .hi-filtros { margin-bottom: 26px; }
+
+.historial .hi-grupos {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   CABECERA DE CADA DÍA
+   ───────────────────────────────────────────────────────────── */
+.historial .hi-dia {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 14px;
+}
+.historial .hi-dia__fecha {
+  font-family: var(--font-head, 'Nunito', sans-serif);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -.2px;
+  text-transform: capitalize;
+  color: var(--du-verde-800);
+}
+.historial .hi-dia__n {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--du-crema);
+  border: 1px solid var(--du-borde);
+  color: var(--du-verde-700);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+/* Línea que remata la cabecera y conduce la vista hacia la lista */
+.historial .hi-dia__linea {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--du-borde), transparent);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   LÍNEA DE TIEMPO
+   ───────────────────────────────────────────────────────────── */
+.historial .hi-linea {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-left: 40px;
+}
+
+/* Guía vertical: arranca y muere en degradado para no cortarse en seco. */
+.historial .hi-linea::before {
+  content: "";
+  position: absolute;
+  left: 15px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 1px;
+  background: linear-gradient(180deg, transparent, var(--du-borde) 8%, var(--du-borde) 92%, transparent);
+}
+
+.historial .hi-item {
+  position: relative;
+  animation: duFadeUp .42s cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.historial .hi-item__punto {
+  position: absolute;
+  left: -40px;
+  top: 18px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid var(--e-border, var(--du-borde));
+  background: var(--e-bg, #fff);
+  color: var(--e-dot, var(--du-verde-600));
+  box-shadow: 0 0 0 4px #fff;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   TARJETA DE ENTREGA
+   ───────────────────────────────────────────────────────────── */
+.historial .hi-card {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 17px 19px;
+  border-radius: 18px;
+  border: 1.5px solid var(--du-borde);
+  background: #fff;
+  box-shadow: var(--du-sombra-sm);
+  flex-wrap: wrap;
+  transition: transform .18s cubic-bezier(.16, 1, .3, 1), box-shadow .18s, border-color .18s;
+}
+.historial .hi-card:hover {
+  transform: translateX(3px);
+  box-shadow: var(--du-sombra-md);
+  border-color: var(--e-border, var(--du-verde-400));
+}
+.historial .hi-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--e-dot, var(--du-verde-500)), transparent 140%);
+}
+
+.historial .hi-card__txt { flex: 1 1 200px; min-width: 0; }
+.historial .hi-card__num {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--du-tinta-3);
+}
+.historial .hi-card__cliente {
+  margin: 2px 0 6px;
+  font-family: var(--font-head, 'Nunito', sans-serif);
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -.2px;
+  color: var(--du-tinta);
+}
+.historial .hi-card__dir {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--du-tinta-2);
+}
+.historial .hi-card__dir svg { flex-shrink: 0; margin-top: 2px; color: var(--du-verde-500); }
+
+.historial .hi-card__lado {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 7px;
+  flex-shrink: 0;
+}
+.historial .hi-card__monto {
+  font-family: var(--font-head, 'Nunito', sans-serif);
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -.4px;
+  color: var(--du-verde-700);
+}
+/* Una entrega cancelada no movió plata: el monto no debe leerse como ingreso. */
+.historial .hi-card--anulada .hi-card__monto { color: var(--du-tinta-3); text-decoration: line-through; }
+
+.historial .hi-card__hora {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--du-tinta-3);
+  white-space: nowrap;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   RESPONSIVE
+   ───────────────────────────────────────────────────────────── */
+@media (max-width: 560px) {
+  .historial .hi-linea { padding-left: 30px; }
+  .historial .hi-linea::before { left: 11px; }
+  .historial .hi-item__punto { left: -30px; width: 25px; height: 25px; top: 16px; }
+  .historial .hi-card { padding: 15px 16px; }
+  .historial .hi-card__lado { align-items: flex-start; flex-direction: row; gap: 12px; align-self: stretch; }
+}
