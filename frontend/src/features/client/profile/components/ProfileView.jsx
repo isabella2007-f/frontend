@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Mail, Phone, MapPin, CreditCard,
-  Building2, Map, ShieldCheck, Edit2, LogOut, User
+  Building2, Map, ShieldCheck, Edit2, LogOut, User, Info
 } from 'lucide-react';
 import { clearSession } from '../../../../utils/api';
 import LogoutModal from '../../../../shared/components/LogoutModal';
@@ -145,6 +145,13 @@ const ProfileView = ({ user, totalPedidos, onEdit }) => {
         <InfoBlock icon={MapPin}   label="Dirección"    value={user.direccion}    span={2} />
         <InfoBlock icon={Building2} label="Municipio"   value={user.municipio} />
         <InfoBlock icon={Map}       label="Departamento" value={user.departamento} />
+        {/* El barrio, el complemento y cómo reconocer la casa viven acá: es lo
+            que lee quien entrega, y hasta ahora no se mostraba en ninguna
+            parte, así que no había forma de revisar si quedó bien. */}
+        {user.indicaciones && (
+          <InfoBlock icon={Info} label="Barrio e indicaciones"
+            value={user.indicaciones} span={2} />
+        )}
       </div>
 
       {/* Cerrar sesión */}

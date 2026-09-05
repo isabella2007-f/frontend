@@ -206,6 +206,9 @@ function normalizarPerfil(data) {
     direccion:      data.Direccion      || '',
     municipio:      data.Municipio      || '',
     departamento:   data.Departamento   || '',
+    // El barrio, el complemento y cómo reconocer la casa. El servidor los
+    // manda desde siempre; la página no los leía.
+    indicaciones:   data.Indicaciones   || '',
     fotoPerfil:     data.Foto_perfil    || localUser?.fotoPerfil || localUser?.Foto_perfil || '',
     rol:            data.rol            || 'Cliente',
     estado:         data.Estado !== 2,
