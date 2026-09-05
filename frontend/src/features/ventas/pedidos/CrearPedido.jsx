@@ -300,6 +300,10 @@ export default function CrearPedido({ onClose, onSave }) {
   // transferido. En pesos, porque el cliente paga con lo que tiene encima.
   const [efectivoMonto,  setEfectivoMonto]  = useState("");
 
+  /// Cuánto se paga ahora: "mitad", "personalizado" o "todo".
+  const [anticipoOpcion, setAnticipoOpcion] = useState("mitad");
+  const [anticipoMonto,  setAnticipoMonto]  = useState("");
+
   useEffect(() => {
     getUsuarios({ porPagina: 100 }).then(u => setClientes(u.filter(x => x.tipo === "cliente"))).catch(() => {});
     getProductos({ porPagina: 100 }).then(data => {
@@ -388,10 +392,43 @@ export default function CrearPedido({ onClose, onSave }) {
     })),
     total,
   );
-  const montoAnticipo    = requiereAnticipo ? (pagarTodo ? totalFinal : Math.ceil(totalFinal * 0.5)) : 0;
+  // Lo mínimo que respalda el pedido: la mitad. Es lo que exige el servidor.
+  const anticipoMinimo = Math.ceil(totalFinal * 0.5);
+  const montoEscrito   = anticipoMonto === "" ? null : Number(anticipoMonto);
+  const montoAnticipo  = !requiereAnticipo
+    ? 0
+    : pagarTodo
+      ? totalFinal
+      : anticipoOpcion === "personalizado"
+        ? Math.max(anticipoMinimo, Math.min(Math.round(montoEscrito || 0), totalFinal))
+        : anticipoMinimo;
+
+  /// Qué está mal con el monto escrito, o "" si está bien.
+  ///
+  /// No se le corrigen las cifras a nadie mientras teclea: se avisa y no se
+  /// deja confirmar. Sin esto el número se recortaba en silencio al enviarlo y
+  /// el pedido salía con un anticipo distinto del que se registró en el papel.
+  const errorMontoAnticipo =
+    !requiereAnticipo || anticipoOpcion !== "personalizado"
+      ? ""
+      : montoEscrito === null || Number.isNaN(montoEscrito)
+        ? "Escribe cuánto se anticipa"
+        : montoEscrito < anticipoMinimo
+          ? `El mínimo es ${fmt(anticipoMinimo)} (la mitad)`
+          : montoEscrito > totalFinal
+            ? `No puede pasar de ${fmt(totalFinal)}`
+            : "";
   // Con anticipo el método se elige una sola vez, en el bloque del anticipo, y de
   // ahí sale el del pedido: es el mismo dinero.
   const metodoPedido = requiereAnticipo ? form.anticipo_metodo : form.metodo_pago;
+  /// Lo que se pidió por encima del stock y nadie puede fabricar.
+  ///
+  /// El servidor rechaza la venta con estos adentro ("no se fabrican por
+  /// encargo"). Antes se armaba el pedido completo y el rebote llegaba al
+  /// confirmar, con el cliente esperando en el mostrador.
+  const sinFormaDeCumplir = form.productosItems.filter(
+    p => !p.requiereProduccion && p.cantidad > p.stockActual);
+
   const hayProductosSinStock = form.productosItems.some(
     p => !p.stockOk || p.cantidad > p.stockActual
   );
@@ -413,6 +450,13 @@ export default function CrearPedido({ onClose, onSave }) {
     if (s === 2) {
       if (form.productosItems.length === 0) {
         e.productos = "Debes agregar al menos un producto al pedido";
+      } else if (sinFormaDeCumplir.length) {
+        const detalle = sinFormaDeCumplir
+          .map(p => `${p.nombre}: hay ${p.stockActual}, pediste ${p.cantidad}`)
+          .join("; ");
+        e.productos =
+          `No hay stock suficiente y estos productos no se fabrican por ` +
+          `encargo: ${detalle}`;
       }
     }
     if (s === 3) {
@@ -428,6 +472,9 @@ export default function CrearPedido({ onClose, onSave }) {
       }
     }
     if (s === 4) {
+      // Un monto fuera de rango se recortaría al enviarlo: quedaría registrado
+      // en el papel un anticipo y en el pedido otro.
+      if (errorMontoAnticipo) e.anticipo_monto = errorMontoAnticipo;
       // Con anticipo el método se elige una sola vez, en el bloque del anticipo:
       // el selector del pedido no se muestra y no hay nada que validar arriba.
       if (!requiereAnticipo) {
@@ -947,25 +994,73 @@ export default function CrearPedido({ onClose, onSave }) {
                     </div>
                   </div>
 
-                  {/* Toggle: anticipo 50% vs pagar total ahora */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-                    {[{ id: false, label: "Anticipo 50%" }, { id: true, label: "Pagar total ahora" }].map(opt => (
-                      <button key={String(opt.id)}
-                        onClick={() => { setPagarTodo(opt.id); setForm(f => ({ ...f, anticipo_metodo: "", anticipo_efectivo: false, anticipo_comprobante: null, anticipo_comp_preview: null })); setErrors(e => ({ ...e, anticipo_metodo: "", anticipo_efectivo: "", anticipo_comprobante: "" })); }}
-                        style={{
-                          padding: "10px", borderRadius: 10, border: "2px solid", fontSize: 13, cursor: "pointer", transition: "all 0.2s",
-                          borderColor: pagarTodo === opt.id ? "#f57f17" : "#ffe082",
-                          background:  pagarTodo === opt.id ? "#fff3e0" : "#fff",
-                          color:       pagarTodo === opt.id ? "#e65100" : "#999",
-                          fontWeight:  pagarTodo === opt.id ? 700 : 500,
-                        }}>
-                        {opt.label}
-                      </button>
-                    ))}
+                  {/* Cuánto se paga ahora. Con solo "la mitad" o "todo"
+                      había que redondear a la mitad exacta o cobrar el pedido
+                      entero; el checkout del cliente ya dejaba escribirlo. */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
+                    {[
+                      { id: "mitad",         label: "La mitad",   detalle: fmt(anticipoMinimo) },
+                      { id: "personalizado", label: "Otro monto", detalle: "Lo eliges" },
+                      { id: "todo",          label: "Todo",       detalle: fmt(totalFinal) },
+                    ].map(opt => {
+                      const activa = anticipoOpcion === opt.id;
+                      return (
+                        <button key={opt.id}
+                          onClick={() => {
+                            setAnticipoOpcion(opt.id);
+                            setPagarTodo(opt.id === "todo");
+                            if (opt.id !== "personalizado") setAnticipoMonto("");
+                            // Cambia el monto: el respaldo anterior respaldaba
+                            // otra cifra y hay que volver a elegir cómo se paga.
+                            setForm(f => ({ ...f, anticipo_metodo: "", anticipo_efectivo: false, anticipo_comprobante: null, anticipo_comp_preview: null }));
+                            setErrors(e => ({ ...e, anticipo_metodo: "", anticipo_efectivo: "", anticipo_comprobante: "", anticipo_monto: "" }));
+                          }}
+                          style={{
+                            padding: "10px 8px", borderRadius: 10, border: "2px solid",
+                            cursor: "pointer", transition: "all 0.2s", lineHeight: 1.25,
+                            borderColor: activa ? "#f57f17" : "#ffe082",
+                            background:  activa ? "#fff3e0" : "#fff",
+                            color:       activa ? "#e65100" : "#999",
+                          }}>
+                          <span style={{ display: "block", fontSize: 13, fontWeight: activa ? 800 : 600 }}>
+                            {opt.label}
+                          </span>
+                          <span style={{ display: "block", fontSize: 11, marginTop: 1, opacity: 0.8 }}>
+                            {opt.detalle}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
 
+                  {anticipoOpcion === "personalizado" && (
+                    <div className="field-wrap" style={{ marginBottom: 14 }}>
+                      <input
+                        type="number"
+                        className={`field-input${errorMontoAnticipo ? " error" : ""}`}
+                        min={anticipoMinimo}
+                        max={totalFinal}
+                        placeholder={`Entre ${fmt(anticipoMinimo)} y ${fmt(totalFinal)}`}
+                        value={anticipoMonto}
+                        onChange={e => {
+                          setAnticipoMonto(e.target.value === "" ? "" : Number(e.target.value));
+                          setForm(f => ({ ...f, anticipo_metodo: "", anticipo_efectivo: false, anticipo_comprobante: null, anticipo_comp_preview: null }));
+                        }}
+                      />
+                      {errorMontoAnticipo && (
+                        <span className="field-error">{errorMontoAnticipo}</span>
+                      )}
+                    </div>
+                  )}
+
                   <div style={{ background: "#fff", borderRadius: 10, padding: "12px 16px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span style={{ fontSize: 13, color: "#666" }}>{pagarTodo ? "Total a pagar ahora" : "Monto del anticipo (50%)"}</span>
+                    <span style={{ fontSize: 13, color: "#666" }}>
+                      {pagarTodo
+                        ? "Total a pagar ahora"
+                        : anticipoOpcion === "personalizado"
+                          ? "Anticipo elegido"
+                          : "Monto del anticipo (la mitad)"}
+                    </span>
                     <span style={{ fontSize: 20, fontWeight: 900, color: "#f57f17" }}>{fmt(montoAnticipo)}</span>
                   </div>
 

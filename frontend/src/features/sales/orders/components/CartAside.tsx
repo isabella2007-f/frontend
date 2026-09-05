@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { X, MapPin, Trash2, Plus, Minus, ShoppingBag, LogIn, Sparkles, ChevronRight, ShoppingCart, FileText, Truck, Clock, AlertTriangle, Package } from 'lucide-react';
 import { CartItem, removeFromCart, updateQuantity, clearCart, getCart } from '../services/cartService';
 import { isAuthenticated } from '../../../../services/authService';
@@ -35,6 +36,7 @@ const mensajeFueraHorario = () => {
 };
 
 const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLoginRequired }) => {
+  const navigate = useNavigate();
   const [cart, setCart]               = useState<CartItem[]>(() => getCart());
   const [qtyDrafts, setQtyDrafts]     = useState<{[id: number]: string}>({});
   const [tieneDomicilio,    setTieneDomicilio]    = useState(false);
@@ -130,6 +132,16 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
   const faltaDireccion = conRegistrada ? null : queFalta(otraDireccion);
 
   const costoTotal = tieneDomicilio ? total + COSTO_DOMICILIO : total;
+
+  /// Cierra el carrito y lleva al catálogo.
+  ///
+  /// Antes solo cerraba: desde la landing eso alcanzaba —el catálogo está
+  /// debajo— pero desde los pedidos o el perfil no pasaba nada y el botón
+  /// parecía roto.
+  const verProductos = () => {
+    onClose();
+    navigate(isAuthenticated() ? '/cliente/hacer-pedidos' : '/');
+  };
 
   const handleCheckout = () => {
     if (cart.length === 0) return;
@@ -236,9 +248,9 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
               </div>
               <div>
                 <h3 className="text-base font-black text-gray-800 mb-1">Carrito vacío</h3>
-                <p className="text-gray-400 text-[10px] max-w-[180px] leading-relaxed font-medium">Explora nuestro menú y elige algo delicioso.</p>
+                <p className="text-gray-400 text-[13px] max-w-[220px] leading-relaxed font-medium">Explora nuestro menú y elige algo delicioso.</p>
               </div>
-              <button onClick={onClose} className="btn-primary" style={{ padding: '8px 20px', fontSize: '11px' }}>Ver Productos</button>
+              <button onClick={verProductos} className="btn-primary" style={{ padding: '10px 24px', fontSize: '13px' }}>Ver productos</button>
             </div>
           ) : (
             <div className="space-y-4">
