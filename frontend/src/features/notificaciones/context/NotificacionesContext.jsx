@@ -95,6 +95,9 @@ export const TIPO_COLORS = {
   [TIPOS.DOMICILIO_ASIGNADO]:   "#1565c0",
 };
 
+const DISMISSED_CLAVES_KEY  = 'notif_descartadas_claves';
+const DISMISSED_BACKEND_KEY = 'notif_descartadas_backend';
+
 // Tipos backend → tipos frontend
 const BACKEND_TYPE_MAP = {
   stock_agotado_insumo:   TIPOS.STOCK_AGOTADO,
@@ -233,21 +236,30 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
         const data    = await getNotificacionesAdmin();
         const vistas  = loadFromLS('notif_admin_vistas', []);
         const notifs  = data.notificaciones || [];
-        const backend = notifs.map(n => ({
-          id:             `api-${n.ID_Notificacion}`,
-          clave:          `api-${n.ID_Notificacion}`,
-          id_backend:     n.ID_Notificacion,
-          tipo:           BACKEND_TYPE_MAP[n.Tipo] || TIPOS.SISTEMA,
-          titulo:         n.Titulo,
-          mensaje:        n.Mensaje || "",
-          idReferencia:   n.Referencia_ID,
-          ruta:           n.Ruta,
-          fecha:          n.Fecha,
-          leida:          n.Leida || vistas.includes(n.ID_Notificacion),
-          idDestinatario: 'admin',
-        }));
-        // Limpiar notif_admin_vistas: sólo conservar IDs que siguen existiendo en el backend
         const backendIds = new Set(notifs.map(n => n.ID_Notificacion));
+        // Limpiar dismissed: solo conservar IDs que el backend sigue devolviendo
+        const dismissedBackend = loadFromLS(DISMISSED_BACKEND_KEY, []);
+        const cleanDismissed = dismissedBackend.filter(id => backendIds.has(id));
+        if (cleanDismissed.length !== dismissedBackend.length) {
+          localStorage.setItem(DISMISSED_BACKEND_KEY, JSON.stringify(cleanDismissed));
+        }
+        const dismissedSet = new Set(cleanDismissed);
+        const backend = notifs
+          .filter(n => !dismissedSet.has(n.ID_Notificacion))
+          .map(n => ({
+            id:             `api-${n.ID_Notificacion}`,
+            clave:          `api-${n.ID_Notificacion}`,
+            id_backend:     n.ID_Notificacion,
+            tipo:           BACKEND_TYPE_MAP[n.Tipo] || TIPOS.SISTEMA,
+            titulo:         n.Titulo,
+            mensaje:        n.Mensaje || "",
+            idReferencia:   n.Referencia_ID,
+            ruta:           n.Ruta,
+            fecha:          n.Fecha,
+            leida:          n.Leida || vistas.includes(n.ID_Notificacion),
+            idDestinatario: 'admin',
+          }));
+        // Limpiar notif_admin_vistas: sólo conservar IDs que siguen existiendo en el backend
         const vistasFiltradas = vistas.filter(id => backendIds.has(id));
         if (vistasFiltradas.length !== vistas.length) {
           localStorage.setItem('notif_admin_vistas', JSON.stringify(vistasFiltradas));
@@ -262,24 +274,33 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
       try {
         const data   = await getMisNotificacionesCliente();
         const vistas = loadFromLS('notif_cliente_vistas', []);
-        const cliente = (data.notificaciones || []).map(n => {
-          const parts    = (n.id_ref || '').split('_');
-          const idPedido = n.id_venta || (parts[0] === 'venta' ? Number(parts[1]) : null);
-          return {
-            id:             n.id_ref,
-            clave:          n.id_ref,
-            id_backend:     n.ID_Notificacion || n.id_notificacion || null,
-            tipo:           n.tipo,
-            titulo:         n.titulo,
-            mensaje:        n.mensaje || "",
-            ruta:           n.ruta,
-            fecha:          n.fecha,
-            leida:          n.leida || n.Leida || vistas.includes(n.id_ref),
-            idDestinatario: String(user.id),
-            idPedido,
-            fechaEntrega:   n.fecha_entrega || null,
-          };
-        });
+        const dismissedBackendCliente = new Set(loadFromLS(DISMISSED_BACKEND_KEY, []));
+        const dismissedClavesCliente  = new Set(loadFromLS(DISMISSED_CLAVES_KEY, []));
+        const cliente = (data.notificaciones || [])
+          .filter(n => {
+            const idB = n.ID_Notificacion || n.id_notificacion || null;
+            if (idB && dismissedBackendCliente.has(idB)) return false;
+            if (n.id_ref && dismissedClavesCliente.has(n.id_ref)) return false;
+            return true;
+          })
+          .map(n => {
+            const parts    = (n.id_ref || '').split('_');
+            const idPedido = n.id_venta || (parts[0] === 'venta' ? Number(parts[1]) : null);
+            return {
+              id:             n.id_ref,
+              clave:          n.id_ref,
+              id_backend:     n.ID_Notificacion || n.id_notificacion || null,
+              tipo:           n.tipo,
+              titulo:         n.titulo,
+              mensaje:        n.mensaje || "",
+              ruta:           n.ruta,
+              fecha:          n.fecha,
+              leida:          n.leida || n.Leida || vistas.includes(n.id_ref),
+              idDestinatario: String(user.id),
+              idPedido,
+              fechaEntrega:   n.fecha_entrega || null,
+            };
+          });
         setNotificaciones(prev => [
           ...cliente,
           ...prev.filter(n => !TIPOS_CLIENTE.has(n.tipo)),
@@ -290,18 +311,21 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
       try {
         const data   = await getNotificacionesCocina();
         const vistas = loadFromLS('notif_cocina_vistas', []);
-        const cocina = (data.notificaciones || []).map(n => ({
-          id:             n.id_ref,
-          clave:          n.id_ref,
-          tipo:           n.tipo,
-          titulo:         n.titulo,
-          mensaje:        n.mensaje || "",
-          ruta:           n.ruta,
-          fecha:          n.fecha,
-          leida:          n.leida || vistas.includes(n.id_ref),
-          idDestinatario: 'produccion',
-          idPedido:       n.id_venta || null,
-        }));
+        const dismissedCocinaClaves = new Set(loadFromLS(DISMISSED_CLAVES_KEY, []));
+        const cocina = (data.notificaciones || [])
+          .filter(n => !dismissedCocinaClaves.has(n.id_ref))
+          .map(n => ({
+            id:             n.id_ref,
+            clave:          n.id_ref,
+            tipo:           n.tipo,
+            titulo:         n.titulo,
+            mensaje:        n.mensaje || "",
+            ruta:           n.ruta,
+            fecha:          n.fecha,
+            leida:          n.leida || vistas.includes(n.id_ref),
+            idDestinatario: 'produccion',
+            idPedido:       n.id_venta || null,
+          }));
         setNotificaciones(prev => [
           ...cocina,
           ...prev.filter(n => !TIPOS_COCINA.has(n.tipo)),
@@ -312,17 +336,20 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
       try {
         const data  = await getNotificacionesDomiciliario();
         const vistas = loadFromLS('notif_dom_vistas', []);
-        const domNotifs = (data.notificaciones || []).map(n => ({
-          id:             n.id_ref,
-          clave:          n.id_ref,
-          tipo:           n.tipo,
-          titulo:         n.titulo,
-          mensaje:        n.mensaje || "",
-          ruta:           n.ruta,
-          fecha:          n.fecha,
-          leida:          vistas.includes(n.id_ref),
-          idDestinatario: 'domiciliario',
-        }));
+        const dismissedDomClaves = new Set(loadFromLS(DISMISSED_CLAVES_KEY, []));
+        const domNotifs = (data.notificaciones || [])
+          .filter(n => !dismissedDomClaves.has(n.id_ref))
+          .map(n => ({
+            id:             n.id_ref,
+            clave:          n.id_ref,
+            tipo:           n.tipo,
+            titulo:         n.titulo,
+            mensaje:        n.mensaje || "",
+            ruta:           n.ruta,
+            fecha:          n.fecha,
+            leida:          vistas.includes(n.id_ref),
+            idDestinatario: 'domiciliario',
+          }));
         setNotificaciones(prev => [
           ...domNotifs,
           ...prev.filter(n => !TIPOS_DOMICILIARIO.has(n.tipo)),
@@ -374,6 +401,37 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
       const lotesLoaded   = lotes.length > 0;
       const comprasLoaded = compras.length > 0;
 
+      // Cargar descartadas y limpiar las que ya no cumplen la condición (así vuelven a aparecer si el problema reaparece)
+      const dismissedArr = loadFromLS(DISMISSED_CLAVES_KEY, []);
+      const dismissed = new Set(dismissedArr);
+      if (insumosLoaded) {
+        insumos.forEach(ins => {
+          const minimo = nivelesMinimos[ins.id] !== undefined ? nivelesMinimos[ins.id] : ins.stockMinimo;
+          if (ins.stockActual > 0)      dismissed.delete(`${TIPOS.STOCK_AGOTADO}-${ins.id}`);
+          if (ins.stockActual > minimo) dismissed.delete(`${TIPOS.STOCK_MINIMO}-${ins.id}`);
+        });
+      }
+      if (lotesLoaded) {
+        lotes.forEach(lote => {
+          if (!lote.fechaVencimiento || lote.cantidadActual <= 0) {
+            dismissed.delete(`${TIPOS.LOTE_VENCIDO}-${lote.id}`);
+            dismissed.delete(`${TIPOS.LOTE_POR_VENCER}-${lote.id}`);
+            return;
+          }
+          const dias = Math.round((new Date(lote.fechaVencimiento + "T00:00:00") - hoy) / 86_400_000);
+          if (dias >= 0) dismissed.delete(`${TIPOS.LOTE_VENCIDO}-${lote.id}`);
+          if (dias > 7)  dismissed.delete(`${TIPOS.LOTE_POR_VENCER}-${lote.id}`);
+        });
+      }
+      if (comprasLoaded) {
+        compras.forEach(compra => {
+          if (compra.estado !== 'pendiente') dismissed.delete(`${TIPOS.COMPRA_PENDIENTE}-${compra.id}`);
+        });
+      }
+      if (dismissed.size !== dismissedArr.length) {
+        localStorage.setItem(DISMISSED_CLAVES_KEY, JSON.stringify([...dismissed]));
+      }
+
       const notificacionesActuales = prev.filter(n => {
         if (n.clave?.startsWith('api-') || TIPOS_CLIENTE.has(n.tipo)) return true;
         if (n.tipo === TIPOS.STOCK_AGOTADO) {
@@ -415,7 +473,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
         const stock  = ins.stockActual;
         if (stock <= 0) {
           const clave = `${TIPOS.STOCK_AGOTADO}-${ins.id}`;
-          if (!notificacionesActuales.some(n => n.clave === clave)) {
+          if (!dismissed.has(clave) && !notificacionesActuales.some(n => n.clave === clave)) {
             nuevas.push({
               id: uid(), clave, tipo: TIPOS.STOCK_AGOTADO,
               titulo: `Stock agotado: ${ins.nombre}`,
@@ -426,7 +484,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
           }
         } else if (minimo !== undefined && stock <= minimo) {
           const clave = `${TIPOS.STOCK_MINIMO}-${ins.id}`;
-          if (!notificacionesActuales.some(n => n.clave === clave)) {
+          if (!dismissed.has(clave) && !notificacionesActuales.some(n => n.clave === clave)) {
             nuevas.push({
               id: uid(), clave, tipo: TIPOS.STOCK_MINIMO,
               titulo: `Stock bajo mínimo: ${ins.nombre}`,
@@ -446,7 +504,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
         const nombre = insumo?.nombre || `Insumo #${lote.idInsumo}`;
         if (dias < 0) {
           const clave = `${TIPOS.LOTE_VENCIDO}-${lote.id}`;
-          if (!notificacionesActuales.some(n => n.clave === clave)) {
+          if (!dismissed.has(clave) && !notificacionesActuales.some(n => n.clave === clave)) {
             nuevas.push({
               id: uid(), clave, tipo: TIPOS.LOTE_VENCIDO,
               titulo: `Lote vencido: ${nombre}`,
@@ -457,7 +515,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
           }
         } else if (dias <= 7) {
           const clave = `${TIPOS.LOTE_POR_VENCER}-${lote.id}`;
-          if (!notificacionesActuales.some(n => n.clave === clave)) {
+          if (!dismissed.has(clave) && !notificacionesActuales.some(n => n.clave === clave)) {
             nuevas.push({
               id: uid(), clave, tipo: TIPOS.LOTE_POR_VENCER,
               titulo: `Lote próximo a vencer: ${nombre}`,
@@ -474,7 +532,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
         const dias = Math.round((hoy - new Date(compra.fecha + "T00:00:00")) / 86_400_000);
         if (dias >= 5) {
           const clave = `${TIPOS.COMPRA_PENDIENTE}-${compra.id}`;
-          if (!notificacionesActuales.some(n => n.clave === clave)) {
+          if (!dismissed.has(clave) && !notificacionesActuales.some(n => n.clave === clave)) {
             nuevas.push({
               id: uid(), clave, tipo: TIPOS.COMPRA_PENDIENTE,
               titulo: `Compra pendiente: ${compra.id}`,
@@ -622,6 +680,16 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
       const notif = prev.find(n => n.id === id);
       if (notif?.id_backend) {
         eliminarNotificacionAPI(notif.id_backend).catch(() => {});
+        const dismissed = loadFromLS(DISMISSED_BACKEND_KEY, []);
+        if (!dismissed.includes(notif.id_backend)) {
+          localStorage.setItem(DISMISSED_BACKEND_KEY, JSON.stringify([...dismissed, notif.id_backend]));
+        }
+      }
+      if (notif?.clave && !notif.clave.startsWith('api-')) {
+        const dismissed = loadFromLS(DISMISSED_CLAVES_KEY, []);
+        if (!dismissed.includes(notif.clave)) {
+          localStorage.setItem(DISMISSED_CLAVES_KEY, JSON.stringify([...dismissed, notif.clave]));
+        }
       }
       return prev.filter(n => n.id !== id);
     });
@@ -635,13 +703,28 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
       const isCook         = ['cocina', 'cocinero', 'produccion', 'producción'].includes(rol);
       const isDomiciliario = rol === 'domiciliario';
 
+      const dismissedBackend = loadFromLS(DISMISSED_BACKEND_KEY, []);
+      const dismissedClaves  = loadFromLS(DISMISSED_CLAVES_KEY, []);
+      let backendChanged = false;
+      let clavesChanged  = false;
+
       prev.forEach(n => {
         const mine = (isAdmin && n.idDestinatario === 'admin')
           || (isCook && n.idDestinatario === 'produccion')
           || (isDomiciliario && n.idDestinatario === 'domiciliario')
           || (!isAdmin && !isCook && !isDomiciliario && n.idDestinatario === String(currentUser?.id));
-        if (mine && n.id_backend) eliminarNotificacionAPI(n.id_backend).catch(() => {});
+        if (!mine) return;
+        if (n.id_backend) {
+          eliminarNotificacionAPI(n.id_backend).catch(() => {});
+          if (!dismissedBackend.includes(n.id_backend)) { dismissedBackend.push(n.id_backend); backendChanged = true; }
+        }
+        if (n.clave && !n.clave.startsWith('api-')) {
+          if (!dismissedClaves.includes(n.clave)) { dismissedClaves.push(n.clave); clavesChanged = true; }
+        }
       });
+
+      if (backendChanged) localStorage.setItem(DISMISSED_BACKEND_KEY, JSON.stringify(dismissedBackend));
+      if (clavesChanged)  localStorage.setItem(DISMISSED_CLAVES_KEY,  JSON.stringify(dismissedClaves));
 
       return prev.filter(n => {
         const mine = (isAdmin && n.idDestinatario === 'admin')
