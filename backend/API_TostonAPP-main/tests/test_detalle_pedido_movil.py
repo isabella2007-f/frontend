@@ -48,7 +48,7 @@ CAMPOS_DEL_PEDIDO = [
     "pago_final_registrado", "pago_final_monto", "pago_final_metodo_pago",
     "pago_final_comprobante_url", "pago_final_fecha",
     # Producción
-    "requiere_produccion", "requiere_fecha_propuesta",
+    "requiere_produccion", "requiere_fecha_propuesta", "fecha_rechazada",
     "ordenes_produccion_pendientes", "ordenes_en_espera",
     # Qué se pidió
     "productos",
@@ -212,6 +212,32 @@ class DetalleDelPedidoTests(PanelBase):
         self.assertFalse(pedido["tiene_domicilio"])
         self.assertIsNone(pedido["direccion_entrega"])
         self.assertIsNone(pedido["nombre_domiciliario"])
+
+    def test_la_fecha_rechazada_llega(self):
+        """Cuándo el cliente rechazó la última fecha propuesta.
+
+        Con domicilio el pedido vuelve a Pendiente para que se le proponga
+        otra, y sin esta marca reaparece idéntico a uno recién hecho: ni el
+        panel web ni la app tenían forma de decir que hay un rechazo esperando
+        respuesta. El servicio la armaba desde siempre; el esquema la borraba.
+        """
+        creado = self.pedido_completo()
+        idv = creado["ID_Venta"]
+        self.afirmar_ok(self.patch(
+            f"/ventas/{idv}/proponer-fecha", self.admin,
+            {"fecha_entrega": "2026-09-20T10:00:00"}))
+
+        antes = self.afirmar_ok(self.get(f"/ventas/{idv}", self.admin))
+        self.assertIsNone(antes["fecha_rechazada"], "nadie rechazó nada todavía")
+
+        self.afirmar_ok(self.patch(f"/ventas/{idv}/rechazar-fecha", self.cliente))
+        despues = self.afirmar_ok(self.get(f"/ventas/{idv}", self.admin))
+
+        self.assertIsNotNone(despues["fecha_rechazada"])
+        # Con domicilio el pedido sigue vivo y sin fecha: hay que proponer otra.
+        self.assertEqual(despues["Estado"], 1)
+        self.assertIsNone(despues["Fecha_entrega_esperada"])
+        self.assertTrue(despues["requiere_fecha_propuesta"])
 
     def test_el_cliente_no_puede_leer_el_pedido_de_otro(self):
         """La puerta del cliente devuelve lo suyo y nada más."""
