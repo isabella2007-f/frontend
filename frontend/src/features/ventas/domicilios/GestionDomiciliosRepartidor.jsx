@@ -3,6 +3,7 @@ import { getTodosLosDomicilios, cambiarEstadoDomicilio, registrarPagoEfectivo } 
 import { getUser } from "../../../services/authService.js";
 import { fmtFechaHora as fmtFecha } from "../../../utils/dateUtils.js";
 import { ESTADO_DOMICILIO, ESTADO_DOM_CONFIG, cobroEfectivoPendiente, esDomicilioActivo, esPagoMixto, montoACobrar, transicionesDom } from "./estadosDomicilio";
+import "./DomiciliarioUI.css";
 import "./MisEntregas.css";
 import {
   Search, RefreshCw, Truck, Package, CheckCircle2, XCircle, Clock,
@@ -49,7 +50,7 @@ function EstadoPagoBadge({ estadoPago }) {
   const cfg = ESTADO_PAGO_INFO[estadoPago] || { label: estadoPago, color: "#757575", bg: "#f5f5f5" };
   return (
     <span
-      className="me-badge-pago"
+      className="du-badge-pago"
       style={{ "--p-color": cfg.color, "--p-bg": cfg.bg, "--p-border": `${cfg.color}33` }}
     >
       {cfg.label}
@@ -73,8 +74,8 @@ const proximosEstados = (estadoId) =>
 function Toast({ toast }) {
   if (!toast) return null;
   return (
-    <div className={`me-toast me-toast--${toast.type === "error" ? "error" : "ok"}`}>
-      <span className="me-toast__icon">{toast.type === "error" ? <X size={15} /> : <Check size={15} />}</span>
+    <div className={`du-toast du-toast--${toast.type === "error" ? "error" : "ok"}`}>
+      <span className="du-toast__icon">{toast.type === "error" ? <X size={15} /> : <Check size={15} />}</span>
       {toast.message}
     </div>
   );
@@ -84,7 +85,7 @@ function EstadoBadge({ estadoId }) {
   const { cfg, vars } = varsEstado(estadoId);
   return (
     <span
-      className={`me-badge${estadoId === ESTADO_DOMICILIO.EN_CAMINO ? " me-badge--vivo" : ""}`}
+      className={`du-badge${estadoId === ESTADO_DOMICILIO.EN_CAMINO ? " du-badge--vivo" : ""}`}
       style={vars}
     >
       <IconoEstado estadoId={estadoId} /> {cfg.label}
@@ -117,7 +118,7 @@ function CobroEfectivoModal({ domicilio, saving, entregarDespues, onClose, onCon
     <button
       type="button"
       onClick={() => { setRecibido(valor); setError(null); }}
-      className={`me-opcion${recibido === valor ? " me-opcion--on" : ""}`}
+      className={`du-opcion${recibido === valor ? " du-opcion--on" : ""}`}
       style={{ "--op-color": color, "--op-bg": `${color}14`, "--op-sombra": `${color}2e` }}
     >
       <Icono size={19} /> {titulo}
@@ -126,32 +127,32 @@ function CobroEfectivoModal({ domicilio, saving, entregarDespues, onClose, onCon
 
   return (
     <div className="modal-overlay">
-      <div className="me-modal" onClick={e => e.stopPropagation()}>
-        <div className="me-modal__head">
-          <span className="me-modal__head-icon"><Wallet size={20} /></span>
-          <div className="me-modal__head-txt">
-            <p className="me-modal__eyebrow">{domicilio.numero}</p>
-            <h2 className="me-modal__titulo">Cobro en efectivo</h2>
+      <div className="du-modal" onClick={e => e.stopPropagation()}>
+        <div className="du-modal__head">
+          <span className="du-modal__head-icon"><Wallet size={20} /></span>
+          <div className="du-modal__head-txt">
+            <p className="du-modal__eyebrow">{domicilio.numero}</p>
+            <h2 className="du-modal__titulo">Cobro en efectivo</h2>
           </div>
-          <button className="me-modal__cerrar" onClick={onClose} aria-label="Cerrar"><X size={17} /></button>
+          <button className="du-modal__cerrar" onClick={onClose} aria-label="Cerrar"><X size={17} /></button>
         </div>
 
-        <div className="me-modal__body">
-          <div className="me-dato me-dato--total">
-            <div className="me-dato__label">Total a cobrar</div>
-            <div className="me-dato__valor">{fmt(montoACobrar(domicilio))}</div>
+        <div className="du-modal__body">
+          <div className="du-dato du-dato--total">
+            <div className="du-dato__label">Total a cobrar</div>
+            <div className="du-dato__valor">{fmt(montoACobrar(domicilio))}</div>
             {/* En un pedido mixto solo se cobra en mano una parte: el resto ya
                 entró por transferencia al hacer el pedido. */}
             {esPagoMixto(domicilio.metodo_pago) && (
-              <div className="me-dato__sub">
+              <div className="du-dato__sub">
                 Parte en efectivo de un pedido de {fmt(domicilio.total)} — el resto ya se transfirió.
               </div>
             )}
           </div>
 
           <div>
-            <label className="me-campo-label">¿Recibiste el pago completo del cliente?</label>
-            <div className="me-opciones">
+            <label className="du-campo-label">¿Recibiste el pago completo del cliente?</label>
+            <div className="du-opciones">
               {opcion(true,  CheckCircle2, "Sí, recibido", "#2e7d32")}
               {opcion(false, XCircle,      "No lo recibí", "#c62828")}
             </div>
@@ -160,28 +161,28 @@ function CobroEfectivoModal({ domicilio, saving, entregarDespues, onClose, onCon
           {recibido === false && (
             <div>
               <textarea
-                className="me-textarea"
+                className="du-textarea"
                 rows={3}
                 value={motivo}
                 onChange={e => { setMotivo(e.target.value); setError(null); }}
                 placeholder="Ej: el cliente no tenía el efectivo completo"
               />
-              <div className={`me-contador${motivo.trim().length < 10 ? " me-contador--falta" : ""}`}>
+              <div className={`du-contador${motivo.trim().length < 10 ? " du-contador--falta" : ""}`}>
                 {motivo.trim().length}/10 caracteres mínimos
               </div>
             </div>
           )}
 
           {error && (
-            <div className="me-error"><AlertCircle size={15} /> {error}</div>
+            <div className="du-error"><AlertCircle size={15} /> {error}</div>
           )}
         </div>
 
-        <div className="me-modal__foot">
-          <button className="me-btn me-btn--fantasma" onClick={onClose} disabled={saving}>
+        <div className="du-modal__foot">
+          <button className="du-btn du-btn--fantasma" onClick={onClose} disabled={saving}>
             Cancelar
           </button>
-          <button className="me-btn me-btn--primario" onClick={confirmar} disabled={saving}>
+          <button className="du-btn du-btn--primario" onClick={confirmar} disabled={saving}>
             <Banknote size={15} />
             {saving ? "Registrando…" : entregarDespues ? "Registrar y entregar" : "Registrar cobro"}
           </button>
@@ -210,39 +211,39 @@ function CambiarEstadoModal({ domicilio, onClose, onSave }) {
 
   return (
     <div className="modal-overlay">
-      <div className="me-modal" onClick={e => e.stopPropagation()}>
-        <div className="me-modal__head">
-          <span className="me-modal__head-icon"><Bike size={20} /></span>
-          <div className="me-modal__head-txt">
-            <p className="me-modal__eyebrow">{domicilio.numero}</p>
-            <h2 className="me-modal__titulo">Actualizar entrega</h2>
+      <div className="du-modal" onClick={e => e.stopPropagation()}>
+        <div className="du-modal__head">
+          <span className="du-modal__head-icon"><Bike size={20} /></span>
+          <div className="du-modal__head-txt">
+            <p className="du-modal__eyebrow">{domicilio.numero}</p>
+            <h2 className="du-modal__titulo">Actualizar entrega</h2>
           </div>
-          <button className="me-modal__cerrar" onClick={onClose} aria-label="Cerrar"><X size={17} /></button>
+          <button className="du-modal__cerrar" onClick={onClose} aria-label="Cerrar"><X size={17} /></button>
         </div>
 
-        <div className="me-modal__body">
-          <div className="me-dato">
-            <div className="me-dato__label">Entrega</div>
-            <div className="me-dato__valor me-dato__valor--fuerte">{domicilio.cliente?.nombre || "—"}</div>
-            <div className="me-dato__sub">{domicilio.direccion_entrega || "Sin dirección"}</div>
+        <div className="du-modal__body">
+          <div className="du-dato">
+            <div className="du-dato__label">Entrega</div>
+            <div className="du-dato__valor du-dato__valor--fuerte">{domicilio.cliente?.nombre || "—"}</div>
+            <div className="du-dato__sub">{domicilio.direccion_entrega || "Sin dirección"}</div>
           </div>
 
           {posibles.length === 0 ? (
-            <p className="me-sin-acciones">
+            <p className="du-nota">
               No hay cambios de estado disponibles para este domicilio.
             </p>
           ) : (
             <>
               <div>
-                <label className="me-campo-label">Nuevo estado</label>
-                <div className="me-opciones">
+                <label className="du-campo-label">Nuevo estado</label>
+                <div className="du-opciones">
                   {posibles.map(op => {
                     const { cfg } = varsEstado(op.valor);
                     return (
                       <button
                         key={op.valor}
                         onClick={() => setNuevoEstado(op.valor)}
-                        className={`me-opcion${nuevoEstado === op.valor ? " me-opcion--on" : ""}`}
+                        className={`du-opcion${nuevoEstado === op.valor ? " du-opcion--on" : ""}`}
                         style={{ "--op-color": cfg.dot, "--op-bg": cfg.bg, "--op-sombra": `${cfg.dot}2e` }}
                       >
                         <op.Icono size={16} /> {op.label}
@@ -253,9 +254,9 @@ function CambiarEstadoModal({ domicilio, onClose, onSave }) {
               </div>
 
               <div>
-                <label className="me-campo-label">Observaciones (opcional)</label>
+                <label className="du-campo-label">Observaciones (opcional)</label>
                 <textarea
-                  className="me-textarea"
+                  className="du-textarea"
                   rows={3}
                   value={obs}
                   onChange={e => setObs(e.target.value)}
@@ -267,9 +268,9 @@ function CambiarEstadoModal({ domicilio, onClose, onSave }) {
         </div>
 
         {posibles.length > 0 && (
-          <div className="me-modal__foot">
-            <button className="me-btn me-btn--fantasma" onClick={onClose}>Cancelar</button>
-            <button className="me-btn me-btn--primario" onClick={handleSave} disabled={saving || !nuevoEstado}>
+          <div className="du-modal__foot">
+            <button className="du-btn du-btn--fantasma" onClick={onClose}>Cancelar</button>
+            <button className="du-btn du-btn--primario" onClick={handleSave} disabled={saving || !nuevoEstado}>
               <Check size={15} /> {saving ? "Guardando…" : "Confirmar"}
             </button>
           </div>
@@ -282,29 +283,29 @@ function CambiarEstadoModal({ domicilio, onClose, onSave }) {
 function DetallesModal({ domicilio, onClose, onCambiarEstado, onCobrar }) {
   return (
     <div className="modal-overlay">
-      <div className="me-modal me-modal--ancho" onClick={e => e.stopPropagation()}>
-        <div className="me-modal__head">
-          <span className="me-modal__head-icon"><Package size={20} /></span>
-          <div className="me-modal__head-txt">
-            <p className="me-modal__eyebrow">Domicilio</p>
-            <h2 className="me-modal__titulo">{domicilio.numero}</h2>
+      <div className="du-modal du-modal--ancho" onClick={e => e.stopPropagation()}>
+        <div className="du-modal__head">
+          <span className="du-modal__head-icon"><Package size={20} /></span>
+          <div className="du-modal__head-txt">
+            <p className="du-modal__eyebrow">Domicilio</p>
+            <h2 className="du-modal__titulo">{domicilio.numero}</h2>
           </div>
-          <button className="me-modal__cerrar" onClick={onClose} aria-label="Cerrar"><X size={17} /></button>
+          <button className="du-modal__cerrar" onClick={onClose} aria-label="Cerrar"><X size={17} /></button>
         </div>
 
-        <div className="me-modal__body">
-          <div className="me-meta-fila">
+        <div className="du-modal__body">
+          <div className="du-meta-fila">
             <EstadoBadge estadoId={domicilio.estadoId} />
             <EstadoPagoBadge estadoPago={domicilio.estado_pago} />
             <span>{fmtFecha(domicilio.fecha_pedido)}</span>
           </div>
 
-          <div className="me-dato">
-            <div className="me-dato__label">Cliente</div>
-            <div className="me-dato__valor me-dato__valor--fuerte">{domicilio.cliente?.nombre || "—"}</div>
+          <div className="du-dato">
+            <div className="du-dato__label">Cliente</div>
+            <div className="du-dato__valor du-dato__valor--fuerte">{domicilio.cliente?.nombre || "—"}</div>
             {domicilio.cliente?.telefono && (
               <a
-                className="me-wa"
+                className="du-wa"
                 href={`https://wa.me/${domicilio.cliente.telefono.replace(/\D/g, "")}`}
                 target="_blank" rel="noopener noreferrer"
               >
@@ -313,26 +314,26 @@ function DetallesModal({ domicilio, onClose, onCambiarEstado, onCobrar }) {
             )}
           </div>
 
-          <div className="me-dato">
-            <div className="me-dato__label">Dirección</div>
-            <div className="me-dato__valor">{domicilio.direccion_entrega || "—"}</div>
+          <div className="du-dato">
+            <div className="du-dato__label">Dirección</div>
+            <div className="du-dato__valor">{domicilio.direccion_entrega || "—"}</div>
           </div>
 
-          <div className="me-dato me-dato--total">
-            <div className="me-dato__label">Total</div>
-            <div className="me-dato__valor">{fmt(domicilio.total || 0)}</div>
+          <div className="du-dato du-dato--total">
+            <div className="du-dato__label">Total</div>
+            <div className="du-dato__valor">{fmt(domicilio.total || 0)}</div>
           </div>
 
           {domicilio.obs_domicilio && (
-            <div className="me-dato me-dato--obs">
-              <div className="me-dato__label">Observaciones</div>
-              <div className="me-dato__valor">{domicilio.obs_domicilio}</div>
+            <div className="du-dato du-dato--obs">
+              <div className="du-dato__label">Observaciones</div>
+              <div className="du-dato__valor">{domicilio.obs_domicilio}</div>
             </div>
           )}
 
           {cobroEfectivoPendiente(domicilio) && esDomicilioActivo(domicilio.estadoId) && (
             <button
-              className="me-btn me-btn--oro me-btn--bloque"
+              className="du-btn du-btn--oro du-btn--bloque"
               onClick={() => { onClose(); onCobrar(domicilio); }}
             >
               <Banknote size={16} /> Registrar cobro en efectivo
@@ -340,7 +341,7 @@ function DetallesModal({ domicilio, onClose, onCambiarEstado, onCobrar }) {
           )}
           {proximosEstados(domicilio.estadoId).length > 0 && (
             <button
-              className="me-btn me-btn--primario me-btn--bloque"
+              className="du-btn du-btn--primario du-btn--bloque"
               onClick={() => { onClose(); onCambiarEstado(domicilio); }}
             >
               <Truck size={16} /> Actualizar estado de entrega
@@ -475,16 +476,16 @@ export default function GestionDomiciliosRepartidor() {
       : `Tienes ${activos.length} ${activos.length === 1 ? "entrega pendiente" : "entregas pendientes"} en tu ruta.`;
 
   return (
-    <div className="mis-entregas">
-      <header className="me-hero">
-        <div className="me-hero__top">
+    <div className="dom-ui mis-entregas">
+      <header className="du-hero">
+        <div className="du-hero__top">
           <div>
-            <span className="me-hero__eyebrow"><Bike size={14} /> Panel del domiciliario</span>
-            <h1 className="me-hero__title">Mis Entregas</h1>
-            <p className="me-hero__sub">{subtitulo}</p>
+            <span className="du-hero__eyebrow"><Bike size={14} /> Panel del domiciliario</span>
+            <h1 className="du-hero__title">Mis Entregas</h1>
+            <p className="du-hero__sub">{subtitulo}</p>
           </div>
           <button
-            className={`me-hero__refresh${loading ? " me-hero__refresh--girando" : ""}`}
+            className={`du-hero__refresh${loading ? " du-hero__refresh--girando" : ""}`}
             onClick={cargar}
             disabled={loading}
           >
@@ -492,32 +493,32 @@ export default function GestionDomiciliosRepartidor() {
           </button>
         </div>
 
-        <div className="me-stats">
+        <div className="du-stats">
           {STATS.map(s => (
-            <div key={s.label} className={`me-stat${s.oro ? " me-stat--oro" : ""}`}>
-              <span className="me-stat__icon"><s.Icono size={19} /></span>
+            <div key={s.label} className={`du-stat${s.oro ? " du-stat--oro" : ""}`}>
+              <span className="du-stat__icon"><s.Icono size={19} /></span>
               <div>
-                <div className={`me-stat__valor${s.money ? " me-stat__valor--money" : ""}`}>{s.valor}</div>
-                <div className="me-stat__label">{s.label}</div>
+                <div className={`du-stat__valor${s.money ? " du-stat__valor--money" : ""}`}>{s.valor}</div>
+                <div className="du-stat__label">{s.label}</div>
               </div>
             </div>
           ))}
         </div>
       </header>
 
-      <div className="me-inner">
+      <div className="du-inner">
         <div className="me-toolbar">
-          <div className="me-search">
-            <span className="me-search__icon"><Search size={16} /></span>
+          <div className="du-search">
+            <span className="du-search__icon"><Search size={16} /></span>
             <input
-              className="me-search__input"
+              className="du-search__input"
               type="text"
               placeholder="Buscar por número, cliente o dirección…"
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
             {search && (
-              <button className="me-search__clear" onClick={() => setSearch("")} aria-label="Limpiar búsqueda">
+              <button className="du-search__clear" onClick={() => setSearch("")} aria-label="Limpiar búsqueda">
                 <X size={13} />
               </button>
             )}
@@ -540,22 +541,22 @@ export default function GestionDomiciliosRepartidor() {
         {loading ? (
           <div className="me-grid">
             {[1, 2, 3].map(i => (
-              <div key={i} className="me-skel-card">
+              <div key={i} className="du-skel-card">
                 {[70, 50, 90, 40].map((w, j) => (
-                  <div key={j} className="me-skel" style={{ width: `${w}%` }} />
+                  <div key={j} className="du-skel" style={{ width: `${w}%` }} />
                 ))}
               </div>
             ))}
           </div>
         ) : filtrados.length === 0 ? (
-          <div className="me-vacio">
-            <span className="me-vacio__icon"><Truck size={38} strokeWidth={1.4} /></span>
-            <p className="me-vacio__titulo">
+          <div className="du-vacio">
+            <span className="du-vacio__icon"><Truck size={38} strokeWidth={1.4} /></span>
+            <p className="du-vacio__titulo">
               {q ? "Sin resultados para esa búsqueda"
                  : filtro === "activos" ? "No tienes entregas pendientes"
                  : "Sin resultados"}
             </p>
-            <p className="me-vacio__texto">
+            <p className="du-vacio__texto">
               {q ? "Prueba con otro número de pedido, cliente o dirección."
                  : filtro === "activos" ? "Cuando te asignen un domicilio aparecerá aquí."
                  : "No hay domicilios que coincidan con este filtro."}
@@ -614,7 +615,7 @@ export default function GestionDomiciliosRepartidor() {
                           y el repartidor todavía tiene algo que resolver. */}
                       {cobroEfectivoPendiente(dom) && esDomicilioActivo(dom.estadoId) && (
                         <button
-                          className="me-btn me-btn--oro me-btn--sm"
+                          className="du-btn du-btn--oro du-btn--sm"
                           onClick={e => { e.stopPropagation(); setCobrando({ dom, entregarDespues: false }); }}
                           title="Registrar el cobro en efectivo"
                         >
@@ -623,7 +624,7 @@ export default function GestionDomiciliosRepartidor() {
                       )}
                       {puedeCambiar && (
                         <button
-                          className="me-btn me-btn--primario me-btn--sm"
+                          className="du-btn du-btn--primario du-btn--sm"
                           onClick={e => { e.stopPropagation(); setModal({ type: "cambiarEstado", dom }); }}
                         >
                           Actualizar <ChevronRight size={14} />
