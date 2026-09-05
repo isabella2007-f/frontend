@@ -233,7 +233,18 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
       await apiFetch('/auth/foto-perfil', {
         method: 'POST',
         body: JSON.stringify({ url: fotoNueva }),
-      }).catch(() => {});
+      })
+        .then(() => {
+          // Que el encabezado la muestre sin recargar la página.
+          try {
+            const sesion = JSON.parse(localStorage.getItem('usuario') || '{}');
+            localStorage.setItem('usuario', JSON.stringify({
+              ...sesion, fotoPerfil: fotoNueva,
+            }));
+            window.dispatchEvent(new Event('profileUpdated'));
+          } catch { /* el navegador puede tener el almacenamiento bloqueado */ }
+        })
+        .catch(() => {});
     }
 
     onSave(payload);

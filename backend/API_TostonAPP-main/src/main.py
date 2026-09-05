@@ -389,6 +389,28 @@ def migrate_db():
             _log.error("migración intentos_rechazo FALLÓ — %s", exc, exc_info=True)
             raise
 
+    # ── Columna Descartada en Notificaciones ──────────────────────────────────
+    with engine.connect() as conn:
+        try:
+            existe = conn.execute(text("""
+                SELECT COUNT(*) FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME   = 'Notificaciones'
+                  AND COLUMN_NAME  = 'Descartada'
+            """)).scalar()
+            if not existe:
+                conn.execute(text(
+                    "ALTER TABLE Notificaciones "
+                    "ADD COLUMN Descartada BOOLEAN NOT NULL DEFAULT 0"
+                ))
+                conn.commit()
+                _log.info("migración Descartada: columna creada en Notificaciones")
+            else:
+                _log.debug("migración Descartada: columna ya existe, sin cambios")
+        except Exception as exc:
+            _log.error("migración Descartada FALLÓ — %s", exc, exc_info=True)
+            raise
+
     # ── Tabla de historial de fechas propuestas ───────────────────────────────
     with engine.connect() as conn:
         try:

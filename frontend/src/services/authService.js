@@ -26,6 +26,10 @@ export const login = async (correo, contrasena) => {
       apellidos: data.apellidos,
       tipo:      data.tipo,
       rol:       data.rol,
+      // El encabezado la muestra al lado del nombre. Antes solo aparecía si
+      // se entraba al perfil, porque la escribía esa página; al cerrar sesión
+      // se perdía y volvía la inicial.
+      fotoPerfil: data.foto_perfil || null,
     }));
   } catch {
     throw new Error("No se pudo guardar la sesión. Intenta en modo de navegación normal.");
