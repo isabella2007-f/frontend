@@ -2148,6 +2148,18 @@ def resolver_escalado_cancelar(db: Session, id_venta: int, actual: dict) -> dict
 
     venta.Estado = EstadoPedido.CANCELADO
     _devolver_credito_venta(db, venta)
+
+    # Cancelar OPs abiertas (defensivo: no debería haber ninguna en ESCALADO_A_ADMIN,
+    # pero si por algún estado corrupto las hay, hay que cerrarlas igual).
+    from src.features.produccion.ordenes_produccion.services.service import (
+        cambiar_estado as _cambiar_estado_orden,
+    )
+    for _orden in db.query(OrdenProduccion).filter(
+        OrdenProduccion.ID_Venta == id_venta,
+        OrdenProduccion.Estado.notin_([11, 5]),
+    ).all():
+        _cambiar_estado_orden(db, _orden.ID_Orden_Produccion, 5, commit=False)
+
     notificar(
         db, "fecha_rechazada", "Pedido cancelado por el administrador",
         f"Tu pedido #{id_venta} fue cancelado por el administrador tras múltiples rechazos de fecha.",

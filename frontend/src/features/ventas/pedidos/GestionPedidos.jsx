@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { fmtFecha, getRecordDate } from "../../../utils/dateUtils.js";
 import DateRangeFilter from "../../../shared/components/DateRangeFilter";
 import { descargarFacturaPedido } from "../../../utils/facturaGenerator.js";
-import { getPedidos, getHistorialPedidos, confirmarPedido, cancelarPedido, crearPedido, editarPedido, cambiarEstadoVenta, proponerFechaProduccion, registrarPagoFinal, aprobarComprobante, rechazarComprobante, registrarCobroPedido } from "../../../services/pedidosService.js";
+import { getPedidos, getHistorialPedidos, confirmarPedido, cancelarPedido, crearPedido, editarPedido, cambiarEstadoVenta, proponerFechaProduccion, registrarPagoFinal, aprobarComprobante, rechazarComprobante, registrarCobroPedido, resolverEscaladoAcuerdo, resolverEscaladoCancelar } from "../../../services/pedidosService.js";
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
 import { asignarRepartidor } from "../../../services/domiciliosService.js";
 import { registrarSalida } from "../../../services/salidasService.js";
@@ -59,6 +59,9 @@ const ESTADO_CONFIG = {
   "Asignado":                { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7", dot: "#43a047" },
   "En camino":               { bg: "#f3e5f5", color: "#6a1b9a", border: "#ce93d8", dot: "#8e24aa" },
   "Fecha propuesta":         { bg: "#e8eaf6", color: "#283593", border: "#9fa8da", dot: "#3949ab" },
+  "Fecha rechazada":         { bg: "#fff3e0", color: "#e65100", border: "#ffcc80", dot: "#fb8c00" },
+  "Escalado a admin":        { bg: "#fce4ec", color: "#880e4f", border: "#f48fb1", dot: "#e91e63" },
+  "Parcialmente entregado":  { bg: "#e8f5e9", color: "#1b5e20", border: "#a5d6a7", dot: "#43a047" },
   "Cancelado":               { bg: "#ffebee", color: "#c62828", border: "#ef9a9a", dot: "#e53935" },
   "Entregado":               { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7", dot: "#43a047" },
 };
@@ -763,6 +766,127 @@ function ModalProponerFecha({ pedido, saving, onClose, onConfirm }) {
   );
 }
 
+/* ═══════════════════════════════════════════════════════════
+   MODAL — RESOLVER PEDIDO ESCALADO A ADMIN
+   Dos opciones: acordar una fecha manualmente (→ Confirmado/En producción)
+   o cancelar el pedido (→ Cancelado + devuelve crédito).
+   ═══════════════════════════════════════════════════════════ */
+function ModalResolverEscalado({ pedido, saving, onClose, onConfirmarAcuerdo, onConfirmarCancelacion }) {
+  const hoy = new Date().toISOString().split("T")[0];
+  const [opcion, setOpcion] = useState(null); // "acuerdo" | "cancelar"
+  const [fecha, setFecha]   = useState("");
+  const [error, setError]   = useState("");
+
+  const handleAcuerdo = () => {
+    if (!fecha) { setError("Selecciona una fecha acordada"); return; }
+    if (fecha < hoy) { setError("La fecha no puede ser anterior a hoy"); return; }
+    onConfirmarAcuerdo(pedido.id, fecha);
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-box relative bg-white shadow-2xl overflow-hidden flex flex-col border-none" style={{ borderRadius: "28px", maxWidth: "460px" }}>
+        <div className="modal-header shrink-0" style={{ background: "linear-gradient(135deg, #880e4f 0%, #c2185b 100%)", padding: "20px 24px" }}>
+          <div>
+            <h2 className="text-lg font-black text-white leading-none">Pedido escalado a admin</h2>
+            <p className="text-white/60 text-[9px] font-bold uppercase tracking-widest mt-1">Pedido #{pedido.numero}</p>
+          </div>
+          <button onClick={onClose} className="text-white/70 hover:text-white"><X size={18} /></button>
+        </div>
+
+        <div className="modal-body p-6 space-y-4">
+          <div className="bg-pink-50 border border-pink-200 p-4 rounded-2xl">
+            <p className="text-xs font-black text-pink-800 mb-1" style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <AlertTriangle size={14} /> El cliente rechazó la fecha demasiadas veces
+            </p>
+            <p className="text-[11px] text-pink-700 font-medium leading-snug">
+              Este pedido requiere gestión manual. Elige si acordás una fecha directamente con el cliente o cancelás el pedido.
+            </p>
+          </div>
+
+          {!opcion && (
+            <div className="space-y-3">
+              <button
+                onClick={() => setOpcion("acuerdo")}
+                className="w-full py-4 px-5 rounded-2xl border-2 border-transparent text-left transition-all"
+                style={{ background: "#e8f5e9", border: "2px solid #a5d6a7" }}
+              >
+                <p className="text-xs font-black text-green-800 flex items-center gap-2"><Calendar size={14} /> Acordar fecha manualmente</p>
+                <p className="text-[10px] text-green-700 mt-1">El pedido pasa directamente a Confirmado o En producción. El cliente no puede rechazar de nuevo.</p>
+              </button>
+              <button
+                onClick={() => setOpcion("cancelar")}
+                className="w-full py-4 px-5 rounded-2xl border-2 border-transparent text-left transition-all"
+                style={{ background: "#ffebee", border: "2px solid #ef9a9a" }}
+              >
+                <p className="text-xs font-black text-red-800 flex items-center gap-2"><X size={14} /> Cancelar pedido</p>
+                <p className="text-[10px] text-red-700 mt-1">El pedido se cancela. Se devuelve el saldo a favor del cliente si lo usó. El anticipo, si existe, se acuerda con el cliente por fuera del sistema.</p>
+              </button>
+            </div>
+          )}
+
+          {opcion === "acuerdo" && (
+            <div className="space-y-4">
+              <button onClick={() => { setOpcion(null); setError(""); setFecha(""); }} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 flex items-center gap-1">
+                ← Volver
+              </button>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                  Fecha acordada <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  min={hoy}
+                  value={fecha}
+                  onChange={e => { setFecha(e.target.value); setError(""); }}
+                  className={`w-full bg-gray-50 border-2 rounded-2xl p-4 text-sm font-medium text-gray-700 outline-none transition-all ${
+                    error ? "border-red-400 bg-red-50" : "border-transparent focus:border-green-400 focus:bg-white"
+                  }`}
+                />
+                {error && <p className="text-[10px] font-bold text-red-500 flex items-center gap-1"><AlertCircle size={10} /> {error}</p>}
+              </div>
+              <button
+                disabled={saving}
+                onClick={handleAcuerdo}
+                className="w-full py-4 text-xs font-black uppercase tracking-widest rounded-2xl text-white shadow-lg"
+                style={{ background: "linear-gradient(135deg, #2e7d32, #43a047)" }}
+              >
+                {saving ? "Guardando…" : <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Calendar size={14} /> Confirmar fecha acordada</span>}
+              </button>
+            </div>
+          )}
+
+          {opcion === "cancelar" && (
+            <div className="space-y-4">
+              <button onClick={() => setOpcion(null)} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 flex items-center gap-1">
+                ← Volver
+              </button>
+              <div className="bg-red-50 border border-red-200 p-4 rounded-2xl">
+                <p className="text-xs font-black text-red-800 mb-1">¿Confirmás que querés cancelar este pedido?</p>
+                <p className="text-[11px] text-red-700 leading-snug">Esta acción no se puede deshacer. El saldo a favor aplicado vuelve al cliente automáticamente.</p>
+              </div>
+              <button
+                disabled={saving}
+                onClick={() => onConfirmarCancelacion(pedido.id)}
+                className="w-full py-4 text-xs font-black uppercase tracking-widest rounded-2xl text-white shadow-lg"
+                style={{ background: "linear-gradient(135deg, #c62828, #e53935)" }}
+              >
+                {saving ? "Cancelando…" : <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><X size={14} /> Cancelar pedido</span>}
+              </button>
+            </div>
+          )}
+
+          {!opcion && (
+            <button onClick={onClose} className="w-full py-3 text-[10px] font-black text-gray-400 hover:text-gray-600 uppercase tracking-widest transition-colors">
+              Cerrar sin hacer nada
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── ModalRegistrarSaldo ────────────────────────────────── */
 function ModalRegistrarSaldo({ pedido, saving, onClose, onConfirm }) {
   const [metodo,    setMetodo]    = useState("");
@@ -1316,11 +1440,12 @@ function ModalRechazarComprobante({ pedido, saving, onClose, onConfirm }) {
 /* ═══════════════════════════════════════════════════════════
    MENÚ DE ACCIONES POR FILA
    ═══════════════════════════════════════════════════════════ */
-function AccionesCell({ ped, saving, onVer, onEditar, onConfirmar, onMarcarListo, onEntregar, onAsignarDomicilio, onCancelar, onProponerFecha, onAprobarComprobante, onRechazarComprobante, onSubirComprobante, onRegistrarCobro }) {
+function AccionesCell({ ped, saving, onVer, onEditar, onConfirmar, onMarcarListo, onEntregar, onAsignarDomicilio, onCancelar, onProponerFecha, onResolverEscalado, onAprobarComprobante, onRechazarComprobante, onSubirComprobante, onRegistrarCobro }) {
   const necesitaProduccion  = ped.requiereFechaPropuesta;
   const canEdit             = puedeEditarsePedido(ped.estado);
   const canAdvance          = ped.estado === "Pendiente" && !necesitaProduccion;
-  const canProponerFecha    = ped.estado === "Pendiente" && necesitaProduccion;
+  const canProponerFecha    = ["Pendiente", "Fecha rechazada"].includes(ped.estado) && necesitaProduccion;
+  const canResolverEscalado = ped.estado === "Escalado a admin";
   // canMarcarListo: no debe quedar desbloqueado solo porque no hay OPs pendientes.
   // sobre_stock indica que el pedido se creó con más unidades de las que había en
   // stock, por lo tanto sí necesitaba OPs. Si además no hay ninguna OP creada
@@ -1356,8 +1481,9 @@ function AccionesCell({ ped, saving, onVer, onEditar, onConfirmar, onMarcarListo
       <button className="act-btn act-btn--view"   data-tooltip="Ver detalle"           onClick={() => onVer(ped)}><Eye size={15} /></button>
       {canEdit          && <button className="act-btn act-btn--edit"    data-tooltip="Editar pedido"          disabled={saving} onClick={() => onEditar(ped)}><Pencil size={15} /></button>}
       {canAdvance       && <button className="act-btn act-btn--success" data-tooltip="Confirmar pedido"       disabled={saving} onClick={() => onConfirmar(ped)}><Check size={15} /></button>}
-      {canProponerFecha && <button className="act-btn act-btn--info"    data-tooltip="Proponer fecha entrega" disabled={saving} onClick={() => onProponerFecha(ped)}><Calendar size={15} /></button>}
-      {canMarcarListo   && <button className="act-btn act-btn--success" data-tooltip="Marcar como listo"      disabled={saving} onClick={() => onMarcarListo(ped)}><Package size={15} /></button>}
+      {canProponerFecha    && <button className="act-btn act-btn--info"    data-tooltip="Proponer fecha entrega" disabled={saving} onClick={() => onProponerFecha(ped)}><Calendar size={15} /></button>}
+      {canResolverEscalado && <button className="act-btn act-btn--warning" data-tooltip="Resolver escalado"     disabled={saving} onClick={() => onResolverEscalado(ped)}><AlertTriangle size={15} /></button>}
+      {canMarcarListo      && <button className="act-btn act-btn--success" data-tooltip="Marcar como listo"     disabled={saving} onClick={() => onMarcarListo(ped)}><Package size={15} /></button>}
       {canEntregarTienda   && <button className="act-btn act-btn--success" data-tooltip="Entregar en tienda"     disabled={saving} onClick={() => onEntregar(ped)}><Store size={15} /></button>}
       {canAsignarDomicilio && <button className="act-btn act-btn--info"    data-tooltip="Asignar domiciliario"   disabled={saving} onClick={() => onAsignarDomicilio(ped)}><Bike size={15} /></button>}
       {canEntregar         && <button className="act-btn act-btn--success" data-tooltip="Registrar entrega"      disabled={saving} onClick={() => onEntregar(ped)}><Truck size={15} /></button>}
@@ -1628,6 +1754,38 @@ export default function GestionPedidos() {
 
   const handleProponerFecha = (ped) => {
     setModal({ type: "proponerFecha", pedido: ped });
+  };
+
+  const handleResolverEscalado = (ped) => {
+    setModal({ type: "resolverEscalado", pedido: ped });
+  };
+
+  const handleConfirmarAcuerdoEscalado = async (id, fecha) => {
+    setActionSaving(true);
+    try {
+      const pedidoActualizado = await resolverEscaladoAcuerdo(id, fecha);
+      setPedidos(prev => prev.map(p => p.id === id ? pedidoActualizado : p));
+      showToast(`Fecha acordada para el pedido #${modal?.pedido?.numero}. El pedido está ahora ${pedidoActualizado.estado}.`);
+      setModal(null);
+    } catch (err) {
+      showToast(err.message || "No se pudo acordar la fecha", "error");
+    } finally {
+      setActionSaving(false);
+    }
+  };
+
+  const handleConfirmarCancelacionEscalado = async (id) => {
+    setActionSaving(true);
+    try {
+      const pedidoActualizado = await resolverEscaladoCancelar(id);
+      setPedidos(prev => prev.map(p => p.id === id ? pedidoActualizado : p));
+      showToast(`Pedido #${modal?.pedido?.numero} cancelado.`);
+      setModal(null);
+    } catch (err) {
+      showToast(err.message || "No se pudo cancelar el pedido", "error");
+    } finally {
+      setActionSaving(false);
+    }
   };
 
   const handleAprobarComprobante = async (ped) => {
@@ -1938,6 +2096,8 @@ export default function GestionPedidos() {
                         { val: "Pendiente",        label: "Pendiente",        dot: ESTADO_CONFIG["Pendiente"]?.dot },
                         { val: "En producción",    label: "En producción",    dot: ESTADO_CONFIG["En producción"]?.dot },
                         { val: "Fecha propuesta",  label: "Fecha propuesta",  dot: ESTADO_CONFIG["Fecha propuesta"]?.dot },
+                        { val: "Fecha rechazada",  label: "Fecha rechazada",  dot: ESTADO_CONFIG["Fecha rechazada"]?.dot },
+                        { val: "Escalado a admin", label: "Escalado a admin", dot: ESTADO_CONFIG["Escalado a admin"]?.dot },
                         { val: "Confirmado",       label: "Confirmado",       dot: ESTADO_CONFIG["Confirmado"]?.dot },
                         { val: "Listo",         label: "Listo",          dot: ESTADO_CONFIG["Listo"]?.dot },
                         { val: "Asignado",      label: "Asignado",       dot: ESTADO_CONFIG["Asignado"]?.dot },
@@ -2161,6 +2321,7 @@ export default function GestionPedidos() {
                             onAsignarDomicilio={ped => setModal({ type: "asignarDomiciliario", pedido: ped })}
                             onCancelar={handleCancelarPedido}
                             onProponerFecha={handleProponerFecha}
+                            onResolverEscalado={handleResolverEscalado}
                             onAprobarComprobante={handleAprobarComprobante}
                             onRechazarComprobante={handleRechazarComprobante}
                             onSubirComprobante={handleSubirComprobante}
@@ -2194,7 +2355,8 @@ export default function GestionPedidos() {
       {modal?.type === "asignarDomiciliario" && <ModalAsignarDomiciliario pedido={modal.pedido} empleados={empleados} repartidores={repartidores} onClose={() => setModal(null)} onConfirm={handleAsignarDomiciliario} />}
       {modal?.type === "crear" && <CrearPedido onClose={() => setModal(null)} onSave={handleCrearPedido} />}
       {modal?.type === "editar" && <EditarPedido pedido={modal.pedido} onClose={() => setModal(null)} onSave={handleEditarPedido} />}
-      {modal?.type === "proponerFecha" && <ModalProponerFecha pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleConfirmarFechaPropuesta} />}
+      {modal?.type === "proponerFecha"    && <ModalProponerFecha    pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleConfirmarFechaPropuesta} />}
+      {modal?.type === "resolverEscalado" && <ModalResolverEscalado pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirmarAcuerdo={handleConfirmarAcuerdoEscalado} onConfirmarCancelacion={handleConfirmarCancelacionEscalado} />}
       {modal?.type === "registrarSaldo" && <ModalRegistrarSaldo pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleRegistrarSaldo} />}
       {modal?.type === "registrarCobro"      && <ModalRegistrarCobro      pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleConfirmarCobro} />}
       {modal?.type === "subirComprobante"    && <ModalSubirComprobante    pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleConfirmarSubirComprobante} />}
