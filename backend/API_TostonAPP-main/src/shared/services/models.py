@@ -620,6 +620,9 @@ class Notificacion(Base):
     Ruta            = Column(String(200), nullable=True)
     Fecha           = Column(DateTime)
     Leida           = Column(Boolean, default=False)
+    # El admin la sacó del panel. No se borra la fila: las de stock hay que
+    # recordarlas para no volver a crearlas mientras el problema sea el mismo.
+    Descartada      = Column(Boolean, default=False, nullable=False)
 
 
 # ─────────────────────────────────────────

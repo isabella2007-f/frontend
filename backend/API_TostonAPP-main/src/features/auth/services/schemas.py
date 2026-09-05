@@ -26,6 +26,9 @@ class TokenResponse(BaseModel):
     apellidos:    str
     rol:          Optional[str] = None
     correo_verificado: Optional[int] = None
+    # El encabezado la muestra al lado del nombre. Sin esto solo se conocía
+    # entrando al perfil, así que hasta entonces salía la inicial.
+    foto_perfil:  Optional[str] = None
 
 
 # ── Registro nuevo cliente ──
