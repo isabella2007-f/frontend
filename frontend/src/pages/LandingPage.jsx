@@ -381,6 +381,18 @@ const LandingPage = ({ hideNavbar = false }) => {
   const getQty = (id) => quantities[id] || 1;
   const setQty = (id, v) => setQuantities(prev => ({ ...prev, [id]: Math.max(1, v) }));
 
+  const mostrarLimiteStock = (nombre, stock, enCarrito = 0) => {
+    const unidades = (n) => `${n} unidad${n !== 1 ? 'es' : ''}`;
+    setStockLimitMsg(
+      stock === 0
+        ? `No queda nada de "${nombre}" en este momento. Inténtalo más tarde o contáctanos.`
+        : enCarrito >= stock
+          ? `Ya tienes las ${unidades(stock)} que hay de "${nombre}" en tu carrito.`
+          : `En este momento no puedes pedir más de ${unidades(stock)} de "${nombre}". Inténtalo más tarde o contáctanos.`
+    );
+    setTimeout(() => setStockLimitMsg(''), 12000);
+  };
+
   /// Agrega y avisa si el stock no dio para todo.
   ///
   /// El aviso sale de lo que el carrito hizo de verdad, no de una comprobación
@@ -392,18 +404,6 @@ const LandingPage = ({ hideNavbar = false }) => {
     syncCartInfo();
     if (r.rechazado > 0) mostrarLimiteStock(product.nombre, r.tope ?? 0, r.total);
     return r;
-  };
-
-  const mostrarLimiteStock = (nombre, stock, enCarrito = 0) => {
-    const unidades = (n) => `${n} unidad${n !== 1 ? 'es' : ''}`;
-    setStockLimitMsg(
-      stock === 0
-        ? `No queda nada de "${nombre}" en este momento. Inténtalo más tarde o contáctanos.`
-        : enCarrito >= stock
-          ? `Ya tienes las ${unidades(stock)} que hay de "${nombre}" en tu carrito.`
-          : `En este momento no puedes pedir más de ${unidades(stock)} de "${nombre}". Inténtalo más tarde o contáctanos.`
-    );
-    setTimeout(() => setStockLimitMsg(''), 12000);
   };
 
   const handleAddToCart = (product) => {

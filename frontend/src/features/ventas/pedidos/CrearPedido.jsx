@@ -338,6 +338,9 @@ export default function CrearPedido({ onClose, onSave }) {
   const COSTO_DOMICILIO = 5000;
   const subtotal      = form.productosItems.reduce((a, p) => a + p.precio * p.cantidad, 0);
   const descuento     = Number(form.descuento) || 0;
+  const clienteSeleccionado = clientes.find(
+    c => String(c.id) === String(form.idCliente));
+
   // La dirección con la que sale este pedido: la registrada del cliente o la
   // alternativa. La registrada no se toca; la otra no altera su perfil.
   const conRegistrada = form.usar_direccion_registrada
@@ -583,8 +586,6 @@ export default function CrearPedido({ onClose, onSave }) {
   const quitarProducto = (idx) => {
     setForm(f => ({ ...f, productosItems: f.productosItems.filter((_, i) => i !== idx) }));
   };
-
-  const clienteSeleccionado = clientes.find(c => String(c.id) === String(form.idCliente));
 
   return (
     <div className="modal-overlay">
