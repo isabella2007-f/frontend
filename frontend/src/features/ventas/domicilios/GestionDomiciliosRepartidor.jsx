@@ -524,15 +524,15 @@ export default function GestionDomiciliosRepartidor() {
             )}
           </div>
 
-          <div className="me-filtros">
+          <div className="du-filtros">
             {FILTROS.map(f => (
               <button
                 key={f.val}
                 onClick={() => setFiltro(f.val)}
-                className={`me-filtro${filtro === f.val ? " me-filtro--on" : ""}`}
+                className={`du-filtro${filtro === f.val ? " du-filtro--on" : ""}`}
               >
                 {f.label}
-                <span className="me-filtro__count">{f.count}</span>
+                <span className="du-filtro__count">{f.count}</span>
               </button>
             ))}
           </div>
