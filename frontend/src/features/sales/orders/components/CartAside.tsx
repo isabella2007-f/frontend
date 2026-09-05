@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { X, MapPin, Trash2, Plus, Minus, ShoppingBag, LogIn, Sparkles, ChevronRight, ShoppingCart, FileText, Truck, Clock, AlertTriangle, Package } from 'lucide-react';
 import { CartItem, removeFromCart, updateQuantity, clearCart, getCart } from '../services/cartService';
 import { isAuthenticated } from '../../../../services/authService';
@@ -37,6 +37,7 @@ const mensajeFueraHorario = () => {
 
 const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLoginRequired }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [cart, setCart]               = useState<CartItem[]>(() => getCart());
   const [qtyDrafts, setQtyDrafts]     = useState<{[id: number]: string}>({});
   const [tieneDomicilio,    setTieneDomicilio]    = useState(false);
@@ -138,9 +139,28 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
   /// Antes solo cerraba: desde la landing eso alcanzaba —el catálogo está
   /// debajo— pero desde los pedidos o el perfil no pasaba nada y el botón
   /// parecía roto.
+  ///
+  /// El catálogo es la sección "productos" del inicio. No es una pantalla
+  /// aparte: /cliente/hacer-pedidos existe en las rutas pero es una copia
+  /// vieja que no enlaza nadie más y que lee campos que la API ya no manda,
+  /// así que le faltan las imágenes y el precio sale mal.
+  ///
+  /// Estando ya en el inicio no se navega —el componente no se vuelve a montar
+  /// y no pasaría nada—: se baja a la sección a mano.
   const verProductos = () => {
     onClose();
-    navigate(isAuthenticated() ? '/cliente/hacer-pedidos' : '/');
+    const enElInicio = ['/', '/cliente', '/cliente/inicio']
+      .includes(location.pathname);
+
+    if (enElInicio) {
+      // Después de que el panel termine de cerrarse, o el salto se ve raro.
+      setTimeout(() => {
+        document.getElementById('productos')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 320);
+      return;
+    }
+    navigate(isAuthenticated() ? '/cliente/inicio#productos' : '/#productos');
   };
 
   const handleCheckout = () => {
