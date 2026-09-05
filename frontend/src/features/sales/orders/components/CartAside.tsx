@@ -132,7 +132,7 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
     <div className="fixed inset-0 z-[9000] overflow-hidden">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] transition-all duration-500 animate-in fade-in" onClick={onClose} />
 
-      <div className="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-500 ease-out border-l border-emerald-100">
+      <div className="absolute right-0 top-0 bottom-0 w-full max-w-lg bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-500 ease-out border-l border-emerald-100">
 
         {/* Header */}
         <div className="text-white px-5 py-4 relative overflow-hidden shrink-0" style={{ background: 'linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 50%, var(--green-700) 100%)' }}>
@@ -255,25 +255,25 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
           ) : (
             <div className="space-y-4">
               <div className="flex items-center justify-between px-1">
-                <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Resumen del pedido</span>
+                <span className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Resumen del pedido</span>
                 {confirmVaciar ? (
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[9px] font-bold text-gray-500">¿Vaciar todo?</span>
+                    <span className="text-[11px] font-bold text-gray-500">¿Vaciar todo?</span>
                     <button
                       onClick={() => { clearCart(); setConfirmVaciar(false); }}
-                      className="text-[9px] font-black text-white bg-red-500 hover:bg-red-600 px-2 py-0.5 rounded-md transition-colors"
+                      className="text-[11px] font-black text-white bg-red-500 hover:bg-red-600 px-2.5 py-1 rounded-lg transition-colors"
                     >Sí</button>
                     <button
                       onClick={() => setConfirmVaciar(false)}
-                      className="text-[9px] font-black text-gray-500 hover:text-gray-700 px-2 py-0.5 rounded-md border border-gray-200 transition-colors"
+                      className="text-[11px] font-black text-gray-500 hover:text-gray-700 px-2.5 py-1 rounded-lg border border-gray-200 transition-colors"
                     >No</button>
                   </div>
                 ) : (
                   <button
                     onClick={() => setConfirmVaciar(true)}
-                    className="flex items-center gap-1 text-[9px] font-black text-red-400 hover:text-red-600 transition-colors uppercase tracking-widest"
+                    className="flex items-center gap-1.5 text-[11px] font-black text-red-400 hover:text-red-600 transition-colors uppercase tracking-widest"
                   >
-                    <Trash2 size={10} /> Vaciar
+                    <Trash2 size={13} /> Vaciar
                   </button>
                 )}
               </div>
@@ -287,9 +287,9 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
 
               <div className="grid gap-2.5">
                 {cart.map((item) => (
-                  <div key={item.id} className="group bg-white rounded-2xl p-2.5 border border-gray-100 shadow-sm hover:shadow-md hover:border-emerald-100 transition-all duration-300 relative overflow-hidden">
-                    <div className="flex gap-2.5 relative z-10">
-                      <div className="w-14 h-14 bg-gray-50 rounded-xl overflow-hidden flex-shrink-0 border border-gray-100">
+                  <div key={item.id} className="group bg-white rounded-2xl p-3.5 border border-gray-100 shadow-sm hover:shadow-md hover:border-emerald-100 transition-all duration-300 relative overflow-hidden">
+                    <div className="flex gap-3.5 relative z-10">
+                      <div className="w-[72px] h-[72px] bg-gray-50 rounded-xl overflow-hidden flex-shrink-0 border border-gray-100">
                         {(item as any).imagenPreview || (item as any).imagen ? (
                           <img src={(item as any).imagenPreview || (item as any).imagen} alt={item.nombre} className="w-full h-full object-cover" />
                         ) : (
@@ -298,16 +298,16 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
                       </div>
                       <div className="flex-1 flex flex-col justify-between py-0.5 min-w-0">
                         <div>
-                          <h4 className="font-black text-gray-800 text-[11px] mb-0.5 truncate">{item.nombre}</h4>
-                          <p className="font-black text-[10px]" style={{ color: 'var(--green-700)' }}>{COP(item.precio)}</p>
+                          <h4 className="font-black text-gray-800 text-[15px] leading-tight mb-1 truncate">{item.nombre}</h4>
+                          <p className="font-black text-[13px]" style={{ color: 'var(--green-700)' }}>{COP(item.precio)} c/u</p>
                           {(item as any).pedidoProgramado && (
-                            <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md flex items-center gap-1"><Clock size={10} /> Pedido programado</span>
+                            <span className="mt-1 text-[11px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md inline-flex items-center gap-1"><Clock size={12} /> Pedido programado</span>
                           )}
                         </div>
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center bg-gray-50 rounded-lg p-0.5 border border-gray-100">
-                            <button onClick={() => handleQty(item.id, -1)} className="w-5 h-5 flex items-center justify-center rounded-md hover:bg-white hover:text-red-500 transition-all text-gray-400">
-                              <Minus size={9} strokeWidth={3} />
+                          <div className="flex items-center bg-gray-50 rounded-xl p-1 border border-gray-100">
+                            <button onClick={() => handleQty(item.id, -1)} aria-label="Quitar uno" className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:text-red-500 transition-all text-gray-500">
+                              <Minus size={14} strokeWidth={3} />
                             </button>
                             <input
                               type="number"
@@ -319,19 +319,19 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
                                 setQtyDrafts(prev => { const n = { ...prev }; delete n[item.id]; return n; });
                                 handleQtyDirect(item.id, val);
                               }}
-                              className="w-8 text-center text-[10px] font-black text-gray-800 bg-transparent border-none outline-none"
+                              className="w-10 text-center text-[15px] font-black text-gray-800 bg-transparent border-none outline-none"
                               style={{ appearance: 'textfield', MozAppearance: 'textfield', WebkitAppearance: 'none' } as React.CSSProperties}
                             />
-                            <button onClick={() => handleQty(item.id, 1)} className="w-5 h-5 flex items-center justify-center rounded-md hover:bg-white hover:text-emerald-600 transition-all text-gray-400">
-                              <Plus size={9} strokeWidth={3} />
+                            <button onClick={() => handleQty(item.id, 1)} aria-label="Agregar uno" className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:text-emerald-600 transition-all text-gray-500">
+                              <Plus size={14} strokeWidth={3} />
                             </button>
                           </div>
-                          <p className="text-[11px] font-black text-gray-900">{COP(item.precio * item.cantidad)}</p>
+                          <p className="text-[16px] font-black text-gray-900">{COP(item.precio * item.cantidad)}</p>
                         </div>
                       </div>
                     </div>
-                    <button onClick={() => removeFromCart(item.id)} className="absolute top-1.5 right-1.5 p-1 text-gray-200 hover:text-red-500 rounded-full transition-all">
-                      <X size={10} strokeWidth={3} />
+                    <button onClick={() => removeFromCart(item.id)} aria-label={`Quitar ${item.nombre}`} className="absolute top-2 right-2 p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all">
+                      <X size={14} strokeWidth={3} />
                     </button>
                   </div>
                 ))}
@@ -340,13 +340,13 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
               {/* Observaciones */}
               <div className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm">
                 <div className="flex items-center gap-1.5 mb-2">
-                  <FileText size={12} className="text-gray-400" />
-                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Observaciones del pedido</span>
+                  <FileText size={14} className="text-gray-400" />
+                  <span className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Observaciones del pedido</span>
                 </div>
                 <textarea
                   rows={2}
-                  placeholder="Ej: Sin picante, sin cebolla, tocar timbre..."
-                  className="w-full text-xs font-medium text-gray-700 placeholder:text-gray-300 resize-none outline-none bg-transparent border-none p-0"
+                  placeholder="Sin picante, tocar el timbre, dejar en portería…"
+                  className="w-full text-sm font-medium text-gray-700 placeholder:text-gray-300 resize-none outline-none bg-transparent border-none p-0"
                   value={observaciones}
                   onChange={(e) => setObservaciones(e.target.value)}
                 />
@@ -361,21 +361,21 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
           {tieneDomicilio ? (
             <div className="flex items-center justify-between mb-3">
               <div className="space-y-0.5">
-                <div className="flex items-center gap-3 text-[11px] text-gray-400 font-medium">
+                <div className="flex items-center gap-3 text-[13px] text-gray-400 font-medium">
                   <span>Productos <span className="font-black text-gray-700">{COP(total)}</span></span>
                   <span>+</span>
                   <span>Domicilio <span className="font-black" style={{ color: '#7b1fa2' }}>{COP(COSTO_DOMICILIO)}</span></span>
                 </div>
                 <div className="flex items-baseline gap-1.5">
-                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Total</span>
-                  <span className="text-xl font-black text-gray-900 tracking-tighter leading-none">{COP(costoTotal)}</span>
+                  <span className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Total</span>
+                  <span className="text-2xl font-black text-gray-900 tracking-tighter leading-none">{COP(costoTotal)}</span>
                 </div>
               </div>
               <div className="text-amber-400"><Sparkles size={16} /></div>
             </div>
           ) : (
             <div className="space-y-1.5 mb-4">
-              <div className="flex justify-between items-center text-[11px]">
+              <div className="flex justify-between items-center text-[13px]">
                 <span className="text-gray-500 font-bold">Subtotal productos</span>
                 <span className="text-gray-800 font-black">{COP(total)}</span>
               </div>
@@ -384,8 +384,8 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
               </div>
               <div className="flex justify-between items-end">
                 <div>
-                  <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Total del pedido</span>
-                  <span className="text-2xl font-black text-gray-900 tracking-tighter leading-none">{COP(costoTotal)}</span>
+                  <span className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-1">Total del pedido</span>
+                  <span className="text-3xl font-black text-gray-900 tracking-tighter leading-none">{COP(costoTotal)}</span>
                 </div>
                 <div className="text-amber-500 pb-1"><Sparkles size={18} /></div>
               </div>
@@ -398,15 +398,15 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
           <button
             onClick={handleCheckout}
             disabled={cart.length === 0}
-            className={`w-full group relative overflow-hidden flex items-center justify-center gap-3 rounded-xl font-black text-sm transition-all duration-300 shadow-lg active:scale-[0.98] ${tieneDomicilio ? 'py-2.5' : 'py-3.5'} ${
+            className={`w-full group relative overflow-hidden flex items-center justify-center gap-3 rounded-xl font-black text-base transition-all duration-300 shadow-lg active:scale-[0.98] ${tieneDomicilio ? 'py-2.5' : 'py-3.5'} ${
               cart.length === 0 ? 'bg-gray-100 text-gray-300 cursor-not-allowed border border-gray-200 shadow-none' : 'btn-primary shadow-emerald-200/50 hover:shadow-xl hover:-translate-y-0.5'
             }`}
             style={cart.length > 0 ? { background: 'linear-gradient(135deg, var(--green-700) 0%, var(--green-600) 100%)' } : {}}
           >
             {loggedIn ? (
-              <>Finalizar Pedido <ChevronRight size={14} strokeWidth={3} /></>
+              <>Finalizar Pedido <ChevronRight size={17} strokeWidth={3} /></>
             ) : (
-              <><LogIn size={14} /> Identificarse</>
+              <><LogIn size={17} /> Identificarse</>
             )}
           </button>
         </div>
