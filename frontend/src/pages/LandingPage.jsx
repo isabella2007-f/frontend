@@ -16,6 +16,7 @@ import { crearPedidoCliente } from '../features/sales/orders/services/crearPedid
 import {
   addToCartWithQty,
   getCart,
+  saveCart,
   getCartCount,
   sanitizeCart,
   clearCart
@@ -328,6 +329,22 @@ const LandingPage = ({ hideNavbar = false }) => {
           requiereProduccion: !!p.Requiere_Produccion,
         }));
       setProductos(vendibles);
+      // Sincronizar campos del carrito con datos frescos de la API.
+      // Si un producto cambió Requiere_Produccion o Stock desde que se agregó,
+      // el item del carrito queda desactualizado y el checkout calcula mal el anticipo.
+      const cartActual = getCart();
+      const cartSync = cartActual.map(item => {
+        const fresco = vendibles.find(p => p.id === item.id);
+        if (!fresco) return item;
+        return { ...item, requiereProduccion: fresco.requiereProduccion, stock: fresco.stock };
+      });
+      if (cartSync.some((it, i) =>
+        it.requiereProduccion !== cartActual[i]?.requiereProduccion ||
+        it.stock !== cartActual[i]?.stock
+      )) {
+        saveCart(cartSync);
+        window.dispatchEvent(new Event('cart-updated'));
+      }
       // Lo que dejó de estar publicado sale del carrito de quien ya lo tenía:
       // acá el catálogo se recarga al volver a la pestaña, así que el carrito
       // se pone al día solo.
