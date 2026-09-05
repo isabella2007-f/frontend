@@ -978,6 +978,9 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
             f"{l['nombre']}: disponible {l['stock']}, pediste {l['cantidad']}"
             for l in lineas_sin_produccion_con_deficit
         )
+        # La venta ya está volcada a la sesión: sin esto queda una fila a medio
+        # crear, como pasa en los demás rechazos de esta función.
+        db.rollback()
         raise HTTPException(
             status_code=400,
             detail=f"No hay stock suficiente y estos productos no se fabrican por encargo: {detalle}",
