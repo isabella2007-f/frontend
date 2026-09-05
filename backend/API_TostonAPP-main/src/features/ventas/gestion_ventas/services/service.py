@@ -2181,6 +2181,15 @@ def resolver_escalado_cancelar(db: Session, id_venta: int, actual: dict) -> dict
     # CreditoCliente asegura que quede trazabilidad y que el cliente pueda usarlo
     # en el próximo pedido si lo prefiere.
     _anticipo = Decimal(str(getattr(venta, "Anticipo_Monto", None) or 0))
+    # DEBUG TEMPORAL — eliminar tras verificar
+    print(
+        f"[DEBUG resolver_escalado_cancelar] id_venta={id_venta} "
+        f"Anticipo_Registrado={getattr(venta, 'Anticipo_Registrado', 'ATTR_MISSING')!r} "
+        f"Anticipo_Monto_raw={getattr(venta, 'Anticipo_Monto', 'ATTR_MISSING')!r} "
+        f"_anticipo={_anticipo!r} "
+        f"ID_Usuario={venta.ID_Usuario!r}",
+        flush=True,
+    )
     if getattr(venta, "Anticipo_Registrado", 0) and _anticipo > 0:
         _abonar_credito(db, venta.ID_Usuario, _anticipo, id_venta)
 
