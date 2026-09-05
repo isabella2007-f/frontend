@@ -1,0 +1,258 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   LO QUE ENTREGUÉ — lo propio del resumen de plata movida por el repartidor
+   ──────────────────────────────────────────────────────────────────────────
+   El hero, los filtros, botones, badges, vacíos y skeletons viven en
+   DomiciliarioUI.css (clase `.dom-ui`). Aquí queda el aviso de qué significan
+   las cifras, la comparativa de períodos y el detalle de entregas.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.ganancias .ga-col {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   AVISO
+   ──────────────────────────────────────────────────────────────
+   La advertencia de que esto NO es el pago del repartidor es lo más
+   importante de la pantalla: va destacada, no como letra chica.
+   ───────────────────────────────────────────────────────────── */
+.ganancias .ga-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 15px 18px;
+  border-radius: 16px;
+  border: 1.5px solid #ffe082;
+  background: linear-gradient(135deg, #fffaeb 0%, #fffdf7 100%);
+  box-shadow: var(--du-sombra-sm);
+}
+.ganancias .ga-aviso__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 11px;
+  background: #fff3cf;
+  color: #b26a00;
+}
+.ganancias .ga-aviso__txt {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--du-oro-osc);
+}
+.ganancias .ga-aviso__txt strong { font-weight: 800; }
+
+/* ─────────────────────────────────────────────────────────────
+   COMPARATIVA DE PERÍODOS
+   ───────────────────────────────────────────────────────────── */
+.ganancias .ga-periodos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 16px;
+}
+
+.ganancias .ga-periodo {
+  position: relative;
+  overflow: hidden;
+  padding: 18px 19px 19px;
+  border-radius: 20px;
+  border: 1.5px solid var(--du-borde);
+  background: #fff;
+  box-shadow: var(--du-sombra-sm);
+  animation: duFadeUp .45s cubic-bezier(.16, 1, .3, 1) both;
+  transition: transform .2s cubic-bezier(.16, 1, .3, 1), box-shadow .2s, border-color .2s;
+}
+.ganancias .ga-periodo:hover { transform: translateY(-3px); box-shadow: var(--du-sombra-md); }
+
+/* El período que se está mirando en el detalle queda marcado */
+.ganancias .ga-periodo--on {
+  border-color: var(--du-verde-500);
+  background: linear-gradient(180deg, var(--du-crema) 0%, #fff 72%);
+  box-shadow: 0 6px 20px rgba(46, 125, 50, .16);
+}
+
+.ganancias .ga-periodo__label {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--du-tinta-3);
+}
+.ganancias .ga-periodo--on .ga-periodo__label { color: var(--du-verde-600); }
+
+.ganancias .ga-periodo__monto {
+  margin-top: 7px;
+  font-family: var(--font-head, 'Nunito', sans-serif);
+  font-size: 23px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -.6px;
+  color: var(--du-verde-700);
+}
+.ganancias .ga-periodo__count { margin-top: 3px; font-size: 12px; color: var(--du-tinta-3); }
+
+/* Barra proporcional al período más alto de los tres: deja ver de un vistazo
+   cuánto pesa el día dentro de la semana y del mes. */
+.ganancias .ga-periodo__barra {
+  height: 6px;
+  margin-top: 13px;
+  border-radius: 3px;
+  background: #eef4ef;
+  overflow: hidden;
+}
+.ganancias .ga-periodo__relleno {
+  height: 100%;
+  width: var(--pct, 0%);
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--du-verde-700), var(--du-verde-400));
+  transition: width .5s cubic-bezier(.16, 1, .3, 1);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   DETALLE DE ENTREGAS
+   ───────────────────────────────────────────────────────────── */
+.ganancias .ga-detalle__titulo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 14px;
+  font-family: var(--font-head, 'Nunito', sans-serif);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -.2px;
+  color: var(--du-verde-800);
+}
+.ganancias .ga-detalle__titulo::before {
+  content: "";
+  width: 4px;
+  height: 17px;
+  flex-shrink: 0;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--du-verde-500), var(--du-verde-700));
+}
+.ganancias .ga-detalle__n {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--du-crema);
+  border: 1px solid var(--du-borde);
+  color: var(--du-verde-700);
+  font-family: var(--font-body, 'DM Sans', sans-serif);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.ganancias .ga-filas { display: flex; flex-direction: column; gap: 10px; }
+
+.ganancias .ga-fila {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 15px 18px;
+  border-radius: 16px;
+  border: 1.5px solid var(--du-borde);
+  background: #fff;
+  box-shadow: var(--du-sombra-sm);
+  flex-wrap: wrap;
+  animation: duFadeUp .4s cubic-bezier(.16, 1, .3, 1) both;
+  transition: transform .18s cubic-bezier(.16, 1, .3, 1), box-shadow .18s, border-color .18s;
+}
+.ganancias .ga-fila:hover {
+  transform: translateX(3px);
+  box-shadow: var(--du-sombra-md);
+  border-color: var(--du-verde-400);
+}
+.ganancias .ga-fila::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--du-verde-500), transparent 140%);
+}
+
+.ganancias .ga-fila__icono {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 13px;
+  background: var(--du-crema);
+  border: 1.5px solid #d6ebda;
+  color: var(--du-verde-600);
+}
+
+.ganancias .ga-fila__txt { flex: 1 1 190px; min-width: 0; }
+.ganancias .ga-fila__num {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--du-tinta-3);
+}
+.ganancias .ga-fila__cliente {
+  margin-top: 2px;
+  font-family: var(--font-head, 'Nunito', sans-serif);
+  font-size: 15.5px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--du-tinta);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ganancias .ga-fila__fecha {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--du-tinta-3);
+}
+
+.ganancias .ga-fila__lado {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.ganancias .ga-fila__monto {
+  font-family: var(--font-head, 'Nunito', sans-serif);
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -.4px;
+  color: var(--du-verde-700);
+}
+/* Cuánto de ese pedido entró en mano: es lo que el repartidor tuvo que
+   entregar en caja, y explica de dónde sale el total en efectivo de arriba. */
+.ganancias .ga-fila__efectivo {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid #ffe082;
+  background: var(--du-oro-suave);
+  color: #b26a00;
+  font-size: 10.5px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   RESPONSIVE
+   ───────────────────────────────────────────────────────────── */
+@media (max-width: 560px) {
+  .ganancias .ga-periodos { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .ganancias .ga-periodo__monto { font-size: 20px; }
+  .ganancias .ga-fila__lado { flex-direction: row; align-items: center; gap: 10px; align-self: stretch; }
+}
