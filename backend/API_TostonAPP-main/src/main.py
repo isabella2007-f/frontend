@@ -163,8 +163,8 @@ def migrate_db():
             try:
                 conn.execute(text(stmt))
                 conn.commit()
-            except Exception:
-                pass  # ya existe
+            except Exception as exc:
+                _log.debug("migrate skip (ya existe): %.80s", exc)
 
     # ── Pago_Final: columnas para registrar el cobro del saldo al entregar ──────
     # Se verifica columna a columna en information_schema antes de alterar;
@@ -364,8 +364,9 @@ def migrate_db():
             try:
                 conn.execute(text(stmt))
                 conn.commit()
-            except Exception:
-                pass
+            except Exception as exc:
+                _log.error("migración estados 16-19 FALLÓ — %s", exc, exc_info=True)
+                raise
 
     # ── Columna intentos_rechazo en Ventas ────────────────────────────────────
     with engine.connect() as conn:
@@ -381,8 +382,12 @@ def migrate_db():
                     "ALTER TABLE Ventas ADD COLUMN intentos_rechazo INT NOT NULL DEFAULT 0"
                 ))
                 conn.commit()
-        except Exception:
-            pass
+                _log.info("migración intentos_rechazo: columna creada en Ventas")
+            else:
+                _log.debug("migración intentos_rechazo: columna ya existe, sin cambios")
+        except Exception as exc:
+            _log.error("migración intentos_rechazo FALLÓ — %s", exc, exc_info=True)
+            raise
 
     # ── Tabla de historial de fechas propuestas ───────────────────────────────
     with engine.connect() as conn:
@@ -401,8 +406,10 @@ def migrate_db():
                 )
             """))
             conn.commit()
-        except Exception:
-            pass
+            _log.info("migración Historial_Fechas_Propuestas: tabla creada o ya existia")
+        except Exception as exc:
+            _log.error("migración Historial_Fechas_Propuestas FALLÓ — %s", exc, exc_info=True)
+            raise
 
     # ── Refactor del catálogo de permisos ─────────────────────────────────────
     # Renombres, fusión de "ventas" en "pedidos", retiro de permisos sin uso y
