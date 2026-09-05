@@ -381,50 +381,45 @@ const LandingPage = ({ hideNavbar = false }) => {
   const getQty = (id) => quantities[id] || 1;
   const setQty = (id, v) => setQuantities(prev => ({ ...prev, [id]: Math.max(1, v) }));
 
+  /// Agrega y avisa si el stock no dio para todo.
+  ///
+  /// El aviso sale de lo que el carrito hizo de verdad, no de una comprobación
+  /// previa: la de antes miraba la cantidad del selector y no lo que ya había
+  /// adentro, así que con el carrito lleno el botón seguía sumando.
   const realizarAdd = (product, qty, pedidoProgramado = false) => {
-    addToCartWithQty(product, qty, pedidoProgramado);
+    const r = addToCartWithQty(product, qty, pedidoProgramado);
     setQuantities(prev => ({ ...prev, [product.id]: 1 }));
     syncCartInfo();
+    if (r.rechazado > 0) mostrarLimiteStock(product.nombre, r.tope ?? 0, r.total);
+    return r;
   };
 
-  const mostrarLimiteStock = (nombre, stock) => {
-    setStockLimitMsg(`En este momento no puedes pedir más de ${stock} unidad${stock !== 1 ? 'es' : ''} de "${nombre}". Inténtalo más tarde o contáctanos.`);
+  const mostrarLimiteStock = (nombre, stock, enCarrito = 0) => {
+    const unidades = (n) => `${n} unidad${n !== 1 ? 'es' : ''}`;
+    setStockLimitMsg(
+      stock === 0
+        ? `No queda nada de "${nombre}" en este momento. Inténtalo más tarde o contáctanos.`
+        : enCarrito >= stock
+          ? `Ya tienes las ${unidades(stock)} que hay de "${nombre}" en tu carrito.`
+          : `En este momento no puedes pedir más de ${unidades(stock)} de "${nombre}". Inténtalo más tarde o contáctanos.`
+    );
     setTimeout(() => setStockLimitMsg(''), 12000);
   };
 
   const handleAddToCart = (product) => {
     const qty = getQty(product.id);
     const stock = product.stock ?? 0;
-    if (product.requiereProduccion && (stock === 0 || qty > stock)) {
-      realizarAdd(product, qty, true);
-      setCartOpen(true);
-      return;
-    }
-    if (!product.requiereProduccion && qty > stock) {
-      mostrarLimiteStock(product.nombre, stock);
-      if (stock > 0) { realizarAdd(product, stock, false); setCartOpen(true); }
-      return;
-    }
-    realizarAdd(product, qty, false);
-    setCartOpen(true);
+    // Lo que la panadería hornea no tiene tope: el faltante se fabrica.
+    const programado = product.requiereProduccion && (stock === 0 || qty > stock);
+    const r = realizarAdd(product, qty, programado);
+    if (r.agregado > 0) setCartOpen(true);
   };
 
   const handleAddFromModal = (product, qty) => {
     const stock = product.stock ?? 0;
-    if (product.requiereProduccion && (stock === 0 || qty > stock)) {
-      realizarAdd(product, qty, true);
-      setSelectedProduct(null);
-      setCartOpen(true);
-      return;
-    }
-    if (!product.requiereProduccion && qty > stock) {
-      mostrarLimiteStock(product.nombre, stock);
-      if (stock > 0) { realizarAdd(product, stock, false); setSelectedProduct(null); setCartOpen(true); }
-      return;
-    }
-    realizarAdd(product, qty, false);
-    setSelectedProduct(null);
-    setCartOpen(true);
+    const programado = product.requiereProduccion && (stock === 0 || qty > stock);
+    const r = realizarAdd(product, qty, programado);
+    if (r.agregado > 0) { setSelectedProduct(null); setCartOpen(true); }
   };
 
   const handleConfirmStock = () => {
