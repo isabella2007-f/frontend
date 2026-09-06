@@ -61,7 +61,6 @@ const fechaEntregaApi = (fecha, hora) =>
 
 export async function crearPedidoCliente({
   paymentMethod,
-  onBehalfOf,
   comprobante,
   saldoAFavor,
   deliveryInfo,
@@ -104,7 +103,6 @@ export async function crearPedidoCliente({
     pago_efectivo_monto: paymentMethod === 'mixto'
       ? (saldoAFavor?.efectivoMonto ?? 0)
       : null,
-    A_Nombre_De:            onBehalfOf || null,
     usar_credito:           !!saldoAFavor?.usar,
     // Cuanto de ese saldo se aplica. El backend lo toma como tope: si el
     // cliente pide mas de lo que tiene, alla se recorta.

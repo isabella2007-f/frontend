@@ -32,7 +32,6 @@ import GananciasDomiciliario from "../features/ventas/domicilios/GananciasDomici
 import NotificacionesDomiciliario from "../features/ventas/domicilios/NotificacionesDomiciliario";
 
 /* ─── CLIENTE REAL ─── */
-import OrdersPage from "../features/sales/orders/OrdersPage";
 import PedidosClientePage from "../features/sales/orders/PedidosClientePage";
 import ReturnsPage from '../features/sales/returns/ReturnsPage';
 import DeliveryPage from "../features/sales/delivery/DeliveryPage";
@@ -157,7 +156,6 @@ const AppRouter = () => {
 
             <Route index                  element={<LandingPage hideNavbar={true} />} />
             <Route path="inicio"         element={<LandingPage hideNavbar={true} />} />
-            <Route path="hacer-pedidos"  element={<OrdersPage />} />
             <Route path="pedidos"        element={<PedidosClientePage />} />
             <Route path="domicilios"         element={<DeliveryPage />} />
             <Route path="devoluciones"       element={<ReturnsPage />} />

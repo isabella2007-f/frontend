@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { getPedidos } from "../../../services/pedidosService.js";
+import { AVISO_PLAZO_DEVOLUCION, plazoVencido, tieneDevolucionActiva }
+  from "../../../utils/devolucionReglas";
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
 import SearchableSelect from "../../../shared/components/SearchableSelect.jsx";
 import { Check, X, Search, Paperclip, AlertTriangle, Video, FileText, Loader } from "lucide-react";
@@ -47,7 +49,7 @@ function StepsBar({ current }) {
 }
 
 /* ─── PedidoSelect — búsqueda server-side con debounce ──── */
-function PedidoSelect({ value, pedidos, onChange, onSearch, searching, error, disabled }) {
+function PedidoSelect({ value, pedidos, onChange, onSearch, searching, error, disabled, hayOcultos }) {
   const [query, setQuery] = useState("");
   const debounceRef = useRef(null);
   const selected = pedidos.find(p => String(p.id) === String(value));
@@ -101,13 +103,29 @@ function PedidoSelect({ value, pedidos, onChange, onSearch, searching, error, di
         )}
       </div>
       <div style={{ maxHeight: 220, overflowY: "auto", borderTop: "1px solid #f0f0f0" }}>
+        {/* Si se escondió alguno se dice por qué: si no, quien atiende no
+            sabe qué contestarle al cliente que reclama por su pedido. */}
+        {hayOcultos && (
+          <div style={{
+            display: "flex", gap: 7, alignItems: "flex-start",
+            padding: "9px 12px", background: "#fffbeb",
+            borderBottom: "1px solid #fde68a",
+          }}>
+            <AlertTriangle size={13} color="#b45309" style={{ flexShrink: 0, marginTop: 1 }} />
+            <span style={{ fontSize: 11, color: "#92400e", fontWeight: 600, lineHeight: 1.45 }}>
+              {AVISO_PLAZO_DEVOLUCION}
+            </span>
+          </div>
+        )}
         {pedidos.length === 0 ? (
-          <div style={{ padding: "14px", fontSize: 12, color: "#9e9e9e", textAlign: "center" }}>
+          <div style={{ padding: "14px", fontSize: 12, color: "#9e9e9e", textAlign: "center", lineHeight: 1.5 }}>
             {searching
               ? "Buscando…"
               : query
                 ? `Sin resultados para "${query}"`
-                : "Escribe para buscar un pedido entregado…"}
+                : hayOcultos
+                  ? "Ninguno de los pedidos entregados se puede devolver ahora."
+                  : "Escribe para buscar un pedido entregado…"}
           </div>
         ) : pedidos.map(p => (
           <button
@@ -327,10 +345,15 @@ export default function CrearDevolucion({ onClose, onSave, saving, devoluciones 
     });
   };
 
-  // Solo mostrar pedidos que tengan al menos 1 producto aún devolvible
+  // Solo lo que de verdad se puede devolver: con producto pendiente, sin una
+  // devolución en curso y dentro del plazo. Antes se ofrecían todos los
+  // entregados y el rebote llegaba al enviar la solicitud.
   const pedidosDisponibles = pedidosEntregados.filter(ped =>
     calcRestantes(ped).some(p => p.cantMax > 0)
+    && !tieneDevolucionActiva(devoluciones, ped.id)
+    && !plazoVencido(ped.fecha_entrega, ped.fecha_pedido)
   );
+  const hayOcultos = pedidosDisponibles.length < pedidosEntregados.length;
 
   const [idPedido,   setIdPedido]   = useState("");
   const [motivo,     setMotivo]     = useState("");
@@ -470,6 +493,7 @@ export default function CrearDevolucion({ onClose, onSave, saving, devoluciones 
                 <PedidoSelect
                   value={idPedido}
                   pedidos={pedidosDisponibles}
+                  hayOcultos={hayOcultos}
                   error={errors.idPedido}
                   disabled={false}
                   searching={searching}

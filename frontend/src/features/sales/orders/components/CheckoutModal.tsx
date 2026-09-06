@@ -40,7 +40,7 @@ interface CheckoutModalProps {
     observaciones?: string;
     tieneDomicilio?: boolean;
   } | null;
-  onConfirm: (paymentMethod: string, onBehalfOf: string, comprobante?: File | null, saldoAFavor?: { usar: boolean; monto: number; efectivoMonto?: number }, deliveryInfo?: { tieneDomicilio: boolean; address: string; municipio: string; barrio: string; departamento: string; date: string; time: string; observaciones: string }, anticipoData?: { requiere: boolean; metodo: string; efectivo: boolean; comprobante: File | null; monto: number; saldo: number; pagarTodo?: boolean; creditoCubreAnticipo?: boolean }) => Promise<void> | void;
+  onConfirm: (paymentMethod: string, comprobante?: File | null, saldoAFavor?: { usar: boolean; monto: number; efectivoMonto?: number }, deliveryInfo?: { tieneDomicilio: boolean; address: string; municipio: string; barrio: string; departamento: string; date: string; time: string; observaciones: string }, anticipoData?: { requiere: boolean; metodo: string; efectivo: boolean; comprobante: File | null; monto: number; saldo: number; pagarTodo?: boolean; creditoCubreAnticipo?: boolean }) => Promise<void> | void;
 }
 
 const COSTO_DOMICILIO = 5000;
@@ -94,7 +94,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   // paga ahora con comprobante y el efectivo se entrega al recibir el pedido.
   const [efectivoMonto,      setEfectivoMonto]      = useState<number | ''>('');
   const [mixtoError,         setMixtoError]         = useState('');
-  const [onBehalfOf,         setOnBehalfOf]         = useState('');
   const [comprobante,        setComprobante]        = useState<File | null>(null);
   const [comprobanteError,   setComprobanteError]   = useState('');
   const [isConfirming,       setIsConfirming]       = useState(false);
@@ -134,8 +133,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
 
   useEffect(() => {
     if (!isOpen || !orderDetails) return;
-    const user = getUser();
-    setOnBehalfOf(user?.nombre || orderDetails.clientName || '');
     setTieneDomicilio(orderDetails.tieneDomicilio ?? false);
     setDireccion(desdeTexto(orderDetails.address, {
       municipio: orderDetails.municipio || '',
@@ -330,7 +327,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
       : paymentMethod;
 
     try {
-      await onConfirm(metodoPedido, onBehalfOf, comprobante, { usar: usarCredito, monto: creditoAplicar, efectivoMonto: Number(efectivoMonto) || 0 }, {
+      await onConfirm(metodoPedido, comprobante, { usar: usarCredito, monto: creditoAplicar, efectivoMonto: Number(efectivoMonto) || 0 }, {
         tieneDomicilio,
         address,
         municipio,
@@ -409,24 +406,14 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
             </div>
           )}
 
-          {/* Quién recibe + a nombre de */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="bg-white rounded-2xl border border-gray-100 px-3 py-2.5">
-              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Quién recibe</p>
-              <div className="flex items-center gap-1.5">
-                <User size={12} className="text-green-700 shrink-0" />
-                <p className="text-xs font-black text-gray-800 truncate">{user?.nombre} {user?.apellidos}</p>
-              </div>
-            </div>
-            <div className="bg-white rounded-2xl border border-gray-100 px-3 py-2.5">
-              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">A nombre de</p>
-              <input
-                type="text"
-                value={onBehalfOf}
-                onChange={e => setOnBehalfOf(e.target.value)}
-                placeholder="Nombre"
-                className="w-full bg-transparent text-xs font-black text-gray-800 outline-none placeholder:text-gray-300 border-none p-0"
-              />
+          {/* Quién recibe. Al lado había un "A nombre de" que se guardaba
+              en una columna que nadie lee: no sale en el detalle, ni en el
+              panel, ni en el domicilio. */}
+          <div className="bg-white rounded-2xl border border-gray-100 px-3 py-2.5">
+            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Quién recibe</p>
+            <div className="flex items-center gap-1.5">
+              <User size={12} className="text-green-700 shrink-0" />
+              <p className="text-xs font-black text-gray-800 truncate">{user?.nombre} {user?.apellidos}</p>
             </div>
           </div>
 

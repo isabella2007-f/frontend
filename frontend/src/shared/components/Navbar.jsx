@@ -87,10 +87,10 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
     setTimeout(() => setNavToast(null), 3500);
   };
 
-  const handleConfirmOrder = async (paymentMethod, onBehalfOf, comprobante, saldoAFavor, deliveryInfo, anticipoData) => {
+  const handleConfirmOrder = async (paymentMethod, comprobante, saldoAFavor, deliveryInfo, anticipoData) => {
     try {
       await crearPedidoCliente({
-        paymentMethod, onBehalfOf, comprobante, saldoAFavor,
+        paymentMethod, comprobante, saldoAFavor,
         deliveryInfo, anticipoData, orderDetails,
       });
       clearCart();

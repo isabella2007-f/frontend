@@ -267,19 +267,21 @@ def _recalcular_total(db: Session, liq: Liquidacion) -> None:
 def _formato_liquidacion(liq: Liquidacion, db: Session, con_registros: bool = False) -> dict:
     u = db.query(Usuario).filter(Usuario.ID_Usuario == liq.ID_Empleado).first()
     data = {
-        "ID_Liquidacion":   liq.ID_Liquidacion,
-        "ID_Empleado":      liq.ID_Empleado,
-        "nombre_empleado":  _nombre_empleado(u),
-        "Fecha_Inicio":     liq.Fecha_Inicio,
-        "Fecha_Fin":        liq.Fecha_Fin,
-        "Total":            float(liq.Total),
-        "Estado":           liq.Estado,
-        "Motivo_Anulacion": liq.Motivo_Anulacion,
-        "Fecha_Anulacion":  liq.Fecha_Anulacion,
-        "Metodo_Pago":      liq.Metodo_Pago,
-        "Fecha_Pago":       liq.Fecha_Pago,
-        "Fecha_Creacion":   liq.Fecha_Creacion,
-        "registros":        None,
+        "ID_Liquidacion":    liq.ID_Liquidacion,
+        "ID_Empleado":       liq.ID_Empleado,
+        "nombre_empleado":   _nombre_empleado(u),
+        "Fecha_Inicio":      liq.Fecha_Inicio,
+        "Fecha_Fin":         liq.Fecha_Fin,
+        "Total":             float(liq.Total),
+        "Estado":            liq.Estado,
+        "Motivo_Anulacion":  liq.Motivo_Anulacion,
+        "Fecha_Anulacion":   liq.Fecha_Anulacion,
+        "Metodo_Pago":       liq.Metodo_Pago,
+        "Referencia_Pago":   liq.Referencia_Pago,
+        "Observaciones_Pago": liq.Observaciones_Pago,
+        "Fecha_Pago":        liq.Fecha_Pago,
+        "Fecha_Creacion":    liq.Fecha_Creacion,
+        "registros":         None,
     }
     if con_registros:
         desglose = []
@@ -466,6 +468,8 @@ def registrar_pago(db: Session, id_liquidacion: int, datos: LiquidacionPago) -> 
 
     liq.Estado = "Pagada"
     liq.Metodo_Pago = datos.Metodo_Pago
+    liq.Referencia_Pago = datos.Referencia_Pago
+    liq.Observaciones_Pago = datos.Observaciones_Pago
     liq.Fecha_Pago = datos.Fecha_Pago
 
     # Marcar registros como liquidados

@@ -87,8 +87,10 @@ class LiquidacionEdit(BaseModel):
 
 
 class LiquidacionPago(BaseModel):
-    Metodo_Pago: str
-    Fecha_Pago:  datetime
+    Metodo_Pago:      str
+    Referencia_Pago:  str
+    Fecha_Pago:       datetime
+    Observaciones_Pago: Optional[str] = None
 
     @field_validator("Metodo_Pago")
     @classmethod
@@ -97,10 +99,16 @@ class LiquidacionPago(BaseModel):
             raise ValueError("El método de pago es obligatorio")
         return v.strip()
 
+    @field_validator("Referencia_Pago")
+    @classmethod
+    def referencia_no_vacia(cls, v):
+        if not v or not v.strip():
+            raise ValueError("La referencia de pago es obligatoria")
+        return v.strip()
+
     @field_validator("Fecha_Pago")
     @classmethod
     def fecha_no_futura(cls, v):
-        from datetime import timezone
         hoy = datetime.now()
         if v.date() > hoy.date():
             raise ValueError("La fecha de pago no puede ser posterior a hoy")
@@ -130,19 +138,21 @@ class RegistroDesglose(BaseModel):
 
 
 class LiquidacionResponse(BaseModel):
-    ID_Liquidacion:   int
-    ID_Empleado:      int
-    nombre_empleado:  Optional[str] = None
-    Fecha_Inicio:     datetime
-    Fecha_Fin:        datetime
-    Total:            float
-    Estado:           str
-    Motivo_Anulacion: Optional[str] = None
-    Fecha_Anulacion:  Optional[datetime] = None
-    Metodo_Pago:      Optional[str] = None
-    Fecha_Pago:       Optional[datetime] = None
-    Fecha_Creacion:   datetime
-    registros:        Optional[List[RegistroDesglose]] = None
+    ID_Liquidacion:    int
+    ID_Empleado:       int
+    nombre_empleado:   Optional[str] = None
+    Fecha_Inicio:      datetime
+    Fecha_Fin:         datetime
+    Total:             float
+    Estado:            str
+    Motivo_Anulacion:  Optional[str] = None
+    Fecha_Anulacion:   Optional[datetime] = None
+    Metodo_Pago:       Optional[str] = None
+    Referencia_Pago:   Optional[str] = None
+    Observaciones_Pago: Optional[str] = None
+    Fecha_Pago:        Optional[datetime] = None
+    Fecha_Creacion:    datetime
+    registros:         Optional[List[RegistroDesglose]] = None
 
 
 class LiquidacionListResponse(BaseModel):

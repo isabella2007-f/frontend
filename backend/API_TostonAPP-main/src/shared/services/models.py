@@ -694,6 +694,8 @@ class Liquidacion(Base):
     Motivo_Anulacion = Column(Text, nullable=True)
     Fecha_Anulacion  = Column(DateTime, nullable=True)
     Metodo_Pago      = Column(String(50), nullable=True)
+    Referencia_Pago  = Column(String(100), nullable=True)
+    Observaciones_Pago = Column(Text, nullable=True)
     Fecha_Pago       = Column(DateTime, nullable=True)
     Fecha_Creacion   = Column(DateTime)
 
