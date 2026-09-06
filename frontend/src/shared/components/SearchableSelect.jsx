@@ -16,7 +16,7 @@ export default function SearchableSelect({
 }) {
   const [open, setOpen]   = useState(false);
   const [q, setQ]         = useState("");
-  const [pos, setPos]     = useState({ top: 0, left: 0, width: 0, openUp: false });
+  const [pos, setPos]     = useState({ top: null, bottom: null, left: 0, width: 0, openUp: false });
   const triggerRef        = useRef();
   const inputRef          = useRef();
 
@@ -34,10 +34,14 @@ export default function SearchableSelect({
     const r = triggerRef.current.getBoundingClientRect();
     const spaceBelow = window.innerHeight - r.bottom;
     const openUp = spaceBelow < DROPDOWN_MAX_H && r.top > DROPDOWN_MAX_H;
+    // Al abrir hacia arriba se ancla por el borde INFERIOR del dropdown, pegado
+    // al trigger: así queda junto al campo sea cual sea su alto real (un menú de
+    // 2 opciones no debe "flotar" a 260px de distancia).
     setPos({
-      top:  openUp ? r.top - DROPDOWN_MAX_H - 4 : r.bottom + 4,
-      left: r.left,
-      width: r.width,
+      top:    openUp ? null : r.bottom + 4,
+      bottom: openUp ? window.innerHeight - r.top + 4 : null,
+      left:   r.left,
+      width:  r.width,
       openUp,
     });
   };
@@ -87,7 +91,12 @@ export default function SearchableSelect({
     <div
       id="ss-portal"
       className="ss-dropdown"
-      style={{ position: "fixed", top: pos.top, left: pos.left, width: pos.width }}
+      style={{
+        position: "fixed",
+        left: pos.left,
+        width: pos.width,
+        ...(pos.openUp ? { bottom: pos.bottom } : { top: pos.top }),
+      }}
     >
       <div className="ss-dropdown__search">
         <input

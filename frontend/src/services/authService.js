@@ -56,6 +56,55 @@ export const getUser = () => {
   }
 };
 
+/**
+ * Reconcilia la sesión guardada con el estado real del backend (`/auth/me`).
+ *
+ * El `tipo`/`rol` se guardan en localStorage al iniciar sesión; si un admin le
+ * cambia el rol a este usuario, esa copia queda obsoleta hasta el siguiente
+ * login. Esto la actualiza (y avisa con `session-changed`) sin re-login.
+ * Si no hay red, conserva lo que haya. En 401 cierra sesión.
+ */
+export const refreshUser = async () => {
+  const token = localStorage.getItem("token");
+  if (!token) return null;
+
+  let data;
+  try {
+    const res = await fetch(`${API_URL}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.status === 401) { logout(); return null; }
+    if (!res.ok) return getUser();
+    data = await res.json();
+  } catch {
+    return getUser(); // sin conexión: no tocar la sesión local
+  }
+
+  const prev = getUser();
+  const next = {
+    ...(prev || {}),
+    id:        data.id,
+    nombre:    data.nombre,
+    apellidos: data.apellidos,
+    tipo:      data.tipo,
+    rol:       data.rol,
+  };
+
+  const cambio =
+    !prev ||
+    prev.tipo !== next.tipo ||
+    prev.rol  !== next.rol  ||
+    String(prev.id) !== String(next.id);
+
+  if (cambio) {
+    try {
+      localStorage.setItem("usuario", JSON.stringify(next));
+    } catch { /* almacenamiento no disponible */ }
+    window.dispatchEvent(new CustomEvent("session-changed"));
+  }
+  return next;
+};
+
 export const isAuthenticated = () => {
   const token = localStorage.getItem("token");
   if (!token) return false;

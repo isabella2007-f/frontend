@@ -25,8 +25,11 @@ from .service import (
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
-def _formato_perfil(actual: dict) -> dict:
+def _formato_perfil(actual: dict, db: Session) -> dict:
     registro = actual["registro"]
+    # Nombre de rol EN VIVO (según ID_Rol actual), no el claim del token: tras un
+    # cambio de rol el perfil debe reflejar el rol nuevo sin re-login.
+    rol_actual = obtener_nombre_rol(db, registro.ID_Rol) if registro.ID_Rol else None
     return {
         "id":             registro.ID_Usuario,
         "Nombre":         registro.Nombre,
@@ -44,7 +47,7 @@ def _formato_perfil(actual: dict) -> dict:
         "Estado":         registro.Estado,
         "Correo_Verificado": getattr(registro, "Correo_Verificado", 1),
         "tipo":           actual["tipo"],
-        "rol":            actual.get("rol"),
+        "rol":            rol_actual,
     }
 
 
@@ -161,8 +164,13 @@ def resetear_contrasena_endpoint(datos: ResetearContrasenaInput, db: Session = D
 # ─────────────────────────────────────────
 
 @router.get("/me")
-def perfil_basico(actual: dict = Depends(obtener_usuario_actual)):
+def perfil_basico(
+    db:     Session = Depends(get_db),
+    actual: dict    = Depends(obtener_usuario_actual),
+):
     registro = actual["registro"]
+    # tipo y rol EN VIVO (según ID_Rol actual): el frontend usa este endpoint
+    # para reconciliar la sesión tras un cambio de rol sin re-login.
     return {
         "id":        registro.ID_Usuario,
         "nombre":    registro.Nombre,
@@ -170,13 +178,16 @@ def perfil_basico(actual: dict = Depends(obtener_usuario_actual)):
         "correo":    registro.Correo,
         "correo_verificado": getattr(registro, "Correo_Verificado", 1),
         "tipo":      actual["tipo"],
-        "rol":       actual.get("rol"),
+        "rol":       obtener_nombre_rol(db, registro.ID_Rol) if registro.ID_Rol else None,
     }
 
 
 @router.get("/perfil")
-def perfil_completo(actual: dict = Depends(obtener_usuario_actual)):
-    return _formato_perfil(actual)
+def perfil_completo(
+    db:     Session = Depends(get_db),
+    actual: dict    = Depends(obtener_usuario_actual),
+):
+    return _formato_perfil(actual, db)
 
 
 @router.put("/perfil")
@@ -200,7 +211,7 @@ def actualizar_perfil(
 
     db.commit()
     db.refresh(registro)
-    return _formato_perfil(actual)
+    return _formato_perfil(actual, db)
 
 
 @router.post("/cambiar-contrasena", response_model=CambiarContrasenaResponse)

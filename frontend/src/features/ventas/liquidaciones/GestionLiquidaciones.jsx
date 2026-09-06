@@ -776,7 +776,7 @@ function DetalleLiquidacion({ idLiquidacion, onVolver, onCambio }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function TabLiquidaciones({ empleados, onVerDetalle }) {
-  const [data, setData]         = useState({ items: [], total: 0, pagina: 1, por_pagina: 20 });
+  const [data, setData]         = useState({ items: [], total: 0, pagina: 1, por_pagina: 10 });
   const [loading, setLoading]   = useState(false);
   const [pagina, setPagina]     = useState(1);
   const [filtros, setFiltros]   = useState({ idEmpleado: "", estado: "", fechaInicio: "", fechaFin: "", busqueda: "" });
@@ -794,12 +794,12 @@ function TabLiquidaciones({ empleados, onVerDetalle }) {
     const f = filtrosOverride || filtros;
     try {
       const res = await listarLiquidaciones({
-        pagina: p, porPagina: 20,
-        idEmpleado:  f.idEmpleado  || null,
-        estado:      f.estado      || null,
-        fechaInicio: f.fechaInicio ? `${f.fechaInicio}T00:00:00` : null,
-        fechaFin:    f.fechaFin    ? `${f.fechaFin}T23:59:59`   : null,
-        busqueda:    f.busqueda    || null,
+        pagina: p, porPagina: 10,
+        idEmpleado:  filtros.idEmpleado  || null,
+        estado:      filtros.estado      || null,
+        fechaInicio: filtros.fechaInicio ? `${filtros.fechaInicio}T00:00:00` : null,
+        fechaFin:    filtros.fechaFin    ? `${filtros.fechaFin}T23:59:59`   : null,
+        busqueda:    filtros.busqueda    || null,
       });
       setData(res);
     } catch (e) { mostrarToast(e.message, "error"); }
@@ -891,6 +891,7 @@ function TabLiquidaciones({ empleados, onVerDetalle }) {
       )}
 
       {/* Tabla */}
+      <div className="liq-tabla-wrap">
       {loading ? (
         <SkeletonTabla />
       ) : data.items.length === 0 ? (
@@ -938,6 +939,7 @@ function TabLiquidaciones({ empleados, onVerDetalle }) {
           </table>
         </div>
       )}
+      </div>
 
       <Paginacion pagina={pagina} total={data.total} porPagina={data.por_pagina} onCambiar={p => { setPagina(p); cargar(p); }} />
 
@@ -974,7 +976,7 @@ function TabRegistros({ empleados }) {
     setLoading(true);
     try {
       const res = await listarRegistros({
-        pagina: p, porPagina: 20,
+        pagina: p, porPagina: 10,
         idEmpleado:  filtros.idEmpleado  || null,
         estado:      filtros.estado      || null,
         fechaInicio: filtros.fechaInicio ? `${filtros.fechaInicio}T00:00:00` : null,
@@ -1057,6 +1059,7 @@ function TabRegistros({ empleados }) {
         </div>
       )}
 
+      <div className="liq-tabla-wrap">
       {loading ? (
         <SkeletonTabla />
       ) : data.items.length === 0 ? (
@@ -1100,8 +1103,9 @@ function TabRegistros({ empleados }) {
           </table>
         </div>
       )}
+      </div>
 
-      <Paginacion pagina={pagina} total={data.total} porPagina={20} onCambiar={p => { setPagina(p); cargar(p); }} />
+      <Paginacion pagina={pagina} total={data.total} porPagina={10} onCambiar={p => { setPagina(p); cargar(p); }} />
 
       {modal && (
         <ModalRegistrarHoras empleados={empleados} onClose={() => setModal(false)}

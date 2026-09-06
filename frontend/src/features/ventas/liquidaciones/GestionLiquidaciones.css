@@ -313,6 +313,9 @@
   border-radius: 16px;
   border: 1.5px solid var(--liq-borde);
   -webkit-overflow-scrolling: touch;
+  /* Alto de una página completa (10 filas): la paginación no salta de
+     posición entre páginas ni al quedar la última incompleta. */
+  min-height: 445px;
 }
 .liq-root .liq-tabla {
   width: 100%;

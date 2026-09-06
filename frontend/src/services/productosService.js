@@ -161,6 +161,34 @@ export async function eliminarImagen(idProducto, idImagen) {
   });
 }
 
+const adaptLoteProducto = (l) => ({
+  id:                l.id,
+  numeroLote:        l.numero_lote,
+  cantidad:          l.cantidad,
+  cantidadProducida: Number(l.cantidad_producida ?? l.cantidad ?? 0),
+  cantidadRestante:  Number(l.cantidad_restante ?? l.cantidad ?? 0),
+  consumido:         Number(l.consumido ?? 0),
+  vencidoSinUsar:    Number(l.vencido_sin_usar ?? 0),
+  fechaProduccion:   l.fecha_produccion ?? null,
+  fechaVencimiento:  l.fecha_vencimiento ?? null,
+  vencido:           !!l.vencido,
+  diasParaVencer:    l.dias_para_vencer ?? null,
+  estado:            l.estado ?? null,
+  orden: l.orden_produccion ? {
+    id:       l.orden_produccion.id,
+    fecha:    l.orden_produccion.fecha,
+    cantidad: l.orden_produccion.cantidad,
+    costo:    l.orden_produccion.costo,
+    idVenta:  l.orden_produccion.id_venta,
+  } : null,
+});
+
+/**
+ * Lotes de producción de un producto, enriquecidos (3.16 / 3.17):
+ * cantidad producida / restante / consumida / vencida sin usar, y la orden
+ * de producción que originó cada lote.
+ */
 export async function getLotesProducto(id) {
-  return apiFetch(`/productos/${id}/lotes`);
+  const data = await apiFetch(`/productos/${id}/lotes`);
+  return { total: data.total ?? 0, lotes: (data.lotes || []).map(adaptLoteProducto) };
 }

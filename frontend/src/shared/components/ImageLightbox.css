@@ -1,0 +1,109 @@
+/* ── Miniatura ─────────────────────────────────────────── */
+.img-lightbox-thumb {
+  position: relative;
+  display: inline-block;
+  padding: 0;
+  border: 1.5px solid #c8e6c9;
+  border-radius: 10px;
+  background: #f9fdf9;
+  cursor: zoom-in;
+  overflow: hidden;
+  line-height: 0;
+  max-width: 100%;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.img-lightbox-thumb:hover {
+  border-color: #66bb6a;
+  box-shadow: 0 2px 10px rgba(46, 125, 50, 0.15);
+}
+.img-lightbox-thumb img {
+  display: block;
+  width: 100%;
+  max-height: 160px;
+  object-fit: contain;
+}
+.img-lightbox-thumb__hint {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+/* ── Visor a pantalla completa ─────────────────────────── */
+.img-lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 45000;
+  background: rgba(10, 20, 12, 0.92);
+  display: flex;
+  flex-direction: column;
+  animation: imgLightboxIn 0.15s ease-out;
+}
+@keyframes imgLightboxIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.img-lightbox-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  background: rgba(0, 0, 0, 0.35);
+}
+.img-lightbox-toolbar__label {
+  margin-right: auto;
+  color: #e8f5e9;
+  font-size: 13px;
+  font-weight: 700;
+}
+.img-lightbox-toolbar__pct {
+  min-width: 46px;
+  text-align: center;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.img-lightbox-toolbar button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.img-lightbox-toolbar button:hover { background: rgba(255, 255, 255, 0.25); }
+
+.img-lightbox-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  touch-action: none;
+}
+.img-lightbox-stage img {
+  max-width: 94vw;
+  max-height: calc(100vh - 60px);
+  object-fit: contain;
+  user-select: none;
+  transition: transform 0.05s linear;
+  will-change: transform;
+}

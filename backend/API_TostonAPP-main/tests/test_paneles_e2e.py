@@ -443,8 +443,9 @@ class PanelProduccionTests(PanelBase):
 
     def test_iniciarla_aparta_los_insumos_y_completarla_los_descuenta(self):
         pedido = self.pedido_con_faltante()
-        id_venta = pedido["ID_Venta"]
-        id_orden = self.orden(id_venta).ID_Orden_Produccion
+        # La orden de un pedido solo se gestiona a mano con el pedido confirmado.
+        self.afirmar_ok(self.patch(f"/pedidos/{pedido['ID_Venta']}/confirmar", self.admin))
+        id_orden = self.orden(pedido["ID_Venta"]).ID_Orden_Produccion
 
         self.afirmar_ok(self.patch(
             f"/ordenes-produccion/{id_orden}/estado", self.admin,
@@ -466,9 +467,11 @@ class PanelProduccionTests(PanelBase):
     def test_completarla_repone_el_producto_y_crea_su_lote(self):
         pedido = self.pedido_con_faltante()
         id_venta = pedido["ID_Venta"]
-        self.hornear(id_venta)
+        self.hornear(id_venta)   # confirma el pedido y luego produce
 
-        self.assertEqual(self.stock(ID_TORTA), STOCK_TORTA + (6 - STOCK_TORTA))
+        # Al confirmar (recoger en tienda) se reservan las 2 de vitrina; al
+        # completar la orden entran las 4 horneadas → quedan esas 4.
+        self.assertEqual(self.stock(ID_TORTA), 6 - STOCK_TORTA)
         lote = self.lote_producto()
         self.assertIsNotNone(lote)
         self.assertEqual(lote.Cantidad, 6 - STOCK_TORTA)
@@ -494,6 +497,7 @@ class PanelProduccionTests(PanelBase):
 
     def test_sin_insumos_la_orden_no_arranca_y_no_toca_nada(self):
         pedido = self.pedido_con_faltante()
+        self.afirmar_ok(self.patch(f"/pedidos/{pedido['ID_Venta']}/confirmar", self.admin))
         id_orden = self.orden(pedido["ID_Venta"]).ID_Orden_Produccion
         from src.shared.services.models import Insumo
         insumo = self.db.query(Insumo).filter(Insumo.ID_Insumo == ID_HARINA).first()
@@ -513,6 +517,7 @@ class PanelProduccionTests(PanelBase):
         """3.12 — desde el panel de producción no se cancela la orden de un
         pedido: se cancela cancelando el pedido."""
         pedido = self.pedido_con_faltante()
+        self.afirmar_ok(self.patch(f"/pedidos/{pedido['ID_Venta']}/confirmar", self.admin))
         id_orden = self.orden(pedido["ID_Venta"]).ID_Orden_Produccion
         self.afirmar_ok(self.patch(
             f"/ordenes-produccion/{id_orden}/estado", self.admin,
@@ -1385,18 +1390,23 @@ class FechaPropuestaTests(PanelBase):
         self.assertEqual(self.venta(id_venta).Estado, PEDIDO_FECHA_PROPUESTA)
         return id_venta
 
-    def test_terminar_la_produccion_no_mueve_el_pedido(self):
-        """El cliente todavía no dijo que sí: el pedido sigue esperándolo."""
+    def test_hornear_con_fecha_propuesta_sin_aceptar_queda_bloqueado(self):
+        """El cliente todavía no dijo que sí: la orden no se gestiona a mano
+        hasta que acepte o rechace la fecha (ver bloqueo en `cambiar_estado`).
+
+        Reemplaza a los dos tests que asumían que se podía hornear con la
+        fecha propuesta y sin aceptar: ese escenario ya no es posible con la
+        regla vigente (la orden queda bloqueada, igual que en «Pendiente»).
+        """
         id_venta = self.esperando_respuesta()
-        self.hornear(id_venta)
+        id_orden = self.orden(id_venta).ID_Orden_Produccion
+        respuesta = self.patch(
+            f"/ordenes-produccion/{id_orden}/estado", self.admin,
+            {"Estado": ORDEN_EN_PROCESO},
+        )
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn("fecha", self.detalle(respuesta).lower())
         self.assertEqual(self.venta(id_venta).Estado, PEDIDO_FECHA_PROPUESTA)
-
-    def test_aceptar_con_la_produccion_lista_deja_el_pedido_listo(self):
-        id_venta = self.esperando_respuesta()
-        self.hornear(id_venta)
-
-        self.afirmar_ok(self.patch(f"/ventas/{id_venta}/aceptar-fecha", self.cliente))
-        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_LISTO)
 
     def test_aceptar_con_la_produccion_a_medias_lo_manda_a_producir(self):
         id_venta = self.esperando_respuesta()
@@ -1467,14 +1477,12 @@ class FechaPropuestaTests(PanelBase):
         self.assertEqual(respuesta.status_code, 400, self.detalle(respuesta))
         self.assertIn("no se fabrican por encargo", self.detalle(respuesta))
 
-    def test_rechazar_con_lo_ya_horneado_deja_el_pedido_esperando_fecha(self):
-        """Lo que ya se horneó no obliga al cliente a aceptar la fecha.
-
-        Tampoco tira el pedido: queda esperando otra propuesta, con la
-        mercancía hecha y en stock.
+    def test_rechazar_con_fecha_propuesta_deja_el_pedido_esperando_otra_fecha(self):
+        """Rechazar la fecha no depende de que haya producción en curso: la
+        orden sigue bloqueada (ver test de bloqueo arriba) y el pedido queda
+        esperando una nueva propuesta.
         """
         id_venta = self.esperando_respuesta()
-        self.hornear(id_venta)
 
         self.afirmar_ok(self.patch(f"/ventas/{id_venta}/rechazar-fecha", self.cliente))
         self.assertEqual(self.venta(id_venta).Estado, PEDIDO_FECHA_RECHAZADA)
@@ -1532,6 +1540,7 @@ class RecetaEnDistintasUnidadesTests(PanelBase):
         pedido = self.pedido_con_faltante()      # 6 tortas, stock 2 → orden de 4
         orden = self.orden(pedido["ID_Venta"])
         self.assertEqual(orden.Cantidad, 4)
+        self.confirmar_si_pendiente(pedido["ID_Venta"])
         return self.patch(
             f"/ordenes-produccion/{orden.ID_Orden_Produccion}/estado",
             self.admin, {"Estado": ORDEN_EN_PROCESO},
@@ -1648,6 +1657,8 @@ class InsumoApartadoTests(PanelBase):
         segunda = self.pedido_con_faltante()
         self.venta_primera = primera["ID_Venta"]
         self.venta_segunda = segunda["ID_Venta"]
+        self.confirmar_si_pendiente(self.venta_primera)
+        self.confirmar_si_pendiente(self.venta_segunda)
         return (self.orden_de(self.venta_primera), self.orden_de(self.venta_segunda))
 
     def orden_de(self, id_venta):
@@ -1727,7 +1738,9 @@ class InsumoApartadoTests(PanelBase):
         self.afirmar_ok(self.arrancar(primera))
         self.afirmar_ok(self.arrancar(segunda))
 
-        tercera = self.orden_de(self.pedido_con_faltante()["ID_Venta"])
+        id_venta_tercera = self.pedido_con_faltante()["ID_Venta"]
+        self.confirmar_si_pendiente(id_venta_tercera)
+        tercera = self.orden_de(id_venta_tercera)
         respuesta = self.arrancar(tercera)
         self.assertEqual(respuesta.status_code, 400)
         self.assertIn("apartado por otra orden", self.detalle(respuesta).lower())

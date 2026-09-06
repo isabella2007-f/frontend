@@ -564,6 +564,27 @@ html, body, #root {
   font-family: var(--font-body);
 }
 
+/* ── Paginación con alto de fila fijo ──
+   Las tablas que añaden `tbl--fixed-rows` reservan un alto constante por fila
+   (`--tbl-row-h`, definido por cada módulo según su fila más alta). Junto con
+   <FilasRelleno> esto mantiene la barra de paginación anclada en la misma
+   posición en todas las páginas, aunque la última traiga menos filas o el
+   contenido de algunas filas sea más alto de lo normal. */
+.tbl--fixed-rows tbody tr {
+  height: var(--tbl-row-h, 56px);
+}
+.tbl-fill-row td {
+  border-bottom: 1px solid #f1f5f9;
+  background: #fff;
+}
+.tbl-fill-row:hover td {
+  background: #fff;
+}
+.tbl--fixed-rows .tbl-row:last-child td,
+.tbl-fill-row:last-child td {
+  border-bottom: none;
+}
+
 /* ── Reset de textos ── */
 h1, h2, h3, h4, h5, h6,
 button, label, input, p, span {

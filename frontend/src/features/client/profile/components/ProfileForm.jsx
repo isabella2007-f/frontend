@@ -75,13 +75,17 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
     tipo_documento: '',
   });
 
+  // Instantánea del formulario tras cargar el perfil, para detectar
+  // "guardar sin cambios".
+  const snapshotInicial = useRef(null);
+
   // Cargar perfil completo desde la API al abrir el formulario
   useEffect(() => {
     setLoadingPerfil(true);
     apiFetch('/auth/perfil')
       .then(data => {
         setPerfil(data);
-        setForm({
+        const f = {
           telefono:       data.Telefono      || '',
           direccion:      data.Direccion     || '',
           municipio:      data.Municipio     || '',
@@ -89,19 +93,22 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
           fotoPerfil:     data.Foto_perfil   || '',
           cedula:         data.Cedula        || '',
           tipo_documento: data.Tipo_Documento || '',
-        });
+        };
+        setForm(f);
         // Lo guardado es texto libre de antes: se intenta separar en sus
         // partes para no hacerle reescribir todo al cliente.
-        setDireccion(desdeTexto(data.Direccion, {
+        const dir = desdeTexto(data.Direccion, {
           departamento: data.Departamento || 'Antioquia',
           municipio:    data.Municipio    || '',
           barrio:       data.Barrio       || '',
           indicaciones: data.Indicaciones || '',
-        }));
+        });
+        setDireccion(dir);
+        snapshotInicial.current = JSON.stringify({ f, dir });
       })
       .catch(() => {
         // Fallback a datos del prop si la API falla
-        setForm({
+        const f = {
           telefono:      user.telefono      || user.Telefono      || '',
           direccion:     user.direccion     || user.Direccion     || '',
           municipio:     user.municipio     || user.Municipio     || '',
@@ -109,11 +116,14 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
           fotoPerfil:    user.fotoPerfil    || user.Foto_perfil   || '',
           cedula:        user.cedula        || user.Cedula        || '',
           tipo_documento: user.tipo_documento || user.Tipo_Documento || '',
-        });
-        setDireccion(desdeTexto(user.direccion || user.Direccion, {
+        };
+        setForm(f);
+        const dir = desdeTexto(user.direccion || user.Direccion, {
           departamento: user.departamento || user.Departamento || 'Antioquia',
           municipio:    user.municipio    || user.Municipio    || '',
-        }));
+        });
+        setDireccion(dir);
+        snapshotInicial.current = JSON.stringify({ f, dir });
       })
       .finally(() => setLoadingPerfil(false));
   }, []);
@@ -199,6 +209,14 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
+
+    // Sin cambios: mismos datos y sin contraseña nueva.
+    const cambioPass = showPassSection && passForm.nueva;
+    if (!cambioPass && snapshotInicial.current !== null
+        && JSON.stringify({ f: form, dir: direccion }) === snapshotInicial.current) {
+      onSave({ sinCambios: true });
+      return;
+    }
 
     // La dirección viaja partida: la vía en Direccion —que en el servidor son
     // 50 caracteres— y el barrio, el complemento y las indicaciones en

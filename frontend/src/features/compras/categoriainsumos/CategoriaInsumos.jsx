@@ -4,6 +4,7 @@ import { fmtFecha } from "../../../utils/dateUtils.js";
 import { Toast, ModalOverlay } from "./ui.jsx";
 import CrearCategoriaInsumo from "./CrearCategoriaInsumo.jsx";
 import EditarCategoriaInsumo from "./EditarCategoriaInsumo.jsx";
+import FilasRelleno from "../../../shared/components/FilasRelleno";
 import ModalEliminarValidado from "../../../ModalEliminarValidado";
 import {
   getCategorias,
@@ -261,6 +262,11 @@ export default function CategoriaInsumos() {
   };
 
   const handleEdit = async (payload, toggleEstado) => {
+    if (payload?.sinCambios) {
+      showToast("No se hicieron cambios");
+      setModal(null);
+      return;
+    }
     try {
       await editarCategoria(modal.cat.id, payload);
       if (toggleEstado) await toggleEstadoCategoria(modal.cat.id, modal.cat.estado);
@@ -343,7 +349,7 @@ export default function CategoriaInsumos() {
 
         <div className="card">
           <div className="tbl-wrapper">
-            <table className="tbl">
+            <table className="tbl tbl--fixed-rows" style={{ "--tbl-row-h": "62px" }}>
               <thead>
                 <tr>
                   <th>Nº</th>
@@ -400,6 +406,9 @@ export default function CategoriaInsumos() {
                     </td>
                   </tr>
                 ))}
+                {!loading && (
+                  <FilasRelleno current={paginated.length} perPage={ITEMS_PER_PAGE} colSpan={6} />
+                )}
               </tbody>
             </table>
           </div>

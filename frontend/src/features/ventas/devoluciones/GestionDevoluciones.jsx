@@ -3,6 +3,7 @@ import CrearDevolucion from "./CrearDevolucion.jsx";
 import { getDevoluciones, crearDevolucion, resolverDevolucion, getCreditoCliente } from "../../../services/devolucionesService.js";
 import { registrarSalida } from "../../../services/salidasService.js";
 import DateRangeFilter from "../../../shared/components/DateRangeFilter";
+import FilasRelleno from "../../../shared/components/FilasRelleno";
 import { X, Check, AlertTriangle, BarChart2, Clock, CreditCard, Ban, Search, CornerUpLeft, Package, Eye, CheckCircle2, Image, Video, FileText, Paperclip, ClipboardList } from "lucide-react";
 import "./Devoluciones.css";
 
@@ -19,7 +20,7 @@ function SkeletonRows({ cols = 8, rows = 5 }) {
 const fmt = (n) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
 
-const PER_PAGE  = 20;
+const PER_PAGE  = 10;
 const ESTADO_IDS = { Pendiente: 3, Reembolsada: 6, Rechazada: 7 };
 
 function EstadoBadge({ estado }) {
@@ -578,7 +579,7 @@ export default function GestionDevoluciones() {
         {/* Tabla */}
         <div className="card">
           <div className="tbl-wrapper">
-            <table className="tbl">
+            <table className="tbl tbl--fixed-rows" style={{ "--tbl-row-h": "66px" }}>
               <thead>
                 <tr>
                   <th style={{ width: 44 }}>Nº</th>
@@ -658,6 +659,9 @@ export default function GestionDevoluciones() {
                     </td>
                   </tr>
                 ))}
+                {!loading && (
+                  <FilasRelleno current={devoluciones.length} perPage={PER_PAGE} colSpan={8} />
+                )}
               </tbody>
             </table>
           </div>

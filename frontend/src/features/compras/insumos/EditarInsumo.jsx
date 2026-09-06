@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Check, X } from "lucide-react";
 import SearchableSelect from "../../../shared/components/SearchableSelect.jsx";
 import "./GestionInsumos.css";
@@ -41,6 +41,17 @@ export default function EditarInsumo({ ins, onClose, onSave, categorias, unidade
   const [errors, setSErrors]  = useState({});
   const [saving, setSaving]   = useState(false);
   const [step, setStep]       = useState(1);
+
+  // Instantánea al abrir, para detectar "guardar sin cambios".
+  const snapshot = (f) => JSON.stringify({
+    nombre:      (f.nombre ?? "").trim(),
+    idCategoria: String(f.idCategoria ?? ""),
+    idUnidad:    String(f.idUnidad ?? ""),
+    stockMinimo: String(f.stockMinimo ?? ""),
+  });
+  const snapshotInicial = useRef(snapshot({
+    nombre: ins.nombre, idCategoria: ins.idCategoria, idUnidad: ins.idUnidad, stockMinimo: ins.stockMinimo,
+  }));
 
   const set = (k, v) => {
     setForm(p => ({ ...p, [k]: v }));
@@ -91,6 +102,7 @@ export default function EditarInsumo({ ins, onClose, onSave, categorias, unidade
   const handleSave = async () => {
     const e = validateStep(2);
     if (Object.keys(e).length) { setSErrors(e); return; }
+    if (snapshot(form) === snapshotInicial.current) { onSave({ sinCambios: true }); return; }
     setSaving(true);
     try {
       await onSave({

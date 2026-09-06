@@ -23,6 +23,10 @@ Guía de contexto para Claude Code. Léela completa antes de tocar cualquier arc
 - **NO tocar el módulo `configuracion/descuentos`** — postergado para una fase futura
 - **NO hardcodear contraseñas ni secrets** — usar variables de entorno via `python-dotenv`
 - **CORS**: actualizar a `allow_origins=["https://frontend-ten-xi-31.vercel.app", "http://localhost:5173"]` y `allow_credentials=True`. Actualmente está en `["*"]` con `allow_credentials=False` — PENDIENTE corregir
+- **Super admin = `ID_Usuario == 1`** (el del seed). Tiene control total *por ser ese usuario*, con bypass propio en `requiere_permiso()` equivalente al de `ID_Rol == 1`. NADIE puede modificarlo (editar, estado, rol, eliminar); ni él mismo puede cambiarse el rol. Blindaje en backend, no solo UI. Ver `prompts/prompt-roles.md` (en la raíz del repo).
+- **Rol Cliente (`ID_Rol == 3`) es estático y sin permisos** — como Admin: no editable ni eliminable, solo cambio de estado. El comportamiento de cliente se decide por `ID_Rol == 3` (o un helper `es_cliente(actual)`), NO por permisos del rol. Un cliente debe poder hacer todo lo que hace hoy.
+- **Nadie cambia su propio rol** — el endpoint de cambio de rol rechaza `objetivo == actual`, sin excepción (ni super admin).
+- **Anular una Compra** — prohibido si cualquier lote de insumo generado por esa compra ya tuvo consumo (orden de producción, salida, cualquier descuento de stock). Verificar antes de anular; `HTTPException` con el detalle de qué se consumió. Ver `prompts/prompt-compras.md` (raíz del repo).
 
 ---
 

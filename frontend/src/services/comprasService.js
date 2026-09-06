@@ -1,10 +1,25 @@
 import { apiFetch } from "../utils/api";
 
+const soloFecha = (v) => (v ? String(v).split("T")[0] : "");
+
+const adaptLote = (l) => ({
+  id:              l.id ?? l.ID_Lote_Compra ?? null,
+  idCompra:        l.id_compra ?? null,
+  fechaVencimiento: l.fecha_vencimiento ?? null,
+  cantidadInicial: Number(l.cantidad_inicial ?? 0),
+  cantidadActual:  Number(l.cantidad_actual ?? 0),
+  consumido:       Number(l.consumido ?? 0),
+  estado:          l.estado ?? null,
+  vencido:         !!l.vencido,
+});
+
 const adaptCompra = (c) => ({
   id:           c.ID_Compra        || c.id,
   idProveedor:  c.ID_Proveedor     || c.id_proveedor   || null,
   proveedor:    c.nombre_proveedor || c.proveedor       || "",
-  metodoPago:   c.Metodo_Pago      || c.metodo_pago     || "",
+  // El backend guarda "Efectivo"/"Transferencia"; el formulario usa minúsculas.
+  metodoPago:   (c.Metodo_Pago     || c.metodo_pago     || "").toLowerCase(),
+  comprobante:  c.Comprobante      || c.comprobante     || null,
   total:        c.Total_Pago       || c.Total           || c.total           || 0,
   estado:       (() => {
     const label = c.estado_label;
@@ -17,7 +32,7 @@ const adaptCompra = (c) => ({
     const m = { 3: "pendiente", 4: "completada", 11: "completada", 5: "anulada", 12: "anulada" };
     return m[raw] || "pendiente";
   })(),
-  fecha:        c.Fecha_Compra     || c.fecha_compra    || c.fecha || "",
+  fecha:        soloFecha(c.Fecha_Compra || c.fecha_compra || c.fecha),
   fecha_llegada: c.Fecha_Llegada  ? new Date(c.Fecha_Llegada).toISOString().split('T')[0] : null,
   fecha_anulada: c.Fecha_Anulada  ? new Date(c.Fecha_Anulada).toISOString().split('T')[0] : null,
   notas:        c.Notas            || c.notas           || "",
@@ -38,6 +53,8 @@ const adaptCompra = (c) => ({
     precioUnd:        Number(i.Precio_Und  ?? i.precio_und        ?? 0),
     subtotal:         i.Subtotal          || i.subtotal          || 0,
     fechaVencimiento: i.Fecha_Vencimiento || i.fecha_vencimiento || null,
+    loteOrigen:       i.lote_origen ? adaptLote(i.lote_origen) : null,
+    otrosLotes:       Array.isArray(i.otros_lotes) ? i.otros_lotes.map(adaptLote) : [],
   })),
 });
 
@@ -70,10 +87,11 @@ export async function crearCompra(payload) {
     Metodo_Pago:          metodoPago,
     Fecha_Compra:         payload.fecha || null,
     Notas:                payload.notas || null,
-    Costo_Transporte:     Number(g.transporte)     || null,
-    IVA_Porcentaje:       Number(g.ivaPorcentaje)  || null,
-    Descuento_Porcentaje: Number(g.descPorcentaje) || null,
-    Otros_Costos:         Number(g.otros)          || null,
+    Comprobante:          payload.comprobante || null,
+    Costo_Transporte:     Number(g.transporte) || null,
+    IVA_Porcentaje:       Number(g.iva)        || null,  // porcentaje
+    Descuento_Porcentaje: Number(g.descuento)  || null,  // porcentaje
+    Otros_Costos:         Number(g.otros)      || null,
     detalles: (payload.detalles || []).map(i => ({
       ID_Insumo:         Number(i.idInsumo),
       Cantidad:          Number(i.cantidad),
@@ -90,17 +108,19 @@ export async function editarCompra(id, payload) {
   const raw = payload.metodoPago || "";
   const metodoPago = raw.charAt(0).toUpperCase() + raw.slice(1);
 
+  // Solo se envía lo que el formulario incluyó según el estado de la compra;
+  // el backend rechaza campos no editables para el estado actual.
   const body = {
-    Metodo_Pago:   metodoPago || undefined,
-    Notas:         payload.notas ?? null,
-    Fecha_Llegada: payload.fecha_llegada || null,
+    Metodo_Pago: metodoPago || undefined,
+    Notas:       payload.notas ?? null,
   };
 
-  // Solo si la compra está pendiente el proveedor y fecha son editables
-  if (payload.idProveedor) body.ID_Proveedor = Number(payload.idProveedor);
-  if (payload.fecha)        body.Fecha_Compra = payload.fecha;
+  // Comprobante: URL para fijarlo, "" para quitarlo, ausente = sin cambios.
+  if (payload.comprobante !== undefined) body.Comprobante = payload.comprobante || "";
+  if (payload.fecha_llegada !== undefined) body.Fecha_Llegada = payload.fecha_llegada || null;
+  if (payload.idProveedor !== undefined) body.ID_Proveedor = Number(payload.idProveedor);
+  if (payload.fecha !== undefined) body.Fecha_Compra = payload.fecha || null;
 
-  // Gastos adicionales — el componente solo los envía cuando son editables (compra pendiente)
   if (payload.gastos) {
     const g = payload.gastos;
     body.Costo_Transporte     = Number(g.transporte) || null;

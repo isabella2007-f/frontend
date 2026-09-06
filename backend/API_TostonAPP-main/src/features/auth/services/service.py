@@ -177,20 +177,17 @@ def autenticar(db: Session, correo: str, contrasena: str):
 # ─────────────────────────────────────────
 
 def registrar_cliente(db: Session, datos):
-    """
-    Crea un nuevo usuario (cliente) ACTIVO (Estado=1) para que pueda usar la
-    cuenta de inmediato (crear pedidos, ver su panel) sin esperar la verificación
-    de correo. Igualmente se le envía el email de verificación si hay proveedor
-    configurado, pero ya no bloquea el acceso.
-    Asigna el rol Cliente directamente en la columna ID_Rol.
-    Devuelve el Usuario creado para que el router pueda iniciar la sesión.
-    """
+
     if buscar_por_correo(db, datos.Correo)[0]:
         raise HTTPException(status_code=400, detail="El correo ya está registrado")
 
-    rol_cliente = db.query(Rol).filter(Rol.Rol == "Cliente").first()
-    if not rol_cliente:
-        raise HTTPException(status_code=500, detail="Rol Cliente no encontrado en el sistema")
+    # El rol Cliente es el ID 3 (estático). Se busca por ID; el nombre es solo
+    # un respaldo por si algún entorno tuviera los IDs corridos.
+    rol_cliente = (
+        db.query(Rol).filter(Rol.ID_Rol == 3).first()
+        or db.query(Rol).filter(Rol.Rol == "Cliente").first()
+    )
+    id_rol_cliente = rol_cliente.ID_Rol if rol_cliente else 3
 
     nuevo = Usuario(
         Nombre         = datos.Nombre,
@@ -198,11 +195,9 @@ def registrar_cliente(db: Session, datos):
         Correo         = datos.Correo,
         Contrasena     = hashear_contrasena(datos.Contrasena),
         Fecha_creacion = datetime.now(),
-        Estado            = 1,  # activo de inmediato: el cliente puede usar la cuenta
-        # Sin servicio de email no puede llegar la verificación → marcar verificado
-        # directamente para que el segundo login no quede bloqueado.
+        Estado            = 1,
         Correo_Verificado = 0 if (GMAIL_CLIENT_ID or BREVO_API_KEY or RESEND_API_KEY) else 1,
-        ID_Rol         = rol_cliente.ID_Rol,
+        ID_Rol         = id_rol_cliente,
         Cedula         = getattr(datos, "Numero_documento", None) or None,
         Tipo_Documento = getattr(datos, "Tipo_documento", None) or None,
         Direccion      = None,
@@ -225,7 +220,7 @@ def registrar_cliente(db: Session, datos):
         try:
             _enviar_email_verificacion(datos.Correo, token, datos.Nombre)
         except Exception:
-            pass  # el correo es informativo; la cuenta ya está activa
+            pass
 
     db.commit()
     db.refresh(nuevo)
@@ -332,7 +327,10 @@ def _enviar_email_verificacion(correo_destino: str, token: str, nombre: str = ""
     _enviar_smtp(msg, correo_destino)
 
 
-def _enviar_email_bienvenida_empleado(correo_destino: str, nombre: str, contrasena: str) -> None:
+def _enviar_email_bienvenida_empleado(correo_destino: str, nombre: str) -> None:
+    # La contraseña NO viaja por correo (el correo no es un canal seguro): la
+    # comunica el administrador por otro medio, o el empleado la establece con
+    # "¿Olvidaste tu contraseña?".
     html = f"""
     <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:20px;">
       <div style="background:linear-gradient(135deg,#2E7D32,#66BB6A);padding:24px;border-radius:14px;text-align:center;margin-bottom:24px;">
@@ -340,17 +338,13 @@ def _enviar_email_bienvenida_empleado(correo_destino: str, nombre: str, contrase
         <p style="color:rgba(255,255,255,0.85);margin:4px 0 0;font-size:13px;">Cuenta creada</p>
       </div>
       <p style="color:#333;">Hola <strong>{nombre}</strong>,</p>
-      <p style="color:#555;font-size:14px;">El administrador ha creado tu cuenta en el sistema. Tus credenciales de acceso son:</p>
-      <div style="background:#f5f5f5;border-radius:10px;padding:16px;margin:20px 0;">
-        <p style="margin:0 0 8px;font-size:13px;color:#555;"><strong>Correo:</strong> {correo_destino}</p>
-        <p style="margin:0;font-size:13px;color:#555;"><strong>Contraseña temporal:</strong> {contrasena}</p>
-      </div>
-      <p style="color:#e53935;font-size:13px;">Cambia tu contraseña tras iniciar sesión por primera vez.</p>
+      <p style="color:#555;font-size:14px;">El administrador ha creado tu cuenta en el sistema, asociada a este correo (<strong>{correo_destino}</strong>).</p>
+      <p style="color:#555;font-size:14px;">Si no conoces tu contraseña, usa la opción <strong>"¿Olvidaste tu contraseña?"</strong> en la pantalla de inicio de sesión para establecerla.</p>
       <p style="color:#999;font-size:12px;">Si no esperabas este correo, contacta al administrador.</p>
     </div>
     """
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = "Tu cuenta en Brom's — Credenciales de acceso"
+    msg["Subject"] = "Tu cuenta en Brom's"
     msg.attach(MIMEText(html, "html"))
     _enviar_smtp(msg, correo_destino)
 
@@ -688,10 +682,12 @@ def obtener_mis_permisos(db: Session, actual: dict) -> list[str]:
     registro = actual["registro"]
     id_rol   = getattr(registro, "ID_Rol", None)
 
+    # Super admin (usuario ID 1) y Admin (ID_Rol 1): todos los permisos.
+    if getattr(registro, "ID_Usuario", None) == 1 or id_rol == 1:
+        return [p.Permiso for p in db.query(Permiso).all()]
+
     if not id_rol:
         return []
-    if id_rol == 1:
-        return [p.Permiso for p in db.query(Permiso).all()]
 
     from src.shared.services.permisos_catalogo import VER_HERMANO
 

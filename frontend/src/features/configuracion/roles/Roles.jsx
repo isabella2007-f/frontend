@@ -4,6 +4,7 @@ import { usePrivilegio } from "../../../context/PrivilegiosContext";
 import { getRoles, eliminarRol, toggleEstadoRol } from "../../../services/rolesService.js";
 import CrearRol from "./CrearRol.jsx";
 import EditarRol from "./EditarRol.jsx";
+import FilasRelleno from "../../../shared/components/FilasRelleno";
 import ModalEliminarValidado from "../../../ModalEliminarValidado";
 import "./Roles.css";
 
@@ -141,9 +142,13 @@ export default function GestionRoles() {
 
   useEffect(() => setPage(1), [search, filter]);
 
-  const handleSave = async () => {
+  const handleSave = async (info) => {
     await cargarDatos();
-    showToast(modal?.mode === "new" ? "Rol creado" : "Cambios guardados");
+    if (info?.sinCambios) {
+      showToast("No se hicieron cambios");
+    } else {
+      showToast(modal?.mode === "new" ? "Rol creado" : "Cambios guardados");
+    }
     setModal(null);
   };
 
@@ -241,7 +246,7 @@ export default function GestionRoles() {
 
         <div className="card">
           <div className="tbl-wrapper">
-            <table className="tbl">
+            <table className="tbl tbl--fixed-rows" style={{ "--tbl-row-h": "60px" }}>
               <thead>
                 <tr>
                   <th style={{ width: 48 }}>Nº</th>
@@ -280,7 +285,7 @@ export default function GestionRoles() {
                     </td>
                     <td>
                       <span className="cat-name">{rol.nombre}</span>
-                      {rol.esAdmin && (
+                      {rol.esEstatico && (
                         <span style={{
                           marginLeft: 6, fontSize: 10, fontWeight: 700,
                           color: "#f9a825", background: "#fff8e1",
@@ -309,7 +314,7 @@ export default function GestionRoles() {
                           data-tooltip="Ver rol"
                           onClick={() => setModal({ mode: "view", rol })}
                         ><Eye size={16} /></button>
-                        {!rol.esAdmin && (
+                        {!rol.esEstatico && (
                           <>
                             {puedeEditar && (
                               <button
@@ -331,6 +336,9 @@ export default function GestionRoles() {
                     </td>
                   </tr>
                 ))}
+                {!loading && (
+                  <FilasRelleno current={paginated.length} perPage={ITEMS_PER_PAGE} colSpan={6} />
+                )}
               </tbody>
             </table>
           </div>

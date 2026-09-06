@@ -22,11 +22,23 @@ export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
   const [showPrivilegios, setShowPrivilegios] = useState(false);
   const [iconFile, setIconFile]               = useState(null);
   const fileRef   = useRef();
+  const original  = useRef(null);
   const isView    = mode === "view";
   const { recargar: recargarPrivilegios, privilegios: misClaves, isAdmin } = usePrivilegios();
 
+  // Instantánea del rol al abrir, para detectar "guardar sin cambios".
+  const snapshot = (r) => ({
+    nombre:       (r.nombre || "").trim(),
+    icono:        r.icono || null,
+    iconoPreview: r.iconoPreview || null,
+    claves:       [...(r.permisos || [])].sort().join("|"),
+  });
+
   useEffect(() => {
-    if (rol) setForm({ ...rol, privilegios: normalize(rol.permisos, rol.esAdmin) });
+    if (rol) {
+      setForm({ ...rol, privilegios: normalize(rol.permisos, rol.esAdmin) });
+      original.current = snapshot(rol);
+    }
   }, [rol]);
 
   const set = (k, v) => {
@@ -56,6 +68,21 @@ export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
     if (!form.nombre.trim()) newErrors.nombre = "Campo requerido";
     if (Object.keys(newErrors).length > 0) { setErrors(newErrors); return; }
 
+    // "No se hicieron cambios": no disparar ninguna petición de escritura.
+    const activeClaves = (form.privilegios || []).filter(p => p.estado).map(p => p.id);
+    const o = original.current;
+    if (
+      o &&
+      !iconFile &&
+      form.nombre.trim()      === o.nombre &&
+      (form.icono || null)        === o.icono &&
+      (form.iconoPreview || null) === o.iconoPreview &&
+      [...activeClaves].sort().join("|") === o.claves
+    ) {
+      onSave?.({ sinCambios: true });
+      return;
+    }
+
     setSaving(true);
     try {
       const payload = { Rol: form.nombre.trim() };
@@ -67,7 +94,6 @@ export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
         payload.limpiar_icono = true;
       }
       await editarRol(rol.id, payload);
-      const activeClaves = (form.privilegios || []).filter(p => p.estado).map(p => p.id);
       await gestionarPermisos(rol.id, activeClaves);
       recargarPrivilegios();
       onSave?.();

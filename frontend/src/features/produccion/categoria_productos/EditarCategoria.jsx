@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { soloLetras, tieneLetras } from "../../../utils/inputFilters";
 import { ModalOverlay } from "./ui.jsx";
@@ -36,8 +36,24 @@ export default function EditarCategoria({ category, onClose, onSave, existingCat
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
+  // Instantánea al abrir, para detectar "guardar sin cambios".
+  const snapshot = (f) => JSON.stringify({
+    nombre:      (f.nombre ?? "").trim(),
+    descripcion: (f.descripcion ?? "").trim(),
+    icon:        f.icon ?? "",
+    estado:      !!f.estado,
+  });
+  const snapshotInicial = useRef(snapshot({
+    nombre: category?.nombre, descripcion: category?.descripcion, icon: category?.icon, estado: category?.estado,
+  }));
+
   useEffect(() => {
-    if (category) setForm({ nombre: category.nombre, descripcion: category.descripcion, icon: category.icon, estado: category.estado });
+    if (category) {
+      setForm({ nombre: category.nombre, descripcion: category.descripcion, icon: category.icon, estado: category.estado });
+      snapshotInicial.current = snapshot({
+        nombre: category.nombre, descripcion: category.descripcion, icon: category.icon, estado: category.estado,
+      });
+    }
   }, [category]);
 
   const set = (k, v) => {
@@ -77,6 +93,7 @@ export default function EditarCategoria({ category, onClose, onSave, existingCat
   const handleSave = async () => {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
+    if (snapshot(form) === snapshotInicial.current) { onSave({ sinCambios: true }); return; }
     setSaving(true);
     try {
       await onSave(

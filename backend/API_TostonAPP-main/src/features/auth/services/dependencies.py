@@ -17,6 +17,33 @@ ALGORITHM  = os.getenv("ALGORITHM", "HS256")
 
 oauth2_scheme = HTTPBearer()
 
+# Identidades especiales del sistema (ver prompts/prompt-roles.md):
+#  - SUPER_ADMIN_ID: el usuario del seed. Tiene control total POR SER ESTE
+#    USUARIO, no por su rol. Nadie lo puede modificar; su bypass en
+#    requiere_permiso() existe aparte del de ID_Rol == 1.
+#  - ROL_CLIENTE: rol estático y SIN permisos en Rol_x_Permiso. Todo lo que un
+#    cliente puede hacer se decide por su ID_Rol actual (es_cliente()), no por
+#    permisos asignados al rol.
+SUPER_ADMIN_ID = 1
+ROL_ADMIN      = 1
+ROL_CLIENTE    = 3
+
+
+def es_super_admin(actual: dict) -> bool:
+    """True si el usuario autenticado es el super admin (usuario ID 1)."""
+    return getattr(actual["registro"], "ID_Usuario", None) == SUPER_ADMIN_ID
+
+
+def es_cliente(actual: dict) -> bool:
+    """
+    True si el usuario autenticado tiene el rol Cliente (ID_Rol == 3).
+
+    El rol Cliente es estático y no lleva permisos en Rol_x_Permiso: usar esto
+    (o `actual["tipo"] == "cliente"`) para habilitarle lo que hace hoy, nunca
+    un permiso del rol.
+    """
+    return actual["registro"].ID_Rol == ROL_CLIENTE
+
 
 def obtener_usuario_actual(
     credentials: HTTPAuthorizationCredentials = Depends(oauth2_scheme),
@@ -123,19 +150,55 @@ def requiere_permiso(nombre_permiso: str):
     tiene el permiso requerido según su rol en Rol_x_Permiso.
 
     Reglas:
-    - Admin (ID_Rol=1): bypass total
-    - TODOS los demás, clientes incluidos: el permiso tiene que estar en
-      Rol_x_Permiso (con el auto-otorgado de `ver_`, ver `rol_tiene_permiso`).
-      El rol Cliente necesita `crear_pedidos` cargado ahí para poder comprar;
-      quitárselo deja la tienda entera devolviendo 403 al confirmar el pedido.
+    - Super admin (ID_Usuario == 1): bypass total, POR SER ESE USUARIO. Este
+      bypass es independiente del de ID_Rol para que el control del dueño no
+      dependa de que su rol siga siendo Admin.
+    - Admin (ID_Rol == 1): bypass total.
+    - Los demás: el permiso tiene que estar en Rol_x_Permiso (con el
+      auto-otorgado de `ver_`, ver `rol_tiene_permiso`).
+    - El rol Cliente NO tiene permisos: lo que un cliente puede hacer se
+      resuelve con `es_cliente()` / `permiso_o_cliente()`, no aquí.
     """
     def verificar(
         actual: dict    = Depends(obtener_usuario_actual),
         db:     Session = Depends(get_db)
     ):
-        id_rol = actual["registro"].ID_Rol
+        registro = actual["registro"]
 
-        if not rol_tiene_permiso(db, id_rol, nombre_permiso):
+        if registro.ID_Usuario == SUPER_ADMIN_ID:
+            return actual
+
+        if not rol_tiene_permiso(db, registro.ID_Rol, nombre_permiso):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes permiso para realizar esta acción"
+            )
+
+        return actual
+
+    return verificar
+
+
+def permiso_o_cliente(nombre_permiso: str):
+    """
+    Como `requiere_permiso(nombre_permiso)`, pero además deja pasar al rol
+    Cliente (ID_Rol == 3).
+
+    Se usa en los endpoints que comparten mostrador y clientes (confirmar /
+    crear un pedido): el empleado entra por el permiso, el cliente por su rol.
+    Sustituye a `requiere_permiso("crear_pedidos")` ahora que el rol Cliente
+    quedó sin permisos asignados.
+    """
+    def verificar(
+        actual: dict    = Depends(obtener_usuario_actual),
+        db:     Session = Depends(get_db)
+    ):
+        registro = actual["registro"]
+
+        if registro.ID_Usuario == SUPER_ADMIN_ID or es_cliente(actual):
+            return actual
+
+        if not rol_tiene_permiso(db, registro.ID_Rol, nombre_permiso):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="No tienes permiso para realizar esta acción"

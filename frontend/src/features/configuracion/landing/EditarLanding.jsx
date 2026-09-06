@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Eye, Save, RotateCcw, CheckCircle2 } from "lucide-react";
+import { useState, useRef } from "react";
+import { Eye, Save, RotateCcw, CheckCircle2, Info } from "lucide-react";
 import {
   getLandingConfig,
   saveLandingConfig,
@@ -48,24 +48,40 @@ const FIELDS = [
 export default function EditarLanding() {
   const [form,    setForm]    = useState(() => getLandingConfig());
   const [saved,   setSaved]   = useState(false);
+  const [sinCambios, setSinCambios] = useState(false);
   const [confirm, setConfirm] = useState(false);
+
+  // Instantánea de la config al abrir / tras cada guardado, para detectar
+  // "guardar sin cambios".
+  const snapshot = (f) => JSON.stringify(f);
+  const snapshotGuardado = useRef(snapshot(form));
 
   const handleChange = (key, value) => {
     setForm(prev => ({ ...prev, [key]: value }));
     setSaved(false);
+    setSinCambios(false);
   };
 
   const handleSave = () => {
+    if (snapshot(form) === snapshotGuardado.current) {
+      setSinCambios(true);
+      setTimeout(() => setSinCambios(false), 3000);
+      return;
+    }
     saveLandingConfig(form);
+    snapshotGuardado.current = snapshot(form);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
 
   const handleReset = () => {
     if (!confirm) { setConfirm(true); return; }
-    setForm(resetLandingConfig());
+    const defaults = resetLandingConfig();
+    setForm(defaults);
+    snapshotGuardado.current = snapshot(defaults);
     setConfirm(false);
     setSaved(false);
+    setSinCambios(false);
   };
 
   return (
@@ -117,6 +133,14 @@ export default function EditarLanding() {
         <div className="flex items-center gap-3 px-5 py-4 bg-[#e8f5e9] border border-[#a5d6a7] rounded-2xl text-[#1b5e20] font-bold">
           <CheckCircle2 className="w-5 h-5 text-[#4caf50]" />
           Cambios guardados correctamente
+        </div>
+      )}
+
+      {/* Toast sin cambios */}
+      {sinCambios && (
+        <div className="flex items-center gap-3 px-5 py-4 bg-gray-100 border border-gray-200 rounded-2xl text-gray-600 font-bold">
+          <Info className="w-5 h-5 text-gray-400" />
+          No se hicieron cambios
         </div>
       )}
 

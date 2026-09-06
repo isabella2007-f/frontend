@@ -14,6 +14,8 @@ function adaptarOrden(o) {
   return {
     id:             o.ID_Orden_Produccion,
     idVenta:        o.ID_Venta        || o.id_venta        || null,
+    ventaEstado:      o.venta_estado ?? null,
+    ventaEstadoLabel: o.venta_estado_label ?? null,
     idProducto:     o.ID_Producto,
     nombreProducto: o.nombre_producto,
     idInsumo:       o.ID_Insumo,
@@ -39,11 +41,24 @@ function adaptarOrden(o) {
   };
 }
 
-export async function getOrdenes({ pagina = 1, porPagina = 100, busqueda = "" } = {}) {
-  const params = new URLSearchParams({ pagina, por_pagina: porPagina });
-  if (busqueda) params.append("busqueda", busqueda);
-  const data = await apiFetch(`/ordenes-produccion/?${params}`);
-  return (data.ordenes || []).map(adaptarOrden);
+export async function getOrdenes({ busqueda = "" } = {}) {
+  // El backend pagina de a 100 como máximo. El listado se recorre entero para
+  // que con más de 100 órdenes no queden truncadas de forma silenciosa.
+  const POR_PAGINA = 100;
+  const todas = [];
+  let pagina = 1;
+  let total = Infinity;
+  while (todas.length < total) {
+    const params = new URLSearchParams({ pagina, por_pagina: POR_PAGINA });
+    if (busqueda) params.append("busqueda", busqueda);
+    const data = await apiFetch(`/ordenes-produccion/?${params}`);
+    total = data.total ?? 0;
+    const lote = (data.ordenes || []).map(adaptarOrden);
+    todas.push(...lote);
+    if (lote.length < POR_PAGINA) break;
+    pagina += 1;
+  }
+  return todas;
 }
 
 export async function crearOrden(data) {

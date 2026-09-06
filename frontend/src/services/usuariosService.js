@@ -52,3 +52,12 @@ export async function toggleEstadoUsuario(tipo, id, estadoActual) {
     body: JSON.stringify({ Estado: estadoActual ? 2 : 1 }),
   });
 }
+
+// Acción rápida "cambiar rol" del listado. El blindaje (super admin, admin
+// normales, no cambiarse el propio rol) lo valida el backend.
+export async function cambiarRolUsuario(id, idRol) {
+  return apiFetch(`/usuarios/${id}/rol`, {
+    method: "PATCH",
+    body: JSON.stringify({ ID_Rol: idRol }),
+  });
+}
