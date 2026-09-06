@@ -2506,6 +2506,53 @@ def actualizar_estado_grupo(
                 ),
             )
 
+    # Al entregar un grupo tienda: verificar producción de los productos de ESTE grupo.
+    # Los grupos domicilio llegan por cambiar_estado() en domicilios, que ya valida allí.
+    if nuevo_estado == "entregado" and grupo.Tipo_Entrega == "tienda":
+        items_grupo_e = db.query(GrupoEnvioItem).filter(GrupoEnvioItem.ID_Grupo == id_grupo).all()
+        ids_grupo_e = [i.ID_Producto for i in items_grupo_e]
+        if ids_grupo_e:
+            ops_abiertas = db.query(OrdenProduccion).filter(
+                OrdenProduccion.ID_Venta == id_venta,
+                OrdenProduccion.ID_Producto.in_(ids_grupo_e),
+                OrdenProduccion.Estado.notin_([11, 5]),
+            ).count()
+            if ops_abiertas > 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "La producción de este grupo aún no está completada. "
+                        "Completá las órdenes de producción antes de marcarlo como entregado."
+                    ),
+                )
+
+    # Al entregar: validar pago completo del pedido (el pago nunca se divide).
+    if nuevo_estado == "entregado":
+        if cobro_efectivo_pendiente(venta):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Registrá el cobro en efectivo antes de marcar el grupo como entregado: "
+                    "este pedido se paga (total o en parte) en mano."
+                ),
+            )
+        if getattr(venta, "Requiere_Anticipo", 0) and not getattr(venta, "Pago_Final_Registrado", 0):
+            raise HTTPException(
+                status_code=400,
+                detail="Debe registrar el pago final antes de marcar el grupo como entregado",
+            )
+        _metodo_v = (venta.Metodo_Pago or "").strip().lower()
+        _soporte_v = venta.Comprobante_Pago or getattr(venta, "Anticipo_Comprobante_Url", None)
+        _hay_transf_v = (
+            "transfer" in _metodo_v
+            or ("mixto" in _metodo_v and float(venta.Monto_Transferencia or 0) > 0)
+        )
+        if _hay_transf_v and not _soporte_v:
+            raise HTTPException(
+                status_code=400,
+                detail="Se requiere comprobante de pago para marcar el grupo como entregado",
+            )
+
     grupo.Estado = nuevo_estado
 
     # Sincronizar estado general del pedido

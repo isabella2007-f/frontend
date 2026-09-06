@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 from src.shared.services.models import (
     Domicilio, Venta, Usuario, Estado, Producto, ProductoImagen,
-    VentaXProducto, Rol, MensajeChat, OrdenProduccion, GrupoEnvio,
+    VentaXProducto, Rol, MensajeChat, OrdenProduccion, GrupoEnvio, GrupoEnvioItem,
 )
 from src.shared.services.notificaciones_utils import notificar, notificar_stock_producto
 from src.features.ventas.gestion_ventas.services.service import (
@@ -631,27 +631,36 @@ def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observacio
 
     es_domicilio_grupo = bool(dom.ID_Grupo)
 
-    # Para domicilios de grupos, los items ya están listos (son el grupo anticipado
-    # o el programado cuyos items se fabricaron). Saltamos los checks de producción
-    # y cobro que aplican al pedido completo, no al grupo individual.
-    if not es_domicilio_grupo:
-        # No sale a la calle lo que todavía se está fabricando. El pedido pasa por
-        # Listo cuando su producción termina; despacharlo antes desde el módulo de
-        # domicilios se saltaba ese control por la puerta de atrás, porque "En
-        # camino" mueve la venta directo al estado 9.
-        if nuevo_estado in (EstadoDomicilio.EN_CAMINO, EstadoDomicilio.ENTREGADO) and dom.ID_Venta:
+    # Validación de producción: aplica a todos, pero para domicilios de grupo
+    # solo se cuentan las OPs de los productos de ESE grupo, no de toda la venta.
+    if nuevo_estado in (EstadoDomicilio.EN_CAMINO, EstadoDomicilio.ENTREGADO) and dom.ID_Venta:
+        if es_domicilio_grupo:
+            ids_grupo = [
+                i.ID_Producto for i in
+                db.query(GrupoEnvioItem).filter(GrupoEnvioItem.ID_Grupo == dom.ID_Grupo).all()
+            ]
+            ordenes_abiertas = (
+                db.query(OrdenProduccion).filter(
+                    OrdenProduccion.ID_Venta == dom.ID_Venta,
+                    OrdenProduccion.ID_Producto.in_(ids_grupo),
+                    OrdenProduccion.Estado.notin_([11, 5]),
+                ).count()
+                if ids_grupo else 0
+            )
+        else:
             ordenes_abiertas = db.query(OrdenProduccion).filter(
                 OrdenProduccion.ID_Venta == dom.ID_Venta,
                 OrdenProduccion.Estado.notin_([11, 5]),
             ).count()
-            if ordenes_abiertas > 0:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        "La producción de este pedido aún no está completada. "
-                        "Completá la orden de producción antes de despacharlo."
-                    ),
-                )
+        if ordenes_abiertas > 0:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "La producción de este pedido aún no está completada. "
+                    "Completá la orden de producción antes de despacharlo."
+                ),
+            )
+        if not es_domicilio_grupo:
             faltantes = _faltantes_sin_cubrir(db, dom.ID_Venta, True)
             if faltantes:
                 raise HTTPException(
@@ -662,27 +671,25 @@ def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observacio
                     ),
                 )
 
-        if nuevo_estado == EstadoDomicilio.ENTREGADO and dom.ID_Venta:
-            venta_check = db.query(Venta).filter(Venta.ID_Venta == dom.ID_Venta).first()
-            if venta_check:
-                estado_pago = (getattr(venta_check, "Estado_Pago", None) or "pendiente").strip()
-                if estado_pago not in _ESTADOS_PAGO_ENTREGA:
-                    raise HTTPException(
-                        status_code=400,
-                        detail="Debes registrar el cobro antes de marcar el pedido como entregado",
-                    )
-                # El filtro de arriba deja pasar "anticipo_pagado" y
-                # "pendiente_validacion", que en un pedido mixto solo dicen que
-                # entró la mitad transferida: la plata en mano seguía sin cobrarse y
-                # el pedido se entregaba igual.
-                if cobro_efectivo_pendiente(venta_check):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=(
-                            "Registrá el cobro en efectivo antes de entregar: este pedido "
-                            "se paga (total o en parte) en mano."
-                        ),
-                    )
+    # Validación de pago: aplica a todos los domicilios, incluidos los de grupo.
+    # El pago nunca se divide — se revisa el estado del pedido completo.
+    if nuevo_estado == EstadoDomicilio.ENTREGADO and dom.ID_Venta:
+        venta_check = db.query(Venta).filter(Venta.ID_Venta == dom.ID_Venta).first()
+        if venta_check:
+            estado_pago = (getattr(venta_check, "Estado_Pago", None) or "pendiente").strip()
+            if estado_pago not in _ESTADOS_PAGO_ENTREGA:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Debes registrar el cobro antes de marcar el pedido como entregado",
+                )
+            if cobro_efectivo_pendiente(venta_check):
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Registrá el cobro en efectivo antes de entregar: este pedido "
+                        "se paga (total o en parte) en mano."
+                    ),
+                )
 
     if nuevo_estado == EstadoDomicilio.ENTREGADO:
         entregado_en = _now()
