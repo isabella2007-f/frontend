@@ -11,6 +11,12 @@ import {
   getNotificacionesCocina,
   getNotificacionesDomiciliario,
 } from "../../../services/notificacionesService";
+// El nombre del rol lo escribe quien lo crea en Configuración → Roles, así que
+// llega como "Domiciliario", "Repartidor", "domiciliarios"… Aquí se comparaba
+// con === 'domiciliario' y cualquier otra forma dejaba al repartidor fuera del
+// polling: la campana del navbar nunca le mostraba nada. Misma regla que usan
+// el router, el layout y el sidebar.
+import { esRolRepartidor } from "../../../utils/roles";
 
 /* ══════════════════════════════════════════════════════════
    TIPOS DE NOTIFICACIÓN
@@ -229,7 +235,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
     const isAdmin       = rol === 'admin' || rol === 'administrador';
     const isCliente     = user.tipo === 'cliente';
     const isCocinero    = ['cocina', 'cocinero', 'produccion', 'producción'].includes(rol);
-    const isDomiciliario = rol === 'domiciliario';
+    const isDomiciliario = esRolRepartidor(rol);
 
     if (isAdmin) {
       try {
@@ -365,7 +371,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
     const isAdmin      = rol === 'admin' || rol === 'administrador';
     const isCliente    = user.tipo === 'cliente';
     const isCocinero   = ['cocina', 'cocinero', 'produccion', 'producción'].includes(rol);
-    const isDomiciliario = rol === 'domiciliario';
+    const isDomiciliario = esRolRepartidor(rol);
     if (!isAdmin && !isCliente && !isCocinero && !isDomiciliario) return;
 
     fetchAPINotifs();
@@ -590,7 +596,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
       const rol            = currentUser?.rol?.toLowerCase();
       const isAdmin        = rol === 'admin' || rol === 'administrador';
       const isCook         = ['cocina', 'cocinero', 'produccion', 'producción'].includes(rol);
-      const isDomiciliario = rol === 'domiciliario';
+      const isDomiciliario = esRolRepartidor(rol);
 
       // Sincronizar lecturas con el backend (fire-and-forget) + fallback localStorage
       if (isAdmin) {
@@ -654,7 +660,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
       const isAdmin        = rol === 'admin' || rol === 'administrador';
       const isCook         = ['cocina', 'cocinero', 'produccion', 'producción'].includes(rol);
       const isClient       = currentUser?.tipo === 'cliente';
-      const isDomiciliario = rol === 'domiciliario';
+      const isDomiciliario = esRolRepartidor(rol);
 
       const isForAdmin       = isAdmin       && n.idDestinatario === 'admin';
       const isForCook        = isCook        && n.idDestinatario === 'produccion';
@@ -701,7 +707,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
       const rol            = currentUser?.rol?.toLowerCase();
       const isAdmin        = rol === 'admin' || rol === 'administrador';
       const isCook         = ['cocina', 'cocinero', 'produccion', 'producción'].includes(rol);
-      const isDomiciliario = rol === 'domiciliario';
+      const isDomiciliario = esRolRepartidor(rol);
 
       const dismissedBackend = loadFromLS(DISMISSED_BACKEND_KEY, []);
       const dismissedClaves  = loadFromLS(DISMISSED_CLAVES_KEY, []);
@@ -741,7 +747,7 @@ export function NotificacionesProvider({ children, insumos = [], lotes = [], ped
     const isAdmin        = rol === 'admin' || rol === 'administrador';
     const isCook         = ['cocina', 'cocinero', 'produccion', 'producción'].includes(rol);
     const isClient       = user?.tipo === 'cliente';
-    const isDomiciliario = rol === 'domiciliario';
+    const isDomiciliario = esRolRepartidor(rol);
     const isForAdmin       = isAdmin       && n.idDestinatario === 'admin';
     const isForCook        = isCook        && n.idDestinatario === 'produccion';
     const isForClient      = isClient      && n.idDestinatario === String(user?.id);
