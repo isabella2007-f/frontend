@@ -2218,23 +2218,31 @@ def resolver_escalado_cancelar(db: Session, id_venta: int, actual: dict) -> dict
 
 # ── Feature "Grupos de envío" ──────────────────────────────────────────────
 
-def _items_listos_venta(db: Session, id_venta: int) -> set[int]:
-    """IDs de productos del pedido que ya están listos para despachar.
+def _items_listos_venta(db: Session, id_venta: int) -> dict[int, int]:
+    """Cantidad de unidades listas por producto del pedido.
 
-    Listo = no tiene OrdenProduccion asociada (estaba en stock al hacer el pedido)
-            O tiene OrdenProduccion con Estado == 11 (Completada).
+    Retorna {id_producto: cantidad_lista} para cada línea del pedido.
+
+    - Sin OP (estaba en stock): todas las unidades listas.
+    - OP completada (Estado 11): todas las unidades listas.
+    - OP activa: las unidades cubiertas por stock (Cantidad - Cantidad_Preorden)
+      son listas ahora; las restantes (Cantidad_Preorden) siguen en producción.
+      Si Cantidad_Preorden == Cantidad, cantidad_lista = 0.
     """
     items = db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()
     ordenes = db.query(OrdenProduccion).filter(OrdenProduccion.ID_Venta == id_venta).all()
     estado_por_producto = {o.ID_Producto: o.Estado for o in ordenes}
 
-    listos: set[int] = set()
+    resultado: dict[int, int] = {}
     for item in items:
         if item.ID_Producto not in estado_por_producto:
-            listos.add(item.ID_Producto)
+            resultado[item.ID_Producto] = item.Cantidad
         elif estado_por_producto[item.ID_Producto] == 11:
-            listos.add(item.ID_Producto)
-    return listos
+            resultado[item.ID_Producto] = item.Cantidad
+        else:
+            preorden = item.Cantidad_Preorden or 0
+            resultado[item.ID_Producto] = max(0, item.Cantidad - preorden)
+    return resultado
 
 
 def _formato_grupo(grupo: GrupoEnvio) -> dict:
@@ -2244,7 +2252,7 @@ def _formato_grupo(grupo: GrupoEnvio) -> dict:
         "fecha":       grupo.Fecha_Entrega,
         "tipo_entrega":grupo.Tipo_Entrega,
         "estado":      grupo.Estado,
-        "productos":   [i.ID_Producto for i in grupo.items],
+        "productos":   [{"id_producto": i.ID_Producto, "cantidad": i.Cantidad} for i in grupo.items],
     }
 
 
@@ -2266,16 +2274,21 @@ def obtener_items_listos(db: Session, id_venta: int, actual: dict) -> dict:
     productos_map = {p.ID_Producto: p for p in
                      db.query(Producto).filter(Producto.ID_Producto.in_(prod_ids)).all()} if prod_ids else {}
 
+    resultado_listos = []
+    resultado_pendientes = []
+    for item in todos_items:
+        nombre = getattr(productos_map.get(item.ID_Producto), "nombre", "") or ""
+        cant_lista = listos.get(item.ID_Producto, 0)
+        cant_pendiente = item.Cantidad - cant_lista
+        if cant_lista > 0:
+            resultado_listos.append({"id_producto": item.ID_Producto, "nombre": nombre, "cantidad": cant_lista})
+        if cant_pendiente > 0:
+            resultado_pendientes.append({"id_producto": item.ID_Producto, "nombre": nombre, "cantidad": cant_pendiente})
+
     return {
         "id_venta": id_venta,
-        "listos": [
-            {"id_producto": i.ID_Producto, "nombre": productos_map.get(i.ID_Producto, Producto()).nombre, "cantidad": i.Cantidad}
-            for i in todos_items if i.ID_Producto in listos
-        ],
-        "pendientes": [
-            {"id_producto": i.ID_Producto, "nombre": productos_map.get(i.ID_Producto, Producto()).nombre, "cantidad": i.Cantidad}
-            for i in todos_items if i.ID_Producto not in listos
-        ],
+        "listos":     resultado_listos,
+        "pendientes": resultado_pendientes,
     }
 
 
@@ -2323,13 +2336,12 @@ def crear_grupos_envio(
     if db.query(GrupoEnvio).filter(GrupoEnvio.ID_Venta == id_venta).count() > 0:
         raise HTTPException(status_code=400, detail="Este pedido ya tiene grupos de envío creados")
 
-    listos  = _items_listos_venta(db, id_venta)
-    todos   = {i.ID_Producto for i in db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()}
-    pendientes = todos - listos
+    todos_items = db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()
+    listos = _items_listos_venta(db, id_venta)  # {id_producto: cantidad_lista}
 
-    if not todos:
+    if not todos_items:
         raise HTTPException(status_code=400, detail="El pedido no tiene productos")
-    if not listos:
+    if not any(v > 0 for v in listos.values()):
         raise HTTPException(status_code=400, detail="Ningún producto está listo todavía; no se puede solicitar entrega anticipada")
 
     hoy = _now().date()
@@ -2354,18 +2366,26 @@ def crear_grupos_envio(
     )
     db.add(grupo_a)
     db.flush()
-    for pid in listos:
-        db.add(GrupoEnvioItem(ID_Grupo=grupo_a.ID_Grupo, ID_Venta=id_venta, ID_Producto=pid))
+    hay_pendientes = False
+    for item in todos_items:
+        cant_lista = listos.get(item.ID_Producto, 0)
+        cant_pendiente = item.Cantidad - cant_lista
+        if cant_lista > 0:
+            db.add(GrupoEnvioItem(ID_Grupo=grupo_a.ID_Grupo, ID_Venta=id_venta, ID_Producto=item.ID_Producto, Cantidad=cant_lista))
+        if cant_pendiente > 0:
+            hay_pendientes = True
 
-    if pendientes:
+    if hay_pendientes:
         grupo_b = GrupoEnvio(
             ID_Venta=id_venta, Tipo="programado",
             Fecha_Entrega=fecha_programada, Tipo_Entrega=tipo_entrega_b, Estado="pendiente",
         )
         db.add(grupo_b)
         db.flush()
-        for pid in pendientes:
-            db.add(GrupoEnvioItem(ID_Grupo=grupo_b.ID_Grupo, ID_Venta=id_venta, ID_Producto=pid))
+        for item in todos_items:
+            cant_pendiente = item.Cantidad - listos.get(item.ID_Producto, 0)
+            if cant_pendiente > 0:
+                db.add(GrupoEnvioItem(ID_Grupo=grupo_b.ID_Grupo, ID_Venta=id_venta, ID_Producto=item.ID_Producto, Cantidad=cant_pendiente))
 
     venta.Envio_Completo_Domingo = 0
     db.commit()

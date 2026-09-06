@@ -474,6 +474,9 @@ class GrupoEnvioItem(Base):
     ID_Grupo    = Column(Integer, ForeignKey("Grupos_Envio.ID_Grupo"), nullable=False)
     ID_Venta    = Column(Integer, ForeignKey("Ventas.ID_Venta"), nullable=False)
     ID_Producto = Column(Integer, ForeignKey("Productos.ID_Producto"), nullable=False)
+    # Unidades de este producto asignadas a este grupo (puede ser < Cantidad total
+    # cuando el producto está parcialmente cubierto por stock y parcialmente por OP)
+    Cantidad    = Column(Integer, nullable=False, default=1)
 
     grupo    = relationship("GrupoEnvio", back_populates="items")
     producto = relationship("Producto")

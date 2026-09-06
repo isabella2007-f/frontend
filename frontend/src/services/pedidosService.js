@@ -73,7 +73,11 @@ const adaptPedido = (p) => {
       fecha:       g.fecha,
       tipo_entrega: g.tipo_entrega,
       estado:      g.estado,        // 'pendiente' | 'enviado' | 'entregado' | 'cancelado'
-      productos:   g.productos || [],
+      // productos: [{id_producto, cantidad}] — un producto puede aparecer en dos
+      // grupos con cantidades distintas si está parcialmente cubierto por stock
+      productos:   (g.productos || []).map(pr =>
+        typeof pr === 'object' ? pr : { id_producto: pr, cantidad: null }
+      ),
     })),
     cliente: {
       nombre:   p.nombre_cliente   || "",

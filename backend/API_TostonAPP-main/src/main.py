@@ -484,6 +484,19 @@ def migrate_db():
                 raise
         _log.info("migración Grupos_Envio / Grupo_Envio_Item: tablas listas")
 
+    # ── Columna Cantidad en Grupo_Envio_Item (soporte para cantidades parciales) ─
+    with engine.connect() as conn:
+        col_existe = conn.execute(text(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS "
+            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Grupo_Envio_Item' AND COLUMN_NAME = 'Cantidad'"
+        )).scalar()
+        if not col_existe:
+            conn.execute(text("ALTER TABLE Grupo_Envio_Item ADD COLUMN Cantidad INT NOT NULL DEFAULT 1"))
+            conn.commit()
+            _log.info("migración: columna Cantidad añadida a Grupo_Envio_Item")
+        else:
+            _log.info("migración Grupo_Envio_Item.Cantidad: ya existe")
+
     # ── Refactor del catálogo de permisos ─────────────────────────────────────
     # Renombres, fusión de "ventas" en "pedidos", retiro de permisos sin uso y
     # migración de los endpoints que usaban un permiso "proxy" de otro módulo a

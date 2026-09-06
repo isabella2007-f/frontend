@@ -922,10 +922,6 @@ const PedidosClientePage = () => {
                 </div>
               )}
 
-              {/* ── DEBUG temporal — siempre visible cuando envio_completo_domingo es false ── */}
-              {selectedPedido.envio_completo_domingo === false && (
-                <pre style={{ fontSize: 10, background: '#fff', border: '2px solid #f00', borderRadius: 6, padding: 8, margin: '4px 0', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{JSON.stringify({ envio_completo_domingo: selectedPedido.envio_completo_domingo, grupos_envio_len: selectedPedido.grupos_envio?.length ?? 0, grupos_envio: selectedPedido.grupos_envio, cargando: loadingItemsListos, error: itemsListosError, listos: itemsListos?.listos?.length ?? 'null', pendientes: itemsListos?.pendientes?.length ?? 'null' }, null, 2)}</pre>
-              )}
               {/* ── Entrega anticipada (cuando eligió recibir antes lo disponible) ── */}
               {selectedPedido.envio_completo_domingo === false && (!selectedPedido.grupos_envio || selectedPedido.grupos_envio.length === 0) && (
                 <div style={{ background: '#e3f2fd', border: '1.5px solid #90caf9', borderRadius: 14, padding: '14px 16px' }}>
