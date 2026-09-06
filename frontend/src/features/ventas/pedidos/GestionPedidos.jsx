@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { fmtFecha, getRecordDate } from "../../../utils/dateUtils.js";
 import DateRangeFilter from "../../../shared/components/DateRangeFilter";
 import { descargarFacturaPedido } from "../../../utils/facturaGenerator.js";
-import { getPedidos, getHistorialPedidos, confirmarPedido, cancelarPedido, crearPedido, editarPedido, cambiarEstadoVenta, proponerFechaProduccion, registrarPagoFinal, aprobarComprobante, rechazarComprobante, registrarCobroPedido, resolverEscaladoAcuerdo, resolverEscaladoCancelar, getItemsListos, crearGruposEnvio, actualizarEstadoGrupo, cancelarGrupoPendiente } from "../../../services/pedidosService.js";
+import { getPedidos, getPedido, getHistorialPedidos, confirmarPedido, cancelarPedido, crearPedido, editarPedido, cambiarEstadoVenta, proponerFechaProduccion, registrarPagoFinal, aprobarComprobante, rechazarComprobante, registrarCobroPedido, resolverEscaladoAcuerdo, resolverEscaladoCancelar, getItemsListos, crearGruposEnvio, actualizarEstadoGrupo, cancelarGrupoPendiente } from "../../../services/pedidosService.js";
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
 import { asignarRepartidor } from "../../../services/domiciliosService.js";
 import { registrarSalida } from "../../../services/salidasService.js";
@@ -1915,6 +1915,17 @@ export default function GestionPedidos() {
 
   const hasFilter = filterEstado !== "todos" || filterTipo !== "todos";
 
+  const handleVerPedido = async (ped) => {
+    setModal({ type: "ver", pedido: ped });
+    try {
+      const fresco = await getPedido(ped.id);
+      setModal(prev => prev?.type === "ver" && prev.pedido?.id === ped.id ? { ...prev, pedido: fresco } : prev);
+      setPedidos(prev => prev.map(p => p.id === fresco.id ? fresco : p));
+    } catch {
+      // Si falla el fetch fresco, el modal ya está abierto con el dato cacheado — no hace nada
+    }
+  };
+
   const handleCambiarEstadoDirecto = (ped) => {
     setModal({ type: "confirmarEstado", pedido: ped, nuevoEstado: "Confirmado" });
   };
@@ -2538,13 +2549,13 @@ export default function GestionPedidos() {
                         {vista === "historial" ? (
                           <button
                             style={{ padding: "5px 14px", fontSize: 12, border: "1px solid #e0e0e0", borderRadius: 8, cursor: "pointer", background: "#fafafa", fontWeight: 600, color: "#555" }}
-                            onClick={() => setModal({ type: "ver", pedido: ped })}
+                            onClick={() => handleVerPedido(ped)}
                           >Ver detalles</button>
                         ) : (
                           <AccionesCell
                             ped={ped}
                             saving={actionSaving}
-                            onVer={ped => setModal({ type: "ver", pedido: ped })}
+                            onVer={handleVerPedido}
                             onEditar={ped => setModal({ type: "editar", pedido: ped })}
                             onConfirmar={handleCambiarEstadoDirecto}
                             onMarcarListo={handleMarcarListo}
