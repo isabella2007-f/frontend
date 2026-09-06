@@ -2482,6 +2482,30 @@ def actualizar_estado_grupo(
             detail=f"No se puede pasar de '{grupo.Estado}' a '{nuevo_estado}'",
         )
 
+    # El grupo programado contiene ítems que pueden aún estar en producción.
+    # Antes de marcarlo como "enviado", verificamos que cada producto asignado
+    # al grupo tenga la cantidad requerida cubierta por stock o OP completada.
+    if grupo.Tipo == "programado" and nuevo_estado == "enviado":
+        listos = _items_listos_venta(db, id_venta)
+        items_grupo = db.query(GrupoEnvioItem).filter(
+            GrupoEnvioItem.ID_Grupo == id_grupo
+        ).all()
+        faltantes = []
+        for item in items_grupo:
+            cant_lista = listos.get(item.ID_Producto, 0)
+            if cant_lista < item.Cantidad:
+                nombre = item.producto.nombre if item.producto else f"Producto #{item.ID_Producto}"
+                faltantes.append(f"{nombre} ({cant_lista}/{item.Cantidad} listos)")
+        if faltantes:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "El grupo programado aún tiene producción pendiente: "
+                    f"{', '.join(faltantes)}. "
+                    "Completá las órdenes de producción antes de marcarlo como enviado."
+                ),
+            )
+
     grupo.Estado = nuevo_estado
 
     # Sincronizar estado general del pedido
