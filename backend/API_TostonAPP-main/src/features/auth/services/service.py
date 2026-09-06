@@ -557,6 +557,17 @@ def resetear_contrasena(db: Session, token: str, nueva_contrasena: str) -> None:
 # CAMBIO DE CONTRASEÑA AUTENTICADO
 # ─────────────────────────────────────────
 
+#: Estado con el que queda una cuenta que su dueño eliminó y que no se puede
+#: borrar de verdad porque tiene pedidos detrás.
+#:
+#: Tiene que ser un id que EXISTA en la tabla Estados: la columna es una llave
+#: foránea. Antes se usaba 0, que no está en el catálogo —empieza en 1—, así
+#: que MySQL rechazaba el commit y el borrado moría en 500. "Inactivo" (2) es
+#: el mismo estado con el que el admin desactiva una cuenta, y el login ya lo
+#: bloquea.
+ESTADO_CUENTA_ELIMINADA = 2
+
+
 def eliminar_mi_cuenta(db: Session, actual: dict) -> dict:
     """
     Permite a cualquier usuario eliminar su propia cuenta, EXCEPTO el administrador.
@@ -615,10 +626,23 @@ def eliminar_mi_cuenta(db: Session, actual: dict) -> dict:
     obj = db.query(Usuario).filter(Usuario.ID_Usuario == id_u).first()
     if obj:
         obj.Correo            = f"eliminado+{id_u}@cuenta.local"
-        obj.Estado            = 0
+        obj.Estado            = ESTADO_CUENTA_ELIMINADA
         obj.Correo_Verificado = 0
         obj.Contrasena        = hashear_contrasena(uuid.uuid4().hex)
-        db.commit()
+        try:
+            db.commit()
+        except Exception:
+            # Si ni esto se pudo, el cliente merece saber que su cuenta sigue
+            # viva. Antes subía como 500 y la app lo mostraba como si fuera
+            # falta de internet, así que el usuario reintentaba para siempre.
+            db.rollback()
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "No se pudo eliminar la cuenta. Vuelve a intentarlo y, si "
+                    "sigue pasando, escríbenos."
+                ),
+            )
     return {"mensaje": "Tu cuenta fue eliminada correctamente."}
 
 

@@ -343,13 +343,30 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
 
       {/* Número de documento — editable solo primera vez */}
       <Field
-        label={cedulaYaEstablecida ? "Número de documento" : "Número de documento (primera vez)"}
+        label={cedulaYaEstablecida ? "Documento" : "Número de documento (primera vez)"}
         icon={CreditCard}
         locked={cedulaYaEstablecida}
         error={errors.cedula}
       >
         {cedulaYaEstablecida ? (
-          <input value={form.cedula} readOnly style={disabledStyle} title="El número de documento no puede modificarse una vez establecido" data-tooltip="El documento no puede modificarse una vez establecido" />
+          // El tipo va al lado y no oculto: si no, el cliente no tiene cómo
+          // saber con cuál quedó registrado.
+          <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10 }}>
+            <input
+              value={form.tipo_documento || '—'}
+              readOnly
+              style={disabledStyle}
+              title="El tipo de documento no puede modificarse una vez establecido"
+              data-tooltip="El tipo de documento no puede modificarse una vez establecido"
+            />
+            <input
+              value={form.cedula}
+              readOnly
+              style={disabledStyle}
+              title="El número de documento no puede modificarse una vez establecido"
+              data-tooltip="El documento no puede modificarse una vez establecido"
+            />
+          </div>
         ) : (
           <>
             <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, marginBottom: errors.tipo_documento ? 0 : 0 }}>
