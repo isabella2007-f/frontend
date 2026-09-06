@@ -534,8 +534,11 @@ class Domicilio(Base):
     OTP        = Column(String(10), nullable=True)
     OTP_Expira = Column(DateTime, nullable=True)
 
+    ID_Grupo = Column(Integer, ForeignKey("Grupos_Envio.ID_Grupo"), nullable=True)
+
     venta    = relationship("Venta", back_populates="domicilios")
     empleado = relationship("Usuario", foreign_keys=[ID_Empleado])
+    grupo    = relationship("GrupoEnvio", foreign_keys=[ID_Grupo])
 
 
 class Devolucion(Base):

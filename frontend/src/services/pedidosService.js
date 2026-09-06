@@ -212,13 +212,24 @@ export const guardarEnvioCompletoDomingo = async (id, valor) => {
 export const getItemsListos = async (idVenta) =>
   apiFetch(`/ventas/${idVenta}/items-listos`);
 
-export const crearGruposEnvio = async (idVenta, { fechaAnticipada, tipoEntregaA = null, tipoEntregaB = null }) => {
+export const crearGruposEnvio = async (idVenta, {
+  fechaAnticipada,
+  tipoEntregaA = null, tipoEntregaB = null,
+  direccionA = null, municipioA = null, departamentoA = null,
+  direccionB = null, municipioB = null, departamentoB = null,
+}) => {
   const data = await apiFetch(`/ventas/${idVenta}/crear-grupos-envio`, {
     method: "POST",
     body: JSON.stringify({
-      fecha_anticipada: fechaAnticipada,
-      tipo_entrega_a:   tipoEntregaA,
-      tipo_entrega_b:   tipoEntregaB,
+      fecha_anticipada:  fechaAnticipada,
+      tipo_entrega_a:    tipoEntregaA,
+      tipo_entrega_b:    tipoEntregaB,
+      direccion_a:       direccionA    || null,
+      municipio_a:       municipioA    || null,
+      departamento_a:    departamentoA || null,
+      direccion_b:       direccionB    || null,
+      municipio_b:       municipioB    || null,
+      departamento_b:    departamentoB || null,
     }),
   });
   return adaptPedido(data);

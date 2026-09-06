@@ -206,13 +206,24 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit, onUpdatePedido }) 
   );
 
   /* ── Estado para "Dividir entrega" (admin inicia la división) ── */
-  const mostrarDividir = pedido.sobre_stock && (!pedido.grupos_envio || pedido.grupos_envio.length === 0);
+  const _sinGrupos    = pedido.sobre_stock && (!pedido.grupos_envio || pedido.grupos_envio.length === 0);
+  const eligioJunto   = _sinGrupos && pedido.envio_completo_domingo === true;
+  const sinDecision   = _sinGrupos && pedido.envio_completo_domingo !== true;
+  const mostrarDividir = _sinGrupos;
+  const [mostrarFormForzado, setMostrarFormForzado] = useState(false);
+  const mostrarFormDivision = sinDecision || mostrarFormForzado;
   const [adminItems,      setAdminItems]      = useState(null);
   const [loadingAdminItems, setLoadingAdminItems] = useState(false);
   const [adminItemsError, setAdminItemsError] = useState(null);
   const [adminFecha,      setAdminFecha]      = useState('');
   const [adminTipoA,      setAdminTipoA]      = useState('');
   const [adminTipoB,      setAdminTipoB]      = useState('');
+  const [adminDireccionA, setAdminDireccionA] = useState(pedido.direccion_entrega || '');
+  const [adminMunicipioA, setAdminMunicipioA] = useState(pedido.municipio || '');
+  const [adminDeptoA,     setAdminDeptoA]     = useState(pedido.departamento || '');
+  const [adminDireccionB, setAdminDireccionB] = useState(pedido.direccion_entrega || '');
+  const [adminMunicipioB, setAdminMunicipioB] = useState(pedido.municipio || '');
+  const [adminDeptoB,     setAdminDeptoB]     = useState(pedido.departamento || '');
   const [creandoAdmin,    setCreandoAdmin]    = useState(false);
   const [errorAdmin,      setErrorAdmin]      = useState('');
 
@@ -220,9 +231,9 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit, onUpdatePedido }) 
   const [savingGrupo, setSavingGrupo] = useState(false);
   const [errorGrupo,  setErrorGrupo]  = useState('');
 
-  /* Fetch items-listos cuando el tab resumen está activo y el pedido requiere división */
+  /* Fetch items-listos cuando se va a mostrar el formulario de división */
   useEffect(() => {
-    if (!mostrarDividir || tab !== "resumen") return;
+    if (!mostrarFormDivision || tab !== "resumen") return;
     let cancelado = false;
     setLoadingAdminItems(true);
     setAdminItemsError(null);
@@ -232,7 +243,7 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit, onUpdatePedido }) 
       .finally(()  => { if (!cancelado) setLoadingAdminItems(false); });
     return () => { cancelado = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pedido.id, mostrarDividir, tab]);
+  }, [pedido.id, mostrarFormDivision, tab]);
 
   const handleDividirEntrega = async () => {
     if (!adminFecha) return;
@@ -241,8 +252,14 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit, onUpdatePedido }) 
     try {
       const actualizado = await crearGruposEnvio(pedido.id, {
         fechaAnticipada: adminFecha + 'T00:00:00',
-        tipoEntregaA: adminTipoA || null,
-        tipoEntregaB: adminTipoB || null,
+        tipoEntregaA:    adminTipoA || null,
+        tipoEntregaB:    adminTipoB || null,
+        direccionA:      adminTipoA === 'domicilio' ? adminDireccionA || null : null,
+        municipioA:      adminTipoA === 'domicilio' ? adminMunicipioA || null : null,
+        departamentoA:   adminTipoA === 'domicilio' ? adminDeptoA     || null : null,
+        direccionB:      adminTipoB === 'domicilio' ? adminDireccionB || null : null,
+        municipioB:      adminTipoB === 'domicilio' ? adminMunicipioB || null : null,
+        departamentoB:   adminTipoB === 'domicilio' ? adminDeptoB     || null : null,
       });
       onUpdatePedido?.(actualizado);
     } catch (e) {
@@ -441,6 +458,26 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit, onUpdatePedido }) 
                   <p style={{ fontSize: 10, fontWeight: 800, color: "#1565c0", letterSpacing: 1, textTransform: "uppercase", margin: "0 0 8px", display: "flex", alignItems: "center", gap: 5 }}>
                     <Truck size={12} /> Dividir entrega
                   </p>
+
+                  {/* Cliente ya eligió "todo junto" y el admin no forzó el formulario */}
+                  {eligioJunto && !mostrarFormForzado && (
+                    <div>
+                      <p style={{ fontSize: 13, color: "#1565c0", margin: "0 0 10px", lineHeight: 1.5 }}>
+                        El cliente eligió recibir todo junto
+                        {pedido.fecha_propuesta ? ` el ${new Date(pedido.fecha_propuesta.slice(0,10)+'T00:00:00').toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long'})}` : ''}.
+                      </p>
+                      <button
+                        onClick={() => setMostrarFormForzado(true)}
+                        style={{ background: "transparent", border: "1.5px solid #90caf9", borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, color: "#1565c0", cursor: "pointer" }}
+                      >
+                        Dividir de todas formas
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Formulario: sin decisión tomada, o admin forzó división */}
+                  {mostrarFormDivision && (
+                  <>
                   {loadingAdminItems && <p style={{ fontSize: 12, color: "#5c6bc0", margin: 0 }}>Verificando disponibilidad...</p>}
                   {adminItemsError && <p style={{ fontSize: 12, color: "#c62828", margin: 0 }}>{adminItemsError}</p>}
                   {!loadingAdminItems && adminItems && adminItems.listos?.length === 0 && (
@@ -487,6 +524,14 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit, onUpdatePedido }) 
                           <option value="domicilio">Domicilio</option>
                           <option value="tienda">Retiro en tienda</option>
                         </select>
+                        {adminTipoA === 'domicilio' && (
+                          <div style={{ marginBottom: 6 }}>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: "#1565c0", margin: "0 0 3px" }}>Dirección (listos)</p>
+                            <input value={adminDireccionA} onChange={e => setAdminDireccionA(e.target.value)} placeholder="Dirección" style={{ width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid #90caf9", fontSize: 12, boxSizing: "border-box", marginBottom: 4 }} />
+                            <input value={adminMunicipioA} onChange={e => setAdminMunicipioA(e.target.value)} placeholder="Municipio" style={{ width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid #90caf9", fontSize: 12, boxSizing: "border-box", marginBottom: 4 }} />
+                            <input value={adminDeptoA} onChange={e => setAdminDeptoA(e.target.value)} placeholder="Departamento" style={{ width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid #90caf9", fontSize: 12, boxSizing: "border-box" }} />
+                          </div>
+                        )}
                         {adminItems.pendientes?.length > 0 && (
                           <>
                             <p style={{ fontSize: 10, fontWeight: 700, color: "#1565c0", margin: "0 0 3px" }}>Tipo de entrega (en producción)</p>
@@ -496,6 +541,14 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit, onUpdatePedido }) 
                               <option value="domicilio">Domicilio</option>
                               <option value="tienda">Retiro en tienda</option>
                             </select>
+                            {adminTipoB === 'domicilio' && (
+                              <div style={{ marginBottom: 6 }}>
+                                <p style={{ fontSize: 10, fontWeight: 700, color: "#1565c0", margin: "0 0 3px" }}>Dirección (en producción)</p>
+                                <input value={adminDireccionB} onChange={e => setAdminDireccionB(e.target.value)} placeholder="Dirección" style={{ width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid #90caf9", fontSize: 12, boxSizing: "border-box", marginBottom: 4 }} />
+                                <input value={adminMunicipioB} onChange={e => setAdminMunicipioB(e.target.value)} placeholder="Municipio" style={{ width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid #90caf9", fontSize: 12, boxSizing: "border-box", marginBottom: 4 }} />
+                                <input value={adminDeptoB} onChange={e => setAdminDeptoB(e.target.value)} placeholder="Departamento" style={{ width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid #90caf9", fontSize: 12, boxSizing: "border-box" }} />
+                              </div>
+                            )}
                           </>
                         )}
                         {errorAdmin && <p style={{ fontSize: 11, color: "#c62828", margin: "0 0 6px" }}>{errorAdmin}</p>}
@@ -507,6 +560,8 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit, onUpdatePedido }) 
                         </button>
                       </div>
                     </div>
+                  )}
+                  </>
                   )}
                 </div>
               )}

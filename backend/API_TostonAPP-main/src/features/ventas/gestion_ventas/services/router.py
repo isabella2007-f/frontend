@@ -237,6 +237,8 @@ def crear_grupos_envio_endpoint(
         datos.tipo_entrega_a,
         datos.tipo_entrega_b,
         actual,
+        datos.direccion_a,   datos.municipio_a,   datos.departamento_a,
+        datos.direccion_b,   datos.municipio_b,   datos.departamento_b,
     )
 
 

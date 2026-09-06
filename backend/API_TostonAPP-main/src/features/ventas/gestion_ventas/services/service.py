@@ -2292,6 +2292,24 @@ def obtener_items_listos(db: Session, id_venta: int, actual: dict) -> dict:
     }
 
 
+def _resolver_direccion_grupo(direccion_req, municipio_req, departamento_req, venta, cliente, db):
+    """Devuelve (direccion, municipio, departamento) para un grupo con domicilio.
+
+    Prioridad: payload del request → domicilio original de la venta → perfil del cliente.
+    """
+    if direccion_req:
+        return direccion_req, municipio_req, departamento_req
+    dom_orig = db.query(Domicilio).filter(
+        Domicilio.ID_Venta == venta.ID_Venta,
+        Domicilio.ID_Grupo.is_(None),
+    ).first()
+    if dom_orig and dom_orig.Direccion_entrega:
+        return dom_orig.Direccion_entrega, dom_orig.Municipio_entrega, dom_orig.Departamento_entrega
+    if cliente and cliente.Direccion:
+        return cliente.Direccion, getattr(cliente, "Municipio", None), getattr(cliente, "Departamento", None)
+    return None, None, None
+
+
 def crear_grupos_envio(
     db: Session,
     id_venta: int,
@@ -2299,6 +2317,12 @@ def crear_grupos_envio(
     tipo_entrega_a: str | None,
     tipo_entrega_b: str | None,
     actual: dict,
+    direccion_a: str | None = None,
+    municipio_a: str | None = None,
+    departamento_a: str | None = None,
+    direccion_b: str | None = None,
+    municipio_b: str | None = None,
+    departamento_b: str | None = None,
 ) -> dict:
     """Registra la preferencia de entrega anticipada del cliente.
 
@@ -2376,6 +2400,7 @@ def crear_grupos_envio(
         if cant_pendiente > 0:
             hay_pendientes = True
 
+    grupo_b = None
     if hay_pendientes:
         grupo_b = GrupoEnvio(
             ID_Venta=id_venta, Tipo="programado",
@@ -2387,6 +2412,38 @@ def crear_grupos_envio(
             cant_pendiente = item.Cantidad - listos.get(item.ID_Producto, 0)
             if cant_pendiente > 0:
                 db.add(GrupoEnvioItem(ID_Grupo=grupo_b.ID_Grupo, ID_Venta=id_venta, ID_Producto=item.ID_Producto, Cantidad=cant_pendiente))
+
+    # Crear registros Domicilio para grupos con tipo_entrega = 'domicilio'
+    cliente = db.query(Usuario).filter(Usuario.ID_Usuario == venta.ID_Usuario).first()
+    if tipo_entrega_a == "domicilio":
+        dir_a, mun_a, dep_a = _resolver_direccion_grupo(
+            direccion_a, municipio_a, departamento_a, venta, cliente, db
+        )
+        if dir_a:
+            db.add(Domicilio(
+                ID_Venta             = id_venta,
+                ID_Grupo             = grupo_a.ID_Grupo,
+                Estado               = 3,   # PENDIENTE
+                Fecha_asignacion     = _now(),
+                Direccion_entrega    = dir_a,
+                Municipio_entrega    = mun_a,
+                Departamento_entrega = dep_a,
+            ))
+
+    if grupo_b and tipo_entrega_b == "domicilio":
+        dir_b, mun_b, dep_b = _resolver_direccion_grupo(
+            direccion_b, municipio_b, departamento_b, venta, cliente, db
+        )
+        if dir_b:
+            db.add(Domicilio(
+                ID_Venta             = id_venta,
+                ID_Grupo             = grupo_b.ID_Grupo,
+                Estado               = 3,   # PENDIENTE
+                Fecha_asignacion     = _now(),
+                Direccion_entrega    = dir_b,
+                Municipio_entrega    = mun_b,
+                Departamento_entrega = dep_b,
+            ))
 
     venta.Envio_Completo_Domingo = 0
     db.commit()

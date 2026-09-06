@@ -187,6 +187,14 @@ class CrearGruposEnvioInput(BaseModel):
     fecha_anticipada:    datetime
     tipo_entrega_a:      Optional[str]  = None   # 'domicilio' | 'tienda'
     tipo_entrega_b:      Optional[str]  = None
+    # Dirección de entrega para el grupo A (solo cuando tipo_entrega_a = 'domicilio')
+    direccion_a:         Optional[str]  = None
+    municipio_a:         Optional[str]  = None
+    departamento_a:      Optional[str]  = None
+    # Dirección de entrega para el grupo B (solo cuando tipo_entrega_b = 'domicilio')
+    direccion_b:         Optional[str]  = None
+    municipio_b:         Optional[str]  = None
+    departamento_b:      Optional[str]  = None
 
 
 # ── Actualizar estado de un grupo de envío ──

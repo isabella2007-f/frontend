@@ -497,6 +497,27 @@ def migrate_db():
         else:
             _log.info("migración Grupo_Envio_Item.Cantidad: ya existe")
 
+    # ── Columna ID_Grupo en Domicilios (domicilios de grupos de envío) ─────────
+    with engine.connect() as conn:
+        col_existe = conn.execute(text(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS "
+            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'Domicilios' AND COLUMN_NAME = 'ID_Grupo'"
+        )).scalar()
+        if not col_existe:
+            try:
+                conn.execute(text("ALTER TABLE Domicilios ADD COLUMN ID_Grupo INT NULL"))
+                conn.execute(text(
+                    "ALTER TABLE Domicilios ADD CONSTRAINT fk_domicilios_grupo "
+                    "FOREIGN KEY (ID_Grupo) REFERENCES Grupos_Envio(ID_Grupo)"
+                ))
+                conn.commit()
+                _log.info("migración: columna ID_Grupo añadida a Domicilios")
+            except Exception as exc:
+                _log.error("migración Domicilios.ID_Grupo FALLÓ — %s", exc, exc_info=True)
+                raise
+        else:
+            _log.info("migración Domicilios.ID_Grupo: ya existe")
+
     # ── Refactor del catálogo de permisos ─────────────────────────────────────
     # Renombres, fusión de "ventas" en "pedidos", retiro de permisos sin uso y
     # migración de los endpoints que usaban un permiso "proxy" de otro módulo a

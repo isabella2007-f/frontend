@@ -389,6 +389,12 @@ const PedidosClientePage = () => {
   const [fechaAnticipada,      setFechaAnticipada]      = useState('');
   const [tipoEntregaA,         setTipoEntregaA]         = useState('');
   const [tipoEntregaB,         setTipoEntregaB]         = useState('');
+  const [direccionA,           setDireccionA]           = useState('');
+  const [municipioA,           setMunicipioA]           = useState('');
+  const [deptoA,               setDeptoA]               = useState('');
+  const [direccionB,           setDireccionB]           = useState('');
+  const [municipioB,           setMunicipioB]           = useState('');
+  const [deptoB,               setDeptoB]               = useState('');
   const [creandoGrupos,        setCreandoGrupos]        = useState(false);
   const [gruposError,          setGruposError]          = useState('');
   const [itemsListosError,     setItemsListosError]     = useState(null);
@@ -473,8 +479,14 @@ const PedidosClientePage = () => {
     try {
       const actualizado = await crearGruposEnvio(selectedPedido.id, {
         fechaAnticipada: fechaAnticipada + 'T00:00:00',
-        tipoEntregaA: tipoEntregaA || null,
-        tipoEntregaB: tipoEntregaB || null,
+        tipoEntregaA:  tipoEntregaA || null,
+        tipoEntregaB:  tipoEntregaB || null,
+        direccionA:    tipoEntregaA === 'domicilio' ? direccionA || null : null,
+        municipioA:    tipoEntregaA === 'domicilio' ? municipioA || null : null,
+        departamentoA: tipoEntregaA === 'domicilio' ? deptoA     || null : null,
+        direccionB:    tipoEntregaB === 'domicilio' ? direccionB || null : null,
+        municipioB:    tipoEntregaB === 'domicilio' ? municipioB || null : null,
+        departamentoB: tipoEntregaB === 'domicilio' ? deptoB     || null : null,
       });
       setItemsListos(null);
       setPedidos(prev => prev.map(p => p.id === actualizado.id ? actualizado : p));
@@ -990,23 +1002,39 @@ const PedidosClientePage = () => {
                         </p>
                         <select
                           value={tipoEntregaA}
-                          onChange={e => setTipoEntregaA(e.target.value)}
+                          onChange={e => { setTipoEntregaA(e.target.value); if (!direccionA) { setDireccionA(selectedPedido.direccion_entrega || ''); setMunicipioA(selectedPedido.municipio || ''); setDeptoA(selectedPedido.departamento || ''); } }}
                           style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 13, boxSizing: 'border-box', marginBottom: 8, background: '#fff' }}>
                           <option value="">Sin especificar</option>
                           <option value="domicilio">Domicilio</option>
                           <option value="tienda">Retiro en tienda</option>
                         </select>
+                        {tipoEntregaA === 'domicilio' && (
+                          <div style={{ marginBottom: 8 }}>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: '#1565c0', margin: '0 0 3px' }}>Dirección de entrega</p>
+                            <input value={direccionA} onChange={e => setDireccionA(e.target.value)} placeholder="Dirección" style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 12, boxSizing: 'border-box', marginBottom: 4 }} />
+                            <input value={municipioA} onChange={e => setMunicipioA(e.target.value)} placeholder="Municipio" style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 12, boxSizing: 'border-box', marginBottom: 4 }} />
+                            <input value={deptoA} onChange={e => setDeptoA(e.target.value)} placeholder="Departamento" style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 12, boxSizing: 'border-box' }} />
+                          </div>
+                        )}
                         {itemsListos.pendientes && itemsListos.pendientes.length > 0 && (
                           <>
                             <p style={{ fontSize: 10, fontWeight: 700, color: '#1565c0', margin: '0 0 4px' }}>Tipo de entrega (productos en producción)</p>
                             <select
                               value={tipoEntregaB}
-                              onChange={e => setTipoEntregaB(e.target.value)}
+                              onChange={e => { setTipoEntregaB(e.target.value); if (!direccionB) { setDireccionB(selectedPedido.direccion_entrega || ''); setMunicipioB(selectedPedido.municipio || ''); setDeptoB(selectedPedido.departamento || ''); } }}
                               style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 13, boxSizing: 'border-box', marginBottom: 8, background: '#fff' }}>
                               <option value="">Sin especificar</option>
                               <option value="domicilio">Domicilio</option>
                               <option value="tienda">Retiro en tienda</option>
                             </select>
+                            {tipoEntregaB === 'domicilio' && (
+                              <div style={{ marginBottom: 8 }}>
+                                <p style={{ fontSize: 10, fontWeight: 700, color: '#1565c0', margin: '0 0 3px' }}>Dirección de entrega</p>
+                                <input value={direccionB} onChange={e => setDireccionB(e.target.value)} placeholder="Dirección" style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 12, boxSizing: 'border-box', marginBottom: 4 }} />
+                                <input value={municipioB} onChange={e => setMunicipioB(e.target.value)} placeholder="Municipio" style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 12, boxSizing: 'border-box', marginBottom: 4 }} />
+                                <input value={deptoB} onChange={e => setDeptoB(e.target.value)} placeholder="Departamento" style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 12, boxSizing: 'border-box' }} />
+                              </div>
+                            )}
                           </>
                         )}
                         {gruposError && <p style={{ fontSize: 11, color: '#c62828', margin: '0 0 8px' }}>{gruposError}</p>}
