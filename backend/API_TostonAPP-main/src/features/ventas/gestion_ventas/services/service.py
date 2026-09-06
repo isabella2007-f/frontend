@@ -15,8 +15,11 @@ from src.shared.services.models import (
     Venta, VentaXProducto, DetalleVenta, Producto, ProductoImagen, Usuario,
     Estado, Domicilio, CreditoCliente, MovimientoCredito,
     Descuento, DescuentoXUsuario, DescuentoXVenta, OrdenProduccion, FichaTecnica,
-    LoteProducto, HistorialFechasPropuestas,
+    LoteProducto, HistorialFechasPropuestas, GrupoEnvio, GrupoEnvioItem,
 )
+
+# Margen mínimo en días entre la fecha del envío anticipado y hoy
+MARGEN_MINIMO_DIAS_ENVIO_ANTICIPADO = 1
 
 
 def _imagen_producto(db: Session, id_producto: int) -> str | None:
@@ -466,6 +469,7 @@ def _formato_venta(venta: Venta, db: Session, *, dxv_map=None) -> dict:
             None if getattr(venta, "Envio_Completo_Domingo", None) is None
             else bool(venta.Envio_Completo_Domingo)
         ),
+        "grupos_envio": [_formato_grupo(g) for g in venta.grupos_envio] if venta.grupos_envio else [],
     }
 
 
@@ -734,6 +738,9 @@ def _batch_ventas(ventas: list, db: Session) -> list:
                 None if getattr(venta, "Envio_Completo_Domingo", None) is None
                 else bool(venta.Envio_Completo_Domingo)
             ),
+            # En el listado batch no cargamos grupos: evita N+1 en paginación.
+            # El detalle individual los trae vía _formato_venta con eager-load.
+            "grupos_envio": [],
         })
 
     return result
@@ -780,6 +787,8 @@ def obtener_ventas(
             selectinload(Venta.domicilios)
                 .selectinload(Domicilio.empleado),
             selectinload(Venta.ordenes_produccion),
+            selectinload(Venta.grupos_envio)
+                .selectinload(GrupoEnvio.items),
         )
         .order_by(Venta.Fecha_Venta.desc())
         .offset(offset)
@@ -828,6 +837,8 @@ def obtener_mis_ventas(
             selectinload(Venta.domicilios)
                 .selectinload(Domicilio.empleado),
             selectinload(Venta.ordenes_produccion),
+            selectinload(Venta.grupos_envio)
+                .selectinload(GrupoEnvio.items),
         )
         .order_by(Venta.Fecha_pedido.desc())
         .offset(offset)
@@ -2181,15 +2192,6 @@ def resolver_escalado_cancelar(db: Session, id_venta: int, actual: dict) -> dict
     # CreditoCliente asegura que quede trazabilidad y que el cliente pueda usarlo
     # en el próximo pedido si lo prefiere.
     _anticipo = Decimal(str(getattr(venta, "Anticipo_Monto", None) or 0))
-    # DEBUG TEMPORAL — eliminar tras verificar
-    print(
-        f"[DEBUG resolver_escalado_cancelar] id_venta={id_venta} "
-        f"Anticipo_Registrado={getattr(venta, 'Anticipo_Registrado', 'ATTR_MISSING')!r} "
-        f"Anticipo_Monto_raw={getattr(venta, 'Anticipo_Monto', 'ATTR_MISSING')!r} "
-        f"_anticipo={_anticipo!r} "
-        f"ID_Usuario={venta.ID_Usuario!r}",
-        flush=True,
-    )
     if getattr(venta, "Anticipo_Registrado", 0) and _anticipo > 0:
         _abonar_credito(db, venta.ID_Usuario, _anticipo, id_venta)
 
@@ -2209,6 +2211,319 @@ def resolver_escalado_cancelar(db: Session, id_venta: int, actual: dict) -> dict
         f"Tu pedido #{id_venta} fue cancelado por el administrador tras múltiples rechazos de fecha.",
         id_venta, "/ventas/pedidos",
     )
+    db.commit()
+    db.refresh(venta)
+    return _formato_venta(venta, db)
+
+
+# ── Feature "Grupos de envío" ──────────────────────────────────────────────
+
+def _items_listos_venta(db: Session, id_venta: int) -> set[int]:
+    """IDs de productos del pedido que ya están listos para despachar.
+
+    Listo = no tiene OrdenProduccion asociada (estaba en stock al hacer el pedido)
+            O tiene OrdenProduccion con Estado == 11 (Completada).
+    """
+    items = db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()
+    ordenes = db.query(OrdenProduccion).filter(OrdenProduccion.ID_Venta == id_venta).all()
+    estado_por_producto = {o.ID_Producto: o.Estado for o in ordenes}
+
+    listos: set[int] = set()
+    for item in items:
+        if item.ID_Producto not in estado_por_producto:
+            listos.add(item.ID_Producto)
+        elif estado_por_producto[item.ID_Producto] == 11:
+            listos.add(item.ID_Producto)
+    return listos
+
+
+def _formato_grupo(grupo: GrupoEnvio) -> dict:
+    return {
+        "id_grupo":    grupo.ID_Grupo,
+        "tipo":        grupo.Tipo,
+        "fecha":       grupo.Fecha_Entrega,
+        "tipo_entrega":grupo.Tipo_Entrega,
+        "estado":      grupo.Estado,
+        "productos":   [i.ID_Producto for i in grupo.items],
+    }
+
+
+def obtener_items_listos(db: Session, id_venta: int, actual: dict) -> dict:
+    """Devuelve qué productos del pedido ya están listos y cuáles no.
+
+    Solo el cliente dueño del pedido o un empleado/admin pueden consultarlo.
+    """
+    venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+    if actual["tipo"] == "cliente" and venta.ID_Usuario != actual["registro"].ID_Usuario:
+        raise HTTPException(status_code=403, detail="No puedes consultar pedidos de otros clientes")
+
+    todos_items = db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()
+    listos = _items_listos_venta(db, id_venta)
+
+    prod_ids = [i.ID_Producto for i in todos_items]
+    productos_map = {p.ID_Producto: p for p in
+                     db.query(Producto).filter(Producto.ID_Producto.in_(prod_ids)).all()} if prod_ids else {}
+
+    return {
+        "id_venta": id_venta,
+        "listos": [
+            {"id_producto": i.ID_Producto, "nombre": productos_map.get(i.ID_Producto, Producto()).nombre, "cantidad": i.Cantidad}
+            for i in todos_items if i.ID_Producto in listos
+        ],
+        "pendientes": [
+            {"id_producto": i.ID_Producto, "nombre": productos_map.get(i.ID_Producto, Producto()).nombre, "cantidad": i.Cantidad}
+            for i in todos_items if i.ID_Producto not in listos
+        ],
+    }
+
+
+def crear_grupos_envio(
+    db: Session,
+    id_venta: int,
+    fecha_anticipada,
+    tipo_entrega_a: str | None,
+    tipo_entrega_b: str | None,
+    actual: dict,
+) -> dict:
+    """Registra la preferencia de entrega anticipada del cliente.
+
+    Caso A (división): algunos productos listos, otros en producción →
+      Grupo A (anticipado, items listos, fecha elegida) + Grupo B (programado,
+      items en producción, fecha aceptada original).
+
+    Caso B (todo listo): todos los productos ya están listos → solo Grupo A
+      (anticipado, todos los items, fecha elegida). No se crea Grupo B.
+
+    Validaciones comunes:
+    - Solo el cliente dueño del pedido, en estado CONFIRMADO/PREPARANDO/LISTO
+    - No se pueden crear grupos si ya existen para esta venta
+    - Debe haber al menos un producto en el pedido
+    - fecha_anticipada >= hoy + MARGEN_MINIMO_DIAS_ENVIO_ANTICIPADO
+    - fecha_anticipada < Fecha_entrega_esperada
+    """
+    if actual["tipo"] != "cliente":
+        raise HTTPException(status_code=403, detail="Solo disponible para clientes")
+    id_usuario = actual["registro"].ID_Usuario
+
+    venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+    if venta.ID_Usuario != id_usuario:
+        raise HTTPException(status_code=403, detail="No puedes modificar pedidos de otros clientes")
+
+    estados_validos = (EstadoPedido.CONFIRMADO, EstadoPedido.PREPARANDO, EstadoPedido.LISTO)
+    if venta.Estado not in estados_validos:
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se puede solicitar entrega anticipada después de aceptar la fecha propuesta",
+        )
+
+    if db.query(GrupoEnvio).filter(GrupoEnvio.ID_Venta == id_venta).count() > 0:
+        raise HTTPException(status_code=400, detail="Este pedido ya tiene grupos de envío creados")
+
+    listos  = _items_listos_venta(db, id_venta)
+    todos   = {i.ID_Producto for i in db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()}
+    pendientes = todos - listos
+
+    if not todos:
+        raise HTTPException(status_code=400, detail="El pedido no tiene productos")
+    if not listos:
+        raise HTTPException(status_code=400, detail="Ningún producto está listo todavía; no se puede solicitar entrega anticipada")
+
+    hoy = _now().date()
+    min_fecha = hoy + timedelta(days=MARGEN_MINIMO_DIAS_ENVIO_ANTICIPADO)
+    fecha_anticipada_date = fecha_anticipada.date() if hasattr(fecha_anticipada, "date") else fecha_anticipada
+    if fecha_anticipada_date < min_fecha:
+        raise HTTPException(
+            status_code=400,
+            detail=f"La fecha de envío anticipado debe ser al menos {MARGEN_MINIMO_DIAS_ENVIO_ANTICIPADO} día(s) a partir de hoy",
+        )
+
+    fecha_programada = venta.Fecha_entrega_esperada
+    if fecha_programada and fecha_anticipada_date >= (fecha_programada.date() if hasattr(fecha_programada, "date") else fecha_programada):
+        raise HTTPException(
+            status_code=400,
+            detail="La fecha de envío anticipado debe ser anterior a la fecha de entrega acordada",
+        )
+
+    grupo_a = GrupoEnvio(
+        ID_Venta=id_venta, Tipo="anticipado",
+        Fecha_Entrega=fecha_anticipada, Tipo_Entrega=tipo_entrega_a, Estado="pendiente",
+    )
+    db.add(grupo_a)
+    db.flush()
+    for pid in listos:
+        db.add(GrupoEnvioItem(ID_Grupo=grupo_a.ID_Grupo, ID_Venta=id_venta, ID_Producto=pid))
+
+    if pendientes:
+        grupo_b = GrupoEnvio(
+            ID_Venta=id_venta, Tipo="programado",
+            Fecha_Entrega=fecha_programada, Tipo_Entrega=tipo_entrega_b, Estado="pendiente",
+        )
+        db.add(grupo_b)
+        db.flush()
+        for pid in pendientes:
+            db.add(GrupoEnvioItem(ID_Grupo=grupo_b.ID_Grupo, ID_Venta=id_venta, ID_Producto=pid))
+
+    venta.Envio_Completo_Domingo = 0
+    db.commit()
+    db.refresh(venta)
+    return _formato_venta(venta, db)
+
+
+def actualizar_estado_grupo(
+    db: Session,
+    id_venta: int,
+    id_grupo: int,
+    nuevo_estado: str,
+    actual: dict,
+) -> dict:
+    """Admin avanza el estado de un grupo de envío (pendiente→enviado→entregado)."""
+    if actual["tipo"] not in ("admin", "empleado"):
+        raise HTTPException(status_code=403, detail="Solo disponible para administradores")
+
+    venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+
+    grupo = db.query(GrupoEnvio).filter(
+        GrupoEnvio.ID_Grupo == id_grupo,
+        GrupoEnvio.ID_Venta == id_venta,
+    ).first()
+    if not grupo:
+        raise HTTPException(status_code=404, detail="Grupo de envío no encontrado")
+
+    FLUJO_ESTADOS = {"pendiente": "enviado", "enviado": "entregado"}
+    if nuevo_estado not in ("enviado", "entregado"):
+        raise HTTPException(status_code=400, detail="Estado inválido: usa 'enviado' o 'entregado'")
+    if FLUJO_ESTADOS.get(grupo.Estado) != nuevo_estado:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se puede pasar de '{grupo.Estado}' a '{nuevo_estado}'",
+        )
+
+    grupo.Estado = nuevo_estado
+
+    # Sincronizar estado general del pedido
+    grupos = db.query(GrupoEnvio).filter(GrupoEnvio.ID_Venta == id_venta).all()
+    estados = {g.Estado for g in grupos}
+    if estados == {"entregado"}:
+        venta.Estado = EstadoPedido.ENTREGADO
+        if not getattr(venta, "Fecha_entrega", None):
+            venta.Fecha_entrega = _now()
+    elif "entregado" in estados and estados != {"entregado"}:
+        venta.Estado = EstadoPedido.PARCIALMENTE_ENTREGADO
+
+    db.commit()
+    db.refresh(venta)
+    return _formato_venta(venta, db)
+
+
+def actualizar_tipo_entrega_grupo(
+    db: Session,
+    id_venta: int,
+    id_grupo: int,
+    tipo_entrega: str,
+    actual: dict,
+) -> dict:
+    """Cliente o admin actualiza el tipo de entrega de un grupo."""
+    venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+    if actual["tipo"] == "cliente" and venta.ID_Usuario != actual["registro"].ID_Usuario:
+        raise HTTPException(status_code=403, detail="No puedes modificar pedidos de otros clientes")
+
+    grupo = db.query(GrupoEnvio).filter(
+        GrupoEnvio.ID_Grupo == id_grupo,
+        GrupoEnvio.ID_Venta == id_venta,
+    ).first()
+    if not grupo:
+        raise HTTPException(status_code=404, detail="Grupo de envío no encontrado")
+    if grupo.Estado == "entregado":
+        raise HTTPException(status_code=400, detail="No se puede cambiar el tipo de entrega de un grupo ya entregado")
+
+    grupo.Tipo_Entrega = tipo_entrega
+    db.commit()
+    db.refresh(venta)
+    return _formato_venta(venta, db)
+
+
+def cancelar_grupo_pendiente(
+    db: Session,
+    id_venta: int,
+    id_grupo: int,
+    actual: dict,
+) -> dict:
+    """Admin cancela el Grupo B (programado) cuando el Grupo A ya fue entregado.
+
+    Devuelve al cliente el anticipo proporcional al valor del grupo cancelado:
+      reembolso = anticipo_pagado × (valor_grupo_B / valor_total_del_pedido)
+    """
+    if actual["tipo"] not in ("admin", "empleado"):
+        raise HTTPException(status_code=403, detail="Solo disponible para administradores")
+
+    venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+
+    grupo = db.query(GrupoEnvio).filter(
+        GrupoEnvio.ID_Grupo == id_grupo,
+        GrupoEnvio.ID_Venta == id_venta,
+        GrupoEnvio.Tipo == "programado",
+    ).first()
+    if not grupo:
+        raise HTTPException(status_code=404, detail="Grupo programado no encontrado")
+    if grupo.Estado == "entregado":
+        raise HTTPException(status_code=400, detail="No se puede cancelar un grupo ya entregado")
+
+    # Verificar que el otro grupo (anticipado) ya fue entregado
+    grupo_a = db.query(GrupoEnvio).filter(
+        GrupoEnvio.ID_Venta == id_venta,
+        GrupoEnvio.Tipo == "anticipado",
+    ).first()
+    if not grupo_a or grupo_a.Estado != "entregado":
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se puede cancelar el Grupo B cuando el Grupo A ya fue entregado",
+        )
+
+    # Cancelar OPs de los productos en este grupo que aún no completaron
+    prod_ids_b = {i.ID_Producto for i in grupo.items}
+    from src.features.produccion.ordenes_produccion.services.service import (
+        cambiar_estado as _cambiar_estado_orden,
+    )
+    for orden in db.query(OrdenProduccion).filter(
+        OrdenProduccion.ID_Venta == id_venta,
+        OrdenProduccion.ID_Producto.in_(prod_ids_b),
+        OrdenProduccion.Estado.notin_([11, 5]),
+    ).all():
+        _cambiar_estado_orden(db, orden.ID_Orden_Produccion, 5, commit=False)
+
+    # Calcular reembolso proporcional del anticipo
+    anticipo = Decimal(str(getattr(venta, "Anticipo_Monto", None) or 0))
+    if anticipo > 0 and getattr(venta, "Anticipo_Registrado", 0):
+        total_venta = Decimal(str(venta.Total or 0))
+        if total_venta > 0:
+            # Valor del grupo B = suma (precio × cantidad) de sus productos
+            items_b = db.query(VentaXProducto).filter(
+                VentaXProducto.ID_Venta == id_venta,
+                VentaXProducto.ID_Producto.in_(prod_ids_b),
+            ).all()
+            prod_map = {p.ID_Producto: p for p in db.query(Producto).filter(
+                Producto.ID_Producto.in_(prod_ids_b)
+            ).all()}
+            valor_b = sum(
+                (prod_map[i.ID_Producto].Precio_venta or Decimal("0")) * Decimal(str(i.Cantidad or 0))
+                for i in items_b if i.ID_Producto in prod_map
+            )
+            reembolso = (anticipo * (valor_b / total_venta)).quantize(Decimal("1"), rounding=ROUND_CEILING)
+            if reembolso > 0:
+                _abonar_credito(db, venta.ID_Usuario, reembolso, id_venta)
+
+    grupo.Estado = "cancelado"
+    venta.Estado = EstadoPedido.PARCIALMENTE_ENTREGADO
     db.commit()
     db.refresh(venta)
     return _formato_venta(venta, db)

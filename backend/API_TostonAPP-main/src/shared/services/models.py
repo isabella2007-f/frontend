@@ -429,6 +429,7 @@ class Venta(Base):
     domicilios         = relationship("Domicilio", back_populates="venta")
     devoluciones       = relationship("Devolucion", back_populates="venta")
     ordenes_produccion = relationship("OrdenProduccion", back_populates="venta")
+    grupos_envio       = relationship("GrupoEnvio", back_populates="venta", cascade="all, delete-orphan")
 
 
 class VentaXProducto(Base):
@@ -443,6 +444,39 @@ class VentaXProducto(Base):
 
     venta    = relationship("Venta", back_populates="productos")
     producto = relationship("Producto", back_populates="ventas")
+
+
+class GrupoEnvio(Base):
+    """Divide un pedido en dos grupos de envío: el anticipado (items ya listos)
+    y el programado (items que esperan producción). Solo existe cuando el cliente
+    eligió recibir antes lo que ya está disponible."""
+    __tablename__ = "Grupos_Envio"
+
+    ID_Grupo      = Column(Integer, primary_key=True, autoincrement=True)
+    ID_Venta      = Column(Integer, ForeignKey("Ventas.ID_Venta"), nullable=False)
+    # 'anticipado' = items listos (envío antes); 'programado' = items en producción
+    Tipo          = Column(String(20), nullable=False)
+    Fecha_Entrega = Column(DateTime, nullable=True)
+    # 'domicilio' | 'tienda' — editable por cliente y admin
+    Tipo_Entrega  = Column(String(20), nullable=True)
+    # 'pendiente' | 'enviado' | 'entregado'
+    Estado        = Column(String(20), default="pendiente", nullable=False)
+
+    venta = relationship("Venta", back_populates="grupos_envio")
+    items = relationship("GrupoEnvioItem", back_populates="grupo", cascade="all, delete-orphan")
+
+
+class GrupoEnvioItem(Base):
+    """Asocia cada producto del pedido a uno de sus grupos de envío."""
+    __tablename__ = "Grupo_Envio_Item"
+
+    ID_Item     = Column(Integer, primary_key=True, autoincrement=True)
+    ID_Grupo    = Column(Integer, ForeignKey("Grupos_Envio.ID_Grupo"), nullable=False)
+    ID_Venta    = Column(Integer, ForeignKey("Ventas.ID_Venta"), nullable=False)
+    ID_Producto = Column(Integer, ForeignKey("Productos.ID_Producto"), nullable=False)
+
+    grupo    = relationship("GrupoEnvio", back_populates="items")
+    producto = relationship("Producto")
 
 
 class HistorialFechasPropuestas(Base):

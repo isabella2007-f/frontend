@@ -433,6 +433,57 @@ def migrate_db():
             _log.error("migración Historial_Fechas_Propuestas FALLÓ — %s", exc, exc_info=True)
             raise
 
+    # ── Columna Envio_Completo_Domingo en Ventas ─────────────────────────────
+    with engine.connect() as conn:
+        try:
+            existe = conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() "
+                "  AND TABLE_NAME   = 'Ventas' "
+                "  AND COLUMN_NAME  = 'Envio_Completo_Domingo'"
+            )).scalar()
+            if not existe:
+                conn.execute(text(
+                    "ALTER TABLE Ventas ADD COLUMN Envio_Completo_Domingo TINYINT NULL"
+                ))
+                conn.commit()
+                _log.info("migración Envio_Completo_Domingo: columna creada en Ventas")
+            else:
+                _log.debug("migración Envio_Completo_Domingo: ya existe, sin cambios")
+        except Exception as exc:
+            _log.error("migración Envio_Completo_Domingo FALLÓ — %s", exc, exc_info=True)
+            raise
+
+    # ── Tablas de grupos de envío ─────────────────────────────────────────────
+    with engine.connect() as conn:
+        for stmt in [
+            """CREATE TABLE IF NOT EXISTS Grupos_Envio (
+                ID_Grupo      INT AUTO_INCREMENT PRIMARY KEY,
+                ID_Venta      INT NOT NULL,
+                Tipo          VARCHAR(20) NOT NULL,
+                Fecha_Entrega DATETIME NULL,
+                Tipo_Entrega  VARCHAR(20) NULL,
+                Estado        VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+                FOREIGN KEY (ID_Venta) REFERENCES Ventas(ID_Venta)
+            )""",
+            """CREATE TABLE IF NOT EXISTS Grupo_Envio_Item (
+                ID_Item     INT AUTO_INCREMENT PRIMARY KEY,
+                ID_Grupo    INT NOT NULL,
+                ID_Venta    INT NOT NULL,
+                ID_Producto INT NOT NULL,
+                FOREIGN KEY (ID_Grupo)    REFERENCES Grupos_Envio(ID_Grupo),
+                FOREIGN KEY (ID_Venta)    REFERENCES Ventas(ID_Venta),
+                FOREIGN KEY (ID_Producto) REFERENCES Productos(ID_Producto)
+            )""",
+        ]:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception as exc:
+                _log.error("migración grupos_envio FALLÓ — %s", exc, exc_info=True)
+                raise
+        _log.info("migración Grupos_Envio / Grupo_Envio_Item: tablas listas")
+
     # ── Refactor del catálogo de permisos ─────────────────────────────────────
     # Renombres, fusión de "ventas" en "pedidos", retiro de permisos sin uso y
     # migración de los endpoints que usaban un permiso "proxy" de otro módulo a

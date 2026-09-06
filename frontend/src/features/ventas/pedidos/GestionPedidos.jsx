@@ -68,7 +68,7 @@ const ESTADO_CONFIG = {
 
 const getEstadoDisplay = (pedido) =>
   (pedido?.ordenes_en_espera > 0 &&
-   ["En producción", "Fecha propuesta", "Confirmado"].includes(pedido?.estado))
+   ["En producción", "Confirmado"].includes(pedido?.estado))
     ? "Pendiente de producción"
     : (pedido?.estado ?? "Pendiente");
 

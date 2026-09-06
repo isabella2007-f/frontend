@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMisVentas, cancelarMiPedido, aceptarFechaProduccion, rechazarFechaProduccion, guardarEnvioCompletoDomingo } from '../../../services/pedidosService';
+import { getMisVentas, cancelarMiPedido, aceptarFechaProduccion, rechazarFechaProduccion, guardarEnvioCompletoDomingo, getItemsListos, crearGruposEnvio } from '../../../services/pedidosService';
 import { crearDevolucion } from '../../../services/devolucionesService';
 import { fmtFecha } from '../../../utils/dateUtils.js';
 import { getCurrentUser } from '../../client/profile/services/profileService.js';
@@ -384,6 +384,14 @@ const PedidosClientePage = () => {
   const [devModal,             setDevModal]             = useState(null);
   const [devToast,             setDevToast]             = useState(null);
   const [guardandoEnvio,       setGuardandoEnvio]       = useState(false);
+  const [itemsListos,          setItemsListos]          = useState(null);
+  const [loadingItemsListos,   setLoadingItemsListos]   = useState(false);
+  const [fechaAnticipada,      setFechaAnticipada]      = useState('');
+  const [tipoEntregaA,         setTipoEntregaA]         = useState('');
+  const [tipoEntregaB,         setTipoEntregaB]         = useState('');
+  const [creandoGrupos,        setCreandoGrupos]        = useState(false);
+  const [gruposError,          setGruposError]          = useState('');
+  const [itemsListosError,     setItemsListosError]     = useState(null);
   const navigate = useNavigate();
 
   // Ref para acceder al pedido seleccionado dentro del interval sin recrear el callback
@@ -433,6 +441,50 @@ const PedidosClientePage = () => {
       // silencioso: la UI ya muestra el estado
     } finally {
       setGuardandoEnvio(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedPedido || selectedPedido.envio_completo_domingo !== false || (selectedPedido.grupos_envio && selectedPedido.grupos_envio.length > 0)) {
+      setItemsListos(null);
+      setItemsListosError(null);
+      return;
+    }
+    let cancelado = false;
+    setLoadingItemsListos(true);
+    setItemsListosError(null);
+    getItemsListos(selectedPedido.id)
+      .then(data => { if (!cancelado) setItemsListos(data); })
+      .catch(err => {
+        if (!cancelado) {
+          setItemsListos(null);
+          setItemsListosError(err?.message || String(err) || 'Error desconocido');
+        }
+      })
+      .finally(() => { if (!cancelado) setLoadingItemsListos(false); });
+    return () => { cancelado = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPedido?.id, selectedPedido?.envio_completo_domingo, selectedPedido?.grupos_envio?.length]);
+
+  const handleCrearGrupos = async () => {
+    if (!fechaAnticipada) return;
+    setCreandoGrupos(true);
+    setGruposError('');
+    try {
+      const actualizado = await crearGruposEnvio(selectedPedido.id, {
+        fechaAnticipada: fechaAnticipada + 'T00:00:00',
+        tipoEntregaA: tipoEntregaA || null,
+        tipoEntregaB: tipoEntregaB || null,
+      });
+      setPedidos(prev => prev.map(p => p.id === actualizado.id ? actualizado : p));
+      setSelectedPedido(actualizado);
+      setFechaAnticipada('');
+      setTipoEntregaA('');
+      setTipoEntregaB('');
+    } catch (e) {
+      setGruposError(e.message || 'No se pudo guardar la entrega anticipada. Intenta de nuevo.');
+    } finally {
+      setCreandoGrupos(false);
     }
   };
 
@@ -489,6 +541,12 @@ const PedidosClientePage = () => {
     setConfirmCancel(false);
     setCancelError('');
     setAccionFechaErr('');
+    setItemsListos(null);
+    setItemsListosError(null);
+    setFechaAnticipada('');
+    setTipoEntregaA('');
+    setTipoEntregaB('');
+    setGruposError('');
   };
 
   const openModal = (pedido) => {
@@ -836,7 +894,7 @@ const PedidosClientePage = () => {
                         disabled={guardandoEnvio}
                         onClick={() => handleEnvioCompletoDomingo(selectedPedido, true)}
                         style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: '#2e7d32', color: '#fff', fontWeight: 800, fontSize: 13, cursor: guardandoEnvio ? 'not-allowed' : 'pointer', opacity: guardandoEnvio ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-                        <Check size={14} /> Sí, el domingo está bien
+                        <Check size={14} /> {selectedPedido.fecha_propuesta ? `Sí, el ${new Date(selectedPedido.fecha_propuesta.slice(0,10)+'T00:00:00').toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long'})} está bien` : 'Sí, estoy de acuerdo'}
                       </button>
                       <button
                         disabled={guardandoEnvio}
@@ -850,7 +908,7 @@ const PedidosClientePage = () => {
                       <Check size={14} color="#2e7d32" />
                       <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#2e7d32' }}>
                         {selectedPedido.envio_completo_domingo
-                          ? 'Elegiste recibir todo junto el domingo.'
+                          ? (selectedPedido.fecha_propuesta ? `Elegiste recibir todo junto el ${new Date(selectedPedido.fecha_propuesta.slice(0,10)+'T00:00:00').toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long'})}.` : 'Elegiste recibir todo junto en la fecha acordada.')
                           : 'Elegiste recibir primero lo que ya está disponible.'}
                       </p>
                       <button
@@ -861,6 +919,142 @@ const PedidosClientePage = () => {
                       </button>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* ── DEBUG temporal — siempre visible cuando envio_completo_domingo es false ── */}
+              {selectedPedido.envio_completo_domingo === false && (
+                <pre style={{ fontSize: 10, background: '#fff', border: '2px solid #f00', borderRadius: 6, padding: 8, margin: '4px 0', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{JSON.stringify({ envio_completo_domingo: selectedPedido.envio_completo_domingo, grupos_envio_len: selectedPedido.grupos_envio?.length ?? 0, grupos_envio: selectedPedido.grupos_envio, cargando: loadingItemsListos, error: itemsListosError, listos: itemsListos?.listos?.length ?? 'null', pendientes: itemsListos?.pendientes?.length ?? 'null' }, null, 2)}</pre>
+              )}
+              {/* ── Entrega anticipada (cuando eligió recibir antes lo disponible) ── */}
+              {selectedPedido.envio_completo_domingo === false && (!selectedPedido.grupos_envio || selectedPedido.grupos_envio.length === 0) && (
+                <div style={{ background: '#e3f2fd', border: '1.5px solid #90caf9', borderRadius: 14, padding: '14px 16px' }}>
+                  <p style={{ fontSize: 10, fontWeight: 800, color: '#1565c0', letterSpacing: 1, textTransform: 'uppercase', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Truck size={12} /> Entrega anticipada
+                  </p>
+                  {loadingItemsListos && (
+                    <p style={{ fontSize: 12, color: '#5c6bc0', margin: 0 }}>Verificando disponibilidad de productos...</p>
+                  )}
+                  {/* Ninguno listo aún: solo informativo, sin acción posible */}
+                  {!loadingItemsListos && itemsListos && itemsListos.listos && itemsListos.listos.length === 0 && (
+                    <p style={{ fontSize: 12, color: '#1565c0', margin: 0, lineHeight: 1.5 }}>
+                      Tus productos aún están en producción. Te avisaremos cuando haya disponibilidad para coordinar la entrega anticipada.
+                    </p>
+                  )}
+                  {/* Al menos uno listo (todos o algunos): mostrar formulario */}
+                  {!loadingItemsListos && itemsListos && itemsListos.listos && itemsListos.listos.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {/* Resumen de productos */}
+                      {itemsListos.pendientes && itemsListos.pendientes.length > 0 ? (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                          <div style={{ background: '#e8f5e9', borderRadius: 10, padding: '8px 10px' }}>
+                            <p style={{ fontSize: 9, fontWeight: 800, color: '#2e7d32', letterSpacing: 1, textTransform: 'uppercase', margin: '0 0 4px' }}>Listos ahora</p>
+                            {itemsListos.listos.map(p => (
+                              <p key={p.id_producto} style={{ fontSize: 11, color: '#1b5e20', margin: '0 0 2px' }}>{p.nombre} ×{p.cantidad}</p>
+                            ))}
+                          </div>
+                          <div style={{ background: '#fff8e1', borderRadius: 10, padding: '8px 10px' }}>
+                            <p style={{ fontSize: 9, fontWeight: 800, color: '#e65100', letterSpacing: 1, textTransform: 'uppercase', margin: '0 0 4px' }}>En producción</p>
+                            {itemsListos.pendientes.map(p => (
+                              <p key={p.id_producto} style={{ fontSize: 11, color: '#bf360c', margin: '0 0 2px' }}>{p.nombre} ×{p.cantidad}</p>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ background: '#e8f5e9', borderRadius: 10, padding: '8px 10px' }}>
+                          <p style={{ fontSize: 9, fontWeight: 800, color: '#2e7d32', letterSpacing: 1, textTransform: 'uppercase', margin: '0 0 4px' }}>Todos los productos listos</p>
+                          {itemsListos.listos.map(p => (
+                            <p key={p.id_producto} style={{ fontSize: 11, color: '#1b5e20', margin: '0 0 2px' }}>{p.nombre} ×{p.cantidad}</p>
+                          ))}
+                        </div>
+                      )}
+                      {/* Formulario: fecha + tipo de entrega por grupo */}
+                      <div>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: '#1565c0', margin: '0 0 4px' }}>
+                          {itemsListos.pendientes && itemsListos.pendientes.length > 0
+                            ? '¿Cuándo quieres recibir los productos que ya están listos?'
+                            : '¿Cuándo quieres recibir el pedido?'}
+                        </p>
+                        <p style={{ fontSize: 10, color: '#5c6bc0', margin: '0 0 8px', lineHeight: 1.4 }}>
+                          {selectedPedido.fecha_propuesta
+                            ? `Debe ser al menos mañana y antes del ${new Date(selectedPedido.fecha_propuesta.slice(0,10)+'T00:00:00').toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long'})}.`
+                            : 'Debe ser al menos mañana y antes de la fecha de entrega acordada.'}
+                        </p>
+                        <input
+                          type="date"
+                          value={fechaAnticipada}
+                          onChange={e => { setFechaAnticipada(e.target.value); setGruposError(''); }}
+                          min={(() => { const d = new Date(); d.setDate(d.getDate()+1); return d.toISOString().slice(0,10); })()}
+                          max={selectedPedido.fecha_propuesta ? (() => { const d = new Date(selectedPedido.fecha_propuesta.slice(0,10)+'T00:00:00'); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10); })() : undefined}
+                          style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 13, boxSizing: 'border-box', marginBottom: 8 }}
+                        />
+                        <p style={{ fontSize: 10, fontWeight: 700, color: '#1565c0', margin: '0 0 4px' }}>
+                          {itemsListos.pendientes && itemsListos.pendientes.length > 0 ? 'Tipo de entrega (productos listos)' : 'Tipo de entrega'}
+                        </p>
+                        <select
+                          value={tipoEntregaA}
+                          onChange={e => setTipoEntregaA(e.target.value)}
+                          style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 13, boxSizing: 'border-box', marginBottom: 8, background: '#fff' }}>
+                          <option value="">Sin especificar</option>
+                          <option value="domicilio">Domicilio</option>
+                          <option value="tienda">Retiro en tienda</option>
+                        </select>
+                        {itemsListos.pendientes && itemsListos.pendientes.length > 0 && (
+                          <>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: '#1565c0', margin: '0 0 4px' }}>Tipo de entrega (productos en producción)</p>
+                            <select
+                              value={tipoEntregaB}
+                              onChange={e => setTipoEntregaB(e.target.value)}
+                              style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 13, boxSizing: 'border-box', marginBottom: 8, background: '#fff' }}>
+                              <option value="">Sin especificar</option>
+                              <option value="domicilio">Domicilio</option>
+                              <option value="tienda">Retiro en tienda</option>
+                            </select>
+                          </>
+                        )}
+                        {gruposError && <p style={{ fontSize: 11, color: '#c62828', margin: '0 0 8px' }}>{gruposError}</p>}
+                        <button
+                          onClick={handleCrearGrupos}
+                          disabled={creandoGrupos || !fechaAnticipada}
+                          style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: creandoGrupos || !fechaAnticipada ? '#b0bec5' : '#1565c0', color: '#fff', fontWeight: 800, fontSize: 13, cursor: creandoGrupos || !fechaAnticipada ? 'not-allowed' : 'pointer' }}>
+                          {creandoGrupos ? 'Guardando...' : 'Confirmar entrega anticipada'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Grupos de envío activos ── */}
+              {selectedPedido.grupos_envio && selectedPedido.grupos_envio.length > 0 && (
+                <div style={{ background: '#f3e5f5', border: '1.5px solid #ce93d8', borderRadius: 14, padding: '14px 16px' }}>
+                  <p style={{ fontSize: 10, fontWeight: 800, color: '#6a1b9a', letterSpacing: 1, textTransform: 'uppercase', margin: '0 0 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Package size={12} /> División de entrega
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {selectedPedido.grupos_envio.map(g => (
+                      <div key={g.id_grupo} style={{ background: '#fff', border: '1px solid #e1bee7', borderRadius: 10, padding: '10px 12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <p style={{ fontSize: 12, fontWeight: 800, color: '#4a148c', margin: 0 }}>
+                            {g.tipo === 'anticipado' ? '📦 Entrega anticipada' : '🕐 Entrega programada'}
+                          </p>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: g.estado === 'entregado' ? '#e8f5e9' : g.estado === 'enviado' ? '#e3f2fd' : '#fff8e1', color: g.estado === 'entregado' ? '#2e7d32' : g.estado === 'enviado' ? '#1565c0' : '#e65100' }}>
+                            {g.estado === 'entregado' ? 'Entregado' : g.estado === 'enviado' ? 'En camino' : 'Pendiente'}
+                          </span>
+                        </div>
+                        {g.fecha && (
+                          <p style={{ fontSize: 11, color: '#7b1fa2', margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Calendar size={11} /> {new Date(typeof g.fecha === 'string' ? g.fecha.slice(0,10)+'T00:00:00' : g.fecha).toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
+                          </p>
+                        )}
+                        {g.productos && g.productos.length > 0 && (
+                          <p style={{ fontSize: 10, color: '#9c27b0', margin: 0 }}>
+                            {g.productos.length} producto(s) en este grupo
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
