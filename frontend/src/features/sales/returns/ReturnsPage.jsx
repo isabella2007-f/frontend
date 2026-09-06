@@ -7,6 +7,8 @@ import ReturnList        from './components/ReturnList';
 import ReturnDetailModal from './components/ReturnDetailModal';
 import { getMisVentas }       from '../../../services/pedidosService';
 import { getMisDevoluciones } from '../../../services/devolucionesService';
+import { AVISO_PLAZO_DEVOLUCION, plazoVencido, tieneDevolucionActiva }
+  from '../../../utils/devolucionReglas';
 import {
   RefreshCw, Leaf, Package, Check, X, History,
   PackageMinus, AlertCircle, ChevronRight, ArrowRight,
@@ -87,9 +89,16 @@ const ReturnsPage = () => {
       .filter(p => p.cantidad > 0);
   };
 
-  const deliveredOrders = pedidos.filter(p =>
-    p.estado === 'Entregado' && calcRestantes(p).length > 0
+  // Solo lo que de verdad se puede devolver. Antes se listaban todos los
+  // entregados: los vencidos y los que ya tenían una devolución en curso se
+  // dejaban elegir, y el servidor rebotaba con el formulario ya lleno.
+  const entregados = pedidos.filter(p => p.estado === 'Entregado');
+  const deliveredOrders = entregados.filter(p =>
+    calcRestantes(p).length > 0
+    && !tieneDevolucionActiva(returns, p.id)
+    && !plazoVencido(p.fecha_entrega, p.fecha_pedido)
   );
+  const hayOcultos = deliveredOrders.length < entregados.length;
 
   /* ── estilos inline compartidos ── */
   const card = {
@@ -193,14 +202,31 @@ const ReturnsPage = () => {
               <div style={{ padding: '40px 22px', textAlign: 'center' }}>
                 <Package size={34} color="#e5e7eb" style={{ margin: '0 auto 10px', display: 'block' }} />
                 <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#9ca3af' }}>
-                  Sin pedidos entregados
+                  {hayOcultos ? 'Nada para devolver ahora' : 'Sin pedidos entregados'}
                 </p>
-                <p style={{ margin: '4px 0 0', fontSize: 11, color: '#d1d5db', fontWeight: 500 }}>
-                  Solo puedes devolver pedidos ya recibidos.
+                <p style={{ margin: '4px 0 0', fontSize: 11, color: '#d1d5db', fontWeight: 500, lineHeight: 1.5 }}>
+                  {hayOcultos
+                    ? AVISO_PLAZO_DEVOLUCION
+                    : 'Solo puedes devolver pedidos ya recibidos.'}
                 </p>
               </div>
             ) : (
               <div style={{ maxHeight: 390, overflowY: 'auto' }}>
+                {/* Una lista más corta de lo que el cliente recuerda haber
+                    pedido se lee como una falla: se dice por qué. */}
+                {hayOcultos && (
+                  <div style={{
+                    display: 'flex', gap: 8, alignItems: 'flex-start',
+                    margin: '12px 16px 4px', padding: '10px 12px',
+                    background: '#fffbeb', border: '1px solid #fde68a',
+                    borderRadius: 12,
+                  }}>
+                    <AlertCircle size={14} color="#b45309" style={{ flexShrink: 0, marginTop: 1 }} />
+                    <span style={{ fontSize: 11, color: '#92400e', fontWeight: 600, lineHeight: 1.5 }}>
+                      {AVISO_PLAZO_DEVOLUCION}
+                    </span>
+                  </div>
+                )}
                 {deliveredOrders.map((order, idx) => {
                   const isSelected = selectedOrderForReturn?.id === order.id;
                   return (

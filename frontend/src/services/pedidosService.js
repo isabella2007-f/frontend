@@ -38,6 +38,9 @@ const adaptPedido = (p) => {
     total:            p.Total             || p.total            || 0,
     notas:            p.Notas             || p.notas            || "",
     fecha_pedido:     p.Fecha_pedido      || p.Fecha_Pedido     || p.fecha_pedido || "",
+    // Entrega real. De acá sale el plazo de devolución: sin esta fecha
+    // habría que contar desde que se hizo el pedido, que es otra cosa.
+    fecha_entrega:    p.Fecha_entrega     || p.fecha_entrega    || null,
     fecha_actualizacion: p.Fecha_Actualizacion || p.fecha_actualizacion || null,
     idCliente:        p.ID_Usuario        || p.ID_Cliente       || p.id_cliente   || null,
     idEmpleado:          p.ID_Empleado          || p.id_empleado         || null,

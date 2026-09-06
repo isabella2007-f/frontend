@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   FileText, Clock, DollarSign, Plus, Search, Filter, X, Check,
   ChevronLeft, ChevronRight, Eye, Pencil, Ban, CreditCard,
@@ -365,19 +365,24 @@ const METODOS_PAGO = ["Efectivo", "Transferencia", "Nómina", "Cheque", "Otro"];
 
 function ModalPago({ liquidacion, onClose, onPagada }) {
   const hoy = new Date().toISOString().split("T")[0];
-  const [form, setForm]   = useState({ metodoPago: "", fechaPago: hoy });
+  const [form, setForm] = useState({
+    metodoPago: "", referenciaPago: "", fechaPago: hoy, observaciones: "",
+  });
   const [err, setErr]     = useState("");
   const [loading, setLoading] = useState(false);
 
   async function pagar() {
-    if (!form.metodoPago) return setErr("El método de pago es obligatorio");
-    if (!form.fechaPago) return setErr("La fecha de pago es obligatoria");
-    if (form.fechaPago > hoy) return setErr("La fecha de pago no puede ser futura");
+    if (!form.metodoPago) return setErr("Debe seleccionar un método de pago.");
+    if (!form.referenciaPago.trim()) return setErr("Debe ingresar la referencia del pago.");
+    if (!form.fechaPago) return setErr("La fecha de pago es obligatoria.");
+    if (form.fechaPago > hoy) return setErr("La fecha de pago no puede ser posterior a hoy.");
     setErr(""); setLoading(true);
     try {
       await pagarLiquidacion(liquidacion.ID_Liquidacion, {
-        metodoPago: form.metodoPago,
-        fechaPago:  `${form.fechaPago}T12:00:00`,
+        metodoPago:      form.metodoPago,
+        referenciaPago:  form.referenciaPago.trim(),
+        fechaPago:       `${form.fechaPago}T12:00:00`,
+        observacionesPago: form.observaciones.trim() || null,
       });
       onPagada();
     } catch (e) { setErr(e.message); }
@@ -385,7 +390,7 @@ function ModalPago({ liquidacion, onClose, onPagada }) {
   }
 
   return (
-    <Modal titulo="Registrar pago" onClose={onClose} icono={Wallet}>
+    <Modal titulo="Registrar pago de liquidación" onClose={onClose} icono={Wallet} ancho="540px">
       <p className="liq-modal__desc">
         Total a pagar: <strong>{fmtMoneda(liquidacion.Total)}</strong> a{" "}
         <strong>{liquidacion.nombre_empleado}</strong>
@@ -396,9 +401,17 @@ function ModalPago({ liquidacion, onClose, onPagada }) {
           <option value="">Seleccionar…</option>
           {METODOS_PAGO.map(m => <option key={m} value={m}>{m}</option>)}
         </select>
+        <label>Referencia de pago * (número de comprobante, cheque o transferencia)</label>
+        <input type="text" maxLength={100} placeholder="Ej: REF-2026-09-001 o número de comprobante"
+          value={form.referenciaPago}
+          onChange={e => setForm(f => ({ ...f, referenciaPago: e.target.value }))} />
         <label>Fecha de pago *</label>
         <input type="date" max={hoy} value={form.fechaPago}
           onChange={e => setForm(f => ({ ...f, fechaPago: e.target.value }))} />
+        <label>Observaciones (opcional)</label>
+        <textarea rows={3} placeholder="Notas adicionales sobre el pago…"
+          value={form.observaciones}
+          onChange={e => setForm(f => ({ ...f, observaciones: e.target.value }))} />
         {err && <p className="liq-form__error"><AlertCircle size={14} /> {err}</p>}
         <div className="liq-form__actions">
           <button className="btn-ghost" onClick={onClose}>Cancelar</button>
@@ -597,6 +610,52 @@ function DetalleLiquidacion({ idLiquidacion, onVolver, onCambio }) {
         )}
       </div>
 
+      {/* Resumen financiero */}
+      {detalle.registros && detalle.registros.length > 0 && (() => {
+        const totalHoras = detalle.registros.reduce((s, r) => s + r.Horas_Trabajadas, 0);
+        return (
+          <div className="liq-detalle__resumen">
+            <div className="liq-detalle__resumen-fila">
+              <span>Total de horas</span>
+              <span className="liq-horas">{Math.round(totalHoras * 100) / 100} h</span>
+            </div>
+            <div className="liq-detalle__resumen-fila liq-detalle__resumen-fila--total">
+              <span>Total a pagar</span>
+              <span className="liq-monto">{fmtMoneda(detalle.Total)}</span>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Información de pago (solo si está Pagada) */}
+      {detalle.Estado === "Pagada" && detalle.Metodo_Pago && (
+        <div className="liq-detalle__pago-detalle">
+          <h3>Información de pago</h3>
+          <div className="liq-detalle__pago-grid">
+            <div>
+              <span className="liq-detalle__pago-label">Método</span>
+              <span className="liq-detalle__pago-valor">{detalle.Metodo_Pago}</span>
+            </div>
+            <div>
+              <span className="liq-detalle__pago-label">Fecha de pago</span>
+              <span className="liq-detalle__pago-valor">{fmtFecha(detalle.Fecha_Pago)}</span>
+            </div>
+            {detalle.Referencia_Pago && (
+              <div>
+                <span className="liq-detalle__pago-label">Referencia</span>
+                <span className="liq-detalle__pago-valor liq-detalle__pago-ref">{detalle.Referencia_Pago}</span>
+              </div>
+            )}
+            {detalle.Observaciones_Pago && (
+              <div className="liq-detalle__pago-obs">
+                <span className="liq-detalle__pago-label">Observaciones</span>
+                <span className="liq-detalle__pago-valor">{detalle.Observaciones_Pago}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Tabla de registros */}
       <div className="liq-detalle__tabla-card">
         <div className="liq-detalle__tabla-header">
@@ -724,13 +783,15 @@ function TabLiquidaciones({ empleados, onVerDetalle }) {
   const [showFiltros, setShowFiltros] = useState(false);
   const [modalGenerar, setModalGenerar] = useState(false);
   const [toast, setToast]       = useState(null);
+  const debounceRef             = useRef(null);
 
   const mostrarToast = (msg, type = "success") => {
     setToast({ msg, type }); setTimeout(() => setToast(null), 3500);
   };
 
-  const cargar = useCallback(async (p = pagina) => {
+  const cargar = useCallback(async (p = pagina, filtrosOverride) => {
     setLoading(true);
+    const f = filtrosOverride || filtros;
     try {
       const res = await listarLiquidaciones({
         pagina: p, porPagina: 10,
@@ -747,11 +808,20 @@ function TabLiquidaciones({ empleados, onVerDetalle }) {
 
   useEffect(() => { cargar(pagina); }, [pagina]);
 
+  function setBusqueda(valor) {
+    const next = { ...filtros, busqueda: valor };
+    setFiltros(next);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => { setPagina(1); cargar(1, next); }, 300);
+  }
+
   function buscar() { setPagina(1); cargar(1); }
   function limpiar() {
-    setFiltros({ idEmpleado: "", estado: "", fechaInicio: "", fechaFin: "", busqueda: "" });
+    clearTimeout(debounceRef.current);
+    const limpio = { idEmpleado: "", estado: "", fechaInicio: "", fechaFin: "", busqueda: "" };
+    setFiltros(limpio);
     setPagina(1);
-    setTimeout(() => cargar(1), 0);
+    cargar(1, limpio);
   }
 
   const hayFiltros = filtros.idEmpleado || filtros.estado || filtros.fechaInicio || filtros.fechaFin;
@@ -766,7 +836,7 @@ function TabLiquidaciones({ empleados, onVerDetalle }) {
           <div className="liq-search">
             <Search size={15} />
             <input placeholder="Buscar por empleado…" value={filtros.busqueda}
-              onChange={e => setFiltros(f => ({ ...f, busqueda: e.target.value }))}
+              onChange={e => setBusqueda(e.target.value)}
               onKeyDown={e => e.key === "Enter" && buscar()} />
           </div>
           <button className={`btn-icon-label${hayFiltros ? " btn-icon-label--active" : ""}`}
