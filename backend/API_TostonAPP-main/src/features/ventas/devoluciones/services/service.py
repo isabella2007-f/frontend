@@ -33,8 +33,23 @@ _ESTADO_LABELS = {
 # Estado de venta que permite devolución
 VENTA_ENTREGADA = 8
 
-# Plazo máximo para solicitar devolución: 36 horas desde la entrega.
-HORAS_LIMITE_DEVOLUCION = 36
+# Plazo máximo para solicitar devolución: 48 horas desde la entrega.
+# El mismo número que muestran la app y la web (kHorasLimiteDevolucion).
+HORAS_LIMITE_DEVOLUCION = 48
+
+
+def plazo_vencido(fecha_ref, ahora=None):
+    """¿Se le pasó el plazo a este pedido? Devuelve (vencido, horas).
+
+    Sin fecha confiable no se vence nada: se prefiere aceptar la solicitud y
+    que la revise una persona, antes que rechazar una devolución legítima
+    porque a un pedido viejo le falta el timestamp de entrega.
+    """
+    if not fecha_ref:
+        return False, 0
+    transcurrido = (ahora or _now()) - fecha_ref
+    horas = int(transcurrido.total_seconds() // 3600)
+    return transcurrido > timedelta(hours=HORAS_LIMITE_DEVOLUCION), horas
 
 
 def _formato_devolucion(dev: Devolucion, db: Session) -> dict:
@@ -297,7 +312,7 @@ def crear_devolucion(db: Session, datos: DevolucionCreate) -> dict:
             detail="Solo puedes solicitar una devolución para pedidos ya entregados"
         )
 
-    # 1b. Verificar plazo de devolución: 36 horas desde la entrega real.
+    # 1b. Verificar plazo de devolución: 48 horas desde la entrega real.
     # Fuente del timestamp (en orden): domicilio entregado → venta.Fecha_entrega
     # → fallback a Fecha_pedido/Fecha_Venta para pedidos antiguos sin timestamp.
     domicilio = db.query(Domicilio).filter(
@@ -310,18 +325,16 @@ def crear_devolucion(db: Session, datos: DevolucionCreate) -> dict:
         or venta.Fecha_pedido
         or venta.Fecha_Venta
     )
-    if fecha_ref:
-        transcurrido = _now() - fecha_ref
-        if transcurrido > timedelta(hours=HORAS_LIMITE_DEVOLUCION):
-            horas = int(transcurrido.total_seconds() // 3600)
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"El plazo para solicitar una devolución ha vencido. Las devoluciones "
-                    f"pueden solicitarse hasta {HORAS_LIMITE_DEVOLUCION} horas después de la "
-                    f"entrega (han pasado {horas} horas)."
-                )
+    vencido, horas = plazo_vencido(fecha_ref)
+    if vencido:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"El plazo para solicitar una devolución ha vencido. Las devoluciones "
+                f"pueden solicitarse hasta {HORAS_LIMITE_DEVOLUCION} horas después de la "
+                f"entrega (han pasado {horas} horas)."
             )
+        )
 
     # 2. Solo bloquear si ya hay una devolución activa (Pendiente o Aprobada).
     #    Una rechazada no cuenta: el cliente puede volver a intentarlo dentro del plazo.

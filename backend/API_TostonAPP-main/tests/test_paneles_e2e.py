@@ -27,6 +27,9 @@ from panel import (
     PEDIDO_FECHA_RECHAZADA, PEDIDO_LISTO, PEDIDO_PENDIENTE, PRECIO,
     STOCK_HARINA, STOCK_TORTA, STOCK_TOSTON, PanelBase,
 )
+from src.features.ventas.devoluciones.services.service import (
+    HORAS_LIMITE_DEVOLUCION,
+)
 
 
 COSTO_DOMICILIO = Decimal("5000")
@@ -835,7 +838,10 @@ class DevolucionesTests(PanelBase):
     def test_pasado_el_plazo_ya_no_se_puede_pedir(self):
         id_venta = self.pedido_entregado()
         venta = self.venta(id_venta)
-        venta.Fecha_entrega = datetime.now() - timedelta(hours=40)
+        # Atado a la constante: con un número fijo la prueba se queda atrás
+        # cada vez que el plazo cambia, y deja de probar lo que dice probar.
+        venta.Fecha_entrega = datetime.now() - timedelta(
+            hours=HORAS_LIMITE_DEVOLUCION + 4)
         self.db.commit()
 
         respuesta = self.post(
