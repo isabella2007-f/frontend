@@ -1,12 +1,31 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { getUser } from "../../../services/authService";
-import { getDomicilios } from "../../../services/domiciliosService";
+import { getTodosLosDomicilios } from "../../../services/domiciliosService";
+import { esPagoEfectivo, esPagoMixto } from "../../../utils/metodosPago";
 import { fmtFecha } from "../../../utils/dateUtils.js";
-import "./Domicilios.css";
-import { Banknote, CheckCircle2, BarChart2 } from "lucide-react";
+import "./DomiciliarioUI.css";
+import "./GananciasDomiciliario.css";
+import {
+  Banknote, CheckCircle2, BarChart2, Wallet, Info, Clock,
+  RefreshCw, AlertCircle,
+} from "lucide-react";
 
 const fmt = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
+  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n || 0);
+
+/**
+ * Cuánta plata de esta entrega pasó por las manos del repartidor.
+ *
+ * En un pedido mixto solo la parte en efectivo: el resto se transfirió antes
+ * de que saliera. Y si quedó registrado que no se pudo cobrar, no cuenta.
+ * Espeja `_cobrado_en_mano` del servidor.
+ */
+const efectivoRecibido = (d) => {
+  if (d.estado_pago === "no_recibido") return 0;
+  if (!esPagoEfectivo(d.metodo_pago)) return 0;
+  if (esPagoMixto(d.metodo_pago)) return d.monto_efectivo || 0;
+  return d.total || 0;
+};
 
 const PERIODOS = [
   { id: "hoy",   label: "Hoy" },
@@ -37,13 +56,15 @@ function calcularRango(periodo) {
   return { desde: null, hasta: null };
 }
 
+const fechaDeEntrega = (d) => d.fecha_entrega_real || d.fecha_pedido;
+
 function filtrarPorPeriodo(domicilios, periodo) {
   const entregados = domicilios.filter(d => d.estado === "Entregado");
   if (periodo === "todo") return entregados;
 
   const { desde, hasta } = calcularRango(periodo);
   return entregados.filter(d => {
-    const fecha = new Date(d.fecha_entrega_real || d.fecha_pedido);
+    const fecha = new Date(fechaDeEntrega(d));
     return fecha >= desde && fecha <= hasta;
   });
 }
@@ -55,165 +76,194 @@ export default function GananciasDomiciliario() {
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState(null);
 
-  useEffect(() => {
+  const cargar = useCallback(async () => {
     if (!user?.id) return;
-    const cargar = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await getDomicilios({ porPagina: 100, idEmpleado: user.id });
-        setTodos(data.domicilios || []);
-      } catch (err) {
-        setError(err?.message || "No se pudieron cargar tus entregas. Intenta de nuevo.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    cargar();
+    setLoading(true);
+    setError(null);
+    try {
+      // Todas las páginas, no solo la primera: "Total histórico" se cortaba
+      // en 100 entregas y dejaba de contar sin decirlo.
+      setTodos(await getTodosLosDomicilios({ idEmpleado: user.id }));
+    } catch (err) {
+      setError(err?.message || "No se pudieron cargar tus entregas. Intenta de nuevo.");
+    } finally {
+      setLoading(false);
+    }
   }, [user?.id]);
 
-  const entregados = filtrarPorPeriodo(todos, periodo);
-  const totalGanado   = entregados.reduce((s, d) => s + (d.total || 0), 0);
-  const totalEntregas = entregados.length;
-  const promedio      = totalEntregas > 0 ? totalGanado / totalEntregas : 0;
+  useEffect(() => { cargar(); }, [cargar]);
+
+  // OJO con lo que significan estos números: son el valor de los PEDIDOS que
+  // el repartidor entregó, o sea plata de los clientes que pasó por sus manos.
+  // No es su sueldo ni su comisión. La pantalla decía "Mis Ganancias" y
+  // "Total del periodo" sobre esta misma suma, así que a un repartidor que
+  // movió dos millones en pedidos le decía que había ganado dos millones.
+  const entregados    = filtrarPorPeriodo(todos, periodo);
+  const valorEntregado = entregados.reduce((s, d) => s + (d.total || 0), 0);
+  const enEfectivo     = entregados.reduce((s, d) => s + efectivoRecibido(d), 0);
+  const totalEntregas  = entregados.length;
+  const promedio       = totalEntregas > 0 ? valorEntregado / totalEntregas : 0;
 
   // Resumen rápido de todos los periodos (para las tarjetas de resumen)
   const resumen = PERIODOS.slice(0, 3).map(p => {
     const ents = filtrarPorPeriodo(todos, p.id);
-    return { label: p.label, total: ents.reduce((s, d) => s + (d.total || 0), 0), count: ents.length };
+    return { id: p.id, label: p.label, total: ents.reduce((s, d) => s + (d.total || 0), 0), count: ents.length };
   });
+  // Referencia de la barra: el período más alto de los tres marca el 100%.
+  const topResumen = Math.max(...resumen.map(r => r.total), 0);
 
-  const STATS_PERIODO = [
-    { label: "Total del periodo", value: fmt(totalGanado),  Icon: Banknote,      color: "#2e7d32", bg: "#e8f5e9" },
-    { label: "Entregas",          value: totalEntregas,     Icon: CheckCircle2,  color: "#1565c0", bg: "#e3f2fd" },
-    { label: "Promedio",          value: fmt(promedio),     Icon: BarChart2,     color: "#6a1b9a", bg: "#f3e5f5" },
+  const STATS = [
+    { label: "Valor entregado",      valor: fmt(valorEntregado), money: true, Icono: Banknote },
+    { label: "Recibido en efectivo", valor: fmt(enEfectivo),     money: true, Icono: Wallet, oro: true },
+    { label: "Entregas",             valor: totalEntregas,                    Icono: CheckCircle2 },
+    { label: "Promedio por entrega", valor: fmt(promedio),       money: true, Icono: BarChart2 },
   ];
 
+  const etiquetaPeriodo = PERIODOS.find(p => p.id === periodo)?.label.toLowerCase() || "";
+  const subtitulo = loading
+    ? "Sumando tus entregas…"
+    : totalEntregas === 0
+      ? `No cerraste ninguna entrega en el período de ${etiquetaPeriodo}.`
+      : `${totalEntregas} ${totalEntregas === 1 ? "entrega cerrada" : "entregas cerradas"} en el período de ${etiquetaPeriodo}.`;
+
+  const ordenadas = entregados
+    .slice()
+    .sort((a, b) => new Date(fechaDeEntrega(b)) - new Date(fechaDeEntrega(a)));
+
   return (
-    <div className="page-wrapper">
-      <div className="page-header">
-        <h1 className="page-header__title">Mis Ganancias</h1>
-        <div className="page-header__line" />
-      </div>
-
-      <div className="page-inner">
-
-        {error && (
-          <div style={{ background: "#ffebee", border: "1.5px solid #ef9a9a", borderRadius: 10, padding: "12px 16px", marginBottom: 18, fontSize: 13, color: "#c62828", fontWeight: 600 }}>
-            {error}
+    <div className="dom-ui ganancias">
+      <header className="du-hero">
+        <div className="du-hero__top">
+          <div>
+            <span className="du-hero__eyebrow"><Banknote size={14} /> Plata que moviste</span>
+            <h1 className="du-hero__title">Lo que entregué</h1>
+            <p className="du-hero__sub">{subtitulo}</p>
           </div>
-        )}
-
-        {/* ── Resumen rápido de los 3 periodos ── */}
-        {!loading && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 14, marginBottom: 24 }}>
-            {resumen.map(r => (
-              <div key={r.label} style={{
-                background: "#fff", borderRadius: 14, padding: "18px 16px",
-                border: "1.5px solid #f0f0f0", boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-              }}>
-                <div style={{ fontSize: 11, color: "#9e9e9e", fontWeight: 700, marginBottom: 6 }}>{r.label.toUpperCase()}</div>
-                <div style={{ fontSize: 20, fontWeight: 800, color: "#2e7d32" }}>{fmt(r.total)}</div>
-                <div style={{ fontSize: 12, color: "#bdbdbd", marginTop: 4 }}>{r.count} entrega{r.count !== 1 ? "s" : ""}</div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* ── Filtro de periodo ── */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-          {PERIODOS.map(p => (
-            <button
-              key={p.id}
-              onClick={() => setPeriodo(p.id)}
-              style={{
-                padding: "8px 18px", borderRadius: 20, cursor: "pointer",
-                border: periodo === p.id ? "1.5px solid #4caf50" : "1.5px solid #e0e0e0",
-                background: periodo === p.id ? "#e8f5e9" : "#fafafa",
-                color: periodo === p.id ? "#2e7d32" : "#616161",
-                fontWeight: periodo === p.id ? 700 : 400, fontSize: 13,
-              }}
-            >
-              {p.label}
-            </button>
-          ))}
+          <button
+            className={`du-hero__refresh${loading ? " du-hero__refresh--girando" : ""}`}
+            onClick={cargar}
+            disabled={loading}
+          >
+            <RefreshCw size={15} /> Actualizar
+          </button>
         </div>
 
-        {loading ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {[1, 2, 3].map(i => (
-              <div key={i} style={{ background: "#fff", borderRadius: 14, padding: 20, border: "1.5px solid #f0f0f0" }}>
-                {[60, 40, 80].map((w, j) => (
-                  <div key={j} className="skeleton-cell" style={{ width: `${w}%`, height: 14, marginBottom: 8, borderRadius: 7 }} />
-                ))}
+        <div className="du-stats">
+          {STATS.map(s => (
+            <div key={s.label} className={`du-stat${s.oro ? " du-stat--oro" : ""}`}>
+              <span className="du-stat__icon"><s.Icono size={19} /></span>
+              <div>
+                <div className={`du-stat__valor${s.money ? " du-stat__valor--money" : ""}`}>
+                  {loading ? "—" : s.valor}
+                </div>
+                <div className="du-stat__label">{s.label}</div>
               </div>
-            ))}
+            </div>
+          ))}
+        </div>
+      </header>
+
+      <div className="du-inner">
+        <div className="ga-col">
+          <div className="ga-aviso">
+            <span className="ga-aviso__icon"><Info size={18} /></span>
+            <p className="ga-aviso__txt">
+              Estas cifras son el <strong>valor de los pedidos que entregaste</strong> —plata de los
+              clientes que pasó por tus manos—, <strong>no tu pago</strong>.
+            </p>
           </div>
-        ) : (
-          <>
-            {/* ── Stats detalle del periodo seleccionado ── */}
-            <div style={{
-              display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-              gap: 14, marginBottom: 24,
-            }}>
-              {STATS_PERIODO.map(s => (
-                <div key={s.label} style={{
-                  background: "#fff", borderRadius: 14, padding: "20px 18px",
-                  border: `1.5px solid ${s.bg}`, boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-                }}>
-                  <div style={{
-                    width: 40, height: 40, borderRadius: 10, background: s.bg,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    color: s.color, marginBottom: 12,
-                  }}><s.Icon size={20} strokeWidth={1.5} /></div>
-                  <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.value}</div>
-                  <div style={{ fontSize: 12, color: "#9e9e9e", marginTop: 4, fontWeight: 600 }}>{s.label}</div>
+
+          {error && (
+            <div className="du-error"><AlertCircle size={15} /> {error}</div>
+          )}
+
+          {/* ── Comparativa rápida de los 3 períodos ── */}
+          {!loading && (
+            <div className="ga-periodos">
+              {resumen.map(r => (
+                <div key={r.id} className={`ga-periodo${periodo === r.id ? " ga-periodo--on" : ""}`}>
+                  <div className="ga-periodo__label">{r.label}</div>
+                  <div className="ga-periodo__monto">{fmt(r.total)}</div>
+                  <div className="ga-periodo__count">{r.count} entrega{r.count !== 1 ? "s" : ""}</div>
+                  <div className="ga-periodo__barra">
+                    <div
+                      className="ga-periodo__relleno"
+                      style={{ "--pct": `${topResumen > 0 ? (r.total / topResumen) * 100 : 0}%` }}
+                    />
+                  </div>
                 </div>
               ))}
             </div>
+          )}
 
-            {/* ── Lista de entregas del periodo ── */}
-            {entregados.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "60px 0", color: "#9e9e9e" }}>
-                <div style={{ marginBottom: 12, color: "#bdbdbd", display: "flex", justifyContent: "center" }}>
-                  <Banknote size={48} strokeWidth={1} />
+          {/* ── Filtro de período ── */}
+          <div className="du-filtros">
+            {PERIODOS.map(p => (
+              <button
+                key={p.id}
+                onClick={() => setPeriodo(p.id)}
+                className={`du-filtro${periodo === p.id ? " du-filtro--on" : ""}`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* ── Detalle de entregas del período ── */}
+          {loading ? (
+            <div className="ga-filas">
+              {[1, 2, 3].map(i => (
+                <div key={i} className="du-skel-card">
+                  {[60, 40, 80].map((w, j) => (
+                    <div key={j} className="du-skel" style={{ width: `${w}%` }} />
+                  ))}
                 </div>
-                <p style={{ fontSize: 15, fontWeight: 600 }}>Sin entregas en este período</p>
-              </div>
-            ) : (
-              <div>
-                <div style={{ fontSize: 13, color: "#9e9e9e", fontWeight: 700, marginBottom: 12, letterSpacing: "0.05em" }}>
-                  DETALLE — {entregados.length} ENTREGA{entregados.length !== 1 ? "S" : ""}
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {entregados
-                    .slice()
-                    .sort((a, b) => new Date(b.fecha_entrega_real || b.fecha_pedido) - new Date(a.fecha_entrega_real || a.fecha_pedido))
-                    .map(dom => (
-                      <div key={dom.id} style={{
-                        background: "#fff", borderRadius: 12, padding: "16px 18px",
-                        border: "1.5px solid #f0f0f0",
-                        display: "flex", justifyContent: "space-between", alignItems: "center",
-                      }}>
-                        <div>
-                          <div style={{ fontSize: 12, color: "#9e9e9e", fontWeight: 700 }}>{dom.numero}</div>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: "#212121", marginTop: 2 }}>
-                            {dom.cliente?.nombre || "Cliente"}
-                          </div>
-                          <div style={{ fontSize: 12, color: "#bdbdbd", marginTop: 3 }}>
-                            {fmtFecha(dom.fecha_entrega_real || dom.fecha_pedido)}
-                          </div>
-                        </div>
-                        <div style={{ fontWeight: 800, fontSize: 16, color: "#2e7d32" }}>
-                          {fmt(dom.total || 0)}
+              ))}
+            </div>
+          ) : ordenadas.length === 0 ? (
+            <div className="du-vacio">
+              <span className="du-vacio__icon"><Banknote size={38} strokeWidth={1.4} /></span>
+              <p className="du-vacio__titulo">Sin entregas en este período</p>
+              <p className="du-vacio__texto">
+                Aquí aparece el detalle de cada pedido que cerraste. Prueba con un período más amplio.
+              </p>
+            </div>
+          ) : (
+            <section>
+              <h2 className="ga-detalle__titulo">
+                Detalle
+                <span className="ga-detalle__n">
+                  {ordenadas.length} entrega{ordenadas.length !== 1 ? "s" : ""}
+                </span>
+              </h2>
+              <div className="ga-filas">
+                {ordenadas.map(dom => {
+                  const enMano = efectivoRecibido(dom);
+                  return (
+                    <div key={dom.id} className="ga-fila">
+                      <span className="ga-fila__icono"><CheckCircle2 size={19} /></span>
+                      <div className="ga-fila__txt">
+                        <div className="ga-fila__num">{dom.numero}</div>
+                        <div className="ga-fila__cliente">{dom.cliente?.nombre || "Cliente"}</div>
+                        <div className="ga-fila__fecha">
+                          <Clock size={11} /> {fmtFecha(fechaDeEntrega(dom))}
                         </div>
                       </div>
-                    ))}
-                </div>
+                      <div className="ga-fila__lado">
+                        <div className="ga-fila__monto">{fmt(dom.total || 0)}</div>
+                        {enMano > 0 && (
+                          <span className="ga-fila__efectivo">
+                            <Banknote size={11} /> {fmt(enMano)} en efectivo
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            )}
-          </>
-        )}
+            </section>
+          )}
+        </div>
       </div>
     </div>
   );

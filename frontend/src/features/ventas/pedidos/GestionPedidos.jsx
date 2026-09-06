@@ -1,10 +1,10 @@
-import { esEmpleadoRepartidor } from "../../../utils/roles.js";
+﻿import { esEmpleadoRepartidor } from "../../../utils/roles.js";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { fmtFecha, getRecordDate } from "../../../utils/dateUtils.js";
 import DateRangeFilter from "../../../shared/components/DateRangeFilter";
 import { descargarFacturaPedido } from "../../../utils/facturaGenerator.js";
-import { getPedidos, getHistorialPedidos, confirmarPedido, cancelarPedido, crearPedido, editarPedido, cambiarEstadoVenta, proponerFechaProduccion, registrarPagoFinal, aprobarComprobante, rechazarComprobante, registrarCobroPedido } from "../../../services/pedidosService.js";
+import { getPedidos, getPedido, getHistorialPedidos, confirmarPedido, cancelarPedido, crearPedido, editarPedido, cambiarEstadoVenta, proponerFechaProduccion, registrarPagoFinal, aprobarComprobante, rechazarComprobante, registrarCobroPedido, resolverEscaladoAcuerdo, resolverEscaladoCancelar, getItemsListos, crearGruposEnvio, actualizarEstadoGrupo, cancelarGrupoPendiente } from "../../../services/pedidosService.js";
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
 import { asignarRepartidor } from "../../../services/domiciliosService.js";
 import { registrarSalida } from "../../../services/salidasService.js";
@@ -60,13 +60,16 @@ const ESTADO_CONFIG = {
   "Asignado":                { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7", dot: "#43a047" },
   "En camino":               { bg: "#f3e5f5", color: "#6a1b9a", border: "#ce93d8", dot: "#8e24aa" },
   "Fecha propuesta":         { bg: "#e8eaf6", color: "#283593", border: "#9fa8da", dot: "#3949ab" },
+  "Fecha rechazada":         { bg: "#fff3e0", color: "#e65100", border: "#ffcc80", dot: "#fb8c00" },
+  "Escalado a admin":        { bg: "#fce4ec", color: "#880e4f", border: "#f48fb1", dot: "#e91e63" },
+  "Parcialmente entregado":  { bg: "#e8f5e9", color: "#1b5e20", border: "#a5d6a7", dot: "#43a047" },
   "Cancelado":               { bg: "#ffebee", color: "#c62828", border: "#ef9a9a", dot: "#e53935" },
   "Entregado":               { bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7", dot: "#43a047" },
 };
 
 const getEstadoDisplay = (pedido) =>
   (pedido?.ordenes_en_espera > 0 &&
-   ["En producción", "Fecha propuesta", "Confirmado"].includes(pedido?.estado))
+   ["En producción", "Confirmado"].includes(pedido?.estado))
     ? "Pendiente de producción"
     : (pedido?.estado ?? "Pendiente");
 
@@ -188,17 +191,22 @@ function ComprobanteAdjunto({ url, titulo }) {
 /* ═══════════════════════════════════════════════════════════
    MODAL — VER DETALLE
    ═══════════════════════════════════════════════════════════ */
-function ModalVerPedido({ pedido, empleados, onClose, onEdit }) {
+function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpdatePedido }) {
+  const [pedido, setPedido] = useState(pedidoProp);
+
+  useEffect(() => {
+    let cancelado = false;
+    getPedido(pedidoProp.id)
+      .then(data => { if (!cancelado) setPedido(data); })
+      .catch(() => {});
+    return () => { cancelado = true; };
+  }, [pedidoProp.id]);
+
   const navigate = useNavigate();
-  // El comprobante del pedido y el del anticipo respaldan el mismo pago —lo que
-  // el cliente transfirió al pedir—, aunque se guarden en dos campos: se muestra
-  // uno solo. El del saldo sí es otro cobro, el de la entrega.
   const comprobantes = [
     { url: pedido.comprobante || pedido.anticipo_comprobante_url, titulo: "Comprobante de pago adjuntado." },
     { url: pedido.pago_final_comprobante_url,                     titulo: "Comprobante del saldo adjuntado." },
   ].filter((c, i, todos) => c.url && todos.findIndex(o => o.url === c.url) === i);
-  // El mixto trae comprobante igual que una transferencia: sin esto el detalle
-  // no mostraba ni los datos bancarios ni el comprobante adjunto.
   const esMixto         = esPagoMixto(pedido.metodo_pago);
   const esTransferencia = esPagoTransferencia(pedido.metodo_pago);
   const epInicial = pedido.estado_pago;
@@ -207,11 +215,107 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit }) {
       ? "pago"
       : "resumen"
   );
+
+  /* ── Estado para "Dividir entrega" (admin inicia la división) ── */
+  const _sinGrupos    = pedido.sobre_stock && (!pedido.grupos_envio || pedido.grupos_envio.length === 0);
+  const eligioJunto   = _sinGrupos && pedido.envio_completo_domingo === true;
+  const sinDecision   = _sinGrupos && pedido.envio_completo_domingo !== true;
+  const mostrarDividir = _sinGrupos;
+  const [mostrarFormForzado, setMostrarFormForzado] = useState(false);
+  const mostrarFormDivision = sinDecision || mostrarFormForzado;
+  const [adminItems,      setAdminItems]      = useState(null);
+  const [loadingAdminItems, setLoadingAdminItems] = useState(false);
+  const [adminItemsError, setAdminItemsError] = useState(null);
+  const [adminFecha,      setAdminFecha]      = useState('');
+  const [adminTipoA,      setAdminTipoA]      = useState('');
+  const [adminTipoB,      setAdminTipoB]      = useState('');
+  const [adminDireccionA, setAdminDireccionA] = useState(pedido.direccion_entrega || '');
+  const [adminMunicipioA, setAdminMunicipioA] = useState(pedido.municipio || '');
+  const [adminDeptoA,     setAdminDeptoA]     = useState(pedido.departamento || '');
+  const [adminDireccionB, setAdminDireccionB] = useState(pedido.direccion_entrega || '');
+  const [adminMunicipioB, setAdminMunicipioB] = useState(pedido.municipio || '');
+  const [adminDeptoB,     setAdminDeptoB]     = useState(pedido.departamento || '');
+  const [creandoAdmin,    setCreandoAdmin]    = useState(false);
+  const [errorAdmin,      setErrorAdmin]      = useState('');
+
+  /* ── Estado para avanzar/cancelar grupos ── */
+  const [savingGrupo, setSavingGrupo] = useState(false);
+  const [errorGrupo,  setErrorGrupo]  = useState('');
+
+  /* Fetch items-listos cuando se va a mostrar el formulario de división */
+  useEffect(() => {
+    if (!mostrarFormDivision || tab !== "resumen") return;
+    let cancelado = false;
+    setLoadingAdminItems(true);
+    setAdminItemsError(null);
+    getItemsListos(pedido.id)
+      .then(data => { if (!cancelado) setAdminItems(data); })
+      .catch(err  => { if (!cancelado) setAdminItemsError(err?.message || 'Error al cargar disponibilidad'); })
+      .finally(()  => { if (!cancelado) setLoadingAdminItems(false); });
+    return () => { cancelado = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pedido.id, mostrarFormDivision, tab]);
+
+  const handleDividirEntrega = async () => {
+    if (!adminFecha) return;
+    setCreandoAdmin(true);
+    setErrorAdmin('');
+    try {
+      const actualizado = await crearGruposEnvio(pedido.id, {
+        fechaAnticipada: adminFecha + 'T00:00:00',
+        tipoEntregaA:    adminTipoA || null,
+        tipoEntregaB:    adminTipoB || null,
+        direccionA:      adminTipoA === 'domicilio' ? adminDireccionA || null : null,
+        municipioA:      adminTipoA === 'domicilio' ? adminMunicipioA || null : null,
+        departamentoA:   adminTipoA === 'domicilio' ? adminDeptoA     || null : null,
+        direccionB:      adminTipoB === 'domicilio' ? adminDireccionB || null : null,
+        municipioB:      adminTipoB === 'domicilio' ? adminMunicipioB || null : null,
+        departamentoB:   adminTipoB === 'domicilio' ? adminDeptoB     || null : null,
+      });
+      setPedido(actualizado);
+      onUpdatePedido?.(actualizado);
+    } catch (e) {
+      setErrorAdmin(e.message || 'No se pudo crear la división. Intenta de nuevo.');
+    } finally {
+      setCreandoAdmin(false);
+    }
+  };
+
+  const handleAvanzarGrupo = async (idGrupo, nuevoEstado) => {
+    setSavingGrupo(true);
+    setErrorGrupo('');
+    try {
+      const actualizado = await actualizarEstadoGrupo(pedido.id, idGrupo, nuevoEstado);
+      setPedido(actualizado);
+      onUpdatePedido?.(actualizado);
+    } catch (e) {
+      setErrorGrupo(e.message || 'No se pudo avanzar el estado del grupo.');
+    } finally {
+      setSavingGrupo(false);
+    }
+  };
+
+  const handleCancelarGrupo = async (idGrupo) => {
+    setSavingGrupo(true);
+    setErrorGrupo('');
+    try {
+      const actualizado = await cancelarGrupoPendiente(pedido.id, idGrupo);
+      setPedido(actualizado);
+      onUpdatePedido?.(actualizado);
+    } catch (e) {
+      setErrorGrupo(e.message || 'No se pudo cancelar el grupo.');
+    } finally {
+      setSavingGrupo(false);
+    }
+  };
+
+  const nombreProducto = (idProd) =>
+    pedido.productosItems?.find(p => String(p.idProducto) === String(idProd))?.nombre || `Producto #${idProd}`;
   const emp = empleados.find(e => e.id === pedido.idEmpleado);
   if (!pedido) return null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div
         className="modal-box modal-box--wide"
         onClick={e => e.stopPropagation()}
@@ -233,6 +337,9 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit }) {
         <div className="ver-ped-tabs">
           <button className={`ver-ped-tab${tab === "resumen"   ? " ver-ped-tab--active" : ""}`} onClick={() => setTab("resumen")} style={{display:"inline-flex",alignItems:"center",gap:5}}><ClipboardList size={14} /> Resumen</button>
           <button className={`ver-ped-tab${tab === "productos" ? " ver-ped-tab--active" : ""}`} onClick={() => setTab("productos")} style={{display:"inline-flex",alignItems:"center",gap:5}}><Package size={14} /> Productos</button>
+          {pedido.grupos_envio?.length > 0 && (
+            <button className={`ver-ped-tab${tab === "grupos" ? " ver-ped-tab--active" : ""}`} onClick={() => setTab("grupos")} style={{display:"inline-flex",alignItems:"center",gap:5}}><Truck size={14} /> Grupos</button>
+          )}
           <button className={`ver-ped-tab${tab === "pago"      ? " ver-ped-tab--active" : ""}`} onClick={() => setTab("pago")} style={{display:"inline-flex",alignItems:"center",gap:5}}>
             <CreditCard size={14} /> Pago{" "}
             {esTransferencia && <span style={{ marginLeft: 4, fontSize: 10, fontWeight: 700, background: "#e3f2fd", color: "#1565c0", border: "1px solid #90caf9", borderRadius: 4, padding: "1px 5px" }}>Transferencia</span>}
@@ -358,6 +465,120 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit }) {
                   </button>
                 </div>
               )}
+
+              {/* ── Dividir entrega (admin inicia la división) ── */}
+              {mostrarDividir && (
+                <div style={{ gridColumn: "1 / -1", background: "#e3f2fd", border: "1.5px solid #90caf9", borderRadius: 14, padding: "14px 16px" }}>
+                  <p style={{ fontSize: 10, fontWeight: 800, color: "#1565c0", letterSpacing: 1, textTransform: "uppercase", margin: "0 0 8px", display: "flex", alignItems: "center", gap: 5 }}>
+                    <Truck size={12} /> Dividir entrega
+                  </p>
+
+                  {/* Cliente ya eligió "todo junto" y el admin no forzó el formulario */}
+                  {eligioJunto && !mostrarFormForzado && (
+                    <div>
+                      <p style={{ fontSize: 13, color: "#1565c0", margin: "0 0 10px", lineHeight: 1.5 }}>
+                        El cliente eligió recibir todo junto
+                        {pedido.fecha_propuesta ? ` el ${new Date(pedido.fecha_propuesta.slice(0,10)+'T00:00:00').toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long'})}` : ''}.
+                      </p>
+                      <button
+                        onClick={() => setMostrarFormForzado(true)}
+                        style={{ background: "transparent", border: "1.5px solid #90caf9", borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 700, color: "#1565c0", cursor: "pointer" }}
+                      >
+                        Dividir de todas formas
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Formulario: sin decisión tomada, o admin forzó división */}
+                  {mostrarFormDivision && (
+                  <>
+                  {loadingAdminItems && <p style={{ fontSize: 12, color: "#5c6bc0", margin: 0 }}>Verificando disponibilidad...</p>}
+                  {adminItemsError && <p style={{ fontSize: 12, color: "#c62828", margin: 0 }}>{adminItemsError}</p>}
+                  {!loadingAdminItems && adminItems && adminItems.listos?.length === 0 && (
+                    <p style={{ fontSize: 12, color: "#1565c0", margin: 0, lineHeight: 1.5 }}>
+                      Ningún producto está disponible para entrega anticipada aún.
+                    </p>
+                  )}
+                  {!loadingAdminItems && adminItems && adminItems.listos?.length > 0 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: adminItems.pendientes?.length > 0 ? "1fr 1fr" : "1fr", gap: 8 }}>
+                        <div style={{ background: "#e8f5e9", borderRadius: 10, padding: "8px 10px" }}>
+                          <p style={{ fontSize: 9, fontWeight: 800, color: "#2e7d32", letterSpacing: 1, textTransform: "uppercase", margin: "0 0 4px" }}>Listos ahora</p>
+                          {adminItems.listos.map(p => (
+                            <p key={p.id_producto} style={{ fontSize: 11, color: "#1b5e20", margin: "0 0 2px" }}>{p.nombre} ×{p.cantidad}</p>
+                          ))}
+                        </div>
+                        {adminItems.pendientes?.length > 0 && (
+                          <div style={{ background: "#fff8e1", borderRadius: 10, padding: "8px 10px" }}>
+                            <p style={{ fontSize: 9, fontWeight: 800, color: "#e65100", letterSpacing: 1, textTransform: "uppercase", margin: "0 0 4px" }}>En producción</p>
+                            {adminItems.pendientes.map(p => (
+                              <p key={p.id_producto} style={{ fontSize: 11, color: "#bf360c", margin: "0 0 2px" }}>{p.nombre} ×{p.cantidad}</p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div>
+                        <p style={{ fontSize: 11, fontWeight: 700, color: "#1565c0", margin: "0 0 4px" }}>
+                          {adminItems.pendientes?.length > 0 ? "¿Cuándo enviar los productos listos?" : "¿Cuándo enviar el pedido?"}
+                        </p>
+                        <input
+                          type="date"
+                          value={adminFecha}
+                          onChange={e => { setAdminFecha(e.target.value); setErrorAdmin(''); }}
+                          min={(() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })()}
+                          max={pedido.fecha_propuesta ? (() => { const d = new Date(pedido.fecha_propuesta.slice(0, 10) + 'T00:00:00'); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); })() : undefined}
+                          style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #90caf9", fontSize: 13, boxSizing: "border-box", marginBottom: 6 }}
+                        />
+                        <p style={{ fontSize: 10, fontWeight: 700, color: "#1565c0", margin: "0 0 3px" }}>
+                          {adminItems.pendientes?.length > 0 ? "Tipo de entrega (listos)" : "Tipo de entrega"}
+                        </p>
+                        <select value={adminTipoA} onChange={e => setAdminTipoA(e.target.value)}
+                          style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #90caf9", fontSize: 13, boxSizing: "border-box", marginBottom: 6, background: "#fff" }}>
+                          <option value="">Sin especificar</option>
+                          <option value="domicilio">Domicilio</option>
+                          <option value="tienda">Retiro en tienda</option>
+                        </select>
+                        {adminTipoA === 'domicilio' && (
+                          <div style={{ marginBottom: 6 }}>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: "#1565c0", margin: "0 0 3px" }}>Dirección (listos)</p>
+                            <input value={adminDireccionA} onChange={e => setAdminDireccionA(e.target.value)} placeholder="Dirección" style={{ width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid #90caf9", fontSize: 12, boxSizing: "border-box", marginBottom: 4 }} />
+                            <input value={adminMunicipioA} onChange={e => setAdminMunicipioA(e.target.value)} placeholder="Municipio" style={{ width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid #90caf9", fontSize: 12, boxSizing: "border-box", marginBottom: 4 }} />
+                            <input value={adminDeptoA} onChange={e => setAdminDeptoA(e.target.value)} placeholder="Departamento" style={{ width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid #90caf9", fontSize: 12, boxSizing: "border-box" }} />
+                          </div>
+                        )}
+                        {adminItems.pendientes?.length > 0 && (
+                          <>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: "#1565c0", margin: "0 0 3px" }}>Tipo de entrega (en producción)</p>
+                            <select value={adminTipoB} onChange={e => setAdminTipoB(e.target.value)}
+                              style={{ width: "100%", padding: "7px 10px", borderRadius: 8, border: "1.5px solid #90caf9", fontSize: 13, boxSizing: "border-box", marginBottom: 6, background: "#fff" }}>
+                              <option value="">Sin especificar</option>
+                              <option value="domicilio">Domicilio</option>
+                              <option value="tienda">Retiro en tienda</option>
+                            </select>
+                            {adminTipoB === 'domicilio' && (
+                              <div style={{ marginBottom: 6 }}>
+                                <p style={{ fontSize: 10, fontWeight: 700, color: "#1565c0", margin: "0 0 3px" }}>Dirección (en producción)</p>
+                                <input value={adminDireccionB} onChange={e => setAdminDireccionB(e.target.value)} placeholder="Dirección" style={{ width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid #90caf9", fontSize: 12, boxSizing: "border-box", marginBottom: 4 }} />
+                                <input value={adminMunicipioB} onChange={e => setAdminMunicipioB(e.target.value)} placeholder="Municipio" style={{ width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid #90caf9", fontSize: 12, boxSizing: "border-box", marginBottom: 4 }} />
+                                <input value={adminDeptoB} onChange={e => setAdminDeptoB(e.target.value)} placeholder="Departamento" style={{ width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid #90caf9", fontSize: 12, boxSizing: "border-box" }} />
+                              </div>
+                            )}
+                          </>
+                        )}
+                        {errorAdmin && <p style={{ fontSize: 11, color: "#c62828", margin: "0 0 6px" }}>{errorAdmin}</p>}
+                        <button
+                          onClick={handleDividirEntrega}
+                          disabled={creandoAdmin || !adminFecha}
+                          style={{ width: "100%", padding: "9px 0", borderRadius: 10, border: "none", background: creandoAdmin || !adminFecha ? "#b0bec5" : "#1565c0", color: "#fff", fontWeight: 800, fontSize: 13, cursor: creandoAdmin || !adminFecha ? "not-allowed" : "pointer" }}>
+                          {creandoAdmin ? "Guardando..." : "Confirmar división de entrega"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  </>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -411,6 +632,81 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit }) {
                   <span>{fmt(pedido.total)}</span>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* ── Tab Grupos ── */}
+          {tab === "grupos" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {errorGrupo && (
+                <div className="info-box info-box--danger" style={{ background: "#ffebee", borderColor: "#ef9a9a" }}>
+                  <span className="info-box__icon"><AlertCircle size={16} /></span>
+                  <span className="info-box__text">{errorGrupo}</span>
+                </div>
+              )}
+              {(pedido.grupos_envio || []).map(g => {
+                const ESTADO_GRUPO = {
+                  pendiente:  { label: "Pendiente",  bg: "#fff8e1", color: "#f57f17", border: "#ffe082" },
+                  enviado:    { label: "Enviado",    bg: "#e3f2fd", color: "#1565c0", border: "#90caf9" },
+                  entregado:  { label: "Entregado",  bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7" },
+                  cancelado:  { label: "Cancelado",  bg: "#ffebee", color: "#c62828", border: "#ef9a9a" },
+                };
+                const cfg = ESTADO_GRUPO[g.estado] || ESTADO_GRUPO.pendiente;
+                const grupoAnticipado = pedido.grupos_envio.find(x => x.tipo === "anticipado");
+                const puedeAvanzar = (g.estado === "pendiente" || g.estado === "enviado") && g.tipo_entrega !== "domicilio";
+                const siguienteEstado = g.estado === "pendiente" ? "enviado" : g.estado === "enviado" ? "entregado" : null;
+                const puedeCancel = g.tipo === "programado" && g.estado !== "entregado" && g.estado !== "cancelado" && grupoAnticipado?.estado === "entregado";
+                return (
+                  <div key={g.id_grupo} style={{ background: "#fff", border: `1.5px solid ${cfg.border}`, borderRadius: 14, padding: "14px 16px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                      <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: "#4a148c", display: "flex", alignItems: "center", gap: 6 }}>
+                        <Truck size={13} /> {g.tipo === "anticipado" ? "Grupo anticipado" : "Grupo programado"}
+                      </p>
+                      <span style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, borderRadius: 20, padding: "2px 10px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5 }}>
+                        {cfg.label}
+                      </span>
+                    </div>
+                    {g.fecha && (
+                      <p style={{ fontSize: 11, color: "#616161", margin: "0 0 6px", display: "flex", alignItems: "center", gap: 5 }}>
+                        <Calendar size={11} /> {new Date(typeof g.fecha === "string" ? g.fecha.slice(0, 10) + "T00:00:00" : g.fecha).toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                      </p>
+                    )}
+                    {g.tipo_entrega && (
+                      <p style={{ fontSize: 11, color: "#616161", margin: "0 0 8px" }}>
+                        {g.tipo_entrega === "domicilio" ? "🚴 Domicilio" : "🏪 Retiro en tienda"}
+                      </p>
+                    )}
+                    {(g.productos || []).length > 0 && (
+                      <div style={{ background: "#f5f5f5", borderRadius: 8, padding: "7px 10px", marginBottom: 10 }}>
+                        {g.productos.map(pr => (
+                          <p key={pr.id_producto} style={{ fontSize: 11, margin: "0 0 2px", color: "#424242", display: "flex", justifyContent: "space-between" }}>
+                            <span>{nombreProducto(pr.id_producto)}</span>
+                            <span style={{ fontWeight: 700 }}>×{pr.cantidad}</span>
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {puedeAvanzar && (
+                        <button
+                          disabled={savingGrupo}
+                          onClick={() => handleAvanzarGrupo(g.id_grupo, siguienteEstado)}
+                          style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: "none", background: savingGrupo ? "#b0bec5" : "#2e7d32", color: "#fff", fontWeight: 800, fontSize: 12, cursor: savingGrupo ? "not-allowed" : "pointer" }}>
+                          {savingGrupo ? "Guardando..." : siguienteEstado === "enviado" ? "Marcar como enviado" : "Marcar como entregado"}
+                        </button>
+                      )}
+                      {puedeCancel && (
+                        <button
+                          disabled={savingGrupo}
+                          onClick={() => handleCancelarGrupo(g.id_grupo)}
+                          style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: "1.5px solid #ef9a9a", background: "#fff", color: "#c62828", fontWeight: 800, fontSize: 12, cursor: savingGrupo ? "not-allowed" : "pointer" }}>
+                          Cancelar este grupo
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -764,6 +1060,127 @@ function ModalProponerFecha({ pedido, saving, onClose, onConfirm }) {
   );
 }
 
+/* ═══════════════════════════════════════════════════════════
+   MODAL — RESOLVER PEDIDO ESCALADO A ADMIN
+   Dos opciones: acordar una fecha manualmente (→ Confirmado/En producción)
+   o cancelar el pedido (→ Cancelado + devuelve crédito).
+   ═══════════════════════════════════════════════════════════ */
+function ModalResolverEscalado({ pedido, saving, onClose, onConfirmarAcuerdo, onConfirmarCancelacion }) {
+  const hoy = new Date().toISOString().split("T")[0];
+  const [opcion, setOpcion] = useState(null); // "acuerdo" | "cancelar"
+  const [fecha, setFecha]   = useState("");
+  const [error, setError]   = useState("");
+
+  const handleAcuerdo = () => {
+    if (!fecha) { setError("Selecciona una fecha acordada"); return; }
+    if (fecha < hoy) { setError("La fecha no puede ser anterior a hoy"); return; }
+    onConfirmarAcuerdo(pedido.id, fecha);
+  };
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-box relative bg-white shadow-2xl overflow-hidden flex flex-col border-none" style={{ borderRadius: "28px", maxWidth: "460px" }}>
+        <div className="modal-header shrink-0" style={{ background: "linear-gradient(135deg, #880e4f 0%, #c2185b 100%)", padding: "20px 24px" }}>
+          <div>
+            <h2 className="text-lg font-black text-white leading-none">Pedido escalado a admin</h2>
+            <p className="text-white/60 text-[9px] font-bold uppercase tracking-widest mt-1">Pedido #{pedido.numero}</p>
+          </div>
+          <button onClick={onClose} className="text-white/70 hover:text-white"><X size={18} /></button>
+        </div>
+
+        <div className="modal-body p-6 space-y-4">
+          <div className="bg-pink-50 border border-pink-200 p-4 rounded-2xl">
+            <p className="text-xs font-black text-pink-800 mb-1" style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <AlertTriangle size={14} /> El cliente rechazó la fecha demasiadas veces
+            </p>
+            <p className="text-[11px] text-pink-700 font-medium leading-snug">
+              Este pedido requiere gestión manual. Elige si acordás una fecha directamente con el cliente o cancelás el pedido.
+            </p>
+          </div>
+
+          {!opcion && (
+            <div className="space-y-3">
+              <button
+                onClick={() => setOpcion("acuerdo")}
+                className="w-full py-4 px-5 rounded-2xl border-2 border-transparent text-left transition-all"
+                style={{ background: "#e8f5e9", border: "2px solid #a5d6a7" }}
+              >
+                <p className="text-xs font-black text-green-800 flex items-center gap-2"><Calendar size={14} /> Acordar fecha manualmente</p>
+                <p className="text-[10px] text-green-700 mt-1">El pedido pasa directamente a Confirmado o En producción. El cliente no puede rechazar de nuevo.</p>
+              </button>
+              <button
+                onClick={() => setOpcion("cancelar")}
+                className="w-full py-4 px-5 rounded-2xl border-2 border-transparent text-left transition-all"
+                style={{ background: "#ffebee", border: "2px solid #ef9a9a" }}
+              >
+                <p className="text-xs font-black text-red-800 flex items-center gap-2"><X size={14} /> Cancelar pedido</p>
+                <p className="text-[10px] text-red-700 mt-1">El pedido se cancela. Se devuelve el saldo a favor del cliente si lo usó. El anticipo, si existe, se acuerda con el cliente por fuera del sistema.</p>
+              </button>
+            </div>
+          )}
+
+          {opcion === "acuerdo" && (
+            <div className="space-y-4">
+              <button onClick={() => { setOpcion(null); setError(""); setFecha(""); }} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 flex items-center gap-1">
+                ← Volver
+              </button>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                  Fecha acordada <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  min={hoy}
+                  value={fecha}
+                  onChange={e => { setFecha(e.target.value); setError(""); }}
+                  className={`w-full bg-gray-50 border-2 rounded-2xl p-4 text-sm font-medium text-gray-700 outline-none transition-all ${
+                    error ? "border-red-400 bg-red-50" : "border-transparent focus:border-green-400 focus:bg-white"
+                  }`}
+                />
+                {error && <p className="text-[10px] font-bold text-red-500 flex items-center gap-1"><AlertCircle size={10} /> {error}</p>}
+              </div>
+              <button
+                disabled={saving}
+                onClick={handleAcuerdo}
+                className="w-full py-4 text-xs font-black uppercase tracking-widest rounded-2xl text-white shadow-lg"
+                style={{ background: "linear-gradient(135deg, #2e7d32, #43a047)" }}
+              >
+                {saving ? "Guardando…" : <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Calendar size={14} /> Confirmar fecha acordada</span>}
+              </button>
+            </div>
+          )}
+
+          {opcion === "cancelar" && (
+            <div className="space-y-4">
+              <button onClick={() => setOpcion(null)} className="text-[10px] font-bold text-gray-400 hover:text-gray-600 flex items-center gap-1">
+                ← Volver
+              </button>
+              <div className="bg-red-50 border border-red-200 p-4 rounded-2xl">
+                <p className="text-xs font-black text-red-800 mb-1">¿Confirmás que querés cancelar este pedido?</p>
+                <p className="text-[11px] text-red-700 leading-snug">Esta acción no se puede deshacer. El saldo a favor aplicado vuelve al cliente automáticamente.</p>
+              </div>
+              <button
+                disabled={saving}
+                onClick={() => onConfirmarCancelacion(pedido.id)}
+                className="w-full py-4 text-xs font-black uppercase tracking-widest rounded-2xl text-white shadow-lg"
+                style={{ background: "linear-gradient(135deg, #c62828, #e53935)" }}
+              >
+                {saving ? "Cancelando…" : <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><X size={14} /> Cancelar pedido</span>}
+              </button>
+            </div>
+          )}
+
+          {!opcion && (
+            <button onClick={onClose} className="w-full py-3 text-[10px] font-black text-gray-400 hover:text-gray-600 uppercase tracking-widest transition-colors">
+              Cerrar sin hacer nada
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── ModalRegistrarSaldo ────────────────────────────────── */
 function ModalRegistrarSaldo({ pedido, saving, onClose, onConfirm }) {
   const [metodo,    setMetodo]    = useState("");
@@ -808,7 +1225,7 @@ function ModalRegistrarSaldo({ pedido, saving, onClose, onConfirm }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()} style={{ overflow: "hidden", padding: 0, maxWidth: 420 }}>
         <div style={{ background: "linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%)", padding: "24px 24px 18px", position: "relative" }}>
           <button onClick={onClose} style={{ position: "absolute", top: 12, right: 12, color: "rgba(255,255,255,0.8)", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 8, width: 30, height: 30, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={14} /></button>
@@ -900,7 +1317,7 @@ function ModalRegistrarSaldo({ pedido, saving, onClose, onConfirm }) {
 function ModalErrorEstadoPedido({ mensaje, onClose }) {
   if (!mensaje) return null;
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()} style={{ overflow: "hidden", padding: 0 }}>
         <div style={{ background: "linear-gradient(135deg, #e65100 0%, #f57f17 100%)", padding: "28px 24px 22px", textAlign: "center", position: "relative" }}>
           <button onClick={onClose} style={{ position: "absolute", top: 12, right: 12, color: "rgba(255,255,255,0.8)", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 8, width: 30, height: 30, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={14} /></button>
@@ -914,6 +1331,36 @@ function ModalErrorEstadoPedido({ mensaje, onClose }) {
         </div>
         <div style={{ padding: "0 24px 20px" }}>
           <button onClick={onClose} style={{ width: "100%", padding: "11px", borderRadius: 10, border: "none", background: "#f57f17", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>Entendido</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ModalAvisoProduccion({ items, pedidoNumero, onClose }) {
+  if (!items?.length) return null;
+  return (
+    <div className="modal-overlay">
+      <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()} style={{ overflow: "hidden", padding: 0 }}>
+        <div style={{ background: "linear-gradient(135deg, #1565c0 0%, #1976d2 100%)", padding: "24px 24px 20px", textAlign: "center", position: "relative" }}>
+          <button onClick={onClose} style={{ position: "absolute", top: 12, right: 12, color: "rgba(255,255,255,0.8)", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 8, width: 30, height: 30, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><X size={14} /></button>
+          <div style={{ width: 56, height: 56, borderRadius: "50%", background: "rgba(255,255,255,0.15)", border: "2px solid rgba(255,255,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}><Package size={26} color="white" /></div>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: "#fff" }}>Pedido #{pedidoNumero} confirmado</h3>
+          <p style={{ margin: "6px 0 0", fontSize: 11, color: "rgba(255,255,255,0.7)", fontWeight: 600 }}>Los siguientes productos irán a producción</p>
+        </div>
+        <div style={{ padding: "16px 24px" }}>
+          <div style={{ background: "#e3f2fd", border: "1.5px solid #90caf9", borderRadius: 10, padding: "10px 14px", marginBottom: 12 }}>
+            {items.map((it, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: i < items.length - 1 ? "1px solid #bbdefb" : "none" }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#1565c0" }}>{it.nombre}</span>
+                <span style={{ fontSize: 12, fontWeight: 800, color: "#0d47a1", background: "#bbdefb", borderRadius: 6, padding: "2px 8px" }}>×{it.cantidad_preorden} a producir</span>
+              </div>
+            ))}
+          </div>
+          <p style={{ margin: 0, fontSize: 11, color: "#546e7a", lineHeight: 1.5 }}>El equipo de producción recibirá la orden automáticamente. Propone una fecha de entrega cuando esté listo.</p>
+        </div>
+        <div style={{ padding: "0 24px 20px" }}>
+          <button onClick={onClose} style={{ width: "100%", padding: "11px", borderRadius: 10, border: "none", background: "#1976d2", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>Entendido</button>
         </div>
       </div>
     </div>
@@ -1287,11 +1734,12 @@ function ModalRechazarComprobante({ pedido, saving, onClose, onConfirm }) {
 /* ═══════════════════════════════════════════════════════════
    MENÚ DE ACCIONES POR FILA
    ═══════════════════════════════════════════════════════════ */
-function AccionesCell({ ped, saving, onVer, onEditar, onConfirmar, onMarcarListo, onEntregar, onAsignarDomicilio, onCancelar, onProponerFecha, onAprobarComprobante, onRechazarComprobante, onSubirComprobante, onRegistrarCobro }) {
+function AccionesCell({ ped, saving, onVer, onEditar, onConfirmar, onMarcarListo, onEntregar, onAsignarDomicilio, onCancelar, onProponerFecha, onResolverEscalado, onAprobarComprobante, onRechazarComprobante, onSubirComprobante, onRegistrarCobro }) {
   const necesitaProduccion  = ped.requiereFechaPropuesta;
   const canEdit             = puedeEditarsePedido(ped.estado);
   const canAdvance          = ped.estado === "Pendiente" && !necesitaProduccion;
-  const canProponerFecha    = ped.estado === "Pendiente" && necesitaProduccion;
+  const canProponerFecha    = ["Pendiente", "Fecha rechazada"].includes(ped.estado) && necesitaProduccion;
+  const canResolverEscalado = ped.estado === "Escalado a admin";
   // canMarcarListo: no debe quedar desbloqueado solo porque no hay OPs pendientes.
   // sobre_stock indica que el pedido se creó con más unidades de las que había en
   // stock, por lo tanto sí necesitaba OPs. Si además no hay ninguna OP creada
@@ -1327,8 +1775,9 @@ function AccionesCell({ ped, saving, onVer, onEditar, onConfirmar, onMarcarListo
       <button className="act-btn act-btn--view"   data-tooltip="Ver detalle"           onClick={() => onVer(ped)}><Eye size={15} /></button>
       {canEdit          && <button className="act-btn act-btn--edit"    data-tooltip="Editar pedido"          disabled={saving} onClick={() => onEditar(ped)}><Pencil size={15} /></button>}
       {canAdvance       && <button className="act-btn act-btn--success" data-tooltip="Confirmar pedido"       disabled={saving} onClick={() => onConfirmar(ped)}><Check size={15} /></button>}
-      {canProponerFecha && <button className="act-btn act-btn--info"    data-tooltip="Proponer fecha entrega" disabled={saving} onClick={() => onProponerFecha(ped)}><Calendar size={15} /></button>}
-      {canMarcarListo   && <button className="act-btn act-btn--success" data-tooltip="Marcar como listo"      disabled={saving} onClick={() => onMarcarListo(ped)}><Package size={15} /></button>}
+      {canProponerFecha    && <button className="act-btn act-btn--info"    data-tooltip="Proponer fecha entrega" disabled={saving} onClick={() => onProponerFecha(ped)}><Calendar size={15} /></button>}
+      {canResolverEscalado && <button className="act-btn act-btn--warning" data-tooltip="Resolver escalado"     disabled={saving} onClick={() => onResolverEscalado(ped)}><AlertTriangle size={15} /></button>}
+      {canMarcarListo      && <button className="act-btn act-btn--success" data-tooltip="Marcar como listo"     disabled={saving} onClick={() => onMarcarListo(ped)}><Package size={15} /></button>}
       {canEntregarTienda   && <button className="act-btn act-btn--success" data-tooltip="Entregar en tienda"     disabled={saving} onClick={() => onEntregar(ped)}><Store size={15} /></button>}
       {canAsignarDomicilio && <button className="act-btn act-btn--info"    data-tooltip="Asignar domiciliario"   disabled={saving} onClick={() => onAsignarDomicilio(ped)}><Bike size={15} /></button>}
       {canEntregar         && <button className="act-btn act-btn--success" data-tooltip="Registrar entrega"      disabled={saving} onClick={() => onEntregar(ped)}><Truck size={15} /></button>}
@@ -1542,6 +1991,17 @@ export default function GestionPedidos() {
 
   const hasFilter = filterEstado !== "todos" || filterTipo !== "todos";
 
+  const handleVerPedido = async (ped) => {
+    setModal({ type: "ver", pedido: ped });
+    try {
+      const fresco = await getPedido(ped.id);
+      setModal(prev => prev?.type === "ver" && prev.pedido?.id === ped.id ? { ...prev, pedido: fresco } : prev);
+      setPedidos(prev => prev.map(p => p.id === fresco.id ? fresco : p));
+    } catch {
+      // Si falla el fetch fresco, el modal ya está abierto con el dato cacheado — no hace nada
+    }
+  };
+
   const handleCambiarEstadoDirecto = (ped) => {
     setModal({ type: "confirmarEstado", pedido: ped, nuevoEstado: "Confirmado" });
   };
@@ -1606,6 +2066,38 @@ export default function GestionPedidos() {
 
   const handleProponerFecha = (ped) => {
     setModal({ type: "proponerFecha", pedido: ped });
+  };
+
+  const handleResolverEscalado = (ped) => {
+    setModal({ type: "resolverEscalado", pedido: ped });
+  };
+
+  const handleConfirmarAcuerdoEscalado = async (id, fecha) => {
+    setActionSaving(true);
+    try {
+      const pedidoActualizado = await resolverEscaladoAcuerdo(id, fecha);
+      setPedidos(prev => prev.map(p => p.id === id ? pedidoActualizado : p));
+      showToast(`Fecha acordada para el pedido #${modal?.pedido?.numero}. El pedido está ahora ${pedidoActualizado.estado}.`);
+      setModal(null);
+    } catch (err) {
+      showToast(err.message || "No se pudo acordar la fecha", "error");
+    } finally {
+      setActionSaving(false);
+    }
+  };
+
+  const handleConfirmarCancelacionEscalado = async (id) => {
+    setActionSaving(true);
+    try {
+      const pedidoActualizado = await resolverEscaladoCancelar(id);
+      setPedidos(prev => prev.map(p => p.id === id ? pedidoActualizado : p));
+      showToast(`Pedido #${modal?.pedido?.numero} cancelado.`);
+      setModal(null);
+    } catch (err) {
+      showToast(err.message || "No se pudo cancelar el pedido", "error");
+    } finally {
+      setActionSaving(false);
+    }
   };
 
   const handleAprobarComprobante = async (ped) => {
@@ -1710,7 +2202,16 @@ export default function GestionPedidos() {
         nuevoEstado === "Entregado" ? `Pedido ${ped.numero} marcado como entregado` :
         `Pedido ${ped.numero} confirmado exitosamente`
       );
-      setModal(null);
+      // Tras confirmar, avisar qué unidades van a producción para que el admin
+      // proponga una fecha de entrega una vez esté listo.
+      const itemsProduccion = nuevoEstado === "Confirmado"
+        ? (ped.productosItems || []).filter(it => (it.cantidad_preorden || 0) > 0)
+        : [];
+      if (itemsProduccion.length > 0) {
+        setModal({ type: "avisoProduccion", items: itemsProduccion, pedidoNumero: ped.numero });
+      } else {
+        setModal(null);
+      }
     } catch (err) {
       const errorMsg = err.message || "No se pudo cambiar el estado del pedido.";
       setModal({ type: "errorEstado", mensaje: errorMsg });
@@ -1821,7 +2322,13 @@ export default function GestionPedidos() {
               Direccion_entrega:    formData.direccion_entrega || "",
               Municipio_entrega:    formData.municipio         || "",
               Departamento_entrega: formData.departamento      || "",
-              Observaciones:        formData.notas             || null,
+              // Todavía no es columna en el servidor: se manda para cuando
+              // exista y el costo del domicilio dependa de él.
+              Barrio_entrega:       formData.barrio_entrega    || null,
+              // El barrio, el complemento y las indicaciones van con las notas:
+              // es todo lo que lee quien entrega.
+              Observaciones: [formData.observaciones_entrega, formData.notas]
+                .filter(Boolean).join(". ") || null,
             }
           : null,
       };
@@ -1912,6 +2419,8 @@ export default function GestionPedidos() {
                         { val: "Pendiente",        label: "Pendiente",        dot: ESTADO_CONFIG["Pendiente"]?.dot },
                         { val: "En producción",    label: "En producción",    dot: ESTADO_CONFIG["En producción"]?.dot },
                         { val: "Fecha propuesta",  label: "Fecha propuesta",  dot: ESTADO_CONFIG["Fecha propuesta"]?.dot },
+                        { val: "Fecha rechazada",  label: "Fecha rechazada",  dot: ESTADO_CONFIG["Fecha rechazada"]?.dot },
+                        { val: "Escalado a admin", label: "Escalado a admin", dot: ESTADO_CONFIG["Escalado a admin"]?.dot },
                         { val: "Confirmado",       label: "Confirmado",       dot: ESTADO_CONFIG["Confirmado"]?.dot },
                         { val: "Listo",         label: "Listo",          dot: ESTADO_CONFIG["Listo"]?.dot },
                         { val: "Asignado",      label: "Asignado",       dot: ESTADO_CONFIG["Asignado"]?.dot },
@@ -2121,13 +2630,13 @@ export default function GestionPedidos() {
                         {vista === "historial" ? (
                           <button
                             style={{ padding: "5px 14px", fontSize: 12, border: "1px solid #e0e0e0", borderRadius: 8, cursor: "pointer", background: "#fafafa", fontWeight: 600, color: "#555" }}
-                            onClick={() => setModal({ type: "ver", pedido: ped })}
+                            onClick={() => handleVerPedido(ped)}
                           >Ver detalles</button>
                         ) : (
                           <AccionesCell
                             ped={ped}
                             saving={actionSaving}
-                            onVer={ped => setModal({ type: "ver", pedido: ped })}
+                            onVer={handleVerPedido}
                             onEditar={ped => setModal({ type: "editar", pedido: ped })}
                             onConfirmar={handleCambiarEstadoDirecto}
                             onMarcarListo={handleMarcarListo}
@@ -2135,6 +2644,7 @@ export default function GestionPedidos() {
                             onAsignarDomicilio={ped => setModal({ type: "asignarDomiciliario", pedido: ped })}
                             onCancelar={handleCancelarPedido}
                             onProponerFecha={handleProponerFecha}
+                            onResolverEscalado={handleResolverEscalado}
                             onAprobarComprobante={handleAprobarComprobante}
                             onRechazarComprobante={handleRechazarComprobante}
                             onSubirComprobante={handleSubirComprobante}
@@ -2165,18 +2675,20 @@ export default function GestionPedidos() {
         </div>
       </div>
 
-      {modal?.type === "ver" && <ModalVerPedido pedido={modal.pedido} empleados={empleados} onClose={() => setModal(null)} onEdit={(ped) => setModal({ type: "editar", pedido: ped })} />}
+      {modal?.type === "ver" && <ModalVerPedido pedido={modal.pedido} empleados={empleados} onClose={() => setModal(null)} onEdit={(ped) => setModal({ type: "editar", pedido: ped })} onUpdatePedido={(actualizado) => { setPedidos(prev => prev.map(p => p.id === actualizado.id ? actualizado : p)); setModal(prev => ({ ...prev, pedido: actualizado })); }} />}
       {modal?.type === "confirmarEstado" && <ModalConfirmarEstado pedido={modal.pedido} nuevoEstado={modal.nuevoEstado} onClose={() => setModal(null)} onConfirm={handleConfirmarCambioEstado} />}
       {modal?.type === "cancelar" && <ModalCancelarPedido pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleConfirmarCancelacion} />}
       {modal?.type === "asignarDomiciliario" && <ModalAsignarDomiciliario pedido={modal.pedido} empleados={empleados} repartidores={repartidores} onClose={() => setModal(null)} onConfirm={handleAsignarDomiciliario} />}
       {modal?.type === "crear" && <CrearPedido onClose={() => setModal(null)} onSave={handleCrearPedido} />}
       {modal?.type === "editar" && <EditarPedido pedido={modal.pedido} onClose={() => setModal(null)} onSave={handleEditarPedido} />}
-      {modal?.type === "proponerFecha" && <ModalProponerFecha pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleConfirmarFechaPropuesta} />}
+      {modal?.type === "proponerFecha"    && <ModalProponerFecha    pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleConfirmarFechaPropuesta} />}
+      {modal?.type === "resolverEscalado" && <ModalResolverEscalado pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirmarAcuerdo={handleConfirmarAcuerdoEscalado} onConfirmarCancelacion={handleConfirmarCancelacionEscalado} />}
       {modal?.type === "registrarSaldo" && <ModalRegistrarSaldo pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleRegistrarSaldo} />}
       {modal?.type === "registrarCobro"      && <ModalRegistrarCobro      pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleConfirmarCobro} />}
       {modal?.type === "subirComprobante"    && <ModalSubirComprobante    pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleConfirmarSubirComprobante} />}
       {modal?.type === "rechazarComprobante" && <ModalRechazarComprobante pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleConfirmarRechazoComprobante} />}
       {modal?.type === "errorEstado" && <ModalErrorEstadoPedido mensaje={modal.mensaje} onClose={() => setModal(null)} />}
+      {modal?.type === "avisoProduccion" && <ModalAvisoProduccion items={modal.items} pedidoNumero={modal.pedidoNumero} onClose={() => setModal(null)} />}
 
       <Toast toast={toast} />
     </div>

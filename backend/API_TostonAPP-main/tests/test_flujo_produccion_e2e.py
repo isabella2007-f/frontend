@@ -263,10 +263,21 @@ class OrdenDelFaltanteTests(FlujoProduccionE2EBase):
 # ══════════════════════════════════════════════════════════════════════════
 class InsumosTests(FlujoProduccionE2EBase):
 
-    def test_iniciar_descuenta_la_receta_por_la_cantidad_de_la_orden(self):
-        """200 g por torta × 4 tortas = 800 g de harina."""
+    def test_iniciar_aparta_los_insumos_pero_no_los_descuenta(self):
+        """La harina sigue en bodega hasta que la orden se completa.
+
+        Arrancar solo la pisa: nadie más puede contar con ella, pero todavía
+        está ahí. Antes se descontaba al arrancar, y una orden anulada a mitad
+        obligaba a devolverla a mano al inventario.
+        """
         self.crear()
         self.mover_orden(ORDEN_EN_PROCESO)
+        self.assertAlmostEqual(float(self.harina().Stock_Actual), STOCK_HARINA, places=3)
+
+    def test_completar_descuenta_la_receta_por_la_cantidad_de_la_orden(self):
+        """200 g por torta × 4 tortas = 800 g de harina."""
+        self.crear()
+        self.hornear()
         self.assertAlmostEqual(
             float(self.harina().Stock_Actual), STOCK_HARINA - GASTO_ESPERADO, places=3
         )
@@ -274,7 +285,7 @@ class InsumosTests(FlujoProduccionE2EBase):
     def test_el_descuento_sale_del_lote_que_vence_primero(self):
         """FEFO: se gastan los 500 g del lote corto y 300 del largo."""
         self.crear()
-        self.mover_orden(ORDEN_EN_PROCESO)
+        self.hornear()
         self.assertAlmostEqual(float(self.lote_compra(1).Cantidad_Actual), 0.0, places=3)
         self.assertAlmostEqual(float(self.lote_compra(2).Cantidad_Actual), 1200.0, places=3)
 
@@ -391,32 +402,61 @@ class PedidoEsperaLaProduccionTests(FlujoProduccionE2EBase):
         with self.assertRaises(HTTPException):
             cambiar_estado(self.db, self.venta().ID_Venta, EstadoPedido.LISTO)
 
-    def _sin_ficha(self):
-        """Deja el producto sin ficha técnica: su faltante ya no puede fabricarse."""
-        self.db.query(FichaTecnicaInsumo).delete()
-        self.db.query(FichaTecnica).delete()
-        self.db.commit()
+    def _se_quedo_sin_ficha(self):
+        """Un pedido confirmado que después pierde la forma de fabricarse.
 
-    def test_producto_sin_ficha_no_abre_orden_y_traba_el_pedido(self):
-        """3.10 — sin ficha técnica no se abre orden automática y el pedido no
-        puede pasar a Listo: falta producto que nadie fabricó."""
-        self._sin_ficha()
+        Pedir de entrada algo que no se fabrica y no hay en stock ya no se
+        puede: el servidor lo rechaza al crearlo. Pero un pedido legal puede
+        quedarse sin receta después —alguien la borra— y su orden puede
+        cancelarse. Ahí el faltante se queda sin quién lo cubra.
+        """
         self.crear()
-        self.assertIsNone(self.orden())
-
         cambiar_estado(self.db, self.venta().ID_Venta, EstadoPedido.CONFIRMADO)
         self.db.commit()
+
+        self.db.query(FichaTecnicaInsumo).delete()
+        self.db.query(FichaTecnica).delete()
+        producto = self.db.query(Producto).filter(
+            Producto.ID_Producto == ID_TORTA
+        ).first()
+        producto.Requiere_Produccion = 0
+        for orden in self.db.query(OrdenProduccion).all():
+            orden.Estado = 5          # Cancelada
+        self.db.commit()
+
+    def test_el_pedido_sin_quien_lo_fabrique_no_pasa_a_listo(self):
+        """3.10 — sin nadie que fabrique el faltante, el pedido no está listo.
+
+        Es el control de fondo: no se da por listo lo que no existe.
+        """
+        self._se_quedo_sin_ficha()
 
         with self.assertRaises(HTTPException) as ctx:
             cambiar_estado(self.db, self.venta().ID_Venta, EstadoPedido.LISTO)
         self.assertIn("falta producto", ctx.exception.detail.lower())
 
-    def test_reponiendo_el_stock_a_mano_destraba_el_pedido_sin_ficha(self):
-        """Aunque el faltante no se fabricó, si entra mercadería el pedido pasa."""
-        self._sin_ficha()
-        self.crear()
-        cambiar_estado(self.db, self.venta().ID_Venta, EstadoPedido.CONFIRMADO)
+    def test_sin_ficha_ni_stock_el_pedido_ni_se_crea(self):
+        """La puerta de antes: lo que no se fabrica y no hay, no se vende.
+
+        Antes el pedido se creaba y quedaba trabado esperando a que alguien
+        repusiera; ahora se rechaza de entrada.
+        """
+        self.db.query(FichaTecnicaInsumo).delete()
+        self.db.query(FichaTecnica).delete()
+        producto = self.db.query(Producto).filter(
+            Producto.ID_Producto == ID_TORTA
+        ).first()
+        producto.Requiere_Produccion = 0
         self.db.commit()
+
+        with self.assertRaises(HTTPException) as ctx:
+            self.crear()
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("no se fabrican por encargo", ctx.exception.detail)
+
+    def test_reponiendo_el_stock_a_mano_destraba_el_pedido(self):
+        """Aunque el faltante no se fabricó, si entra mercadería el pedido pasa."""
+        self._se_quedo_sin_ficha()
 
         producto = self.db.query(Producto).filter(Producto.ID_Producto == ID_TORTA).first()
         producto.Stock = FALTANTE
@@ -532,12 +572,18 @@ class AnularOrdenTests(FlujoProduccionE2EBase):
         ).first()
         self.assertEqual(fila.Estado, ORDEN_CANCELADA)   # sigue existiendo
 
-    def test_anular_una_orden_en_proceso_devuelve_los_insumos(self):
+    def test_anular_una_orden_en_proceso_no_toca_el_inventario(self):
+        """No hay nada que devolver: arrancar solo había apartado.
+
+        La reserva se suelta sola, porque se calcula sobre las órdenes en
+        proceso y esta deja de serlo. Sumar de vuelta al inventario, como se
+        hacía antes, ahora crearía harina de la nada.
+        """
         orden = self._orden_manual()
         id_orden = orden["ID_Orden_Produccion"]
         cambiar_estado_orden(self.db, id_orden, ORDEN_EN_PROCESO)
         self.db.commit()
-        self.assertLess(float(self.harina().Stock_Actual), STOCK_HARINA)
+        self.assertAlmostEqual(float(self.harina().Stock_Actual), STOCK_HARINA, places=3)
 
         anular_orden(self.db, id_orden)
         self.db.commit()

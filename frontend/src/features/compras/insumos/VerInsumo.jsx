@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { X, Package, Search, CheckCircle2, AlertTriangle, Ban, ShoppingCart, ClipboardList } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getLotesInsumo } from "../../../services/insumosService.js";
@@ -242,7 +242,7 @@ export default function VerInsumo({ ins, categorias, unidades, onClose }) {
   // Guardia: si el insumo no existe o fue eliminado
   if (!ins) {
     return (
-      <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-overlay">
         <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
           <div className="modal-header">
             <h2 className="modal-header__title">Insumo no encontrado</h2>
@@ -276,7 +276,7 @@ export default function VerInsumo({ ins, categorias, unidades, onClose }) {
   const handleSolicitarProveedor = () => { onClose(); navigate("/admin/proveedores"); };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div
         className="modal-box"
         onClick={e => e.stopPropagation()}

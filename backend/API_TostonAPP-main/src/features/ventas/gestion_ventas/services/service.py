@@ -15,8 +15,11 @@ from src.shared.services.models import (
     Venta, VentaXProducto, DetalleVenta, Producto, ProductoImagen, Usuario,
     Estado, Domicilio, CreditoCliente, MovimientoCredito,
     Descuento, DescuentoXUsuario, DescuentoXVenta, OrdenProduccion, FichaTecnica,
-    LoteProducto,
+    LoteProducto, HistorialFechasPropuestas, GrupoEnvio, GrupoEnvioItem,
 )
+
+# Margen mínimo en días entre la fecha del envío anticipado y hoy
+MARGEN_MINIMO_DIAS_ENVIO_ANTICIPADO = 1
 
 
 def _imagen_producto(db: Session, id_producto: int) -> str | None:
@@ -185,10 +188,23 @@ def _evaluar_lineas_pedido(db: Session, productos_input) -> tuple[list[dict], De
 
 
 _ESTADO_VENTA_LABEL = {
-    1: "Pendiente", 4: "Confirmado", 5: "Cancelado",
-    8: "Entregado", 9: "En camino", 10: "Asignado",
-    11: "Listo", 13: "En producción", 16: "Fecha propuesta",
+    1:  "Pendiente",
+    4:  "Confirmado",
+    5:  "Cancelado",
+    8:  "Entregado",
+    9:  "En camino",
+    10: "Asignado",
+    11: "Listo",
+    13: "En producción",
+    16: "Fecha propuesta",
+    17: "Fecha rechazada",
+    18: "Parcialmente entregado",
+    19: "Escalado a admin",
 }
+
+# Cuántas veces puede el cliente rechazar una fecha antes de que el pedido
+# pase a ESCALADO_A_ADMIN para que un administrador lo gestione manualmente.
+LIMITE_INTENTOS_RECHAZO = 3
 
 def _label_estado(db: Session, id_estado: int) -> str:
     if id_estado in _ESTADO_VENTA_LABEL:
@@ -447,6 +463,13 @@ def _formato_venta(venta: Venta, db: Session, *, dxv_map=None) -> dict:
         # (sobre stock o producción). Los normales no la necesitan.
         "requiere_fecha_propuesta": requiere_fecha_propuesta(db, venta),
         "fecha_rechazada": getattr(venta, "Fecha_Rechazada", None),
+        "intentos_rechazo": int(getattr(venta, "intentos_rechazo", 0) or 0),
+        # None = no contestó, True = quiere todo junto el domingo, False = prefiere recibir lo disponible ya
+        "envio_completo_domingo": (
+            None if getattr(venta, "Envio_Completo_Domingo", None) is None
+            else bool(venta.Envio_Completo_Domingo)
+        ),
+        "grupos_envio": [_formato_grupo(g) for g in venta.grupos_envio] if venta.grupos_envio else [],
     }
 
 
@@ -709,6 +732,15 @@ def _batch_ventas(ventas: list, db: Session) -> list:
             "pago_final_fecha":          getattr(venta, "Pago_Final_Fecha", None),
             "estado_pago":               getattr(venta, "Estado_Pago", "pendiente"),
             "requiere_fecha_propuesta": rfp,
+            "fecha_rechazada":  getattr(venta, "Fecha_Rechazada", None),
+            "intentos_rechazo": int(getattr(venta, "intentos_rechazo", 0) or 0),
+            "envio_completo_domingo": (
+                None if getattr(venta, "Envio_Completo_Domingo", None) is None
+                else bool(venta.Envio_Completo_Domingo)
+            ),
+            # En el listado batch no cargamos grupos: evita N+1 en paginación.
+            # El detalle individual los trae vía _formato_venta con eager-load.
+            "grupos_envio": [],
         })
 
     return result
@@ -755,6 +787,8 @@ def obtener_ventas(
             selectinload(Venta.domicilios)
                 .selectinload(Domicilio.empleado),
             selectinload(Venta.ordenes_produccion),
+            selectinload(Venta.grupos_envio)
+                .selectinload(GrupoEnvio.items),
         )
         .order_by(Venta.Fecha_Venta.desc())
         .offset(offset)
@@ -803,6 +837,8 @@ def obtener_mis_ventas(
             selectinload(Venta.domicilios)
                 .selectinload(Domicilio.empleado),
             selectinload(Venta.ordenes_produccion),
+            selectinload(Venta.grupos_envio)
+                .selectinload(GrupoEnvio.items),
         )
         .order_by(Venta.Fecha_pedido.desc())
         .offset(offset)
@@ -941,7 +977,32 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
         l["ID_Producto"] in _producibles and l["preorden"] > 0 for l in lineas
     )
 
+    # Productos sin ficha técnica ni bandera de producción: no se pueden fabricar.
+    # Si el cliente pidió más de lo que hay, rechazar ya con info clara en vez de
+    # crear un pedido que nadie puede cumplir.
+    lineas_sin_produccion_con_deficit = [
+        l for l in lineas
+        if l["ID_Producto"] not in _producibles and l["preorden"] > 0
+    ]
+    if lineas_sin_produccion_con_deficit:
+        detalle = "; ".join(
+            f"{l['nombre']}: disponible {l['stock']}, pediste {l['cantidad']}"
+            for l in lineas_sin_produccion_con_deficit
+        )
+        # La venta ya está volcada a la sesión: sin esto queda una fila a medio
+        # crear, como pasa en los demás rechazos de esta función.
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=f"No hay stock suficiente y estos productos no se fabrican por encargo: {detalle}",
+        )
+
     nueva_venta.Necesita_Produccion = 1 if necesita_produccion else 0
+    # Guardar la respuesta del cliente si ya viene en la creación del pedido.
+    # Normalmente llega None (se pregunta en el detalle del pedido) pero se
+    # acepta aquí también para no necesitar un PATCH inmediato.
+    _envio = getattr(datos, "envio_completo_domingo", None)
+    nueva_venta.Envio_Completo_Domingo = (None if _envio is None else (1 if _envio else 0))
     if necesita_produccion:
         notificar(
             db, "produccion_requerida", "Pedido requiere producción",
@@ -1109,11 +1170,17 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
         nueva_venta.Anticipo_Comprobante_Url = datos.anticipo_comprobante_url
         nueva_venta.Anticipo_Registrado      = 1 if datos.anticipo_registrado else 0
         nueva_venta.Estado_Pago              = "anticipo_pagado" if datos.anticipo_registrado else "pendiente"
-        # Si el monto registrado cubre el total completo → ya está saldado
-        if datos.anticipo_registrado and datos.anticipo_monto is not None:
-            if float(datos.anticipo_monto) >= float(nueva_venta.Total or 0):
-                nueva_venta.Pago_Final_Registrado = 1
-                nueva_venta.Estado_Pago           = "pagado_completo"
+        # El cliente eligió pagar el total completo ahora. Se usa la bandera
+        # explícita (pagar_todo) en vez de comparar montos: la diferencia de
+        # redondeo entre el total del cliente (JS) y el servidor (Decimal) puede
+        # dejar el pedido en "anticipo_pagado" aunque el cliente pagara todo.
+        _pago_total = getattr(datos, "pagar_todo", False)
+        if datos.anticipo_registrado and (
+            _pago_total
+            or (datos.anticipo_monto is not None and float(datos.anticipo_monto) >= float(nueva_venta.Total or 0))
+        ):
+            nueva_venta.Pago_Final_Registrado = 1
+            nueva_venta.Estado_Pago           = "pagado_completo"
 
     db.add(DetalleVenta(
         ID_Venta    = nueva_venta.ID_Venta,
@@ -1224,28 +1291,42 @@ def registrar_pago_final(db: Session, id_venta: int, datos) -> dict:
     """
     from .schemas import PagoFinalCreate  # importación local para evitar circular
 
+    # Buscar la venta; si no existe, no hay nada que registrar
     venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
 
+    # ── D1: Estado del pedido ──────────────────────────
+    # Rechaza el registro si el pedido ya está en un estado final
+    # (Entregado o Cancelado), donde no tiene sentido cobrar un saldo.
     if venta.Estado in (EstadoPedido.ENTREGADO, EstadoPedido.CANCELADO):
         raise HTTPException(
             status_code=400,
             detail="El pedido no está en un estado válido para registrar el pago final",
         )
 
+    # ── D2: ¿El pedido requiere anticipo? ──────────────
+    # Solo los pedidos que exigieron anticipo (sobre stock o especiales)
+    # pueden tener un "pago final" pendiente; los demás no aplican aquí.
     if not getattr(venta, "Requiere_Anticipo", 0):
         raise HTTPException(
             status_code=400,
             detail="Este pedido no requiere anticipo; el pago final no aplica",
         )
 
+    # ── D3 (compuesta A AND B): Transferencia SIN comprobante ──
+    # A: el método de pago es transferencia o digital
+    # B: no se adjuntó comprobante_url
+    # Si ambas se cumplen a la vez, se exige el comprobante antes de continuar.
     if datos.metodo_pago.lower() in ("transferencia", "digital") and not datos.comprobante_url:
         raise HTTPException(
             status_code=400,
             detail="Se requiere comprobante para pago por transferencia",
         )
 
+    # ── Registro del pago final ────────────────────────
+    # Si pasó las 3 validaciones anteriores, se guarda el pago
+    # y se marca la venta como completamente pagada.
     venta.Pago_Final_Monto           = datos.monto
     venta.Pago_Final_Metodo_Pago     = datos.metodo_pago
     venta.Pago_Final_Comprobante_Url = datos.comprobante_url
@@ -1267,6 +1348,22 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
 
     # Valida que la transición esté permitida por la máquina de estados
     validar_transicion(venta.Estado, nuevo_estado, tiene_domicilio)
+
+    # No se puede cancelar el pedido completo si al menos un grupo ya fue entregado.
+    # En ese caso solo se puede cancelar el grupo pendiente individualmente.
+    if nuevo_estado == EstadoPedido.CANCELADO:
+        grupos_entregados = db.query(GrupoEnvio).filter(
+            GrupoEnvio.ID_Venta == id_venta,
+            GrupoEnvio.Estado == "entregado",
+        ).count()
+        if grupos_entregados > 0:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "No se puede cancelar el pedido completo porque al menos un grupo "
+                    "ya fue entregado. Cancelá únicamente el grupo que sigue pendiente."
+                ),
+            )
 
     # Confirmar es aceptar el pedido: no se acepta un pago que nadie revisó.
     # El comprobante lo sube el cliente y lo aprueba el admin; si se confirma
@@ -1628,20 +1725,46 @@ def requiere_fecha_propuesta(db: Session, venta: Venta) -> bool:
     return bool(getattr(venta, "Necesita_Produccion", 0))
 
 
-def proponer_fecha(db: Session, id_venta: int, fecha_entrega) -> dict:
-    """Admin propone una fecha de entrega. Solo válido en ventas Pendientes o con Fecha propuesta."""
+def _guardar_historial_fecha(
+    db: Session,
+    id_venta: int,
+    tipo_accion: str,
+    fecha_propuesta=None,
+    motivo_rechazo: str | None = None,
+    id_usuario: int | None = None,
+) -> None:
+    """Registra un evento de negociación de fecha en el historial."""
+    db.add(HistorialFechasPropuestas(
+        ID_Venta        = id_venta,
+        ID_Usuario      = id_usuario,
+        Fecha_Propuesta = fecha_propuesta,
+        Fecha_Accion    = _now(),
+        Tipo_Accion     = tipo_accion,
+        Motivo_Rechazo  = motivo_rechazo,
+    ))
+
+
+def proponer_fecha(db: Session, id_venta: int, fecha_entrega, id_admin: int | None = None) -> dict:
+    """Admin propone una fecha de entrega.
+    Válido en ventas Pendientes, Fecha propuesta, Fecha rechazada o Escalado a admin.
+    """
     venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
-    if venta.Estado not in (EstadoPedido.PENDIENTE, EstadoPedido.FECHA_PROPUESTA):
+    estados_permitidos = (
+        EstadoPedido.PENDIENTE,
+        EstadoPedido.FECHA_PROPUESTA,
+        EstadoPedido.FECHA_RECHAZADA,
+        EstadoPedido.ESCALADO_A_ADMIN,
+    )
+    if venta.Estado not in estados_permitidos:
         raise HTTPException(
             status_code=400,
-            detail="Solo se puede proponer fecha en ventas Pendientes o en estado Fecha propuesta",
+            detail="Solo se puede proponer fecha en ventas Pendientes, Fecha propuesta, Fecha rechazada o Escalado a admin",
         )
     # La fecha propuesta es SOLO para los pedidos que no se pueden entregar de
     # inmediato: los que superan el stock disponible (preorden) y los que
-    # incluyen productos por encargo con déficit. Un pedido normal —haya o no
-    # domicilio— se confirma directamente, sin proponer fecha.
+    # incluyen productos por encargo con déficit.
     if not requiere_fecha_propuesta(db, venta):
         raise HTTPException(
             status_code=400,
@@ -1650,11 +1773,19 @@ def proponer_fecha(db: Session, id_venta: int, fecha_entrega) -> dict:
                 "o que requieren producción"
             ),
         )
+    # La fecha propuesta no puede ser en el pasado
+    hoy = _now().date()
+    fecha_propuesta_date = fecha_entrega.date() if hasattr(fecha_entrega, "date") else fecha_entrega
+    if fecha_propuesta_date < hoy:
+        raise HTTPException(
+            status_code=400,
+            detail="La fecha de entrega propuesta no puede ser en el pasado",
+        )
     descartar_notificacion(db, "produccion_requerida", id_venta)
     descartar_notificacion(db, "pedido_sobre_stock",   id_venta)
     venta.Estado = EstadoPedido.FECHA_PROPUESTA
     venta.Fecha_entrega_esperada = fecha_entrega
-    venta.Fecha_Rechazada = None
+    _guardar_historial_fecha(db, id_venta, "propuesta", fecha_entrega, id_usuario=id_admin)
     notificar(
         db, "fecha_propuesta", "Fecha de entrega propuesta",
         f"El administrador propuso una fecha de entrega para tu pedido #{id_venta}",
@@ -1662,7 +1793,6 @@ def proponer_fecha(db: Session, id_venta: int, fecha_entrega) -> dict:
     )
     db.commit()
     db.refresh(venta)
-    # Aviso push al cliente para que la revise (aceptar/rechazar).
     try:
         from src.shared.services.fcm_service import notificar_cambio_pedido_push
         notificar_cambio_pedido_push(
@@ -1847,11 +1977,18 @@ def aceptar_fecha(db: Session, id_venta: int, actual: dict) -> dict:
         raise HTTPException(status_code=400, detail="El pedido no está en estado 'Fecha propuesta'")
 
     venta.Estado = EstadoPedido.CONFIRMADO
+    venta.intentos_rechazo = 0
+    _guardar_historial_fecha(db, id_venta, "aceptada", venta.Fecha_entrega_esperada, id_usuario=id_usuario)
 
     # Si el pedido lleva producción, aceptar la fecha no lo deja listo para
     # despachar: arranca la fabricación. Queda "En producción" y pasará a Listo
     # cuando se completen sus órdenes.
-    if _crear_ordenes_produccion_para_venta(db, id_venta, venta.Fecha_entrega_esperada) > 0:
+    _crear_ordenes_produccion_para_venta(db, id_venta, venta.Fecha_entrega_esperada)
+    _ordenes_abiertas = db.query(OrdenProduccion).filter(
+        OrdenProduccion.ID_Venta == id_venta,
+        OrdenProduccion.Estado.notin_([11, 5]),   # completada / cancelada
+    ).count()
+    if _ordenes_abiertas > 0:
         venta.Estado = EstadoPedido.PREPARANDO
 
     # Reservar del stock la porción disponible para pedidos de recoger en tienda:
@@ -1874,6 +2011,18 @@ def aceptar_fecha(db: Session, id_venta: int, actual: dict) -> dict:
             _actualizar_estado_producto(prod_av)
             notificar_stock_producto(db, prod_av)
 
+    # La panadería pudo terminar de hornear mientras el cliente decidía. En
+    # ese caso ya no falta nada: aceptar la fecha deja el pedido Listo para
+    # despachar, sin pasar por un "Confirmado" en el que nadie tiene nada que
+    # hacer. Es la respuesta del cliente la que lo mueve, no el horno.
+    #
+    # Se exige lo mismo que exigiría cambiar_estado(LISTO): ninguna orden
+    # abierta —ya cubierto arriba— y ningún faltante sin cubrir, para no
+    # dejar listo un pedido al que le falta producto de verdad.
+    if (venta.Estado == EstadoPedido.CONFIRMADO
+            and not _faltantes_sin_cubrir(db, id_venta, _tiene_domicilio)):
+        venta.Estado = EstadoPedido.LISTO
+
     notificar(
         db, "fecha_aceptada", "Fecha aceptada por el cliente",
         f"El cliente aceptó la fecha propuesta para el pedido #{id_venta}",
@@ -1886,8 +2035,8 @@ def aceptar_fecha(db: Session, id_venta: int, actual: dict) -> dict:
         notificar_cambio_pedido_push(
             id_usuario_cliente=venta.ID_Usuario,
             id_venta=id_venta,
-            # El estado real tras aceptar: Confirmado, o En producción si el
-            # pedido arrancó fabricación.
+            # El estado real tras aceptar: Listo si ya no falta nada, En
+            # producción si todavía hay que fabricar, Confirmado si no.
             nuevo_estado=venta.Estado,
             db=db,
         )
@@ -1896,8 +2045,10 @@ def aceptar_fecha(db: Session, id_venta: int, actual: dict) -> dict:
     return _formato_venta(venta, db)
 
 
-def rechazar_fecha(db: Session, id_venta: int, actual: dict) -> dict:
-    """El cliente rechaza la fecha propuesta → Estado Cancelado (5). Devuelve crédito si aplica."""
+def rechazar_fecha(db: Session, id_venta: int, actual: dict, motivo: str | None = None) -> dict:
+    """El cliente rechaza la fecha propuesta → Estado Fecha rechazada (17).
+    Si supera LIMITE_INTENTOS_RECHAZO, pasa a Escalado a admin (19).
+    """
     if actual["tipo"] != "cliente":
         raise HTTPException(status_code=403, detail="Solo disponible para clientes")
     id_usuario = actual["registro"].ID_Usuario
@@ -1910,55 +2061,666 @@ def rechazar_fecha(db: Session, id_venta: int, actual: dict) -> dict:
     if venta.Estado != EstadoPedido.FECHA_PROPUESTA:
         raise HTTPException(status_code=400, detail="El pedido no está en estado 'Fecha propuesta'")
 
-    # Pedidos con DOMICILIO: el pedido sigue vivo. Vuelve a Pendiente para que el
-    # administrador pueda proponer OTRA fecha (no se cancela ni se devuelve crédito).
-    tiene_domicilio = db.query(Domicilio).filter(
-        Domicilio.ID_Venta == id_venta
-    ).first() is not None
-    if tiene_domicilio:
-        venta.Estado = EstadoPedido.PENDIENTE
-        venta.Fecha_entrega_esperada = None
-        venta.Fecha_Rechazada = _now()
-        descartar_notificacion(db, "fecha_rechazada", id_venta)  # limpiar anterior para evitar dedup
+    fecha_anterior = venta.Fecha_entrega_esperada
+    venta.Fecha_Rechazada = _now()
+    venta.Fecha_entrega_esperada = None
+    venta.intentos_rechazo = (int(getattr(venta, "intentos_rechazo", 0) or 0)) + 1
+
+    _guardar_historial_fecha(db, id_venta, "rechazada", fecha_anterior, motivo, id_usuario=id_usuario)
+
+    if venta.intentos_rechazo >= LIMITE_INTENTOS_RECHAZO:
+        venta.Estado = EstadoPedido.ESCALADO_A_ADMIN
+        descartar_notificacion(db, "fecha_rechazada", id_venta)
         notificar(
-            db, "fecha_rechazada", "Fecha rechazada por el cliente",
-            f"El cliente rechazó la fecha del pedido #{id_venta}. Propone una nueva fecha.",
+            db, "fecha_rechazada", "Pedido escalado: demasiados rechazos de fecha",
+            f"El cliente rechazó {venta.intentos_rechazo} veces la fecha del pedido #{id_venta}. Requiere gestión manual.",
             id_venta, "/ventas/pedidos",
         )
-        db.commit()
-        db.refresh(venta)
-        return _formato_venta(venta, db)
+    else:
+        venta.Estado = EstadoPedido.FECHA_RECHAZADA
+        descartar_notificacion(db, "fecha_rechazada", id_venta)
+        notificar(
+            db, "fecha_rechazada", "Fecha rechazada por el cliente",
+            f"El cliente rechazó la fecha del pedido #{id_venta}. Propón una nueva fecha.",
+            id_venta, "/ventas/pedidos",
+        )
 
-    # Pedidos de producción (sin domicilio): flujo existente → se cancela y se
-    # devuelve el crédito usado.
-    venta.Fecha_Rechazada = _now()
-    venta.Estado = EstadoPedido.CANCELADO
-    descartar_notificacion(db, "fecha_rechazada", id_venta)  # limpiar anterior para evitar dedup
-    notificar(
-        db, "fecha_rechazada", "Fecha rechazada por el cliente",
-        f"El cliente rechazó la fecha propuesta para el pedido #{id_venta}",
-        id_venta, "/ventas/pedidos",
-    )
-    descartar_notificacion(db, "produccion_requerida", id_venta)
+    db.commit()
+    db.refresh(venta)
+    try:
+        from src.shared.services.fcm_service import notificar_cambio_pedido_push
+        notificar_cambio_pedido_push(
+            id_usuario_cliente=venta.ID_Usuario,
+            id_venta=id_venta,
+            nuevo_estado=venta.Estado,
+            db=db,
+        )
+    except Exception:
+        pass
+    return _formato_venta(venta, db)
 
-    # Devolver crédito si se usó al crear el pedido
-    detalle = db.query(DetalleVenta).filter(DetalleVenta.ID_Venta == id_venta).first()
+
+def _devolver_credito_venta(db: Session, venta: Venta) -> None:
+    """Devuelve el crédito aplicado al crear una venta (si lo hubo)."""
+    detalle = db.query(DetalleVenta).filter(DetalleVenta.ID_Venta == venta.ID_Venta).first()
     if detalle and detalle.Descuento and detalle.Descuento > 0:
         credito = db.query(CreditoCliente).filter(
             CreditoCliente.ID_Usuario == venta.ID_Usuario
         ).first()
         if credito:
-            credito.Saldo        += detalle.Descuento
-            credito.Fecha_Update  = _now()
+            credito.Saldo       += detalle.Descuento
+            credito.Fecha_Update = _now()
             db.add(MovimientoCredito(
                 ID_Credito    = credito.ID_Credito,
                 ID_Devolucion = None,
-                ID_Venta      = id_venta,
+                ID_Venta      = venta.ID_Venta,
                 Tipo          = "recarga",
                 Monto         = detalle.Descuento,
                 Fecha         = _now(),
             ))
 
+
+def resolver_escalado_acuerdo_manual(
+    db: Session, id_venta: int, fecha_acordada, actual: dict
+) -> dict:
+    """Admin acuerda una fecha manualmente con el cliente escalado.
+    El pedido pasa directamente al flujo de producción/confirmación.
+    Resetea intentos_rechazo.
+    """
+    if actual["tipo"] not in ("admin", "empleado"):
+        raise HTTPException(status_code=403, detail="Solo disponible para administradores")
+
+    venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+    if venta.Estado != EstadoPedido.ESCALADO_A_ADMIN:
+        raise HTTPException(status_code=400, detail="El pedido no está en estado 'Escalado a admin'")
+
+    hoy = _now().date()
+    fecha_date = fecha_acordada.date() if hasattr(fecha_acordada, "date") else fecha_acordada
+    if fecha_date < hoy:
+        raise HTTPException(status_code=400, detail="La fecha acordada no puede ser en el pasado")
+
+    id_admin = getattr(actual.get("registro"), "ID_Usuario", None)
+    venta.Fecha_entrega_esperada = fecha_acordada
+    venta.intentos_rechazo = 0
+    venta.Estado = EstadoPedido.CONFIRMADO
+
+    _crear_ordenes_produccion_para_venta(db, id_venta, fecha_acordada)
+    _ordenes_abiertas = db.query(OrdenProduccion).filter(
+        OrdenProduccion.ID_Venta == id_venta,
+        OrdenProduccion.Estado.notin_([11, 5]),
+    ).count()
+    if _ordenes_abiertas > 0:
+        venta.Estado = EstadoPedido.PREPARANDO
+
+    # Igual que aceptar_fecha: reservar stock de tienda y saltar a LISTO si ya
+    # no falta nada (la producción terminó mientras duró la negociación).
+    _tiene_domicilio = db.query(Domicilio).filter(Domicilio.ID_Venta == id_venta).first() is not None
+    if not _tiene_domicilio:
+        for av in db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all():
+            en_stock_reservado = (av.Cantidad or 0) - (av.Cantidad_Preorden or 0)
+            if en_stock_reservado <= 0:
+                continue
+            prod_av = (
+                db.query(Producto)
+                .filter(Producto.ID_Producto == av.ID_Producto)
+                .with_for_update()
+                .first()
+            )
+            if not prod_av or not getattr(prod_av, "Requiere_Produccion", 0):
+                continue
+            prod_av.Stock = max(0, (prod_av.Stock or 0) - en_stock_reservado)
+            _actualizar_estado_producto(prod_av)
+            notificar_stock_producto(db, prod_av)
+
+    if (venta.Estado == EstadoPedido.CONFIRMADO
+            and not _faltantes_sin_cubrir(db, id_venta, _tiene_domicilio)):
+        venta.Estado = EstadoPedido.LISTO
+
+    _guardar_historial_fecha(db, id_venta, "propuesta", fecha_acordada, id_usuario=id_admin)
+    notificar(
+        db, "fecha_propuesta", "Fecha de entrega acordada por el administrador",
+        f"El administrador acordó una fecha de entrega para tu pedido #{id_venta}",
+        id_venta, "/ventas/pedidos",
+    )
+    db.commit()
+    db.refresh(venta)
+    return _formato_venta(venta, db)
+
+
+def resolver_escalado_cancelar(db: Session, id_venta: int, actual: dict) -> dict:
+    """Admin cancela el pedido escalado y devuelve el crédito usado."""
+    if actual["tipo"] not in ("admin", "empleado"):
+        raise HTTPException(status_code=403, detail="Solo disponible para administradores")
+
+    venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+    if venta.Estado != EstadoPedido.ESCALADO_A_ADMIN:
+        raise HTTPException(status_code=400, detail="El pedido no está en estado 'Escalado a admin'")
+
+    venta.Estado = EstadoPedido.CANCELADO
+    _devolver_credito_venta(db, venta)
+
+    # Si se pagó anticipo, abonarlo como saldo a favor. La devolución en efectivo
+    # o transferencia la gestiona el admin fuera del sistema; el registro en
+    # CreditoCliente asegura que quede trazabilidad y que el cliente pueda usarlo
+    # en el próximo pedido si lo prefiere.
+    _anticipo = Decimal(str(getattr(venta, "Anticipo_Monto", None) or 0))
+    if getattr(venta, "Anticipo_Registrado", 0) and _anticipo > 0:
+        _abonar_credito(db, venta.ID_Usuario, _anticipo, id_venta)
+
+    # Cancelar OPs abiertas (defensivo: no debería haber ninguna en ESCALADO_A_ADMIN,
+    # pero si por algún estado corrupto las hay, hay que cerrarlas igual).
+    from src.features.produccion.ordenes_produccion.services.service import (
+        cambiar_estado as _cambiar_estado_orden,
+    )
+    for _orden in db.query(OrdenProduccion).filter(
+        OrdenProduccion.ID_Venta == id_venta,
+        OrdenProduccion.Estado.notin_([11, 5]),
+    ).all():
+        _cambiar_estado_orden(db, _orden.ID_Orden_Produccion, 5, commit=False)
+
+    notificar(
+        db, "fecha_rechazada", "Pedido cancelado por el administrador",
+        f"Tu pedido #{id_venta} fue cancelado por el administrador tras múltiples rechazos de fecha.",
+        id_venta, "/ventas/pedidos",
+    )
+    db.commit()
+    db.refresh(venta)
+    return _formato_venta(venta, db)
+
+
+# ── Feature "Grupos de envío" ──────────────────────────────────────────────
+
+def _items_listos_venta(db: Session, id_venta: int) -> dict[int, int]:
+    """Cantidad de unidades listas por producto del pedido.
+
+    Retorna {id_producto: cantidad_lista} para cada línea del pedido.
+
+    - Sin OP (estaba en stock): todas las unidades listas.
+    - OP completada (Estado 11): todas las unidades listas.
+    - OP activa: las unidades cubiertas por stock (Cantidad - Cantidad_Preorden)
+      son listas ahora; las restantes (Cantidad_Preorden) siguen en producción.
+      Si Cantidad_Preorden == Cantidad, cantidad_lista = 0.
+    """
+    items = db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()
+    ordenes = db.query(OrdenProduccion).filter(OrdenProduccion.ID_Venta == id_venta).all()
+    estado_por_producto = {o.ID_Producto: o.Estado for o in ordenes}
+
+    resultado: dict[int, int] = {}
+    for item in items:
+        if item.ID_Producto not in estado_por_producto:
+            resultado[item.ID_Producto] = item.Cantidad
+        elif estado_por_producto[item.ID_Producto] == 11:
+            resultado[item.ID_Producto] = item.Cantidad
+        else:
+            preorden = item.Cantidad_Preorden or 0
+            resultado[item.ID_Producto] = max(0, item.Cantidad - preorden)
+    return resultado
+
+
+def _formato_grupo(grupo: GrupoEnvio) -> dict:
+    return {
+        "id_grupo":    grupo.ID_Grupo,
+        "tipo":        grupo.Tipo,
+        "fecha":       grupo.Fecha_Entrega,
+        "tipo_entrega":grupo.Tipo_Entrega,
+        "estado":      grupo.Estado,
+        "productos":   [{"id_producto": i.ID_Producto, "cantidad": i.Cantidad} for i in grupo.items],
+    }
+
+
+def obtener_items_listos(db: Session, id_venta: int, actual: dict) -> dict:
+    """Devuelve qué productos del pedido ya están listos y cuáles no.
+
+    Solo el cliente dueño del pedido o un empleado/admin pueden consultarlo.
+    """
+    venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+    if actual["tipo"] == "cliente" and venta.ID_Usuario != actual["registro"].ID_Usuario:
+        raise HTTPException(status_code=403, detail="No puedes consultar pedidos de otros clientes")
+
+    todos_items = db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()
+    listos = _items_listos_venta(db, id_venta)
+
+    prod_ids = [i.ID_Producto for i in todos_items]
+    productos_map = {p.ID_Producto: p for p in
+                     db.query(Producto).filter(Producto.ID_Producto.in_(prod_ids)).all()} if prod_ids else {}
+
+    resultado_listos = []
+    resultado_pendientes = []
+    for item in todos_items:
+        nombre = getattr(productos_map.get(item.ID_Producto), "nombre", "") or ""
+        cant_lista = listos.get(item.ID_Producto, 0)
+        cant_pendiente = item.Cantidad - cant_lista
+        if cant_lista > 0:
+            resultado_listos.append({"id_producto": item.ID_Producto, "nombre": nombre, "cantidad": cant_lista})
+        if cant_pendiente > 0:
+            resultado_pendientes.append({"id_producto": item.ID_Producto, "nombre": nombre, "cantidad": cant_pendiente})
+
+    return {
+        "id_venta": id_venta,
+        "listos":     resultado_listos,
+        "pendientes": resultado_pendientes,
+    }
+
+
+def _resolver_direccion_grupo(direccion_req, municipio_req, departamento_req, venta, cliente, db):
+    """Devuelve (direccion, municipio, departamento) para un grupo con domicilio.
+
+    Prioridad: payload del request → domicilio original de la venta → perfil del cliente.
+    """
+    if direccion_req:
+        return direccion_req, municipio_req, departamento_req
+    dom_orig = db.query(Domicilio).filter(
+        Domicilio.ID_Venta == venta.ID_Venta,
+        Domicilio.ID_Grupo.is_(None),
+    ).first()
+    if dom_orig and dom_orig.Direccion_entrega:
+        return dom_orig.Direccion_entrega, dom_orig.Municipio_entrega, dom_orig.Departamento_entrega
+    if cliente and cliente.Direccion:
+        return cliente.Direccion, getattr(cliente, "Municipio", None), getattr(cliente, "Departamento", None)
+    return None, None, None
+
+
+def crear_grupos_envio(
+    db: Session,
+    id_venta: int,
+    fecha_anticipada,
+    tipo_entrega_a: str | None,
+    tipo_entrega_b: str | None,
+    actual: dict,
+    direccion_a: str | None = None,
+    municipio_a: str | None = None,
+    departamento_a: str | None = None,
+    direccion_b: str | None = None,
+    municipio_b: str | None = None,
+    departamento_b: str | None = None,
+) -> dict:
+    """Registra la preferencia de entrega anticipada del cliente.
+
+    Caso A (división): algunos productos listos, otros en producción →
+      Grupo A (anticipado, items listos, fecha elegida) + Grupo B (programado,
+      items en producción, fecha aceptada original).
+
+    Caso B (todo listo): todos los productos ya están listos → solo Grupo A
+      (anticipado, todos los items, fecha elegida). No se crea Grupo B.
+
+    Validaciones comunes:
+    - Solo el cliente dueño del pedido, en estado CONFIRMADO/PREPARANDO/LISTO
+    - No se pueden crear grupos si ya existen para esta venta
+    - Debe haber al menos un producto en el pedido
+    - fecha_anticipada >= hoy + MARGEN_MINIMO_DIAS_ENVIO_ANTICIPADO
+    - fecha_anticipada < Fecha_entrega_esperada
+    """
+    es_admin = actual["tipo"] in ("admin", "empleado")
+    es_cliente = actual["tipo"] == "cliente"
+    if not es_admin and not es_cliente:
+        raise HTTPException(status_code=403, detail="Acción no permitida para este tipo de usuario")
+
+    venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+    if es_cliente and venta.ID_Usuario != actual["registro"].ID_Usuario:
+        raise HTTPException(status_code=403, detail="No puedes modificar pedidos de otros clientes")
+
+    estados_validos = (EstadoPedido.CONFIRMADO, EstadoPedido.PREPARANDO, EstadoPedido.LISTO)
+    if venta.Estado not in estados_validos:
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se puede solicitar entrega anticipada después de aceptar la fecha propuesta",
+        )
+
+    if db.query(GrupoEnvio).filter(GrupoEnvio.ID_Venta == id_venta).count() > 0:
+        raise HTTPException(status_code=400, detail="Este pedido ya tiene grupos de envío creados")
+
+    todos_items = db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()
+    listos = _items_listos_venta(db, id_venta)  # {id_producto: cantidad_lista}
+
+    if not todos_items:
+        raise HTTPException(status_code=400, detail="El pedido no tiene productos")
+    if not any(v > 0 for v in listos.values()):
+        raise HTTPException(status_code=400, detail="Ningún producto está listo todavía; no se puede solicitar entrega anticipada")
+
+    hoy = _now().date()
+    min_fecha = hoy + timedelta(days=MARGEN_MINIMO_DIAS_ENVIO_ANTICIPADO)
+    fecha_anticipada_date = fecha_anticipada.date() if hasattr(fecha_anticipada, "date") else fecha_anticipada
+    if fecha_anticipada_date < min_fecha:
+        raise HTTPException(
+            status_code=400,
+            detail=f"La fecha de envío anticipado debe ser al menos {MARGEN_MINIMO_DIAS_ENVIO_ANTICIPADO} día(s) a partir de hoy",
+        )
+
+    fecha_programada = venta.Fecha_entrega_esperada
+    if fecha_programada and fecha_anticipada_date >= (fecha_programada.date() if hasattr(fecha_programada, "date") else fecha_programada):
+        raise HTTPException(
+            status_code=400,
+            detail="La fecha de envío anticipado debe ser anterior a la fecha de entrega acordada",
+        )
+
+    grupo_a = GrupoEnvio(
+        ID_Venta=id_venta, Tipo="anticipado",
+        Fecha_Entrega=fecha_anticipada, Tipo_Entrega=tipo_entrega_a, Estado="pendiente",
+    )
+    db.add(grupo_a)
+    db.flush()
+    hay_pendientes = False
+    for item in todos_items:
+        cant_lista = listos.get(item.ID_Producto, 0)
+        cant_pendiente = item.Cantidad - cant_lista
+        if cant_lista > 0:
+            db.add(GrupoEnvioItem(ID_Grupo=grupo_a.ID_Grupo, ID_Venta=id_venta, ID_Producto=item.ID_Producto, Cantidad=cant_lista))
+        if cant_pendiente > 0:
+            hay_pendientes = True
+
+    grupo_b = None
+    if hay_pendientes:
+        grupo_b = GrupoEnvio(
+            ID_Venta=id_venta, Tipo="programado",
+            Fecha_Entrega=fecha_programada, Tipo_Entrega=tipo_entrega_b, Estado="pendiente",
+        )
+        db.add(grupo_b)
+        db.flush()
+        for item in todos_items:
+            cant_pendiente = item.Cantidad - listos.get(item.ID_Producto, 0)
+            if cant_pendiente > 0:
+                db.add(GrupoEnvioItem(ID_Grupo=grupo_b.ID_Grupo, ID_Venta=id_venta, ID_Producto=item.ID_Producto, Cantidad=cant_pendiente))
+
+    # Crear registros Domicilio para grupos con tipo_entrega = 'domicilio'
+    cliente = db.query(Usuario).filter(Usuario.ID_Usuario == venta.ID_Usuario).first()
+    if tipo_entrega_a == "domicilio":
+        dir_a, mun_a, dep_a = _resolver_direccion_grupo(
+            direccion_a, municipio_a, departamento_a, venta, cliente, db
+        )
+        if dir_a:
+            db.add(Domicilio(
+                ID_Venta             = id_venta,
+                ID_Grupo             = grupo_a.ID_Grupo,
+                Estado               = 3,   # PENDIENTE
+                Fecha_asignacion     = _now(),
+                Direccion_entrega    = dir_a,
+                Municipio_entrega    = mun_a,
+                Departamento_entrega = dep_a,
+            ))
+
+    if grupo_b and tipo_entrega_b == "domicilio":
+        dir_b, mun_b, dep_b = _resolver_direccion_grupo(
+            direccion_b, municipio_b, departamento_b, venta, cliente, db
+        )
+        if dir_b:
+            db.add(Domicilio(
+                ID_Venta             = id_venta,
+                ID_Grupo             = grupo_b.ID_Grupo,
+                Estado               = 3,   # PENDIENTE
+                Fecha_asignacion     = _now(),
+                Direccion_entrega    = dir_b,
+                Municipio_entrega    = mun_b,
+                Departamento_entrega = dep_b,
+            ))
+
+    venta.Envio_Completo_Domingo = 0
+    db.commit()
+    db.refresh(venta)
+    return _formato_venta(venta, db)
+
+
+def actualizar_estado_grupo(
+    db: Session,
+    id_venta: int,
+    id_grupo: int,
+    nuevo_estado: str,
+    actual: dict,
+) -> dict:
+    """Admin avanza el estado de un grupo de envío (pendiente→enviado→entregado)."""
+    if actual["tipo"] not in ("admin", "empleado"):
+        raise HTTPException(status_code=403, detail="Solo disponible para administradores")
+
+    venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+
+    grupo = db.query(GrupoEnvio).filter(
+        GrupoEnvio.ID_Grupo == id_grupo,
+        GrupoEnvio.ID_Venta == id_venta,
+    ).first()
+    if not grupo:
+        raise HTTPException(status_code=404, detail="Grupo de envío no encontrado")
+
+    FLUJO_ESTADOS = {"pendiente": "enviado", "enviado": "entregado"}
+    if nuevo_estado not in ("enviado", "entregado"):
+        raise HTTPException(status_code=400, detail="Estado inválido: usa 'enviado' o 'entregado'")
+    if FLUJO_ESTADOS.get(grupo.Estado) != nuevo_estado:
+        raise HTTPException(
+            status_code=400,
+            detail=f"No se puede pasar de '{grupo.Estado}' a '{nuevo_estado}'",
+        )
+
+    # El grupo programado contiene ítems que pueden aún estar en producción.
+    # Antes de marcarlo como "enviado", verificamos que cada producto asignado
+    # al grupo tenga la cantidad requerida cubierta por stock o OP completada.
+    if grupo.Tipo == "programado" and nuevo_estado == "enviado":
+        listos = _items_listos_venta(db, id_venta)
+        items_grupo = db.query(GrupoEnvioItem).filter(
+            GrupoEnvioItem.ID_Grupo == id_grupo
+        ).all()
+        faltantes = []
+        for item in items_grupo:
+            cant_lista = listos.get(item.ID_Producto, 0)
+            if cant_lista < item.Cantidad:
+                nombre = item.producto.nombre if item.producto else f"Producto #{item.ID_Producto}"
+                faltantes.append(f"{nombre} ({cant_lista}/{item.Cantidad} listos)")
+        if faltantes:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "El grupo programado aún tiene producción pendiente: "
+                    f"{', '.join(faltantes)}. "
+                    "Completá las órdenes de producción antes de marcarlo como enviado."
+                ),
+            )
+
+    # Al entregar un grupo tienda: verificar producción de los productos de ESTE grupo.
+    # Los grupos domicilio llegan por cambiar_estado() en domicilios, que ya valida allí.
+    if nuevo_estado == "entregado" and grupo.Tipo_Entrega == "tienda":
+        items_grupo_e = db.query(GrupoEnvioItem).filter(GrupoEnvioItem.ID_Grupo == id_grupo).all()
+        ids_grupo_e = [i.ID_Producto for i in items_grupo_e]
+        if ids_grupo_e:
+            ops_abiertas = db.query(OrdenProduccion).filter(
+                OrdenProduccion.ID_Venta == id_venta,
+                OrdenProduccion.ID_Producto.in_(ids_grupo_e),
+                OrdenProduccion.Estado.notin_([11, 5]),
+            ).count()
+            if ops_abiertas > 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "La producción de este grupo aún no está completada. "
+                        "Completá las órdenes de producción antes de marcarlo como entregado."
+                    ),
+                )
+
+    # Al entregar: validar pago completo del pedido (el pago nunca se divide).
+    if nuevo_estado == "entregado":
+        if cobro_efectivo_pendiente(venta):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Registrá el cobro en efectivo antes de marcar el grupo como entregado: "
+                    "este pedido se paga (total o en parte) en mano."
+                ),
+            )
+        if getattr(venta, "Requiere_Anticipo", 0) and not getattr(venta, "Pago_Final_Registrado", 0):
+            raise HTTPException(
+                status_code=400,
+                detail="Debe registrar el pago final antes de marcar el grupo como entregado",
+            )
+        _metodo_v = (venta.Metodo_Pago or "").strip().lower()
+        _soporte_v = venta.Comprobante_Pago or getattr(venta, "Anticipo_Comprobante_Url", None)
+        _hay_transf_v = (
+            "transfer" in _metodo_v
+            or ("mixto" in _metodo_v and float(venta.Monto_Transferencia or 0) > 0)
+        )
+        if _hay_transf_v and not _soporte_v:
+            raise HTTPException(
+                status_code=400,
+                detail="Se requiere comprobante de pago para marcar el grupo como entregado",
+            )
+
+    grupo.Estado = nuevo_estado
+
+    # Sincronizar estado general del pedido
+    grupos = db.query(GrupoEnvio).filter(GrupoEnvio.ID_Venta == id_venta).all()
+    estados = {g.Estado for g in grupos}
+    if estados == {"entregado"}:
+        venta.Estado = EstadoPedido.ENTREGADO
+        if not getattr(venta, "Fecha_entrega", None):
+            venta.Fecha_entrega = _now()
+    elif "entregado" in estados and estados != {"entregado"}:
+        venta.Estado = EstadoPedido.PARCIALMENTE_ENTREGADO
+
+    db.commit()
+    db.refresh(venta)
+    return _formato_venta(venta, db)
+
+
+def actualizar_tipo_entrega_grupo(
+    db: Session,
+    id_venta: int,
+    id_grupo: int,
+    tipo_entrega: str,
+    actual: dict,
+) -> dict:
+    """Cliente o admin actualiza el tipo de entrega de un grupo."""
+    venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+    if actual["tipo"] == "cliente" and venta.ID_Usuario != actual["registro"].ID_Usuario:
+        raise HTTPException(status_code=403, detail="No puedes modificar pedidos de otros clientes")
+
+    grupo = db.query(GrupoEnvio).filter(
+        GrupoEnvio.ID_Grupo == id_grupo,
+        GrupoEnvio.ID_Venta == id_venta,
+    ).first()
+    if not grupo:
+        raise HTTPException(status_code=404, detail="Grupo de envío no encontrado")
+    if grupo.Estado == "entregado":
+        raise HTTPException(status_code=400, detail="No se puede cambiar el tipo de entrega de un grupo ya entregado")
+
+    grupo.Tipo_Entrega = tipo_entrega
+    db.commit()
+    db.refresh(venta)
+    return _formato_venta(venta, db)
+
+
+def cancelar_grupo_pendiente(
+    db: Session,
+    id_venta: int,
+    id_grupo: int,
+    actual: dict,
+) -> dict:
+    """Admin cancela el Grupo B (programado) cuando el Grupo A ya fue entregado.
+
+    Devuelve al cliente el anticipo proporcional al valor del grupo cancelado:
+      reembolso = anticipo_pagado × (valor_grupo_B / valor_total_del_pedido)
+    """
+    if actual["tipo"] not in ("admin", "empleado"):
+        raise HTTPException(status_code=403, detail="Solo disponible para administradores")
+
+    venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+
+    grupo = db.query(GrupoEnvio).filter(
+        GrupoEnvio.ID_Grupo == id_grupo,
+        GrupoEnvio.ID_Venta == id_venta,
+        GrupoEnvio.Tipo == "programado",
+    ).first()
+    if not grupo:
+        raise HTTPException(status_code=404, detail="Grupo programado no encontrado")
+    if grupo.Estado == "entregado":
+        raise HTTPException(status_code=400, detail="No se puede cancelar un grupo ya entregado")
+
+    # Verificar que el otro grupo (anticipado) ya fue entregado
+    grupo_a = db.query(GrupoEnvio).filter(
+        GrupoEnvio.ID_Venta == id_venta,
+        GrupoEnvio.Tipo == "anticipado",
+    ).first()
+    if not grupo_a or grupo_a.Estado != "entregado":
+        raise HTTPException(
+            status_code=400,
+            detail="Solo se puede cancelar el Grupo B cuando el Grupo A ya fue entregado",
+        )
+
+    # Cancelar OPs de los productos en este grupo que aún no completaron
+    prod_ids_b = {i.ID_Producto for i in grupo.items}
+    from src.features.produccion.ordenes_produccion.services.service import (
+        cambiar_estado as _cambiar_estado_orden,
+    )
+    for orden in db.query(OrdenProduccion).filter(
+        OrdenProduccion.ID_Venta == id_venta,
+        OrdenProduccion.ID_Producto.in_(prod_ids_b),
+        OrdenProduccion.Estado.notin_([11, 5]),
+    ).all():
+        _cambiar_estado_orden(db, orden.ID_Orden_Produccion, 5, commit=False)
+
+    # Calcular reembolso proporcional del anticipo
+    anticipo = Decimal(str(getattr(venta, "Anticipo_Monto", None) or 0))
+    if anticipo > 0 and getattr(venta, "Anticipo_Registrado", 0):
+        total_venta = Decimal(str(venta.Total or 0))
+        if total_venta > 0:
+            # Valor del grupo B = suma (precio × cantidad) de sus productos
+            items_b = db.query(VentaXProducto).filter(
+                VentaXProducto.ID_Venta == id_venta,
+                VentaXProducto.ID_Producto.in_(prod_ids_b),
+            ).all()
+            prod_map = {p.ID_Producto: p for p in db.query(Producto).filter(
+                Producto.ID_Producto.in_(prod_ids_b)
+            ).all()}
+            valor_b = sum(
+                (prod_map[i.ID_Producto].Precio_venta or Decimal("0")) * Decimal(str(i.Cantidad or 0))
+                for i in items_b if i.ID_Producto in prod_map
+            )
+            reembolso = (anticipo * (valor_b / total_venta)).quantize(Decimal("1"), rounding=ROUND_CEILING)
+            if reembolso > 0:
+                _abonar_credito(db, venta.ID_Usuario, reembolso, id_venta)
+
+    # Cancelar el domicilio asociado al grupo si existe y no está ya en estado final.
+    dom_grupo = db.query(Domicilio).filter(
+        Domicilio.ID_Venta == id_venta,
+        Domicilio.ID_Grupo == id_grupo,
+        Domicilio.Estado.notin_([8, 5]),
+    ).first()
+    if dom_grupo:
+        dom_grupo.Estado = 5  # Cancelado
+
+    grupo.Estado = "cancelado"
+    venta.Estado = EstadoPedido.PARCIALMENTE_ENTREGADO
+    db.commit()
+    db.refresh(venta)
+    return _formato_venta(venta, db)
+
+
+def guardar_envio_completo_domingo(
+    db: Session, id_venta: int, valor: bool, actual: dict
+) -> dict:
+    """Registra la respuesta del cliente a '¿Todo el pedido junto el domingo?'.
+
+    Solo el propio cliente puede responder. No bloquea ningún estado: se puede
+    actualizar en cualquier momento mientras el pedido existe.
+    """
+    if actual["tipo"] != "cliente":
+        raise HTTPException(status_code=403, detail="Solo disponible para clientes")
+
+    venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+    if venta.ID_Usuario != actual["registro"].ID_Usuario:
+        raise HTTPException(status_code=403, detail="No puedes modificar pedidos de otros clientes")
+
+    venta.Envio_Completo_Domingo = 1 if valor else 0
     db.commit()
     db.refresh(venta)
     return _formato_venta(venta, db)

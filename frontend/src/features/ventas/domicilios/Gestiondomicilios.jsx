@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { esEmpleadoRepartidor } from "../../../utils/roles.js";
 import { Navigate } from "react-router-dom";
 import {
@@ -205,7 +205,7 @@ const exportToCsv = (rows, nombreRepartidor) => {
    ═══════════════════════════════════════════════════════════ */
 function ModalConfirmarDesactivar({ usuario, pedidosActivos, onConfirm, onClose }) {
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div>
@@ -303,7 +303,7 @@ function ModalRegistrarCobro({ pedido, saving, onClose, onConfirm }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div>
@@ -382,7 +382,7 @@ function ModalCambiarEstado({ pedido, esRepartidor = false, onClose, onSave }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div>
@@ -459,7 +459,7 @@ function ModalVerDomicilio({ pedido, emp, domicilios, onClose, onReasignar, onOb
   const entregados  = pedidosAsignados.filter(d => d.estado === "Entregado").length;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div
         className="modal-box modal-box--wide"
         onClick={e => e.stopPropagation()}
@@ -836,7 +836,7 @@ function ModalReasignar({ pedido, empleados, repartidores, onClose, onConfirm })
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div>
@@ -898,7 +898,7 @@ function ModalObservaciones({ pedido, onClose, onConfirm }) {
   const [done, setDone] = useState(false);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div>
@@ -1141,7 +1141,7 @@ export default function GestionDomicilios() {
      cancelados (5), para poder cerrarlos. Mismo criterio que la app móvil.
      Si el backend no envía el estado de la venta, no se oculta nada. */
   const listoParaSalir = (d) =>
-    d.venta_estado_id == null || [11, 9, 8, 5].includes(d.venta_estado_id);
+    d.id_grupo || d.venta_estado_id == null || [11, 9, 8, 5].includes(d.venta_estado_id);
 
   const gestionables = domicilios.filter(listoParaSalir);
 
@@ -1594,6 +1594,14 @@ export default function GestionDomicilios() {
                           <td data-label="Estado">
                             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                               <EstadoBadge estado={ped.estado} estadoId={ped.estadoId} />
+                              {ped.id_grupo && (
+                                <span style={{
+                                  fontSize: 10, fontWeight: 700, color: "#6a1b9a",
+                                  background: "#f3e5f5", borderRadius: 4, padding: "2px 5px",
+                                }}>
+                                  {ped.tipo_grupo === "anticipado" ? "Grupo anticipado" : "Grupo programado"}
+                                </span>
+                              )}
                               {/* Avisa si venta cancelada pero entrega aún abierta */}
                               {ped.venta_estado_id === 5 && ped.estadoId !== 5 && ped.estadoId !== 8 && (
                                 <span style={{

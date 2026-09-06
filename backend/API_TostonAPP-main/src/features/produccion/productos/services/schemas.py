@@ -24,6 +24,18 @@ class FichaTecnicaInsumoResponse(BaseModel):
     nombre_categoria: Optional[str] = None
     Cantidad:        Optional[Decimal] = None
     Unidad:          Optional[str] = None
+    # Cuánto hay del insumo y en qué unidad está medido. El servicio ya los
+    # construía, pero sin declararlos acá Pydantic los borraba antes de
+    # responder: el panel de producción se quedaba sin el stock de la ficha,
+    # caía a un listado aparte de insumos y, si el insumo no estaba en él,
+    # daba el stock por CERO y bloqueaba la orden por "insumos
+    # insuficientes" teniendo el depósito lleno.
+    Stock_Actual:    Optional[float] = None
+    simbolo_unidad:  Optional[str] = None
+    # Lo que queda libre: el stock menos lo que ya apartaron las órdenes en
+    # proceso. Es contra esto que hay que comparar la receta, no contra el
+    # stock a secas: la harina de una orden que ya arrancó tiene dueño.
+    Stock_Disponible: Optional[float] = None
 
     class Config:
         from_attributes = True

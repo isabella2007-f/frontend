@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { X, Building2, MapPin, Phone, Mail } from "lucide-react";
 import { esUbicacionValida } from "../../../utils/inputFilters";
 import { fmtFecha } from "../../../utils/dateUtils";
@@ -73,7 +73,7 @@ function VistaProveedor({ proveedor, onClose }) {
   const telRaw    = (celular || "").replace(/\s/g, "");
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-card" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
 
         <div className="modal-header">
@@ -249,7 +249,7 @@ export default function EditarProveedor({ proveedor, mode = "edit", onClose, onS
   );
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-card" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
 
         <div className="modal-header">

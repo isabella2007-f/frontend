@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { getUser, logout } from "../../services/authService";
 import { esRolRepartidor } from "../../utils/roles";
+import Avatar from "./Avatar";
 import { usePrivilegios } from "../../context/PrivilegiosContext";
 import LogoutModal from "./LogoutModal";
 import "./Sidebar.css";
@@ -71,7 +72,7 @@ const adminMenuItems = [
       { label: "Mis Entregas",   Icon: Navigation,     link: "/admin/mis-entregas",         clave: "Domicilios_cambiar_estado", hideFromAdmin: true },
       { label: "Pedido Actual",  Icon: Package,        link: "/admin/pedido-actual",        clave: "Domicilios_cambiar_estado", hideFromAdmin: true },
       { label: "Historial",      Icon: History,        link: "/admin/historial-entregas",   clave: "Domicilios_cambiar_estado", hideFromAdmin: true },
-      { label: "Mis Ganancias",  Icon: Banknote,       link: "/admin/mis-ganancias",        clave: "Domicilios_cambiar_estado", hideFromAdmin: true },
+      { label: "Lo que entregué", Icon: Banknote,      link: "/admin/mis-ganancias",        clave: "Domicilios_cambiar_estado", hideFromAdmin: true },
       { label: "Notificaciones", Icon: Bell,           link: "/admin/mis-notificaciones",   clave: "Domicilios_cambiar_estado", hideFromAdmin: true },
       { label: "Mi Perfil",      Icon: UserCircle,     link: "/admin/mi-perfil-repartidor", clave: "Domicilios_cambiar_estado", hideFromAdmin: true },
       { label: "Liquidaciones",  Icon: Banknote,       link: "/admin/liquidaciones",        privilegioKey: "Liquidaciones" },
@@ -92,7 +93,7 @@ const repartidorMenuItems = [
       { label: "Pedido Actual",  Icon: Package,         link: "/admin/pedido-actual" },
       { label: "Mi Dashboard",   Icon: LayoutDashboard, link: "/admin/mi-dashboard" },
       { label: "Historial",      Icon: History,         link: "/admin/historial-entregas" },
-      { label: "Mis Ganancias",  Icon: Banknote,        link: "/admin/mis-ganancias" },
+      { label: "Lo que entregué", Icon: Banknote,       link: "/admin/mis-ganancias" },
       { label: "Notificaciones", Icon: Bell,            link: "/admin/mis-notificaciones" },
       { label: "Mi Perfil",      Icon: UserCircle,      link: "/admin/mi-perfil-repartidor" },
     ],
@@ -211,6 +212,7 @@ export default function Sidebar({ isOpen, onToggle }) {
                     to={link}
                     data-tooltip={!isOpen ? section : undefined}
                     className={`section-btn section-btn--link ${location.pathname === link ? "active" : ""}`}
+                    onClick={(e) => { if (!isOpen) { e.preventDefault(); onToggle(); } }}
                   >
                     <span className="section-icon-wrap"><SectionIcon size={15} /></span>
                     <span className="section-label">{section}</span>
@@ -231,7 +233,7 @@ export default function Sidebar({ isOpen, onToggle }) {
                 <div key={section}>
                   <button
                     className={`section-btn ${isSectionOpen ? "open" : ""}`}
-                    onClick={() => toggle(section)}
+                    onClick={() => !isOpen ? onToggle() : toggle(section)}
                     data-tooltip={!isOpen ? section : undefined}
                   >
                     <span className="section-icon-wrap">
@@ -270,7 +272,8 @@ export default function Sidebar({ isOpen, onToggle }) {
               title="Ver mi perfil"
             >
               {(user?.fotoPerfil || user?.Foto_perfil)
-                ? <img src={user.fotoPerfil || user.Foto_perfil} alt={user.nombre} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 9 }} />
+                ? <Avatar url={user.fotoPerfil || user.Foto_perfil} lado={40}
+                          alt={user.nombre} style={{ borderRadius: 9 }} />
                 : (user?.nombre?.charAt(0) || "U")
               }
             </div>

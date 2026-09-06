@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+﻿import { useState, useEffect, useRef } from "react";
 import { Search, X, AlertTriangle, Package, ClipboardList, Check, Eye, PenLine, Ban, RefreshCw, Building2, FolderOpen, ShoppingCart, Lock } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { fmtFecha } from "../../../utils/dateUtils.js";
@@ -9,6 +9,7 @@ import {
 } from "../../../services/ordenesProduccionService.js";
 import { getProducto, getProductos } from "../../../services/productosService.js";
 import { getInsumos }   from "../../../services/insumosService.js";
+import { convertir }    from "../../../utils/unidades.js";
 import SearchableSelect from "../../../shared/components/SearchableSelect.jsx";
 import "./OrdenesProduccion.css";
 
@@ -204,7 +205,7 @@ function ModalDetallesOrden({ orden, onClose }) {
   );
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div
         className="modal-box"
         style={{ maxWidth: 480, width: "100%" }}
@@ -461,10 +462,6 @@ const ESTADO_COLORS = {
   "Cancelada":  { bg: "#ffebee", color: "#c62828", border: "#ef9a9a" },
 };
 
-// Factores a unidad base: lb=500g (convención de mercado colombiano). Debe
-// cubrir las mismas unidades que _FACTOR del backend para que el chequeo previo
-// de stock coincida con lo que hará el servidor.
-const FACTOR_CONV = { mg:0.001, g:1, kg:1000, lb:500, t:1000000, ml:1, l:1000, unidad:1, uds:1, und:1, u:1, unidades:1 };
 
 function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
   const navigate = useNavigate();
@@ -489,40 +486,53 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
       getInsumos({ porPagina: 100 }),
     ]).then(([prod, insData]) => {
       if (!active) return;
-      const fichaInsumos = (prod?.ficha_tecnica?.insumos || []).map(i => ({
-        idInsumo:    i.ID_Insumo || null,
-        nombre:      i.nombre_insumo || "",
-        cantidadUnitaria: Number(i.Cantidad ?? 0),
-        unidad:      i.Unidad || "",
-        stockActual: i.Stock_Actual ?? null,  // ya viene del backend en getProducto
-      }));
-
-      // Mapa: idInsumo → { stock, simbolo } — solo para símbolo y respaldo de stock
-      const stockMap = {};
+      // El stock y la unidad de cada insumo vienen en la propia ficha. Antes
+      // ese dato no llegaba —el esquema del servidor lo borraba al responder—
+      // y esta pantalla lo buscaba en un listado aparte de insumos, limitado a
+      // los primeros 100: al insumo que no estuviera ahí le daba stock CERO y
+      // bloqueaba la orden por "insumos insuficientes" con el depósito lleno.
+      // El listado queda solo como respaldo para fichas viejas.
+      const respaldo = {};
       (insData.insumos || []).forEach(ins => {
-        stockMap[ins.ID_Insumo] = {
+        respaldo[ins.ID_Insumo] = {
           stock:   ins.Stock_Actual ?? ins.Stock ?? 0,
           simbolo: ins.simbolo_unidad || "",
         };
       });
 
+      const fichaInsumos = (prod?.ficha_tecnica?.insumos || []).map(i => {
+        const alterno = respaldo[i.ID_Insumo] || {};
+        return {
+          idInsumo:    i.ID_Insumo || null,
+          nombre:      i.nombre_insumo || "",
+          cantidadUnitaria: Number(i.Cantidad ?? 0),
+          unidad:      i.Unidad || "",
+          // Lo que queda LIBRE, no el stock a secas: la harina que ya apartó
+          // una orden en proceso tiene dueño, y el servidor la va a rechazar.
+          stock:         i.Stock_Disponible ?? i.Stock_Actual ?? alterno.stock ?? 0,
+          simboloInsumo: i.simbolo_unidad || alterno.simbolo || i.Unidad || "",
+        };
+      });
+
       const cantidadOrden = Number(orden.cantidad || 1);
 
-      // Calcula necesario con conversión a unidad base (misma lógica que el backend)
+      // La misma conversión que hace el servidor al iniciar la orden
+      // (utils/unidades.js espeja su tabla). Con una tabla propia y más corta,
+      // esta pantalla y el servidor no siempre daban el mismo veredicto.
       const fichaConCheck = fichaInsumos.map(item => {
-        const entry = stockMap[item.idInsumo] || {};
-        // Stock_Actual del producto tiene prioridad; getInsumos como respaldo
-        const stock = item.stockActual !== null ? item.stockActual : (entry.stock ?? 0);
-        const simIns   = (entry.simbolo || "").toLowerCase();
-        const simFicha = (item.unidad  || "").toLowerCase();
-        const fi = FACTOR_CONV[simFicha] ?? 1;
-        const fu = FACTOR_CONV[simIns]   ?? 1;
-        const necesarioBase = item.cantidadUnitaria * cantidadOrden * fi;
-        const necesario     = fu > 0 ? necesarioBase / fu : necesarioBase;
-        const faltante      = Math.max(0, necesario - stock);
-        return { ...item, stock, necesario, faltante, simboloInsumo: entry.simbolo || item.unidad };
+        const pedido = item.cantidadUnitaria * cantidadOrden;
+        const { valor, error } = convertir(pedido, item.unidad, item.simboloInsumo);
+        const necesario = valor ?? pedido;
+        return {
+          ...item,
+          necesario,
+          error,
+          faltante: error ? 0 : Math.max(0, necesario - item.stock),
+        };
       });
-      const insuficientes = fichaConCheck.filter(i => i.faltante > 0.0001);
+      // Las unidades incompatibles también frenan: no es que falte insumo, es
+      // que la ficha no se puede leer, y el servidor lo va a rechazar igual.
+      const insuficientes = fichaConCheck.filter(i => i.faltante > 0.0001 || i.error);
       setStockCheck({ insuficientes, fichaConCheck, stockMap, cantidadOrden });
 
       // Fecha vencimiento automática solo al completar: sale de la ficha técnica
@@ -558,7 +568,7 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div>
@@ -650,21 +660,40 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
                   stockCheck.insuficientes.length > 0 ? (
                     <div style={{ background: "#ffebee", border: "1px solid #ef9a9a", borderRadius: 12, padding: "14px" }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: "#c62828", marginBottom: 10 }}>
-                        Insumos insuficientes ({stockCheck.insuficientes.length})
+                        {stockCheck.insuficientes.every(i => i.error)
+                          ? `Revisa las unidades de la ficha (${stockCheck.insuficientes.length})`
+                          : `Insumos insuficientes (${stockCheck.insuficientes.length})`}
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
                         {stockCheck.insuficientes.map((item, i) => (
                           <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "center", background: "#fff5f5", borderRadius: 8, padding: "8px 10px" }}>
                             <div>
                               <div style={{ fontSize: 12, fontWeight: 700, color: "#b71c1c" }}>{item.nombre}</div>
+                              {/* Unidades que no se pueden comparar: no es que falte
+                                  insumo, es que la ficha no se puede leer. Decirlo
+                                  así evita mandar a comprar algo que sobra. */}
                               <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 2 }}>
-                                Stock: <strong style={{ color: "#c62828" }}>{item.stock.toFixed(2)} {item.simboloInsumo}</strong>
-                                {" · "}Necesario: <strong>{item.necesario.toFixed(2)} {item.simboloInsumo}</strong>
+                                {item.error ? (
+                                  <span style={{ color: "#c62828" }}>
+                                    La receta pide <strong>{item.unidad || "—"}</strong> y el insumo
+                                    se mide en <strong>{item.simboloInsumo || "—"}</strong>: no se
+                                    pueden convertir.
+                                  </span>
+                                ) : (
+                                  <>
+                                    Stock: <strong style={{ color: "#c62828" }}>{item.stock.toFixed(2)} {item.simboloInsumo}</strong>
+                                    {" · "}Necesario: <strong>{item.necesario.toFixed(2)} {item.simboloInsumo}</strong>
+                                  </>
+                                )}
                               </div>
                             </div>
                             <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                              <div style={{ fontSize: 10, color: "#9e9e9e", textTransform: "uppercase" }}>Faltante</div>
-                              <div style={{ fontSize: 13, fontWeight: 800, color: "#c62828" }}>{item.faltante.toFixed(2)} {item.simboloInsumo}</div>
+                              {!item.error && (
+                                <>
+                                  <div style={{ fontSize: 10, color: "#9e9e9e", textTransform: "uppercase" }}>Faltante</div>
+                                  <div style={{ fontSize: 13, fontWeight: 800, color: "#c62828" }}>{item.faltante.toFixed(2)} {item.simboloInsumo}</div>
+                                </>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -766,7 +795,7 @@ function ModalErrorEstado({ mensaje, orden, onClose }) {
   const irAlPedido = () => { onClose(); navigate(`/admin/pedidos?search=${numPedido}`); };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
         <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
           <div style={{
@@ -896,7 +925,7 @@ function ModalAnularOrden({ orden, onClose, onConfirm }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
         <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
           <div style={{
@@ -1056,7 +1085,7 @@ function ModalFormOrden({ orden, productos, onClose, onSave }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box" style={{ maxWidth: 460 }} onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div>

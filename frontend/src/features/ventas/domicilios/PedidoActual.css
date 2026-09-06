@@ -1,0 +1,380 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   PEDIDO ACTUAL — lo propio de la entrega en curso
+   ──────────────────────────────────────────────────────────────────────────
+   El hero, los botones, badges, paneles, modal y toast viven en
+   DomiciliarioUI.css (clase `.dom-ui`). Aquí quedan la cola de entregas, el
+   recorrido del pedido, la ficha de destino y la lista de productos.
+
+   Los colores de estado llegan como variables (--e-dot / --e-bg / --e-border)
+   desde estadosDomicilio.js, que sigue siendo la fuente única.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.pedido-actual .pa-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   COLA DE ENTREGAS
+   ──────────────────────────────────────────────────────────────
+   Con más de una asignada hay que poder ver cuáles son y saltar entre ellas.
+   Se dibuja como una ruta: los chips van unidos por una línea de fondo.
+   ───────────────────────────────────────────────────────────── */
+.pedido-actual .pa-cola {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  padding: 4px 2px 10px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+/* La línea de la ruta pasa por detrás de los chips, a la altura del número. */
+.pedido-actual .pa-cola::before {
+  content: "";
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 26px;
+  height: 2px;
+  background: repeating-linear-gradient(90deg, var(--du-borde) 0 7px, transparent 7px 13px);
+  pointer-events: none;
+}
+
+.pedido-actual .pa-cola__chip {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-width: 96px;
+  padding: 10px 14px 12px;
+  border-radius: 16px;
+  border: 1.5px solid var(--du-borde);
+  background: #fff;
+  box-shadow: var(--du-sombra-sm);
+  font-family: inherit;
+  cursor: pointer;
+  transition: transform .18s, box-shadow .18s, border-color .18s;
+}
+.pedido-actual .pa-cola__chip:hover { transform: translateY(-2px); box-shadow: var(--du-sombra-md); }
+
+.pedido-actual .pa-cola__n {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #eef4ef;
+  color: var(--du-tinta-2);
+  font-family: var(--font-head, 'Nunito', sans-serif);
+  font-size: 13px;
+  font-weight: 800;
+  transition: background .18s, color .18s;
+}
+.pedido-actual .pa-cola__num {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--du-tinta);
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pedido-actual .pa-cola__estado {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: var(--du-tinta-3);
+}
+.pedido-actual .pa-cola__cobro { color: #b26a00; }
+
+.pedido-actual .pa-cola__chip--on {
+  border-color: var(--du-verde-500);
+  background: linear-gradient(180deg, var(--du-crema) 0%, #fff 100%);
+  box-shadow: 0 4px 16px rgba(46, 125, 50, .2);
+}
+.pedido-actual .pa-cola__chip--on .pa-cola__n {
+  background: linear-gradient(135deg, var(--du-verde-700) 0%, var(--du-verde-500) 100%);
+  color: #fff;
+}
+.pedido-actual .pa-cola__chip--on .pa-cola__num { color: var(--du-verde-700); }
+
+/* ─────────────────────────────────────────────────────────────
+   RECORRIDO DEL PEDIDO
+   ──────────────────────────────────────────────────────────────
+   Los pasos y su orden salen de estadosDomicilio.js; aquí solo se pintan.
+   ───────────────────────────────────────────────────────────── */
+.pedido-actual .pa-pasos {
+  display: flex;
+  align-items: flex-start;
+  padding: 4px 0 2px;
+}
+
+.pedido-actual .pa-paso {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  text-align: center;
+}
+
+/* Barra que une un paso con el siguiente */
+.pedido-actual .pa-paso::after {
+  content: "";
+  position: absolute;
+  top: 17px;
+  left: 50%;
+  width: 100%;
+  height: 3px;
+  border-radius: 2px;
+  background: #e7eee9;
+}
+.pedido-actual .pa-paso:last-child::after { display: none; }
+.pedido-actual .pa-paso--hecho::after { background: linear-gradient(90deg, var(--du-verde-500), var(--du-verde-400)); }
+
+.pedido-actual .pa-paso__punto {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid #e7eee9;
+  background: #fff;
+  color: #b9c7bd;
+  transition: all .22s cubic-bezier(.16, 1, .3, 1);
+}
+.pedido-actual .pa-paso__label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--du-tinta-3);
+  line-height: 1.25;
+}
+
+.pedido-actual .pa-paso--hecho .pa-paso__punto {
+  border-color: var(--du-verde-500);
+  background: var(--du-crema);
+  color: var(--du-verde-600);
+}
+.pedido-actual .pa-paso--hecho .pa-paso__label { color: var(--du-verde-700); }
+
+.pedido-actual .pa-paso--activo .pa-paso__punto {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--du-verde-700) 0%, var(--du-verde-500) 100%);
+  color: #fff;
+  box-shadow: 0 0 0 5px rgba(67, 160, 71, .16), 0 6px 16px rgba(46, 125, 50, .3);
+}
+.pedido-actual .pa-paso--activo .pa-paso__label { color: var(--du-verde-700); font-weight: 800; }
+
+/* ─────────────────────────────────────────────────────────────
+   FICHA DE DESTINO
+   ───────────────────────────────────────────────────────────── */
+.pedido-actual .pa-destino {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+}
+.pedido-actual .pa-destino__pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  border-radius: 15px;
+  background: linear-gradient(135deg, var(--du-verde-700) 0%, var(--du-verde-500) 100%);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(46, 125, 50, .3);
+}
+.pedido-actual .pa-destino__txt { flex: 1; min-width: 0; }
+.pedido-actual .pa-destino__cliente {
+  font-family: var(--font-head, 'Nunito', sans-serif);
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -.3px;
+  color: var(--du-tinta);
+}
+.pedido-actual .pa-destino__dir {
+  margin-top: 4px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--du-tinta-2);
+}
+
+/* ─── Botones de navegación ───
+   Conservan el color de marca solo en el icono y el borde: así se reconocen
+   de un vistazo sin romper el verde del resto de la pantalla. */
+.pedido-actual .pa-navs { display: flex; gap: 10px; margin-top: 15px; }
+.pedido-actual .pa-nav {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 13px;
+  border: 1.5px solid var(--nav-color, var(--du-verde-500));
+  background: #fff;
+  color: var(--nav-color, var(--du-verde-600));
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .16s, transform .16s, box-shadow .16s;
+}
+.pedido-actual .pa-nav:hover {
+  background: var(--nav-bg, #f4fbf5);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(13, 59, 30, .12);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   PRODUCTOS
+   ───────────────────────────────────────────────────────────── */
+.pedido-actual .pa-items { display: flex; flex-direction: column; gap: 9px; }
+
+.pedido-actual .pa-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 13px;
+  border-radius: 13px;
+  border: 1px solid #eef3ef;
+  background: #fafcfa;
+  transition: border-color .16s, background .16s;
+}
+.pedido-actual .pa-item:hover { border-color: #cfe6d3; background: var(--du-crema); }
+
+.pedido-actual .pa-item__qty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  padding: 0 8px;
+  border-radius: 11px;
+  border: 1.5px solid #cfe6d3;
+  background: #fff;
+  color: var(--du-verde-700);
+  font-family: var(--font-head, 'Nunito', sans-serif);
+  font-size: 13px;
+  font-weight: 800;
+}
+.pedido-actual .pa-item__txt { flex: 1; min-width: 0; }
+.pedido-actual .pa-item__nombre {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--du-tinta);
+}
+.pedido-actual .pa-item__unit { margin-top: 2px; font-size: 11.5px; color: var(--du-tinta-3); }
+.pedido-actual .pa-item__sub {
+  flex-shrink: 0;
+  font-family: var(--font-head, 'Nunito', sans-serif);
+  font-size: 14.5px;
+  font-weight: 800;
+  color: var(--du-verde-700);
+}
+
+.pedido-actual .pa-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1.5px solid #cfe6d3;
+  background: linear-gradient(135deg, #eaf6ec 0%, #f6fbf7 100%);
+}
+.pedido-actual .pa-total__label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--du-tinta-2);
+}
+.pedido-actual .pa-total__valor {
+  font-family: var(--font-head, 'Nunito', sans-serif);
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -.6px;
+  line-height: 1.1;
+  color: var(--du-verde-700);
+}
+
+.pedido-actual .pa-pago {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin-top: 11px;
+  font-size: 12.5px;
+  color: var(--du-tinta-2);
+}
+.pedido-actual .pa-pago__metodo { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
+
+/* ─────────────────────────────────────────────────────────────
+   ACCIONES DE ESTADO
+   ───────────────────────────────────────────────────────────── */
+.pedido-actual .pa-acciones { display: flex; flex-direction: column; gap: 10px; }
+
+.pedido-actual .pa-accion {
+  display: inline-flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  border: 2px solid transparent;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform .16s, box-shadow .18s, background .16s, border-color .16s;
+}
+.pedido-actual .pa-accion:disabled { opacity: .55; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.pedido-actual .pa-accion--principal {
+  background: linear-gradient(135deg, var(--du-verde-700) 0%, var(--du-verde-500) 100%);
+  color: #fff;
+  box-shadow: 0 5px 16px rgba(46, 125, 50, .3);
+}
+.pedido-actual .pa-accion--principal:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 26px rgba(46, 125, 50, .4);
+}
+
+/* La acción destructiva no se pinta de color: va en blanco para que no
+   compita con el paso que el repartidor sí debería dar. */
+.pedido-actual .pa-accion--secundaria {
+  padding: 13px 18px;
+  border-width: 1.5px;
+  border-color: #f2c9c7;
+  background: #fff;
+  color: var(--du-rojo);
+  font-size: 14px;
+}
+.pedido-actual .pa-accion--secundaria:hover:not(:disabled) { background: #fdecec; border-color: #e79b98; }
+
+/* ─────────────────────────────────────────────────────────────
+   RESPONSIVE
+   ───────────────────────────────────────────────────────────── */
+@media (max-width: 560px) {
+  .pedido-actual .pa-navs { flex-direction: column; }
+  .pedido-actual .pa-paso__label { font-size: 10px; }
+  .pedido-actual .pa-destino__cliente { font-size: 17px; }
+  .pedido-actual .pa-total__valor { font-size: 21px; }
+}

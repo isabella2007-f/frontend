@@ -3,14 +3,17 @@ from fastapi import HTTPException
 
 
 class EstadoPedido(IntEnum):
-    PENDIENTE       = 1   # nuevo pedido del cliente
-    CONFIRMADO      = 4   # aceptado por el admin/empleado
-    CANCELADO       = 5   # cancelado (estado final)
-    ENTREGADO       = 8   # entregado al cliente o recogido en tienda
-    EN_CAMINO       = 9   # domicilio en tránsito
-    LISTO           = 11  # terminado, esperando entrega o recogida ("Completada" en la BD)
-    PREPARANDO      = 13  # en cocina / producción  ("En proceso" en la BD)
-    FECHA_PROPUESTA = 16  # admin propuso fecha; cliente debe aceptar o rechazar
+    PENDIENTE              = 1   # nuevo pedido del cliente
+    CONFIRMADO             = 4   # aceptado por el admin/empleado
+    CANCELADO              = 5   # cancelado (estado final)
+    ENTREGADO              = 8   # entregado al cliente o recogido en tienda
+    EN_CAMINO              = 9   # domicilio en tránsito
+    LISTO                  = 11  # terminado, esperando entrega o recogida ("Completada" en la BD)
+    PREPARANDO             = 13  # en cocina / producción  ("En proceso" en la BD)
+    FECHA_PROPUESTA        = 16  # admin propuso fecha; cliente debe aceptar o rechazar
+    FECHA_RECHAZADA        = 17  # cliente rechazó la fecha; admin propone de nuevo
+    PARCIALMENTE_ENTREGADO = 18  # grupo A entregado, grupo B de producción pendiente
+    ESCALADO_A_ADMIN       = 19  # cliente rechazó demasiadas veces; admin lo gestiona manualmente
 
 
 ESTADOS_FINALES = frozenset({EstadoPedido.ENTREGADO, EstadoPedido.CANCELADO})
@@ -31,6 +34,9 @@ ESTADOS_ACTIVOS = frozenset({
     EstadoPedido.LISTO,
     EstadoPedido.EN_CAMINO,
     EstadoPedido.FECHA_PROPUESTA,
+    EstadoPedido.FECHA_RECHAZADA,
+    EstadoPedido.PARCIALMENTE_ENTREGADO,
+    EstadoPedido.ESCALADO_A_ADMIN,
 })
 
 TRANSICIONES: dict[int, frozenset[int]] = {
@@ -42,8 +48,14 @@ TRANSICIONES: dict[int, frozenset[int]] = {
     EstadoPedido.EN_CAMINO:       frozenset({EstadoPedido.ENTREGADO, EstadoPedido.CANCELADO}),
     EstadoPedido.ENTREGADO:       frozenset(),
     EstadoPedido.CANCELADO:       frozenset(),
-    # Fecha propuesta: el cliente acepta (→ Confirmado) o rechaza (→ Cancelado)
-    EstadoPedido.FECHA_PROPUESTA: frozenset({EstadoPedido.CONFIRMADO, EstadoPedido.CANCELADO}),
+    # Fecha propuesta: el cliente acepta (→ Confirmado) o rechaza (→ Fecha rechazada)
+    EstadoPedido.FECHA_PROPUESTA: frozenset({EstadoPedido.CONFIRMADO, EstadoPedido.FECHA_RECHAZADA}),
+    # Fecha rechazada: admin propone de nuevo (→ Fecha propuesta) o escala si hay demasiados rechazos
+    EstadoPedido.FECHA_RECHAZADA: frozenset({EstadoPedido.FECHA_PROPUESTA, EstadoPedido.ESCALADO_A_ADMIN, EstadoPedido.CANCELADO}),
+    # Escalado: admin acuerda manualmente (→ Confirmado) o cancela
+    EstadoPedido.ESCALADO_A_ADMIN: frozenset({EstadoPedido.CONFIRMADO, EstadoPedido.CANCELADO}),
+    # Parcialmente entregado: cuando llega el grupo B queda Entregado
+    EstadoPedido.PARCIALMENTE_ENTREGADO: frozenset({EstadoPedido.ENTREGADO, EstadoPedido.CANCELADO}),
 }
 
 

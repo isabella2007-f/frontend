@@ -253,7 +253,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
   // de hooks entre renders y lanza "Rendered fewer hooks than expected".
   if (!esEditable) {
     return (
-      <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-overlay">
         <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
           <div style={{ padding: "28px 24px", textAlign: "center" }}>
             <div style={{
@@ -261,7 +261,6 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
               background: "#ffebee", border: "1px solid #ef9a9a",
               display: "flex", alignItems: "center", justifyContent: "center",
               margin: "0 auto 14px",
-              display:"flex",alignItems:"center",justifyContent:"center",
             }}><Ban size={24}/></div>
             <h3 style={{ margin: "0 0 8px", fontSize: 17, fontWeight: 700, fontFamily: "var(--font-head)" }}>
               No editable
@@ -484,7 +483,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div
         className="modal-card"
         onClick={e => e.stopPropagation()}

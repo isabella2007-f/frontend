@@ -98,6 +98,8 @@ PEDIDO_EN_CAMINO = 9
 PEDIDO_LISTO = 11
 PEDIDO_EN_PRODUCCION = 13
 PEDIDO_FECHA_PROPUESTA = 16
+PEDIDO_FECHA_RECHAZADA = 17
+PEDIDO_ESCALADO        = 19
 
 DOM_PENDIENTE = 3
 DOM_CANCELADO = 5
@@ -286,6 +288,9 @@ class PanelBase(unittest.TestCase):
     def patch(self, ruta, quien, cuerpo=None, **kw):
         return self.client.patch(API + ruta, headers=quien, json=cuerpo or {}, **kw)
 
+    def delete(self, ruta, quien, **kw):
+        return self.client.delete(API + ruta, headers=quien, **kw)
+
     def detalle(self, respuesta):
         """El mensaje de error, para poder afirmar sobre él sin repetir json()."""
         try:
@@ -324,6 +329,51 @@ class PanelBase(unittest.TestCase):
         """Crea el pedido por el endpoint y devuelve el cuerpo de la respuesta."""
         respuesta = self.post("/ventas/", quien or self.cliente, self.cuerpo_pedido(**kw))
         return self.afirmar_ok(respuesta, 201)
+
+    def entrega_del_repartidor(self, *, creado_hace=0, entregado=True,
+                               entregado_hace=0, quien=ID_REPARTIDOR,
+                               estado_pago="efectivo_recibido", **kw):
+        """Un domicilio ya recorrido, con las fechas puestas a mano.
+
+        Las fechas se escriben directo porque lo que se está probando es cómo
+        se cuentan los días, y un pedido creado por el endpoint siempre nace
+        hoy.
+        """
+        from datetime import datetime, timedelta
+        from src.shared.services.models import Domicilio as _Dom
+
+        pedido = self.crear_pedido(domicilio=self.direccion(), **kw)
+        id_venta = pedido["ID_Venta"]
+        # El pedido que llega con comprobante no se confirma hasta aprobarlo.
+        if kw.get("comprobante_pago"):
+            self.afirmar_ok(self.patch(
+                f"/pedidos/{id_venta}/aprobar-comprobante", self.admin
+            ))
+        self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/confirmar", self.admin))
+        self.afirmar_ok(self.patch(
+            f"/ventas/{id_venta}/estado", self.admin, {"Estado": PEDIDO_LISTO}
+        ))
+        dom = self.db.query(_Dom).filter(_Dom.ID_Venta == id_venta).first()
+        self.afirmar_ok(self.patch(
+            f"/domicilios/{dom.ID_Domicilio}/repartidor", self.admin,
+            {"ID_Empleado": quien},
+        ))
+
+        dom = self.db.query(_Dom).filter(_Dom.ID_Venta == id_venta).first()
+        venta = self.db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
+        dom.Fecha_asignacion = datetime.now() - timedelta(days=creado_hace)
+        if entregado:
+            dom.Estado = DOM_ENTREGADO
+            dom.Fecha_entrega = datetime.now() - timedelta(days=entregado_hace)
+            venta.Estado = PEDIDO_ENTREGADO
+            venta.Estado_Pago = estado_pago
+        self.db.commit()
+        return dom.ID_Domicilio
+
+    def rango_de_hoy(self):
+        from datetime import datetime, timedelta
+        inicio = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        return inicio.isoformat(), (inicio + timedelta(days=1)).isoformat()
 
     def cobrar_en_tienda(self, id_venta, monto=20000):
         """El mostrador registra el efectivo antes de entregar."""

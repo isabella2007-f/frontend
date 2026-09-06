@@ -31,6 +31,8 @@ const adaptDomicilio = (d) => {
     estado_pago:        d.estado_pago        || null,
     domicilio:          true,
     venta_estado_id:    d.venta_estado ?? null,
+    id_grupo:           d.ID_Grupo    ?? null,
+    tipo_grupo:         d.tipo_grupo  ?? null,
     cliente: {
       nombre:   d.nombre_cliente   || "",
       correo:   "",
@@ -56,6 +58,28 @@ export const getDomicilios = async ({
     por_pagina: data.por_pagina,
     domicilios: (data.domicilios || []).map(adaptDomicilio),
   };
+};
+
+/**
+ * Todos los domicilios que cumplan el filtro, no solo la primera página.
+ *
+ * El backend topeó `por_pagina` en 100, y las pantallas del repartidor
+ * pedían una sola página y sacaban cuentas sobre eso: pasadas las 100
+ * entregas, su historial y sus totales empezaban a dejar plata afuera sin
+ * avisar. Acá se recorren las páginas hasta traerlas todas.
+ */
+export const getTodosLosDomicilios = async (filtros = {}) => {
+  const POR_PAGINA = 100;
+  const primera = await getDomicilios({ ...filtros, pagina: 1, porPagina: POR_PAGINA });
+  const paginas = Math.ceil((primera.total || 0) / POR_PAGINA);
+  if (paginas <= 1) return primera.domicilios;
+
+  const resto = await Promise.all(
+    Array.from({ length: paginas - 1 }, (_, i) =>
+      getDomicilios({ ...filtros, pagina: i + 2, porPagina: POR_PAGINA })
+    )
+  );
+  return resto.reduce((todos, p) => todos.concat(p.domicilios), primera.domicilios);
 };
 
 export const getDomicilio = async (id) => {

@@ -1,0 +1,148 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   NOTIFICACIONES DEL DOMICILIARIO — lo propio del buzón del repartidor
+   ──────────────────────────────────────────────────────────────────────────
+   El hero, los filtros, botones, vacíos, toast y skeletons viven en
+   DomiciliarioUI.css (clase `.dom-ui`). Aquí quedan las tarjetas de aviso.
+
+   El color de cada tipo llega como variable (--n-color / --n-bg) desde el
+   componente, que lo saca de un único mapa de tipos.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.notifs .nt-barra {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+.notifs .nt-barra__auto {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--du-tinta-3);
+  white-space: nowrap;
+}
+/* Punto que late mientras el sondeo sigue vivo: deja claro que la pantalla
+   se refresca sola sin tener que leerlo. */
+.notifs .nt-barra__pulso {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--du-verde-500);
+  box-shadow: 0 0 0 3px rgba(67, 160, 71, .18);
+  animation: duPulse 1.8s ease-in-out infinite;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   LISTA
+   ───────────────────────────────────────────────────────────── */
+.notifs .nt-lista { display: flex; flex-direction: column; gap: 11px; }
+
+.notifs .nt-card {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  width: 100%;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1.5px solid var(--du-borde);
+  background: #fff;
+  box-shadow: var(--du-sombra-sm);
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  animation: duFadeUp .4s cubic-bezier(.16, 1, .3, 1) both;
+  transition: transform .18s cubic-bezier(.16, 1, .3, 1), box-shadow .18s, border-color .18s, background .18s;
+}
+.notifs .nt-card:hover {
+  transform: translateX(3px);
+  box-shadow: var(--du-sombra-md);
+  border-color: var(--n-color, var(--du-verde-400));
+}
+.notifs .nt-card:focus-visible { outline: 3px solid rgba(67, 160, 71, .35); outline-offset: 2px; }
+
+/* Barra lateral del color del tipo, solo mientras está sin leer */
+.notifs .nt-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, var(--n-color, var(--du-verde-500)), transparent 140%);
+}
+
+.notifs .nt-card__icono {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 14px;
+  background: var(--n-bg, var(--du-crema));
+  border: 1.5px solid var(--n-color, var(--du-borde));
+  color: var(--n-color, var(--du-verde-600));
+}
+
+.notifs .nt-card__txt { flex: 1; min-width: 0; }
+.notifs .nt-card__titulo {
+  font-family: var(--font-head, 'Nunito', sans-serif);
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.3;
+  color: var(--n-color, var(--du-tinta));
+}
+.notifs .nt-card__msg {
+  margin-top: 3px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--du-tinta-2);
+}
+.notifs .nt-card__fecha {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 7px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--du-tinta-3);
+}
+
+.notifs .nt-card__punto {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--n-color, var(--du-verde-500));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--n-color, #43a047) 18%, transparent);
+}
+
+/* ─── Leída: se apaga entera, sin perder la forma ─── */
+.notifs .nt-card--leida {
+  background: #fafcfa;
+  border-color: #eef3ef;
+  box-shadow: none;
+}
+.notifs .nt-card--leida::before { background: #e4eae6; }
+.notifs .nt-card--leida .nt-card__icono {
+  background: #f2f5f3;
+  border-color: #e4eae6;
+  color: #aebdb2;
+}
+.notifs .nt-card--leida .nt-card__titulo { color: var(--du-tinta-2); font-weight: 700; }
+.notifs .nt-card--leida .nt-card__msg    { color: var(--du-tinta-3); }
+
+/* ─────────────────────────────────────────────────────────────
+   RESPONSIVE
+   ───────────────────────────────────────────────────────────── */
+@media (max-width: 560px) {
+  .notifs .nt-barra__auto { margin-left: 0; width: 100%; }
+  .notifs .nt-card { padding: 14px 15px; gap: 12px; }
+  .notifs .nt-card__icono { width: 38px; height: 38px; border-radius: 12px; }
+}

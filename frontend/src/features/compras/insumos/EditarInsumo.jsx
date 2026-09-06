@@ -117,7 +117,7 @@ export default function EditarInsumo({ ins, onClose, onSave, categorias, unidade
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
 
         <div className="modal-header">

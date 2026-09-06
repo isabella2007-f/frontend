@@ -16,6 +16,7 @@ import { crearPedidoCliente } from '../features/sales/orders/services/crearPedid
 import {
   addToCartWithQty,
   getCart,
+  saveCart,
   getCartCount,
   sanitizeCart,
   clearCart
@@ -272,6 +273,7 @@ const LandingPage = ({ hideNavbar = false }) => {
   const [orderDone,   setOrderDone]   = useState(false);
   const [errorToast,  setErrorToast]  = useState('');
   const [confirmPending, setConfirmPending] = useState(null);
+  const [stockLimitMsg,  setStockLimitMsg]  = useState('');
 
   // Sincronizar contador del carrito
   const syncCartInfo = useCallback(() => {
@@ -327,6 +329,22 @@ const LandingPage = ({ hideNavbar = false }) => {
           requiereProduccion: !!p.Requiere_Produccion,
         }));
       setProductos(vendibles);
+      // Sincronizar campos del carrito con datos frescos de la API.
+      // Si un producto cambió Requiere_Produccion o Stock desde que se agregó,
+      // el item del carrito queda desactualizado y el checkout calcula mal el anticipo.
+      const cartActual = getCart();
+      const cartSync = cartActual.map(item => {
+        const fresco = vendibles.find(p => p.id === item.id);
+        if (!fresco) return item;
+        return { ...item, requiereProduccion: fresco.requiereProduccion, stock: fresco.stock };
+      });
+      if (cartSync.some((it, i) =>
+        it.requiereProduccion !== cartActual[i]?.requiereProduccion ||
+        it.stock !== cartActual[i]?.stock
+      )) {
+        saveCart(cartSync);
+        window.dispatchEvent(new Event('cart-updated'));
+      }
       // Lo que dejó de estar publicado sale del carrito de quien ya lo tenía:
       // acá el catálogo se recarga al volver a la pestaña, así que el carrito
       // se pone al día solo.
@@ -363,43 +381,45 @@ const LandingPage = ({ hideNavbar = false }) => {
   const getQty = (id) => quantities[id] || 1;
   const setQty = (id, v) => setQuantities(prev => ({ ...prev, [id]: Math.max(1, v) }));
 
+  const mostrarLimiteStock = (nombre, stock, enCarrito = 0) => {
+    const unidades = (n) => `${n} unidad${n !== 1 ? 'es' : ''}`;
+    setStockLimitMsg(
+      stock === 0
+        ? `No queda nada de "${nombre}" en este momento. Inténtalo más tarde o contáctanos.`
+        : enCarrito >= stock
+          ? `Ya tienes las ${unidades(stock)} que hay de "${nombre}" en tu carrito.`
+          : `En este momento no puedes pedir más de ${unidades(stock)} de "${nombre}". Inténtalo más tarde o contáctanos.`
+    );
+    setTimeout(() => setStockLimitMsg(''), 12000);
+  };
+
+  /// Agrega y avisa si el stock no dio para todo.
+  ///
+  /// El aviso sale de lo que el carrito hizo de verdad, no de una comprobación
+  /// previa: la de antes miraba la cantidad del selector y no lo que ya había
+  /// adentro, así que con el carrito lleno el botón seguía sumando.
   const realizarAdd = (product, qty, pedidoProgramado = false) => {
-    addToCartWithQty(product, qty, pedidoProgramado);
+    const r = addToCartWithQty(product, qty, pedidoProgramado);
     setQuantities(prev => ({ ...prev, [product.id]: 1 }));
     syncCartInfo();
+    if (r.rechazado > 0) mostrarLimiteStock(product.nombre, r.tope ?? 0, r.total);
+    return r;
   };
 
   const handleAddToCart = (product) => {
     const qty = getQty(product.id);
     const stock = product.stock ?? 0;
-    if (stock === 0 || (product.requiereProduccion && qty > stock)) {
-      realizarAdd(product, qty, true);
-      setCartOpen(true);
-      return;
-    }
-    if (qty > stock) {
-      setConfirmPending({ product, qty });
-      return;
-    }
-    realizarAdd(product, qty, false);
-    setCartOpen(true);
+    // Lo que la panadería hornea no tiene tope: el faltante se fabrica.
+    const programado = product.requiereProduccion && (stock === 0 || qty > stock);
+    const r = realizarAdd(product, qty, programado);
+    if (r.agregado > 0) setCartOpen(true);
   };
 
   const handleAddFromModal = (product, qty) => {
     const stock = product.stock ?? 0;
-    if (stock === 0 || (product.requiereProduccion && qty > stock)) {
-      realizarAdd(product, qty, true);
-      setSelectedProduct(null);
-      setCartOpen(true);
-      return;
-    }
-    if (qty > stock) {
-      setConfirmPending({ product, qty });
-      return;
-    }
-    realizarAdd(product, qty, false);
-    setSelectedProduct(null);
-    setCartOpen(true);
+    const programado = product.requiereProduccion && (stock === 0 || qty > stock);
+    const r = realizarAdd(product, qty, programado);
+    if (r.agregado > 0) { setSelectedProduct(null); setCartOpen(true); }
   };
 
   const handleConfirmStock = () => {
@@ -505,6 +525,14 @@ const LandingPage = ({ hideNavbar = false }) => {
         <div className="fixed top-6 left-1/2 z-[10000] flex items-center gap-3 px-6 py-4 bg-[#b71c1c] text-white rounded-2xl shadow-2xl animate-slide-down-toast">
           <X className="w-5 h-5 text-[#ef9a9a]" />
           <span className="font-black">{errorToast}</span>
+        </div>
+      )}
+
+      {/* ── Aviso de límite de stock ── */}
+      {stockLimitMsg && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[10000] flex items-center gap-3 px-6 py-4 bg-amber-50 border border-amber-300 text-amber-900 rounded-2xl shadow-2xl max-w-sm text-sm font-semibold">
+          <span>⚠️</span>
+          <span>{stockLimitMsg}</span>
         </div>
       )}
 

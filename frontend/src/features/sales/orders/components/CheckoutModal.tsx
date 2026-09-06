@@ -4,7 +4,10 @@ import { CartItem } from '../services/cartService';
 import { getUser } from '../../../../services/authService';
 import { getMiCredito } from '../../../../services/pedidosService';
 import { apiFetch } from '../../../../utils/api';
-import { MUNICIPIOS_VALLE_ABURRA } from '../../../../utils/departamentosYCiudades';
+import SelectorDireccionEntrega from '../../../../shared/components/SelectorDireccionEntrega';
+import {
+  desdeTexto, direccionVacia, lineaGuardada, observacionesDe, queFalta,
+} from '../../../../utils/direccionEntrega';
 // La regla del anticipo vive en un solo lugar, espejo del servidor.
 import { pideAnticipo } from '../../../../utils/anticipo';
 import SaldoMonto from '../../../../shared/components/SaldoMonto';
@@ -37,7 +40,7 @@ interface CheckoutModalProps {
     observaciones?: string;
     tieneDomicilio?: boolean;
   } | null;
-  onConfirm: (paymentMethod: string, onBehalfOf: string, comprobante?: File | null, saldoAFavor?: { usar: boolean; monto: number; efectivoMonto?: number }, deliveryInfo?: { tieneDomicilio: boolean; address: string; municipio: string; departamento: string; date: string; time: string; observaciones: string }, anticipoData?: { requiere: boolean; metodo: string; efectivo: boolean; comprobante: File | null; monto: number; saldo: number; pagarTodo?: boolean; creditoCubreAnticipo?: boolean }) => Promise<void> | void;
+  onConfirm: (paymentMethod: string, onBehalfOf: string, comprobante?: File | null, saldoAFavor?: { usar: boolean; monto: number; efectivoMonto?: number }, deliveryInfo?: { tieneDomicilio: boolean; address: string; municipio: string; barrio: string; departamento: string; date: string; time: string; observaciones: string }, anticipoData?: { requiere: boolean; metodo: string; efectivo: boolean; comprobante: File | null; monto: number; saldo: number; pagarTodo?: boolean; creditoCubreAnticipo?: boolean }) => Promise<void> | void;
 }
 
 const COSTO_DOMICILIO = 5000;
@@ -101,8 +104,9 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   // pone creditoMaximo; el atajo "Todo" cubre el caso mas comun.
   const [creditoMonto,       setCreditoMonto]       = useState<number | ''>('');
   const [tieneDomicilio,     setTieneDomicilio]     = useState(false);
-  const [address,            setAddress]            = useState('');
-  const [municipio,          setMunicipio]          = useState('');
+  /// La dirección de entrega, campo por campo. Antes eran dos campos sueltos:
+  /// un renglón de texto libre y el municipio, sin barrio en ninguna parte.
+  const [direccion,          setDireccion]          = useState(direccionVacia());
   const [date,               setDate]               = useState('');
   const [time,               setTime]               = useState('');
   const [observaciones,      setObservaciones]      = useState('');
@@ -112,16 +116,20 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   const [telefonoRegistrado, setTelefonoRegistrado] = useState(false);
   const [guardarTelefono,    setGuardarTelefono]    = useState(true);
   // Dirección guardada
-  const [direccionRegistrada, setDireccionRegistrada] = useState('');
-  const [guardarDireccion,    setGuardarDireccion]    = useState(true);
-  const [addressTocada,       setAddressTocada]       = useState(false);
-  const [municipioTocado,     setMunicipioTocado]     = useState(false);
+  /// Lo que el cliente tiene guardado en su perfil. No se toca desde acá.
+  const [registrada,     setRegistrada]     = useState<any>(null);
+  /// true = se entrega en la de siempre; false = en la que escriba ahora.
+  const [usarRegistrada, setUsarRegistrada] = useState(true);
+  /// Si ya se intentó confirmar: hasta entonces no se marca nada en rojo.
+  const [direccionTocada,     setDireccionTocada]     = useState(false);
   // Anticipo
   const [anticipoMetodo,      setAnticipoMetodo]      = useState('');
   const [anticipoEfectivo,    setAnticipoEfectivo]    = useState(false);
   const [anticipoComprobante, setAnticipoComprobante] = useState<File | null>(null);
   const [anticipoError,       setAnticipoError]       = useState('');
-  const [pagarTodo,           setPagarTodo]           = useState(false);
+  // 'mitad' = 50%, 'todo' = 100%, 'personalizado' = monto elegido por el cliente
+  const [anticipoOpcion,      setAnticipoOpcion]      = useState<'mitad' | 'todo' | 'personalizado'>('mitad');
+  const [montoPersonalizado,  setMontoPersonalizado]  = useState<number | ''>('');
   const [terminosAceptados,  setTerminosAceptados]   = useState(false);
 
   useEffect(() => {
@@ -129,15 +137,16 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
     const user = getUser();
     setOnBehalfOf(user?.nombre || orderDetails.clientName || '');
     setTieneDomicilio(orderDetails.tieneDomicilio ?? false);
-    setAddress(orderDetails.address || '');
-    setMunicipio(orderDetails.municipio || '');
+    setDireccion(desdeTexto(orderDetails.address, {
+      municipio: orderDetails.municipio || '',
+    }));
+    setUsarRegistrada(true);
     setDate(orderDetails.date || '');
     setTime('');
     setObservaciones(orderDetails.observaciones || '');
     setComprobante(null);
     setTelefonoTocado(false);
-    setAddressTocada(false);
-    setMunicipioTocado(false);
+    setDireccionTocada(false);
 
     // Cargar perfil para verificar teléfono y dirección
     apiFetch('/auth/perfil')
@@ -146,22 +155,27 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
         setTelefono(tel);
         setTelefonoRegistrado(!!tel);
         const dir = perfil?.Direccion || '';
-        setDireccionRegistrada(dir);
-        // Pre-llenar dirección si hay y no vino del carrito
-        if (dir && !orderDetails.address) {
-          setAddress(dir);
-          setMunicipio(perfil?.Municipio || '');
-        }
+        setRegistrada({
+          direccion:    dir,
+          municipio:    perfil?.Municipio    || '',
+          departamento: perfil?.Departamento || 'Antioquia',
+          barrio:       perfil?.Barrio       || '',
+          indicaciones: perfil?.Indicaciones || '',
+        });
+        // Sin dirección guardada no hay nada que ofrecer: se escribe una.
+        setUsarRegistrada(!!dir);
       })
       .catch(() => {
         setTelefonoRegistrado(false);
-        setDireccionRegistrada('');
+        setRegistrada(null);
+        setUsarRegistrada(false);
       });
 
     getMiCredito()
       .then((data: any) => setCredito(data?.saldo || 0))
       .catch(() => setCredito(0));
-    setPagarTodo(false);
+    setAnticipoOpcion('mitad');
+    setMontoPersonalizado('');
     setAnticipoMetodo('');
     setAnticipoEfectivo(false);
     setAnticipoComprobante(null);
@@ -209,14 +223,19 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
     ? soloDigitos(telefono).length === 0 ? 'El teléfono es obligatorio' : 'Debe tener exactamente 10 dígitos'
     : null;
 
-  const addressValida = address.trim().length >= 5 && /\d/.test(address);
-  const addressError = addressTocada && !addressValida
-    ? address.trim().length === 0 ? 'La dirección es obligatoria'
-      : address.trim().length < 5  ? 'La dirección es demasiado corta'
-      : 'Debe incluir un número (Ej: Calle 10 #20-30)'
-    : null;
-  const municipioValido = municipio.trim().length > 0;
-  const municipioError = municipioTocado && !municipioValido ? 'Selecciona el municipio de entrega' : null;
+  // Qué le falta a la dirección, campo por campo. Antes eran dos preguntas
+  // sueltas —¿tiene 5 caracteres?, ¿tiene un número?— sobre un renglón de texto
+  // libre, que dejaban pasar "asdfg 1" y no pedían el barrio en ninguna parte.
+  // La de siempre ya está completa por definición: se guardó completa. La
+  // otra se revisa campo por campo.
+  const conRegistrada   = usarRegistrada && !!registrada?.direccion;
+  const faltaDireccion  = conRegistrada ? null : queFalta(direccion);
+  const direccionValida = faltaDireccion === null;
+  const direccionError  = direccionTocada ? faltaDireccion : null;
+  // Lo que se manda al servidor: la vía en la columna de 50 caracteres y el
+  // resto en las observaciones.
+  const address   = conRegistrada ? registrada.direccion    : lineaGuardada(direccion);
+  const municipio = conRegistrada ? (registrada.municipio || '') : direccion.municipio;
 
   const user = getUser();
   const costoDomicilio   = tieneDomicilio ? COSTO_DOMICILIO : 0;
@@ -227,18 +246,22 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
     ? Math.min(Math.max(Number(creditoMonto) || 0, 0), creditoMaximo)
     : 0;
   const totalFinal       = Math.max(0, orderDetails.total + costoDomicilio - creditoAplicar);
-  const montoAnticipo        = requiereAnticipo ? (pagarTodo ? totalFinal : Math.ceil(totalFinal * 0.5)) : 0;
+  const montoMitad = Math.ceil(totalFinal * 0.5);
+  const montoAnticipo = requiereAnticipo
+    ? anticipoOpcion === 'todo'          ? totalFinal
+    : anticipoOpcion === 'personalizado' ? Math.max(montoMitad, Math.min(Math.round(Number(montoPersonalizado) || 0), totalFinal))
+    : montoMitad
+    : 0;
+  // El cliente paga todo si eligió "Pagar total" o si el monto personalizado alcanza el total
+  const pagarTodo            = anticipoOpcion === 'todo' || (anticipoOpcion === 'personalizado' && montoAnticipo >= totalFinal);
   const creditoCubreAnticipo = requiereAnticipo && usarCredito
     && creditoAplicar >= montoAnticipo;
 
   const handleFinalConfirm = async () => {
     setTelefonoTocado(true);
-    if (tieneDomicilio) {
-      setAddressTocada(true);
-      setMunicipioTocado(true);
-    }
+    if (tieneDomicilio) setDireccionTocada(true);
     if (!telefonoValido) return;
-    if (tieneDomicilio && (!addressValida || !municipioValido)) return;
+    if (tieneDomicilio && !direccionValida) return;
 
     // Pagando por transferencia el comprobante es obligatorio: sin él, el pedido
     // se creaba igual y quedaba sin soporte de pago, sin avisar a nadie.
@@ -282,11 +305,20 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
       }).catch(() => {});
     }
 
-    // Guardar dirección si aplica
-    if (tieneDomicilio && guardarDireccion && (!direccionRegistrada || address)) {
+    // La dirección del perfil solo se escribe cuando NO había ninguna: una
+    // dirección puntual —"hoy déjalo donde mi mamá"— no puede pisar la de
+    // siempre. Para cambiarla está "Mis datos".
+    if (tieneDomicilio && !conRegistrada && !registrada?.direccion && address) {
       await apiFetch('/auth/perfil', {
         method: 'PUT',
-        body: JSON.stringify({ Direccion: address, Municipio: municipio }),
+        body: JSON.stringify({
+          Direccion: address,
+          Municipio: municipio,
+          Departamento: direccion.departamento,
+          // Todavía no es columna; se manda para cuando exista.
+          Barrio: direccion.barrio.trim(),
+          Indicaciones: observacionesDe(direccion),
+        }),
       }).catch(() => {});
     }
 
@@ -299,7 +331,17 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
 
     try {
       await onConfirm(metodoPedido, onBehalfOf, comprobante, { usar: usarCredito, monto: creditoAplicar, efectivoMonto: Number(efectivoMonto) || 0 }, {
-        tieneDomicilio, address, municipio, departamento: orderDetails.departamento || 'Antioquia', date, time, observaciones,
+        tieneDomicilio,
+        address,
+        municipio,
+        barrio: direccion.barrio.trim(),
+        departamento: direccion.departamento || orderDetails.departamento || 'Antioquia',
+        date,
+        time,
+        // El barrio, el complemento y las indicaciones del formulario van con
+        // lo que el cliente haya escrito aparte: es lo que lee quien entrega.
+        observaciones: [observacionesDe(direccion), observaciones]
+          .filter(Boolean).join('. '),
       }, requiereAnticipo ? {
         requiere: true,
         metodo: creditoCubreAnticipo ? 'credito' : anticipoMetodo,
@@ -464,41 +506,26 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
 
             {tieneDomicilio && (
               <div className="space-y-2">
-                <div>
-                  <div className={`relative ${addressError ? 'ring-1 ring-red-300 rounded-xl' : ''}`}>
-                    <MapPin size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Dirección (Ej: Calle 10 #20-30)"
-                      value={address}
-                      onChange={e => { setAddress(e.target.value); setAddressTocada(true); }}
-                      onBlur={() => setAddressTocada(true)}
-                      className={inputCls + " pl-8"}
-                    />
-                  </div>
-                  {addressError && <p className="text-[10px] font-bold text-red-500 mt-1 pl-1">{addressError}</p>}
-                </div>
-                <div>
-                  <select
-                    value={municipio}
-                    onChange={e => { setMunicipio(e.target.value); setMunicipioTocado(true); }}
-                    onBlur={() => setMunicipioTocado(true)}
-                    className={inputCls + (municipioError ? ' border-red-300 ring-1 ring-red-200' : '')}
-                  >
-                    <option value="">— Municipio —</option>
-                    {MUNICIPIOS_VALLE_ABURRA.map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                  {municipioError && <p className="text-[10px] font-bold text-red-500 mt-1 pl-1">{municipioError}</p>}
-                </div>
-                {addressValida && address.trim() !== direccionRegistrada.trim() && (
-                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                    <input type="checkbox" checked={guardarDireccion} onChange={e => setGuardarDireccion(e.target.checked)}
-                      className="w-3.5 h-3.5 rounded accent-green-600" />
-                    <span className="text-xs font-bold text-gray-500 flex items-center gap-1">
-                      <Save size={11} className="text-green-600" />
-                      {direccionRegistrada ? 'Actualizar mi dirección registrada' : 'Guardar como dirección principal'}
-                    </span>
-                  </label>
+                {/* La de siempre o una nueva. La guardada se muestra tal
+                    cual y no se edita: corregirla acá pisaba el perfil sin
+                    querer y el pedido siguiente salía a otro lado. */}
+                <SelectorDireccionEntrega
+                  registrada={registrada}
+                  usarRegistrada={usarRegistrada}
+                  onUsarRegistrada={setUsarRegistrada}
+                  otra={direccion}
+                  onOtra={setDireccion}
+                />
+                {direccionError && (
+                  <p className="text-[10px] font-bold text-red-500 mt-1 pl-1">
+                    {direccionError}
+                  </p>
+                )}
+                {direccionValida && !registrada?.direccion && (
+                  <p className="text-xs font-bold text-gray-500 flex items-center gap-1.5">
+                    <Save size={12} className="text-green-600 shrink-0" />
+                    Como es tu primera dirección, la guardamos en tu perfil.
+                  </p>
                 )}
               </div>
             )}
@@ -613,22 +640,48 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                 </div>
               </div>
 
-              {/* Toggle: anticipo 50% vs pagar total ahora */}
-              <div className="grid grid-cols-2 gap-2">
+              {/* Toggle: anticipo 50% / monto elegido / pagar total */}
+              <div className="grid grid-cols-3 gap-2">
                 {([
-                  { id: false, label: 'Anticipo 50%' },
-                  { id: true,  label: 'Pagar total ahora' },
-                ] as Array<{ id: boolean; label: string }>).map(opt => (
-                  <button key={String(opt.id)}
-                    onClick={() => { setPagarTodo(opt.id); setAnticipoMetodo(''); setAnticipoEfectivo(false); setAnticipoComprobante(null); setAnticipoError(''); }}
-                    className={`p-2 rounded-xl border-2 text-xs font-black transition-all ${pagarTodo === opt.id ? 'border-yellow-500 bg-yellow-100 text-yellow-900' : 'border-gray-200 bg-white text-gray-400 hover:border-yellow-200'}`}>
+                  { id: 'mitad',         label: 'Anticipo 50%'     },
+                  { id: 'personalizado', label: 'Elegir monto'     },
+                  { id: 'todo',          label: 'Pagar total ahora' },
+                ] as Array<{ id: 'mitad' | 'todo' | 'personalizado'; label: string }>).map(opt => (
+                  <button key={opt.id}
+                    onClick={() => { setAnticipoOpcion(opt.id); setMontoPersonalizado(''); setAnticipoMetodo(''); setAnticipoEfectivo(false); setAnticipoComprobante(null); setAnticipoError(''); }}
+                    className={`p-2 rounded-xl border-2 text-xs font-black transition-all ${anticipoOpcion === opt.id ? 'border-yellow-500 bg-yellow-100 text-yellow-900' : 'border-gray-200 bg-white text-gray-400 hover:border-yellow-200'}`}>
                     {opt.label}
                   </button>
                 ))}
               </div>
 
+              {/* Input para monto personalizado */}
+              {anticipoOpcion === 'personalizado' && (
+                <div className="space-y-1">
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={montoMitad}
+                    max={totalFinal}
+                    step={100}
+                    placeholder={`Entre ${COP(montoMitad)} y ${COP(totalFinal)}`}
+                    value={montoPersonalizado}
+                    onChange={e => setMontoPersonalizado(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full bg-gray-50 border border-yellow-300 rounded-xl py-2.5 px-3 text-sm text-gray-700 font-medium focus:outline-none focus:ring-2 focus:ring-yellow-200 focus:border-yellow-400 transition-all"
+                  />
+                  {montoPersonalizado !== '' && Number(montoPersonalizado) < montoMitad && (
+                    <p className="text-[10px] font-bold text-red-500">El mínimo es {COP(montoMitad)} (50%)</p>
+                  )}
+                  {montoPersonalizado !== '' && Number(montoPersonalizado) > totalFinal && (
+                    <p className="text-[10px] font-bold text-red-500">No puede superar el total ({COP(totalFinal)})</p>
+                  )}
+                </div>
+              )}
+
               <div className="flex items-center justify-between bg-white rounded-xl px-3 py-2 border border-yellow-200">
-                <span className="text-xs font-bold text-gray-600">{pagarTodo ? 'Total a pagar ahora' : 'Anticipo (50%)'}</span>
+                <span className="text-xs font-bold text-gray-600">
+                  {anticipoOpcion === 'todo' ? 'Total a pagar ahora' : anticipoOpcion === 'personalizado' ? 'Anticipo elegido' : 'Anticipo (50%)'}
+                </span>
                 <span className="text-base font-black text-yellow-700">{COP(montoAnticipo)}</span>
               </div>
 
@@ -792,7 +845,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                   <span>Total del pedido</span><span>{COP(totalFinal)}</span>
                 </div>
                 <div className="flex justify-between text-xs font-bold text-yellow-700">
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Banknote size={13} /> {pagarTodo ? 'Total pagado ahora' : 'Anticipo ahora (50%)'}</span><span>{COP(montoAnticipo)}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Banknote size={13} /> {pagarTodo ? 'Total pagado ahora' : anticipoOpcion === 'personalizado' ? 'Anticipo elegido' : 'Anticipo ahora (50%)'}</span><span>{COP(montoAnticipo)}</span>
                 </div>
                 {!pagarTodo && (
                   <div className="flex justify-between text-xs font-bold text-gray-400">

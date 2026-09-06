@@ -30,7 +30,7 @@ export default function ModalEliminarValidado({ titulo, descripcion, validacion,
     : { g1: "#e65100", g2: "#f57f17", Icon: AlertTriangle, iconBg: "rgba(255,255,255,0.15)", iconBorder: "rgba(255,255,255,0.3)", boxBg: "#fff8e1", boxBorder: "#ffe082", boxColor: "#e65100", btnBg: "#c62828" };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div
         className="modal-box modal-box--sm"
         onClick={e => e.stopPropagation()}

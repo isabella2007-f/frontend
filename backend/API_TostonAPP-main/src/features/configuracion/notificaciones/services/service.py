@@ -37,8 +37,10 @@ def _sincronizar_stock(db: Session) -> None:
     if not insumos and not productos:
         return
 
-    # Existentes = cualquier notif (leída o no) para ítems que aún tienen el problema
-    # Esto evita crear duplicados aunque el admin ya la haya marcado como leída
+    # Existentes = cualquier notif para ítems que aún tienen el problema, leída,
+    # sin leer o descartada. Que esté descartada es justamente lo que evita que
+    # vaciar el panel devuelva la misma alerta dos segundos después; si el stock
+    # se recompone, la fila se borra arriba y una nueva caída crea una nueva.
     existentes = {
         (n.Tipo, n.Referencia_ID)
         for n in db.query(Notificacion.Tipo, Notificacion.Referencia_ID)
@@ -90,6 +92,7 @@ def obtener_notificaciones(db: Session) -> dict:
     _sincronizar_stock(db)
     notificaciones = (
         db.query(Notificacion)
+        .filter(Notificacion.Descartada == False)  # noqa: E712
         .order_by(Notificacion.Leida.asc(), Notificacion.Fecha.desc())
         .all()
     )
@@ -99,6 +102,23 @@ def obtener_notificaciones(db: Session) -> dict:
         "total_no_leidas": total_no_leidas,
         "notificaciones":  notificaciones,
     }
+
+
+def descartar(db: Session, id_notificacion: int) -> dict:
+    """Saca una notificación del panel.
+
+    Igual que al vaciar: se marca, no se borra, para que una alerta de stock
+    que sigue siendo cierta no vuelva a crearse sola.
+    """
+    notif = db.query(Notificacion).filter(
+        Notificacion.ID_Notificacion == id_notificacion
+    ).first()
+    if not notif:
+        raise HTTPException(status_code=404, detail="Notificación no encontrada")
+    notif.Descartada = True
+    notif.Leida = True
+    db.commit()
+    return {"mensaje": "Notificación eliminada"}
 
 
 def marcar_leida(db: Session, id_notificacion: int):
@@ -114,20 +134,35 @@ def marcar_leida(db: Session, id_notificacion: int):
 
 
 def eliminar_notificacion(db: Session, id_notificacion: int) -> dict:
-    notif = db.query(Notificacion).filter(
-        Notificacion.ID_Notificacion == id_notificacion
-    ).first()
-    if not notif:
-        raise HTTPException(status_code=404, detail="Notificación no encontrada")
-    db.delete(notif)
-    db.commit()
+    """Saca una notificación del panel.
+
+    Borrarla no alcanzaba: la de stock volvía a nacer en el siguiente listado
+    mientras el insumo siguiera bajo. Se descarta, que es lo mismo para quien
+    mira el panel y además se recuerda.
+    """
+    descartar(db, id_notificacion)
     return {"mensaje": f"Notificación {id_notificacion} eliminada"}
 
 
 def limpiar_leidas(db: Session) -> dict:
-    eliminadas = db.query(Notificacion).filter(Notificacion.Leida == True).delete()
+    """Vacía el panel de notificaciones.
+
+    Antes borraba solo las leídas, así que todo lo que el admin no había
+    abierto seguía ahí: la pantalla las escondía y al recargar volvían.
+
+    Se marcan como descartadas en vez de borrarlas. Las de stock hay que
+    recordarlas: si la fila desaparece, `_sincronizar_stock` la vuelve a crear
+    en el siguiente listado mientras el insumo siga bajo, y vaciar el panel no
+    serviría de nada. Marcada, no se recrea; y si el stock se recompone y
+    vuelve a caer, la fila vieja se borra y nace una nueva.
+    """
+    descartadas = (
+        db.query(Notificacion)
+        .filter(Notificacion.Descartada == False)  # noqa: E712
+        .update({"Descartada": True, "Leida": True}, synchronize_session=False)
+    )
     db.commit()
-    return {"mensaje": f"{eliminadas} notificaciones eliminadas"}
+    return {"mensaje": f"{descartadas} notificaciones eliminadas"}
 
 
 def obtener_notificaciones_cocina(db: Session) -> dict:

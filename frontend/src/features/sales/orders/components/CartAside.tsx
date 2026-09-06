@@ -1,9 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { X, MapPin, Trash2, Plus, Minus, ShoppingBag, LogIn, Sparkles, ChevronRight, ShoppingCart, FileText, Truck, Clock, AlertTriangle, Package } from 'lucide-react';
 import { CartItem, removeFromCart, updateQuantity, clearCart, getCart } from '../services/cartService';
 import { isAuthenticated } from '../../../../services/authService';
 import { apiFetch } from '../../../../utils/api';
-import { MUNICIPIOS_VALLE_ABURRA } from '../../../../utils/departamentosYCiudades';
+import SelectorDireccionEntrega from '../../../../shared/components/SelectorDireccionEntrega';
+import {
+  direccionVacia, lineaGuardada, queFalta,
+} from '../../../../utils/direccionEntrega';
 
 const COSTO_DOMICILIO = 5000;
 const HORA_APERTURA  = 8;   // 8:00 am
@@ -32,16 +36,20 @@ const mensajeFueraHorario = () => {
 };
 
 const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLoginRequired }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [cart, setCart]               = useState<CartItem[]>(() => getCart());
-  const [address, setAddress]         = useState('');
-  const [departamento, setDepartamento] = useState('Antioquia');
-  const [municipio, setMunicipio]     = useState('');
+  const [qtyDrafts, setQtyDrafts]     = useState<{[id: number]: string}>({});
   const [tieneDomicilio,    setTieneDomicilio]    = useState(false);
   const [observaciones,     setObservaciones]     = useState('');
-  const [sinDireccionMsg,   setSinDireccionMsg]   = useState(false);
   const [checkoutError,     setCheckoutError]     = useState('');
   const [confirmVaciar,     setConfirmVaciar]     = useState(false);
-  const [showDeliveryInfo,  setShowDeliveryInfo]  = useState(false);
+  const [stockLimitMsg,  setStockLimitMsg]  = useState('');
+  /// Lo que el cliente tiene guardado. No se toca desde acá: para cambiarlo
+  /// está "Mis datos".
+  const [registrada,     setRegistrada]     = useState<any>(null);
+  const [usarRegistrada, setUsarRegistrada] = useState(true);
+  const [otraDireccion,  setOtraDireccion]  = useState(direccionVacia());
   const [total, setTotal]             = useState(() =>
     getCart().reduce((acc, i) => acc + i.precio * i.cantidad, 0)
   );
@@ -51,6 +59,7 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
     const c = getCart();
     setCart(c);
     setTotal(c.reduce((acc, i) => acc + i.precio * i.cantidad, 0));
+    setQtyDrafts({});
   }, []);
 
   useEffect(() => { syncCart(); }, [isOpen, syncCart]);
@@ -59,12 +68,20 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
     return () => window.removeEventListener('cart-updated', syncCart);
   }, [syncCart]);
 
+  const mostrarLimiteStock = (nombre: string, stock: number) => {
+    setStockLimitMsg(`En este momento no puedes pedir más de ${stock} unidad${stock !== 1 ? 'es' : ''} de "${nombre}". Inténtalo más tarde o contáctanos.`);
+    setTimeout(() => setStockLimitMsg(''), 12000);
+  };
+
   const handleQty = (id: number, delta: number) => {
     const item = cart.find(i => i.id === id);
     if (!item) return;
     const newQty = item.cantidad + delta;
     if (newQty <= 0) { removeFromCart(id); return; }
-    if (item.stock && !((item as any).pedidoProgramado) && !((item as any).requiereProduccion) && newQty > item.stock) return;
+    if (item.stock && !((item as any).pedidoProgramado) && !((item as any).requiereProduccion) && newQty > item.stock) {
+      mostrarLimiteStock(item.nombre, item.stock);
+      return;
+    }
     updateQuantity(id, newQty);
   };
 
@@ -73,40 +90,84 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
     if (isNaN(num) || num < 1) { removeFromCart(id); return; }
     const item = cart.find(i => i.id === id);
     if (item?.stock && !((item as any).pedidoProgramado) && !((item as any).requiereProduccion) && num > item.stock) {
+      mostrarLimiteStock(item.nombre, item.stock);
       updateQuantity(id, item.stock);
       return;
     }
     updateQuantity(id, num);
   };
 
-  const usarDireccionRegistrada = async () => {
-    try {
-      const perfil = await apiFetch('/auth/perfil');
-      const dir  = perfil?.Direccion   || '';
-      const depto = perfil?.Departamento || '';
-      const mun  = perfil?.Municipio   || '';
-      if (!dir && !depto && !mun) {
-        setSinDireccionMsg(true);
-        setTimeout(() => setSinDireccionMsg(false), 3500);
-        return;
-      }
-      if (dir)  setAddress(dir);
-      if (depto) setDepartamento(depto);
-      if (mun)  setMunicipio(mun);
-      setSinDireccionMsg(false);
-    } catch {
-      setSinDireccionMsg(true);
-      setTimeout(() => setSinDireccionMsg(false), 3500);
-    }
-  };
+  // La dirección guardada se trae al abrir el carrito, no cuando se toca un
+  // botón: es la que se va a usar casi siempre y tiene que estar a la vista.
+  useEffect(() => {
+    if (!isOpen || !isAuthenticated()) return;
+    let vigente = true;
+    apiFetch('/auth/perfil')
+      .then((perfil: any) => {
+        if (!vigente) return;
+        const dir = perfil?.Direccion || '';
+        setRegistrada({
+          direccion:    dir,
+          municipio:    perfil?.Municipio    || '',
+          departamento: perfil?.Departamento || 'Antioquia',
+          barrio:       perfil?.Barrio       || '',
+          indicaciones: perfil?.Indicaciones || '',
+        });
+        setUsarRegistrada(!!dir);
+      })
+      .catch(() => {
+        if (!vigente) return;
+        setRegistrada(null);
+        setUsarRegistrada(false);
+      });
+    return () => { vigente = false; };
+  }, [isOpen]);
+
+  /// La dirección con la que sale este pedido.
+  const conRegistrada = usarRegistrada && !!registrada?.direccion;
+  const address       = conRegistrada ? registrada.direccion : lineaGuardada(otraDireccion);
+  const municipio     = conRegistrada ? (registrada.municipio || '') : otraDireccion.municipio;
+  const departamento  = conRegistrada
+    ? (registrada.departamento || 'Antioquia')
+    : otraDireccion.departamento;
+  const faltaDireccion = conRegistrada ? null : queFalta(otraDireccion);
 
   const costoTotal = tieneDomicilio ? total + COSTO_DOMICILIO : total;
 
+  /// Cierra el carrito y lleva al catálogo.
+  ///
+  /// Antes solo cerraba: desde la landing eso alcanzaba —el catálogo está
+  /// debajo— pero desde los pedidos o el perfil no pasaba nada y el botón
+  /// parecía roto.
+  ///
+  /// El catálogo es la sección "productos" del inicio. No es una pantalla
+  /// aparte: /cliente/hacer-pedidos existe en las rutas pero es una copia
+  /// vieja que no enlaza nadie más y que lee campos que la API ya no manda,
+  /// así que le faltan las imágenes y el precio sale mal.
+  ///
+  /// Estando ya en el inicio no se navega —el componente no se vuelve a montar
+  /// y no pasaría nada—: se baja a la sección a mano.
+  const verProductos = () => {
+    onClose();
+    const enElInicio = ['/', '/cliente', '/cliente/inicio']
+      .includes(location.pathname);
+
+    if (enElInicio) {
+      // Después de que el panel termine de cerrarse, o el salto se ve raro.
+      setTimeout(() => {
+        document.getElementById('productos')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 320);
+      return;
+    }
+    navigate(isAuthenticated() ? '/cliente/inicio#productos' : '/#productos');
+  };
+
   const handleCheckout = () => {
     if (cart.length === 0) return;
-    if (tieneDomicilio) {
-      if (!address)   { setCheckoutError('Ingresa una dirección de entrega'); return; }
-      if (!municipio) { setCheckoutError('Selecciona un municipio de entrega'); return; }
+    if (tieneDomicilio && faltaDireccion) {
+      setCheckoutError(faltaDireccion);
+      return;
     }
     setCheckoutError('');
     if (!isAuthenticated()) { onClose(); onLoginRequired(); return; }
@@ -120,7 +181,7 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
     <div className="fixed inset-0 z-[9000] overflow-hidden">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] transition-all duration-500 animate-in fade-in" onClick={onClose} />
 
-      <div className="absolute right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-500 ease-out border-l border-emerald-100">
+      <div className="absolute right-0 top-0 bottom-0 w-full max-w-lg bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-500 ease-out border-l border-emerald-100">
 
         {/* Header */}
         <div className="text-white px-5 py-4 relative overflow-hidden shrink-0" style={{ background: 'linear-gradient(135deg, var(--green-900) 0%, var(--green-800) 50%, var(--green-700) 100%)' }}>
@@ -160,14 +221,14 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
         <div className="px-5 py-4 bg-white border-b border-gray-100 shrink-0">
           <div className="grid grid-cols-2 bg-gray-100 rounded-2xl p-1.5 gap-1.5">
             <button
-              onClick={() => { setTieneDomicilio(false); setShowDeliveryInfo(false); }}
+              onClick={() => { setTieneDomicilio(false); }}
               className={`flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-black uppercase tracking-wider transition-all duration-200 ${!tieneDomicilio ? 'bg-white text-green-800 shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
             >
               <ShoppingBag size={16} />
               Recogida
             </button>
             <button
-              onClick={() => { setTieneDomicilio(true); setShowDeliveryInfo(true); }}
+              onClick={() => { setTieneDomicilio(true); }}
               className={`flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-black uppercase tracking-wider transition-all duration-200 ${tieneDomicilio ? 'bg-white text-green-800 shadow-md' : 'text-gray-400 hover:text-gray-600'}`}
             >
               <Truck size={16} />
@@ -178,44 +239,15 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
           {/* Formulario de entrega (solo si domicilio) */}
           {tieneDomicilio && (
             <div className="mt-3 space-y-2">
-              {loggedIn && (
-                <div>
-                  <button
-                    onClick={usarDireccionRegistrada}
-                    className="w-full py-2 px-3 bg-green-50 hover:bg-green-100 border border-green-200 rounded-xl text-xs font-black text-green-800 uppercase tracking-widest transition-all text-center"
-                  >
-                    <MapPin size={13} /> Usar mi dirección registrada
-                  </button>
-                  {sinDireccionMsg && (
-                    <div className="mt-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2">
-                      <AlertTriangle size={13} className="text-amber-600 shrink-0" />
-                      <p className="text-xs font-bold text-amber-700 leading-tight">
-                        No tienes dirección registrada. Ve a tu <strong>Perfil</strong> para agregarla.
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="relative">
-                <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Dirección (Ej: Calle 10 #20-30)"
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 pl-9 pr-3 text-sm placeholder:text-gray-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400 transition-all font-medium text-gray-700"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
+              {loggedIn ? (
+                <SelectorDireccionEntrega
+                  registrada={registrada}
+                  usarRegistrada={usarRegistrada}
+                  onUsarRegistrada={setUsarRegistrada}
+                  otra={otraDireccion}
+                  onOtra={setOtraDireccion}
                 />
-              </div>
-
-              <select
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400 transition-all font-medium text-gray-700"
-                value={municipio}
-                onChange={(e) => setMunicipio(e.target.value)}
-              >
-                <option value="">— Municipio (Valle de Aburrá) —</option>
-                {MUNICIPIOS_VALLE_ABURRA.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
+              ) : null}
 
               {!loggedIn && (
                 <div className="flex items-center gap-2 py-2 px-3 bg-amber-50 border border-amber-200 rounded-xl">
@@ -236,41 +268,48 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
               </div>
               <div>
                 <h3 className="text-base font-black text-gray-800 mb-1">Carrito vacío</h3>
-                <p className="text-gray-400 text-[10px] max-w-[180px] leading-relaxed font-medium">Explora nuestro menú y elige algo delicioso.</p>
+                <p className="text-gray-400 text-[13px] max-w-[220px] leading-relaxed font-medium">Explora nuestro menú y elige algo delicioso.</p>
               </div>
-              <button onClick={onClose} className="btn-primary" style={{ padding: '8px 20px', fontSize: '11px' }}>Ver Productos</button>
+              <button onClick={verProductos} className="btn-primary" style={{ padding: '10px 24px', fontSize: '13px' }}>Ver productos</button>
             </div>
           ) : (
             <div className="space-y-4">
               <div className="flex items-center justify-between px-1">
-                <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Resumen del pedido</span>
+                <span className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Resumen del pedido</span>
                 {confirmVaciar ? (
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[9px] font-bold text-gray-500">¿Vaciar todo?</span>
+                    <span className="text-[11px] font-bold text-gray-500">¿Vaciar todo?</span>
                     <button
                       onClick={() => { clearCart(); setConfirmVaciar(false); }}
-                      className="text-[9px] font-black text-white bg-red-500 hover:bg-red-600 px-2 py-0.5 rounded-md transition-colors"
+                      className="text-[11px] font-black text-white bg-red-500 hover:bg-red-600 px-2.5 py-1 rounded-lg transition-colors"
                     >Sí</button>
                     <button
                       onClick={() => setConfirmVaciar(false)}
-                      className="text-[9px] font-black text-gray-500 hover:text-gray-700 px-2 py-0.5 rounded-md border border-gray-200 transition-colors"
+                      className="text-[11px] font-black text-gray-500 hover:text-gray-700 px-2.5 py-1 rounded-lg border border-gray-200 transition-colors"
                     >No</button>
                   </div>
                 ) : (
                   <button
                     onClick={() => setConfirmVaciar(true)}
-                    className="flex items-center gap-1 text-[9px] font-black text-red-400 hover:text-red-600 transition-colors uppercase tracking-widest"
+                    className="flex items-center gap-1.5 text-[11px] font-black text-red-400 hover:text-red-600 transition-colors uppercase tracking-widest"
                   >
-                    <Trash2 size={10} /> Vaciar
+                    <Trash2 size={13} /> Vaciar
                   </button>
                 )}
               </div>
 
+              {stockLimitMsg && (
+                <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-2xl p-3 text-[11px] font-semibold text-amber-800">
+                  <AlertTriangle size={14} className="flex-shrink-0 mt-0.5 text-amber-500" />
+                  <span>{stockLimitMsg}</span>
+                </div>
+              )}
+
               <div className="grid gap-2.5">
                 {cart.map((item) => (
-                  <div key={item.id} className="group bg-white rounded-2xl p-2.5 border border-gray-100 shadow-sm hover:shadow-md hover:border-emerald-100 transition-all duration-300 relative overflow-hidden">
-                    <div className="flex gap-2.5 relative z-10">
-                      <div className="w-14 h-14 bg-gray-50 rounded-xl overflow-hidden flex-shrink-0 border border-gray-100">
+                  <div key={item.id} className="group bg-white rounded-2xl p-3.5 border border-gray-100 shadow-sm hover:shadow-md hover:border-emerald-100 transition-all duration-300 relative overflow-hidden">
+                    <div className="flex gap-3.5 relative z-10">
+                      <div className="w-[72px] h-[72px] bg-gray-50 rounded-xl overflow-hidden flex-shrink-0 border border-gray-100">
                         {(item as any).imagenPreview || (item as any).imagen ? (
                           <img src={(item as any).imagenPreview || (item as any).imagen} alt={item.nombre} className="w-full h-full object-cover" />
                         ) : (
@@ -279,35 +318,40 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
                       </div>
                       <div className="flex-1 flex flex-col justify-between py-0.5 min-w-0">
                         <div>
-                          <h4 className="font-black text-gray-800 text-[11px] mb-0.5 truncate">{item.nombre}</h4>
-                          <p className="font-black text-[10px]" style={{ color: 'var(--green-700)' }}>{COP(item.precio)}</p>
+                          <h4 className="font-black text-gray-800 text-[15px] leading-tight mb-1 truncate">{item.nombre}</h4>
+                          <p className="font-black text-[13px]" style={{ color: 'var(--green-700)' }}>{COP(item.precio)} c/u</p>
                           {(item as any).pedidoProgramado && (
-                            <span className="text-[9px] font-black text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md flex items-center gap-1"><Clock size={10} /> Pedido programado</span>
+                            <span className="mt-1 text-[11px] font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md inline-flex items-center gap-1"><Clock size={12} /> Pedido programado</span>
                           )}
                         </div>
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center bg-gray-50 rounded-lg p-0.5 border border-gray-100">
-                            <button onClick={() => handleQty(item.id, -1)} className="w-5 h-5 flex items-center justify-center rounded-md hover:bg-white hover:text-red-500 transition-all text-gray-400">
-                              <Minus size={9} strokeWidth={3} />
+                          <div className="flex items-center bg-gray-50 rounded-xl p-1 border border-gray-100">
+                            <button onClick={() => handleQty(item.id, -1)} aria-label="Quitar uno" className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:text-red-500 transition-all text-gray-500">
+                              <Minus size={14} strokeWidth={3} />
                             </button>
                             <input
                               type="number"
                               min="1"
-                              value={item.cantidad}
-                              onChange={e => handleQtyDirect(item.id, e.target.value)}
-                              className="w-8 text-center text-[10px] font-black text-gray-800 bg-transparent border-none outline-none"
+                              value={qtyDrafts[item.id] ?? String(item.cantidad)}
+                              onChange={e => setQtyDrafts(prev => ({ ...prev, [item.id]: e.target.value }))}
+                              onBlur={e => {
+                                const val = e.target.value;
+                                setQtyDrafts(prev => { const n = { ...prev }; delete n[item.id]; return n; });
+                                handleQtyDirect(item.id, val);
+                              }}
+                              className="w-10 text-center text-[15px] font-black text-gray-800 bg-transparent border-none outline-none"
                               style={{ appearance: 'textfield', MozAppearance: 'textfield', WebkitAppearance: 'none' } as React.CSSProperties}
                             />
-                            <button onClick={() => handleQty(item.id, 1)} className="w-5 h-5 flex items-center justify-center rounded-md hover:bg-white hover:text-emerald-600 transition-all text-gray-400">
-                              <Plus size={9} strokeWidth={3} />
+                            <button onClick={() => handleQty(item.id, 1)} aria-label="Agregar uno" className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white hover:text-emerald-600 transition-all text-gray-500">
+                              <Plus size={14} strokeWidth={3} />
                             </button>
                           </div>
-                          <p className="text-[11px] font-black text-gray-900">{COP(item.precio * item.cantidad)}</p>
+                          <p className="text-[16px] font-black text-gray-900">{COP(item.precio * item.cantidad)}</p>
                         </div>
                       </div>
                     </div>
-                    <button onClick={() => removeFromCart(item.id)} className="absolute top-1.5 right-1.5 p-1 text-gray-200 hover:text-red-500 rounded-full transition-all">
-                      <X size={10} strokeWidth={3} />
+                    <button onClick={() => removeFromCart(item.id)} aria-label={`Quitar ${item.nombre}`} className="absolute top-2 right-2 p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all">
+                      <X size={14} strokeWidth={3} />
                     </button>
                   </div>
                 ))}
@@ -316,13 +360,13 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
               {/* Observaciones */}
               <div className="bg-white rounded-2xl p-3 border border-gray-100 shadow-sm">
                 <div className="flex items-center gap-1.5 mb-2">
-                  <FileText size={12} className="text-gray-400" />
-                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Observaciones del pedido</span>
+                  <FileText size={14} className="text-gray-400" />
+                  <span className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Observaciones del pedido</span>
                 </div>
                 <textarea
                   rows={2}
-                  placeholder="Ej: Sin picante, sin cebolla, tocar timbre..."
-                  className="w-full text-xs font-medium text-gray-700 placeholder:text-gray-300 resize-none outline-none bg-transparent border-none p-0"
+                  placeholder="Sin picante, tocar el timbre, dejar en portería…"
+                  className="w-full text-sm font-medium text-gray-700 placeholder:text-gray-300 resize-none outline-none bg-transparent border-none p-0"
                   value={observaciones}
                   onChange={(e) => setObservaciones(e.target.value)}
                 />
@@ -337,21 +381,21 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
           {tieneDomicilio ? (
             <div className="flex items-center justify-between mb-3">
               <div className="space-y-0.5">
-                <div className="flex items-center gap-3 text-[11px] text-gray-400 font-medium">
+                <div className="flex items-center gap-3 text-[13px] text-gray-400 font-medium">
                   <span>Productos <span className="font-black text-gray-700">{COP(total)}</span></span>
                   <span>+</span>
                   <span>Domicilio <span className="font-black" style={{ color: '#7b1fa2' }}>{COP(COSTO_DOMICILIO)}</span></span>
                 </div>
                 <div className="flex items-baseline gap-1.5">
-                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Total</span>
-                  <span className="text-xl font-black text-gray-900 tracking-tighter leading-none">{COP(costoTotal)}</span>
+                  <span className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Total</span>
+                  <span className="text-2xl font-black text-gray-900 tracking-tighter leading-none">{COP(costoTotal)}</span>
                 </div>
               </div>
               <div className="text-amber-400"><Sparkles size={16} /></div>
             </div>
           ) : (
             <div className="space-y-1.5 mb-4">
-              <div className="flex justify-between items-center text-[11px]">
+              <div className="flex justify-between items-center text-[13px]">
                 <span className="text-gray-500 font-bold">Subtotal productos</span>
                 <span className="text-gray-800 font-black">{COP(total)}</span>
               </div>
@@ -360,8 +404,8 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
               </div>
               <div className="flex justify-between items-end">
                 <div>
-                  <span className="block text-[8px] font-black text-gray-400 uppercase tracking-widest mb-0.5">Total del pedido</span>
-                  <span className="text-2xl font-black text-gray-900 tracking-tighter leading-none">{COP(costoTotal)}</span>
+                  <span className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-1">Total del pedido</span>
+                  <span className="text-3xl font-black text-gray-900 tracking-tighter leading-none">{COP(costoTotal)}</span>
                 </div>
                 <div className="text-amber-500 pb-1"><Sparkles size={18} /></div>
               </div>
@@ -374,15 +418,15 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
           <button
             onClick={handleCheckout}
             disabled={cart.length === 0}
-            className={`w-full group relative overflow-hidden flex items-center justify-center gap-3 rounded-xl font-black text-sm transition-all duration-300 shadow-lg active:scale-[0.98] ${tieneDomicilio ? 'py-2.5' : 'py-3.5'} ${
+            className={`w-full group relative overflow-hidden flex items-center justify-center gap-3 rounded-xl font-black text-base transition-all duration-300 shadow-lg active:scale-[0.98] ${tieneDomicilio ? 'py-2.5' : 'py-3.5'} ${
               cart.length === 0 ? 'bg-gray-100 text-gray-300 cursor-not-allowed border border-gray-200 shadow-none' : 'btn-primary shadow-emerald-200/50 hover:shadow-xl hover:-translate-y-0.5'
             }`}
             style={cart.length > 0 ? { background: 'linear-gradient(135deg, var(--green-700) 0%, var(--green-600) 100%)' } : {}}
           >
             {loggedIn ? (
-              <>Finalizar Pedido <ChevronRight size={14} strokeWidth={3} /></>
+              <>Finalizar Pedido <ChevronRight size={17} strokeWidth={3} /></>
             ) : (
-              <><LogIn size={14} /> Identificarse</>
+              <><LogIn size={17} /> Identificarse</>
             )}
           </button>
         </div>

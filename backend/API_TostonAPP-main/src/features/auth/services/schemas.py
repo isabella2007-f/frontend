@@ -26,6 +26,9 @@ class TokenResponse(BaseModel):
     apellidos:    str
     rol:          Optional[str] = None
     correo_verificado: Optional[int] = None
+    # El encabezado la muestra al lado del nombre. Sin esto solo se conocía
+    # entrando al perfil, así que hasta entonces salía la inicial.
+    foto_perfil:  Optional[str] = None
 
 
 # ── Registro nuevo cliente ──
@@ -35,6 +38,8 @@ class RegistroInput(BaseModel):
     Correo:               str = Field(example="ana@gmail.com")
     Contrasena:           str = Field(example="MiClave123@")
     Confirmar_contrasena: str = Field(example="MiClave123@")
+    Tipo_documento:       Optional[str] = Field(default="CC", example="CC")
+    Numero_documento:     Optional[str] = Field(default=None, example="1234567890")
 
     @model_validator(mode="after")
     def validar_contrasenas(self):

@@ -13,6 +13,9 @@ const ESTADO_PEDIDO_MAP = {
   11: "Listo",
   13: "En producción",
   16: "Fecha propuesta",
+  17: "Fecha rechazada",
+  18: "Parcialmente entregado",
+  19: "Escalado a admin",
 };
 
 const adaptPedido = (p) => {
@@ -45,6 +48,7 @@ const adaptPedido = (p) => {
     requiereFechaPropuesta: !!(p.requiere_fecha_propuesta),
     fecha_propuesta:  p.Fecha_Propuesta || p.fecha_propuesta || p.Fecha_entrega_esperada || null,
     fecha_rechazada:  p.fecha_rechazada || null,
+    intentos_rechazo: p.intentos_rechazo || 0,
     comprobante:             p.comprobante_pago || p.Comprobante || p.comprobante || null,
     observaciones_domicilio: p.observaciones_domicilio || null,
     sobre_stock:      !!(p.sobre_stock),
@@ -61,6 +65,20 @@ const adaptPedido = (p) => {
     pago_final_comprobante_url: p.pago_final_comprobante_url || null,
     pago_final_fecha:          p.pago_final_fecha    || null,
     estado_pago:               p.estado_pago         || null,
+    envio_completo_domingo:
+      p.envio_completo_domingo == null ? null : !!p.envio_completo_domingo,
+    grupos_envio: (p.grupos_envio || []).map(g => ({
+      id_grupo:    g.id_grupo,
+      tipo:        g.tipo,          // 'anticipado' | 'programado'
+      fecha:       g.fecha,
+      tipo_entrega: g.tipo_entrega,
+      estado:      g.estado,        // 'pendiente' | 'enviado' | 'entregado' | 'cancelado'
+      // productos: [{id_producto, cantidad}] — un producto puede aparecer en dos
+      // grupos con cantidades distintas si está parcialmente cubierto por stock
+      productos:   (g.productos || []).map(pr =>
+        typeof pr === 'object' ? pr : { id_producto: pr, cantidad: null }
+      ),
+    })),
     cliente: {
       nombre:   p.nombre_cliente   || "",
       correo:   p.correo_cliente   || "",
@@ -162,8 +180,81 @@ export const proponerFechaProduccion = async (id, fecha) =>
 export const aceptarFechaProduccion = async (id) =>
   apiFetch(`/ventas/${id}/aceptar-fecha`, { method: "PATCH" });
 
-export const rechazarFechaProduccion = async (id) =>
-  apiFetch(`/ventas/${id}/rechazar-fecha`, { method: "PATCH" });
+export const rechazarFechaProduccion = async (id, motivo = null) =>
+  apiFetch(`/ventas/${id}/rechazar-fecha`, {
+    method: "PATCH",
+    body: JSON.stringify({ motivo: motivo || null }),
+  });
+
+export const resolverEscaladoAcuerdo = async (id, fechaAcordada) => {
+  const data = await apiFetch(`/ventas/${id}/resolver-escalado-acuerdo`, {
+    method: "PATCH",
+    body: JSON.stringify({ fecha_acordada: fechaAcordada }),
+  });
+  return adaptPedido(data);
+};
+
+export const resolverEscaladoCancelar = async (id) => {
+  const data = await apiFetch(`/ventas/${id}/resolver-escalado-cancelar`, { method: "PATCH" });
+  return adaptPedido(data);
+};
+
+export const guardarEnvioCompletoDomingo = async (id, valor) => {
+  const data = await apiFetch(`/ventas/${id}/envio-completo-domingo`, {
+    method: "PATCH",
+    body: JSON.stringify({ envio_completo_domingo: valor }),
+  });
+  return adaptPedido(data);
+};
+
+// ── Grupos de envío ────────────────────────────────────────────────────────
+
+export const getItemsListos = async (idVenta) =>
+  apiFetch(`/ventas/${idVenta}/items-listos`);
+
+export const crearGruposEnvio = async (idVenta, {
+  fechaAnticipada,
+  tipoEntregaA = null, tipoEntregaB = null,
+  direccionA = null, municipioA = null, departamentoA = null,
+  direccionB = null, municipioB = null, departamentoB = null,
+}) => {
+  const data = await apiFetch(`/ventas/${idVenta}/crear-grupos-envio`, {
+    method: "POST",
+    body: JSON.stringify({
+      fecha_anticipada:  fechaAnticipada,
+      tipo_entrega_a:    tipoEntregaA,
+      tipo_entrega_b:    tipoEntregaB,
+      direccion_a:       direccionA    || null,
+      municipio_a:       municipioA    || null,
+      departamento_a:    departamentoA || null,
+      direccion_b:       direccionB    || null,
+      municipio_b:       municipioB    || null,
+      departamento_b:    departamentoB || null,
+    }),
+  });
+  return adaptPedido(data);
+};
+
+export const actualizarEstadoGrupo = async (idVenta, idGrupo, estado) => {
+  const data = await apiFetch(`/ventas/${idVenta}/grupos/${idGrupo}/estado`, {
+    method: "PATCH",
+    body: JSON.stringify({ estado }),
+  });
+  return adaptPedido(data);
+};
+
+export const actualizarTipoEntregaGrupo = async (idVenta, idGrupo, tipoEntrega) => {
+  const data = await apiFetch(`/ventas/${idVenta}/grupos/${idGrupo}/tipo-entrega`, {
+    method: "PATCH",
+    body: JSON.stringify({ tipo_entrega: tipoEntrega }),
+  });
+  return adaptPedido(data);
+};
+
+export const cancelarGrupoPendiente = async (idVenta, idGrupo) => {
+  const data = await apiFetch(`/ventas/${idVenta}/grupos/${idGrupo}`, { method: "DELETE" });
+  return adaptPedido(data);
+};
 
 export const aprobarComprobante = async (id) =>
   apiFetch(`/pedidos/${id}/aprobar-comprobante`, { method: "PATCH" });

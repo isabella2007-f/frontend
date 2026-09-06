@@ -11,6 +11,32 @@ export interface CartItem {
 
 const CART_KEY = "toston_app_cart";
 
+/** Lo que pasó al intentar agregar algo al carrito. */
+export interface ResultadoAgregar {
+  /** Cuántas unidades entraron de verdad. */
+  agregado: number;
+  /** Cuántas se quedaron afuera por falta de stock. */
+  rechazado: number;
+  /** Cuántas quedaron en el carrito. */
+  total: number;
+  /** El tope que lo limitó (el stock), o null si no había tope. */
+  tope: number | null;
+}
+
+/**
+ * Cuántas unidades de esto se pueden llevar.
+ *
+ * Lo que la panadería fabrica no tiene tope: el faltante se hornea. Lo que no,
+ * se limita al stock — incluido el caso de stock 0, que antes se colaba como
+ * "sin límite" en las tres funciones que tocaban cantidades y terminaba en un
+ * pedido que el servidor rechaza al crearlo.
+ */
+const topeDe = (item: { stock?: number; requiereProduccion?: boolean;
+                        pedidoProgramado?: boolean }): number =>
+  (item.requiereProduccion || item.pedidoProgramado)
+    ? Infinity
+    : (item.stock ?? 0);
+
 export const getCart = (): CartItem[] => {
   const cart = localStorage.getItem(CART_KEY);
   return cart ? JSON.parse(cart) : [];
@@ -20,27 +46,8 @@ export const saveCart = (cart: CartItem[]): void => {
   localStorage.setItem(CART_KEY, JSON.stringify(cart));
 };
 
-export const addToCart = (product: any): void => {
-  const cart = getCart();
-  const existing = cart.find((item) => item.id === product.id);
-
-  if (existing) {
-    if (!existing.requiereProduccion && !existing.pedidoProgramado && existing.stock > 0 && existing.cantidad >= existing.stock) return;
-    existing.cantidad += 1;
-  } else {
-    cart.push({
-      id:                 product.id,
-      nombre:             product.nombre,
-      precio:             product.precio,
-      cantidad:           1,
-      imagenPreview:      product.imagenPreview || product.imagen || null,
-      stock:              product.stock || 0,
-      requiereProduccion: product.requiereProduccion ?? false,
-    });
-  }
-  saveCart(cart);
-  window.dispatchEvent(new Event('cart-updated'));
-};
+export const addToCart = (product: any): ResultadoAgregar =>
+  addToCartWithQty(product, 1);
 
 /**
  * Saca del carrito lo que ya no se vende.
@@ -74,8 +81,8 @@ export const updateQuantity = (productId: number, quantity: number): void => {
   const cart = getCart();
   const item = cart.find((i) => i.id === productId);
   if (item) {
-    const maxQty = (item.requiereProduccion || item.pedidoProgramado) ? Infinity : (item.stock || Infinity);
-    item.cantidad = Math.max(1, Math.min(quantity, maxQty));
+    // `stock || Infinity` dejaba sin tope justo lo que tiene stock 0.
+    item.cantidad = Math.max(1, Math.min(quantity, topeDe(item)));
     saveCart(cart);
     window.dispatchEvent(new Event('cart-updated'));
   }
@@ -96,24 +103,59 @@ export const getCartCount = (): number => {
   return cart.reduce((acc, item) => acc + item.cantidad, 0);
 };
 
-export const addToCartWithQty = (product: any, qty: number, pedidoProgramado = false): void => {
+/**
+ * Agrega `qty` unidades y devuelve qué pasó.
+ *
+ * El tope se mide contra lo que YA hay en el carrito, no contra lo que se está
+ * agregando: comprobar solo lo segundo era lo que dejaba sumar de a uno sin
+ * fin con el carrito ya lleno hasta el stock.
+ */
+export const addToCartWithQty = (
+  product: any,
+  qty: number,
+  pedidoProgramado = false,
+): ResultadoAgregar => {
   const cart = getCart();
   const existing = cart.find((item) => item.id === product.id);
-  if (existing) {
-    existing.cantidad += qty;
-    if (pedidoProgramado) existing.pedidoProgramado = true;
-  } else {
-    cart.push({
-      id:                 product.id,
-      nombre:             product.nombre,
-      precio:             product.precio,
-      cantidad:           qty,
-      imagenPreview:      product.imagenPreview || product.imagen || null,
-      stock:              product.stock ?? 0,
-      pedidoProgramado,
-      requiereProduccion: product.requiereProduccion ?? false,
-    });
+
+  const referencia = existing ?? {
+    stock:              product.stock ?? 0,
+    requiereProduccion: product.requiereProduccion ?? false,
+    pedidoProgramado,
+  };
+  // El pedido programado llega desde afuera: puede convertir en ilimitado algo
+  // que ya estaba en el carrito con tope.
+  const tope = topeDe({ ...referencia, pedidoProgramado:
+    pedidoProgramado || (referencia as any).pedidoProgramado });
+
+  const yaHay = existing?.cantidad ?? 0;
+  const cabe  = Math.max(0, tope - yaHay);
+  const entran = Math.max(0, Math.min(qty, cabe));
+
+  if (entran > 0) {
+    if (existing) {
+      existing.cantidad += entran;
+      if (pedidoProgramado) existing.pedidoProgramado = true;
+    } else {
+      cart.push({
+        id:                 product.id,
+        nombre:             product.nombre,
+        precio:             product.precio,
+        cantidad:           entran,
+        imagenPreview:      product.imagenPreview || product.imagen || null,
+        stock:              product.stock ?? 0,
+        pedidoProgramado,
+        requiereProduccion: product.requiereProduccion ?? false,
+      });
+    }
+    saveCart(cart);
+    window.dispatchEvent(new Event('cart-updated'));
   }
-  saveCart(cart);
-  window.dispatchEvent(new Event('cart-updated'));
+
+  return {
+    agregado:  entran,
+    rechazado: Math.max(0, qty - entran),
+    total:     yaHay + entran,
+    tope:      Number.isFinite(tope) ? tope : null,
+  };
 };

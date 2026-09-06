@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+﻿import { useState, useRef, useEffect } from "react";
 import { Check, X, User, MapPin, ShieldCheck, Trash2, Camera, Eye, EyeOff } from "lucide-react";
 import { TIPOS_DOC, fmtTel, toInputDate, fromInputDate } from "./empleadosUtils.js";
 import { soloLetras, soloDigitos } from "../../../utils/inputFilters";
@@ -46,7 +46,7 @@ export function ModalVerEmpleado({ empleado, onClose, roles = [] }) {
   const rol = roles.find(r => r.id === Number(empleado.idRol));
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div
         className="modal-box"
         style={{ maxWidth:660, width:"100%", maxHeight:"calc(100vh - 40px)", display:"flex", flexDirection:"column", overflow:"hidden" }}
@@ -203,7 +203,7 @@ export function ModalEliminarEmpleado({ empleado, onClose, onConfirm }) {
   const [deleting, setDeleting] = useState(false);
   const run = async () => { setDeleting(true); await new Promise(r => setTimeout(r, 500)); onConfirm(); };
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
         <div style={{ padding:"28px 24px 18px", textAlign:"center" }}>
           <div className="delete-icon-wrap"><Trash2 size={32} /></div>
@@ -360,7 +360,7 @@ export default function EditarEmpleado({ empleado, onClose, onSave, roles = [] }
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--wide" onClick={e => e.stopPropagation()}>
 
         {/* Header */}

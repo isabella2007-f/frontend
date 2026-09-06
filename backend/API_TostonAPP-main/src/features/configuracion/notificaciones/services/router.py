@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from src.shared.services.database import get_db
+from src.shared.services.roles_utils import es_repartidor
 from src.features.auth.services.dependencies import obtener_usuario_actual
 from .schemas import (
     NotificacionResponse, NotificacionesResponse,
@@ -45,8 +46,11 @@ def notificaciones_domiciliario(
     actual: dict    = Depends(obtener_usuario_actual),
 ):
     """Notificaciones derivadas para el domiciliario (sus entregas asignadas)."""
-    rol = (actual.get("rol") or "").lower()
-    if rol != "domiciliario":
+    # El nombre del rol se escribe en Configuración → Roles: comparar con
+    # `== "domiciliario"` dejaba fuera a "Repartidor", "Domiciliario 2"… y el
+    # 403 se perdía en silencio, así que la campana del panel nunca mostraba
+    # sus entregas asignadas.
+    if not es_repartidor(actual):
         raise HTTPException(status_code=403, detail="Solo disponible para domiciliarios")
     id_usuario = actual["registro"].ID_Usuario
     return obtener_notificaciones_domiciliario(db, id_usuario)

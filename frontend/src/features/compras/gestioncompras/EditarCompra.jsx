@@ -119,7 +119,7 @@ export function AnularCompraModal({ compra, onClose, onConfirm }) {
   const yaCompletada = compra.stockAplicado === true || compra.estado === "completada";
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-box modal-box--sm" onClick={e => e.stopPropagation()}>
         <div style={{ padding: "28px 24px 18px", textAlign: "center" }}>
           <div className="delete-icon-wrap" style={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Ban size={24} /></div>
@@ -239,14 +239,14 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
     getProveedores({ porPagina: 100 })
       .then(d => setProveedores(d.proveedores || d || []))
       .catch(() => {});
-    getInsumos({ porPagina: 100 })
+    getInsumos()
       .then(d => {
         const lista = (d.insumos || d || []).map(i => ({
           id:       i.ID_Insumo || i.id,
           nombre:   i.Nombre    || i.nombre || "",
           unidad:   i.simbolo_unidad || i.unidad || "",
           idUnidad: i.Unidad_Medida  || i.idUnidad || null,
-          estado:   i.Estado !== 0,
+          estado:   i.Estado !== 2,
         }));
         setInsumosActivos(lista.filter(i => i.estado));
       })
@@ -604,7 +604,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
   );
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal-card" onClick={e => e.stopPropagation()} style={modalStyle}>
 
         <div className="modal-header" style={{ flexShrink: 0, padding: "18px 28px" }}>

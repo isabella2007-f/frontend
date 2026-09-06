@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Mail, Phone, MapPin, CreditCard,
-  Building2, Map, ShieldCheck, Edit2, LogOut, User
+  Building2, Map, ShieldCheck, Edit2, LogOut, User, Info
 } from 'lucide-react';
 import { clearSession } from '../../../../utils/api';
 import LogoutModal from '../../../../shared/components/LogoutModal';
+import Avatar from '../../../../shared/components/Avatar';
 
 const InfoBlock = ({ icon: Icon, label, value, span = 1 }) => (
   <div style={{
@@ -65,7 +66,7 @@ const ProfileView = ({ user, totalPedidos, onEdit }) => {
           overflow: 'hidden', fontSize: 36,
         }}>
           {user.fotoPerfil
-            ? <img src={user.fotoPerfil} alt="Perfil" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ? <Avatar url={user.fotoPerfil} lado={80} alt="Perfil" />
             : <User size={36} strokeWidth={1} style={{color:"#bdbdbd"}} />
           }
         </div>
@@ -145,6 +146,13 @@ const ProfileView = ({ user, totalPedidos, onEdit }) => {
         <InfoBlock icon={MapPin}   label="Dirección"    value={user.direccion}    span={2} />
         <InfoBlock icon={Building2} label="Municipio"   value={user.municipio} />
         <InfoBlock icon={Map}       label="Departamento" value={user.departamento} />
+        {/* El barrio, el complemento y cómo reconocer la casa viven acá: es lo
+            que lee quien entrega, y hasta ahora no se mostraba en ninguna
+            parte, así que no había forma de revisar si quedó bien. */}
+        {user.indicaciones && (
+          <InfoBlock icon={Info} label="Barrio e indicaciones"
+            value={user.indicaciones} span={2} />
+        )}
       </div>
 
       {/* Cerrar sesión */}

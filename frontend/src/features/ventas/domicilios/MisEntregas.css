@@ -1,0 +1,181 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   MIS ENTREGAS — lo propio de la lista de entregas del repartidor
+   ──────────────────────────────────────────────────────────────────────────
+   El hero, los botones, badges, modal, toast y vacíos viven en
+   DomiciliarioUI.css (clase `.dom-ui`). Aquí quedan solo los filtros y las
+   tarjetas, que no se repiten en ninguna otra pantalla.
+
+   Los colores de estado llegan como variables (--e-dot / --e-bg / --e-border)
+   desde estadosDomicilio.js, que sigue siendo la fuente única.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.mis-entregas .me-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+
+/* Los filtros segmentados (.du-filtros) viven en DomiciliarioUI.css: los
+   comparte con Historial de Entregas. */
+
+/* ─────────────────────────────────────────────────────────────
+   TARJETAS DE ENTREGA
+   ───────────────────────────────────────────────────────────── */
+.mis-entregas .me-grid {
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+
+.mis-entregas .me-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  width: 100%;
+  padding: 0;
+  border-radius: 20px;
+  border: 1.5px solid var(--du-borde);
+  background: #fff;
+  box-shadow: var(--du-sombra-sm);
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  animation: duFadeUp .42s cubic-bezier(.16, 1, .3, 1) both;
+  transition: transform .2s cubic-bezier(.16, 1, .3, 1), box-shadow .2s, border-color .2s;
+}
+.mis-entregas .me-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--du-sombra-md);
+  border-color: var(--e-border, var(--du-verde-400));
+}
+.mis-entregas .me-card:focus-visible {
+  outline: 3px solid rgba(67, 160, 71, .35);
+  outline-offset: 2px;
+}
+
+/* Cinta superior con el color del estado */
+.mis-entregas .me-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, var(--e-dot, var(--du-verde-500)), transparent 92%);
+}
+
+.mis-entregas .me-card__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px 20px 14px;
+  background: linear-gradient(180deg, var(--du-crema) 0%, #fff 100%);
+}
+
+.mis-entregas .me-card__avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 14px;
+  background: var(--e-bg, var(--du-crema));
+  border: 1.5px solid var(--e-border, var(--du-borde));
+  color: var(--e-dot, var(--du-verde-600));
+}
+
+.mis-entregas .me-card__ident { flex: 1; min-width: 0; }
+.mis-entregas .me-card__num {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--du-tinta-3);
+}
+.mis-entregas .me-card__cliente {
+  margin-top: 2px;
+  font-family: var(--font-head, 'Nunito', sans-serif);
+  font-size: 16.5px;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--du-tinta);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mis-entregas .me-card__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 20px 14px;
+}
+
+.mis-entregas .me-card__dir {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--du-tinta-2);
+}
+.mis-entregas .me-card__dir svg { flex-shrink: 0; margin-top: 2px; color: var(--du-verde-500); }
+
+.mis-entregas .me-card__obs {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border-left: 3px solid var(--du-oro);
+  background: var(--du-oro-suave);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--du-oro-osc);
+}
+.mis-entregas .me-card__obs svg { flex-shrink: 0; margin-top: 2px; }
+
+.mis-entregas .me-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px 16px;
+  border-top: 1px dashed var(--du-borde);
+  background: linear-gradient(180deg, #fff 0%, #fbfefb 100%);
+  flex-wrap: wrap;
+}
+
+.mis-entregas .me-card__monto-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--du-tinta-3);
+}
+.mis-entregas .me-card__monto {
+  font-family: var(--font-head, 'Nunito', sans-serif);
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -.4px;
+  color: var(--du-verde-700);
+}
+/* En la tarjeta el chip de pago va debajo del total, no en línea. */
+.mis-entregas .me-card__foot .du-badge-pago { margin-top: 5px; }
+
+.mis-entregas .me-card__acciones { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+@media (max-width: 900px) {
+  .mis-entregas .me-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 560px) {
+  .mis-entregas .me-card__foot { align-items: flex-start; }
+  .mis-entregas .me-card__acciones { width: 100%; }
+  .mis-entregas .me-card__acciones .du-btn { flex: 1; }
+}

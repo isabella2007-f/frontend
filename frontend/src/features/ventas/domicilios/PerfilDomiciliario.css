@@ -1,0 +1,168 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   MI PERFIL — lo propio de la ficha del repartidor
+   ──────────────────────────────────────────────────────────────────────────
+   El hero, los paneles, botones, badges, toast y skeletons viven en
+   DomiciliarioUI.css (clase `.dom-ui`). Aquí quedan la identidad del hero y
+   la rejilla de campos.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.perfil .pf-col {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   IDENTIDAD EN EL HERO
+   ───────────────────────────────────────────────────────────── */
+.perfil .pf-ident {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.perfil .pf-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 84px;
+  height: 84px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, .38);
+  background: rgba(255, 255, 255, .16);
+  box-shadow: 0 8px 24px rgba(10, 45, 26, .3);
+  font-family: var(--font-head, 'Nunito', sans-serif);
+  font-size: 30px;
+  font-weight: 800;
+  color: #fff;
+  backdrop-filter: blur(8px);
+}
+.perfil .pf-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.perfil .pf-ident__txt { min-width: 0; }
+.perfil .pf-ident__nombre {
+  margin: 8px 0 8px;
+  font-family: var(--font-head, 'Nunito', sans-serif);
+  font-size: clamp(24px, 3.6vw, 34px);
+  font-weight: 800;
+  font-style: italic;
+  line-height: 1.05;
+  letter-spacing: -.5px;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, .22);
+}
+.perfil .pf-chips { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.perfil .pf-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, .26);
+  background: rgba(255, 255, 255, .14);
+  color: #eaf7ec;
+  font-size: 11.5px;
+  font-weight: 700;
+  backdrop-filter: blur(6px);
+}
+.perfil .pf-chip--alerta {
+  border-color: rgba(255, 224, 130, .5);
+  background: rgba(249, 168, 37, .22);
+  color: #ffe9b0;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   CAMPOS
+   ───────────────────────────────────────────────────────────── */
+.perfil .pf-campos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px;
+}
+/* Las indicaciones son texto largo: ocupan la fila entera. */
+.perfil .pf-campo--ancho { grid-column: 1 / -1; }
+
+.perfil .pf-campo__label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-transform: uppercase !important;
+  color: var(--du-tinta-3);
+}
+
+/* Valor en modo lectura: se ve como un campo, sin serlo. */
+.perfil .pf-valor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1.5px solid #eef3ef;
+  background: #fafcfa;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--du-tinta);
+  word-break: break-word;
+}
+.perfil .pf-valor svg { flex-shrink: 0; color: var(--du-verde-500); }
+.perfil .pf-valor--vacio { color: var(--du-tinta-3); font-weight: 500; font-style: italic; }
+.perfil .pf-valor--vacio svg { color: #c4d3c8; }
+
+/* En edición el input reemplaza al valor, con la misma caja. */
+.perfil .pf-input,
+.perfil .pf-textarea {
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1.5px solid #e4eae6;
+  background: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--du-tinta);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color .18s, box-shadow .18s;
+}
+.perfil .pf-textarea { resize: vertical; min-height: 74px; }
+.perfil .pf-input:focus,
+.perfil .pf-textarea:focus {
+  border-color: var(--du-verde-500);
+  box-shadow: 0 0 0 4px rgba(67, 160, 71, .13);
+}
+
+/* ─── Cabecera del panel con acciones a la derecha ─── */
+.perfil .du-panel__head { justify-content: space-between; }
+.perfil .pf-acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ─── Nota al pie de un panel ─── */
+.perfil .pf-nota {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 11px 13px;
+  border-radius: 12px;
+  border: 1px solid #eef3ef;
+  background: #fafcfa;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--du-tinta-2);
+}
+.perfil .pf-nota svg { flex-shrink: 0; margin-top: 1px; color: var(--du-tinta-3); }
+
+/* ─────────────────────────────────────────────────────────────
+   RESPONSIVE
+   ───────────────────────────────────────────────────────────── */
+@media (max-width: 560px) {
+  .perfil .pf-ident { gap: 14px; }
+  .perfil .pf-avatar { width: 64px; height: 64px; font-size: 23px; }
+  .perfil .pf-campos { grid-template-columns: 1fr; }
+  .perfil .pf-acciones { width: 100%; }
+  .perfil .pf-acciones .du-btn { flex: 1; }
+}

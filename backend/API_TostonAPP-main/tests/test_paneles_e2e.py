@@ -23,7 +23,8 @@ from panel import (
     ID_OTRO_REPARTIDOR, ID_TORTA, ID_TOSTON, ORDEN_CANCELADA, ORDEN_COMPLETADA,
     ORDEN_EN_PROCESO, ORDEN_PENDIENTE, PEDIDO_CANCELADO, PEDIDO_CONFIRMADO,
     PEDIDO_EN_CAMINO, PEDIDO_EN_PRODUCCION, PEDIDO_ENTREGADO,
-    PEDIDO_FECHA_PROPUESTA, PEDIDO_LISTO, PEDIDO_PENDIENTE, PRECIO,
+    PEDIDO_FECHA_PROPUESTA,
+    PEDIDO_FECHA_RECHAZADA, PEDIDO_LISTO, PEDIDO_PENDIENTE, PRECIO,
     STOCK_HARINA, STOCK_TORTA, STOCK_TOSTON, PanelBase,
 )
 
@@ -249,7 +250,12 @@ class PanelClienteTests(PanelBase):
             self.venta(id_venta).Estado, (PEDIDO_CONFIRMADO, PEDIDO_EN_PRODUCCION)
         )
 
-    def test_rechazar_la_fecha_cancela_el_pedido(self):
+    def test_rechazar_la_fecha_no_cancela_el_pedido(self):
+        """Rechazar deja el pedido esperando otra fecha, no lo mata.
+
+        Antes se cancelaba, y el de recoger en tienda se perdía sin que nadie
+        pudiera proponer una segunda fecha.
+        """
         pedido = self.pedido_con_faltante()
         id_venta = pedido["ID_Venta"]
         fecha = (datetime.now() + timedelta(days=3)).isoformat()
@@ -258,7 +264,16 @@ class PanelClienteTests(PanelBase):
         ))
 
         self.afirmar_ok(self.patch(f"/ventas/{id_venta}/rechazar-fecha", self.cliente))
-        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_CANCELADO)
+        venta = self.venta(id_venta)
+        self.assertEqual(venta.Estado, PEDIDO_FECHA_RECHAZADA)
+        self.assertEqual(venta.intentos_rechazo, 1)
+
+        # Y se le puede proponer otra, que es de lo que se trataba.
+        otra = (datetime.now() + timedelta(days=5)).isoformat()
+        self.afirmar_ok(self.patch(
+            f"/ventas/{id_venta}/proponer-fecha", self.admin, {"fecha_entrega": otra}
+        ))
+        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_FECHA_PROPUESTA)
 
     def test_no_acepta_la_fecha_de_un_pedido_ajeno(self):
         pedido = self.pedido_con_faltante()
@@ -423,7 +438,7 @@ class PanelProduccionTests(PanelBase):
         self.assertEqual(orden["Cantidad"], 6 - STOCK_TORTA)
         self.assertEqual(orden["Estado"], ORDEN_PENDIENTE)
 
-    def test_iniciarla_descuenta_los_insumos_de_la_receta(self):
+    def test_iniciarla_aparta_los_insumos_y_completarla_los_descuenta(self):
         pedido = self.pedido_con_faltante()
         # La orden de un pedido solo se gestiona a mano con el pedido confirmado.
         self.afirmar_ok(self.patch(f"/pedidos/{pedido['ID_Venta']}/confirmar", self.admin))
@@ -432,6 +447,13 @@ class PanelProduccionTests(PanelBase):
         self.afirmar_ok(self.patch(
             f"/ordenes-produccion/{id_orden}/estado", self.admin,
             {"Estado": ORDEN_EN_PROCESO},
+        ))
+        # Apartada, no gastada: la harina sigue en bodega.
+        self.assertAlmostEqual(self.harina(), STOCK_HARINA, places=3)
+
+        self.afirmar_ok(self.patch(
+            f"/ordenes-produccion/{id_orden}/estado", self.admin,
+            {"Estado": ORDEN_COMPLETADA},
         ))
         gastado = GRAMOS_POR_TORTA * (6 - STOCK_TORTA)
         self.assertAlmostEqual(self.harina(), STOCK_HARINA - gastado, places=3)
@@ -504,9 +526,9 @@ class PanelProduccionTests(PanelBase):
         )
         self.assertEqual(respuesta.status_code, 400)
         self.assertIn("pedido", self.detalle(respuesta).lower())
-        # Nada se tocó: los insumos siguen descontados.
-        gastado = GRAMOS_POR_TORTA * (6 - STOCK_TORTA)
-        self.assertAlmostEqual(self.harina(), STOCK_HARINA - gastado, places=3)
+        # Nada se tocó: la orden sigue en proceso con sus insumos apartados.
+        self.assertEqual(self.orden().Estado, ORDEN_EN_PROCESO)
+        self.assertAlmostEqual(self.harina(), STOCK_HARINA, places=3)
 
     def test_el_inventario_cierra_al_entregar_en_tienda(self):
         """El faltante horneado también tiene que salir del stock."""
@@ -977,8 +999,8 @@ class CancelarTests(PanelBase):
         self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/cancelar", self.admin))
         self.assertEqual(self.orden(id_venta).Estado, ORDEN_CANCELADA)
 
-    def test_cancelar_con_la_orden_ya_empezada_devuelve_los_insumos(self):
-        """La harina ya estaba en la masa contable: hay que devolverla."""
+    def test_cancelar_con_la_orden_ya_empezada_suelta_los_insumos(self):
+        """La harina nunca salió de bodega: se suelta la reserva y ya."""
         pedido = self.pedido_con_faltante()
         id_venta = pedido["ID_Venta"]
         self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/confirmar", self.admin))
@@ -987,8 +1009,6 @@ class CancelarTests(PanelBase):
             f"/ordenes-produccion/{id_orden}/estado", self.admin,
             {"Estado": ORDEN_EN_PROCESO},
         ))
-        gastado = GRAMOS_POR_TORTA * (6 - STOCK_TORTA)
-        self.assertAlmostEqual(self.harina(), STOCK_HARINA - gastado, places=3)
 
         self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/cancelar", self.admin))
         self.assertEqual(self.orden(id_venta).Estado, ORDEN_CANCELADA)
@@ -1220,6 +1240,552 @@ class EditarPedidoTests(PanelBase):
             "Metodo_Pago": "Transferencia",
         }))
         self.assertEqual(Decimal(str(self.venta(id_venta).Total)), antes)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 10. El día del repartidor: resumen e historial
+# ══════════════════════════════════════════════════════════════════════════
+class DiaDelRepartidorTests(PanelBase):
+    """Lo que el panel del domiciliario le dice que hizo hoy.
+
+    El caso que lo destapó: el repartidor entregó dos pedidos, uno de ellos de
+    un pedido que había entrado ayer. El resumen decía 2 entregas y el
+    historial le mostraba 1, en la misma pantalla. El rango de fechas se medía
+    contra `Fecha_asignacion`, que pese al nombre es la fecha en que se CREÓ el
+    domicilio: nadie la toca al asignarle repartidor.
+    """
+
+    def test_el_historial_de_hoy_trae_lo_entregado_hoy(self):
+        de_ayer = self.entrega_del_repartidor(creado_hace=1, entregado_hace=0)
+        de_hoy  = self.entrega_del_repartidor(creado_hace=0, entregado_hace=0)
+        self.entrega_del_repartidor(creado_hace=5, entregado_hace=5)
+
+        desde, hasta = self.rango_de_hoy()
+        cuerpo = self.afirmar_ok(self.get(
+            f"/domicilios/?por_pagina=100&id_empleado={ID_REPARTIDOR}"
+            f"&fecha_inicio={desde}&fecha_fin={hasta}", self.repartidor
+        ))
+        entregados = [d["ID_Domicilio"] for d in cuerpo["domicilios"]
+                      if d["estado_label"] == "Entregado"]
+        self.assertEqual(sorted(entregados), sorted([de_ayer, de_hoy]))
+
+    def test_el_resumen_y_el_historial_dicen_lo_mismo(self):
+        self.entrega_del_repartidor(creado_hace=1, entregado_hace=0)
+        self.entrega_del_repartidor(creado_hace=0, entregado_hace=0)
+        self.entrega_del_repartidor(creado_hace=3, entregado_hace=3)
+
+        resumen = self.afirmar_ok(self.get("/domicilios/resumen", self.repartidor))
+        desde, hasta = self.rango_de_hoy()
+        cuerpo = self.afirmar_ok(self.get(
+            f"/domicilios/?por_pagina=100&id_empleado={ID_REPARTIDOR}"
+            f"&fecha_inicio={desde}&fecha_fin={hasta}", self.repartidor
+        ))
+        entregados = [d for d in cuerpo["domicilios"] if d["estado_label"] == "Entregado"]
+        self.assertEqual(resumen["entregados_hoy"], len(entregados))
+
+    def test_lo_que_sigue_abierto_cuenta_por_el_dia_en_que_entro(self):
+        """Sin fecha de entrega, el domicilio pertenece al día en que se creó."""
+        abierto_hoy = self.entrega_del_repartidor(creado_hace=0, entregado=False)
+        self.entrega_del_repartidor(creado_hace=4, entregado=False)
+
+        desde, hasta = self.rango_de_hoy()
+        cuerpo = self.afirmar_ok(self.get(
+            f"/domicilios/?por_pagina=100&id_empleado={ID_REPARTIDOR}"
+            f"&fecha_inicio={desde}&fecha_fin={hasta}", self.repartidor
+        ))
+        self.assertEqual(
+            [d["ID_Domicilio"] for d in cuerpo["domicilios"]], [abierto_hoy]
+        )
+
+    def test_el_total_del_dia_son_pesos_y_no_un_conteo(self):
+        """Contaba los domicilios CREADOS hoy bajo una etiqueta que promete plata."""
+        self.entrega_del_repartidor(creado_hace=1, entregado_hace=0)
+        self.entrega_del_repartidor(creado_hace=0, entregado_hace=0)
+
+        resumen = self.afirmar_ok(self.get("/domicilios/resumen", self.repartidor))
+        # Dos pedidos de $20.000 + $5.000 de envío.
+        esperado = float((Decimal("20000") + COSTO_DOMICILIO) * 2)
+        self.assertEqual(resumen["entregados_hoy"], 2)
+        self.assertEqual(resumen["total_hoy"], esperado)
+
+    def test_el_efectivo_del_dia_es_solo_lo_que_recibio_en_mano(self):
+        # Efectivo: entra completo.
+        self.entrega_del_repartidor(creado_hace=0, entregado_hace=0)
+        # Transferencia: no pasó por sus manos.
+        self.entrega_del_repartidor(
+            creado_hace=0, entregado_hace=0, estado_pago="pagado_completo",
+            Metodo_Pago="Transferencia",
+            comprobante_pago="https://cloudinary.test/comp.jpg",
+        )
+
+        resumen = self.afirmar_ok(self.get("/domicilios/resumen", self.repartidor))
+        self.assertEqual(resumen["total_hoy"], float((Decimal("20000") + COSTO_DOMICILIO) * 2))
+        self.assertEqual(resumen["efectivo_hoy"], float(Decimal("20000") + COSTO_DOMICILIO))
+
+    def test_del_mixto_solo_cuenta_la_parte_en_efectivo(self):
+        self.entrega_del_repartidor(
+            creado_hace=0, entregado_hace=0, estado_pago="pagado_completo",
+            Metodo_Pago="Mixto", pago_efectivo_monto=9000,
+            comprobante_pago="https://cloudinary.test/comp.jpg",
+        )
+        resumen = self.afirmar_ok(self.get("/domicilios/resumen", self.repartidor))
+        self.assertEqual(resumen["efectivo_hoy"], 9000.0)
+
+    def test_lo_que_no_se_pudo_cobrar_no_le_cuenta_como_recogido(self):
+        self.entrega_del_repartidor(
+            creado_hace=0, entregado_hace=0, estado_pago="no_recibido",
+        )
+        resumen = self.afirmar_ok(self.get("/domicilios/resumen", self.repartidor))
+        self.assertEqual(resumen["entregados_hoy"], 1)
+        self.assertEqual(resumen["efectivo_hoy"], 0.0)
+
+    def test_el_resumen_es_de_cada_repartidor(self):
+        self.entrega_del_repartidor(creado_hace=0, entregado_hace=0)
+        self.entrega_del_repartidor(
+            creado_hace=0, entregado_hace=0, quien=ID_OTRO_REPARTIDOR,
+        )
+
+        mio = self.afirmar_ok(self.get("/domicilios/resumen", self.repartidor))
+        self.assertEqual(mio["entregados_hoy"], 1)
+        del_otro = self.afirmar_ok(self.get("/domicilios/resumen", self.otro_repartidor))
+        self.assertEqual(del_otro["entregados_hoy"], 1)
+
+    def test_el_listado_llega_ordenado_por_lo_ultimo_que_paso(self):
+        viejo = self.entrega_del_repartidor(creado_hace=9, entregado_hace=9)
+        reciente = self.entrega_del_repartidor(creado_hace=9, entregado_hace=0)
+
+        cuerpo = self.afirmar_ok(self.get(
+            f"/domicilios/?por_pagina=100&id_empleado={ID_REPARTIDOR}", self.repartidor
+        ))
+        ids = [d["ID_Domicilio"] for d in cuerpo["domicilios"]]
+        self.assertEqual(ids.index(reciente), 0)
+        self.assertLess(ids.index(reciente), ids.index(viejo))
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 11. La fecha propuesta: la mueve el cliente, no el horno
+# ══════════════════════════════════════════════════════════════════════════
+class FechaPropuestaTests(PanelBase):
+    """Un pedido esperando respuesta del cliente no avanza solo.
+
+    Terminar de hornear no responde por él: mientras la fecha esté propuesta,
+    el pedido espera. Es la aceptación la que lo pone en marcha, y si para
+    entonces ya no falta nada, lo deja Listo directo.
+    """
+
+    def esperando_respuesta(self):
+        """Pedido con faltante, confirmado y con la fecha ya propuesta."""
+        pedido = self.pedido_con_faltante()
+        id_venta = pedido["ID_Venta"]
+        fecha = (datetime.now() + timedelta(days=3)).isoformat()
+        self.afirmar_ok(self.patch(
+            f"/ventas/{id_venta}/proponer-fecha", self.admin, {"fecha_entrega": fecha}
+        ))
+        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_FECHA_PROPUESTA)
+        return id_venta
+
+    def test_hornear_con_fecha_propuesta_sin_aceptar_queda_bloqueado(self):
+        """El cliente todavía no dijo que sí: la orden no se gestiona a mano
+        hasta que acepte o rechace la fecha (ver bloqueo en `cambiar_estado`).
+
+        Reemplaza a los dos tests que asumían que se podía hornear con la
+        fecha propuesta y sin aceptar: ese escenario ya no es posible con la
+        regla vigente (la orden queda bloqueada, igual que en «Pendiente»).
+        """
+        id_venta = self.esperando_respuesta()
+        id_orden = self.orden(id_venta).ID_Orden_Produccion
+        respuesta = self.patch(
+            f"/ordenes-produccion/{id_orden}/estado", self.admin,
+            {"Estado": ORDEN_EN_PROCESO},
+        )
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn("fecha", self.detalle(respuesta).lower())
+        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_FECHA_PROPUESTA)
+
+    def test_aceptar_con_la_produccion_a_medias_lo_manda_a_producir(self):
+        id_venta = self.esperando_respuesta()
+
+        self.afirmar_ok(self.patch(f"/ventas/{id_venta}/aceptar-fecha", self.cliente))
+        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_EN_PRODUCCION)
+
+    def test_terminada_despues_de_aceptar_el_pedido_queda_listo(self):
+        """El camino de siempre: se acepta, se hornea, queda listo."""
+        id_venta = self.esperando_respuesta()
+        self.afirmar_ok(self.patch(f"/ventas/{id_venta}/aceptar-fecha", self.cliente))
+        self.hornear(id_venta)
+        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_LISTO)
+
+    def test_aceptar_no_deja_listo_lo_que_ya_no_se_puede_fabricar(self):
+        """Aceptar la fecha no inventa el producto.
+
+        El pedido se hizo cuando la torta tenía receta; después alguien la
+        borró y le quitó la marca de producción. El cliente dice que sí a la
+        fecha y el pedido queda Confirmado —no Listo—: sigue faltando la
+        mercancía y nadie la va a hornear.
+        """
+        from src.shared.services.models import Producto
+
+        pedido = self.pedido_con_faltante(cantidad=6)
+        id_venta = pedido["ID_Venta"]
+
+        torta = self.db.query(Producto).filter(
+            Producto.ID_Producto == ID_TORTA
+        ).first()
+        torta.Requiere_Produccion = 0
+        self.db.query(FichaTecnica).delete()
+        # Y la orden que se había abierto se cancela: nadie la va a hornear.
+        for orden in self.db.query(OrdenProduccion).filter(
+            OrdenProduccion.ID_Venta == id_venta
+        ).all():
+            orden.Estado = ORDEN_CANCELADA
+        self.db.commit()
+
+        fecha = (datetime.now() + timedelta(days=3)).isoformat()
+        self.afirmar_ok(self.patch(
+            f"/ventas/{id_venta}/proponer-fecha", self.admin, {"fecha_entrega": fecha}
+        ))
+        self.afirmar_ok(self.patch(f"/ventas/{id_venta}/aceptar-fecha", self.cliente))
+        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_CONFIRMADO)
+
+        # Y sigue sin poder darse por Listo: la mercancía no existe.
+        respuesta = self.patch(f"/ventas/{id_venta}/estado", self.admin,
+                               {"Estado": PEDIDO_LISTO})
+        self.assertEqual(respuesta.status_code, 400, self.detalle(respuesta))
+
+    def test_lo_que_no_se_fabrica_ni_se_puede_pedir(self):
+        """La puerta de entrada: sin receta y sin stock, el pedido se rechaza.
+
+        Antes se creaba y quedaba trabado esperando a que alguien repusiera.
+        """
+        from src.shared.services.models import Producto
+        torta = self.db.query(Producto).filter(
+            Producto.ID_Producto == ID_TORTA
+        ).first()
+        torta.Requiere_Produccion = 0
+        self.db.query(FichaTecnica).delete()
+        self.db.commit()
+
+        respuesta = self.post("/ventas/", self.cliente, self.cuerpo_pedido(
+            productos=[{"ID_Producto": ID_TORTA, "Cantidad": 6}],
+        ))
+        self.assertEqual(respuesta.status_code, 400, self.detalle(respuesta))
+        self.assertIn("no se fabrican por encargo", self.detalle(respuesta))
+
+    def test_rechazar_con_fecha_propuesta_deja_el_pedido_esperando_otra_fecha(self):
+        """Rechazar la fecha no depende de que haya producción en curso: la
+        orden sigue bloqueada (ver test de bloqueo arriba) y el pedido queda
+        esperando una nueva propuesta.
+        """
+        id_venta = self.esperando_respuesta()
+
+        self.afirmar_ok(self.patch(f"/ventas/{id_venta}/rechazar-fecha", self.cliente))
+        self.assertEqual(self.venta(id_venta).Estado, PEDIDO_FECHA_RECHAZADA)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 12. La receta se lee en las unidades en que está escrita
+# ══════════════════════════════════════════════════════════════════════════
+class RecetaEnDistintasUnidadesTests(PanelBase):
+    """El caso del azúcar: 4 tortas × 20 g contra 100 kg en bodega.
+
+    Decía "insumos insuficientes" y daba la azúcar por cero. Dos cosas la
+    rompían: el servidor comparaba los símbolos tal cual venían escritos, y el
+    stock de la ficha ni siquiera llegaba al panel —el esquema lo borraba al
+    responder—, así que la pantalla lo buscaba en un listado aparte y, si no
+    estaba ahí, asumía cero.
+    """
+
+    AZUCAR = 9
+    POR_TORTA = 20.0     # gramos de azúcar por torta
+    EN_BODEGA = 100.0    # kilos
+
+    def receta_de_azucar(self, unidad_insumo="kg", unidad_ficha="g"):
+        from src.shared.services.models import (
+            FichaTecnica as _F, FichaTecnicaInsumo as _FI, Insumo as _I,
+            LoteCompra as _LC, UnidadMedida as _UM,
+        )
+        self.db.query(_FI).delete()
+        self.db.query(_F).delete()
+        self.db.add(_UM(ID_Unidad_Medida=9, Simbolo=unidad_insumo,
+                        Unidad_Medida=unidad_insumo))
+        self.db.add(_I(ID_Insumo=self.AZUCAR, Nombre="Azúcar blanca",
+                       Unidad_Medida=9, Stock_Actual=self.EN_BODEGA,
+                       Stock_Minimo=1, Estado=1))
+        self.db.add(_LC(
+            ID_Lote_Compra=9, ID_Insumo=self.AZUCAR,
+            Fecha_Vencimiento=datetime.now() + timedelta(days=200),
+            Cantidad_Inicial=self.EN_BODEGA, Cantidad_Actual=self.EN_BODEGA,
+            Estado=1,
+        ))
+        self.db.add(_F(ID_Ficha=9, ID_Producto=ID_TORTA, Version="1", Estado=1,
+                       Dias_Vida_Util=5, Vida_Util_Unidad="dias"))
+        self.db.add(_FI(ID_Ficha_Insumo=9, ID_Ficha=9, ID_Insumo=self.AZUCAR,
+                        Cantidad=self.POR_TORTA, Unidad=unidad_ficha))
+        self.db.commit()
+
+    def azucar(self):
+        from src.shared.services.models import Insumo as _I
+        self.db.expire_all()
+        return float(self.db.query(_I).filter(
+            _I.ID_Insumo == self.AZUCAR
+        ).first().Stock_Actual)
+
+    def iniciar_la_orden(self):
+        pedido = self.pedido_con_faltante()      # 6 tortas, stock 2 → orden de 4
+        orden = self.orden(pedido["ID_Venta"])
+        self.assertEqual(orden.Cantidad, 4)
+        self.confirmar_si_pendiente(pedido["ID_Venta"])
+        return self.patch(
+            f"/ordenes-produccion/{orden.ID_Orden_Produccion}/estado",
+            self.admin, {"Estado": ORDEN_EN_PROCESO},
+        )
+
+    def completar_la_orden(self):
+        return self.patch(
+            f"/ordenes-produccion/{self.orden().ID_Orden_Produccion}/estado",
+            self.admin, {"Estado": ORDEN_COMPLETADA},
+        )
+
+    def test_la_orden_arranca_y_al_completarse_descuenta_lo_que_pesa(self):
+        self.receta_de_azucar()
+        self.afirmar_ok(self.iniciar_la_orden())
+        # Apartada: la bodega todavía tiene los 100 kg.
+        self.assertAlmostEqual(self.azucar(), self.EN_BODEGA, places=4)
+
+        self.afirmar_ok(self.completar_la_orden())
+        # 20 g × 4 = 80 g = 0,08 kg de los 100 que hay.
+        self.assertAlmostEqual(self.azucar(), 99.92, places=4)
+
+    def test_da_igual_como_esté_escrita_la_unidad(self):
+        for unidad_insumo, unidad_ficha in (("kg", "g"), ("Kg", "gr"),
+                                            ("KG", "G"), ("kilos", "gramos")):
+            with self.subTest(insumo=unidad_insumo, ficha=unidad_ficha):
+                self.setUp()
+                self.receta_de_azucar(unidad_insumo, unidad_ficha)
+                self.afirmar_ok(self.iniciar_la_orden())
+                self.afirmar_ok(self.completar_la_orden())
+                self.assertAlmostEqual(self.azucar(), 99.92, places=4)
+
+    def test_el_panel_recibe_el_stock_y_la_unidad_del_insumo(self):
+        """Sin estos dos campos el panel no puede comparar nada.
+
+        El esquema de respuesta no los declaraba y Pydantic los borraba, así
+        que la pantalla caía a un listado de insumos limitado a 100 y al que no
+        estuviera ahí le daba stock cero.
+        """
+        self.receta_de_azucar()
+        producto = self.afirmar_ok(self.get(f"/productos/{ID_TORTA}", self.admin))
+        insumo = producto["ficha_tecnica"]["insumos"][0]
+        self.assertEqual(insumo["nombre_insumo"], "Azúcar blanca")
+        self.assertEqual(insumo["Stock_Actual"], self.EN_BODEGA)
+        self.assertEqual(insumo["simbolo_unidad"], "kg")
+        self.assertEqual(insumo["Unidad"], "g")
+
+    def test_el_listado_de_productos_también_los_trae(self):
+        self.receta_de_azucar()
+        listado = self.afirmar_ok(self.get("/productos/?por_pagina=50", self.admin))
+        fichas = [p["ficha_tecnica"] for p in listado["productos"]
+                  if p.get("ficha_tecnica")]
+        self.assertTrue(fichas)
+        insumo = fichas[0]["insumos"][0]
+        self.assertEqual(insumo["Stock_Actual"], self.EN_BODEGA)
+        self.assertEqual(insumo["simbolo_unidad"], "kg")
+
+    def test_cuando_de_verdad_falta_insumo_lo_dice_en_su_unidad(self):
+        self.receta_de_azucar()
+        from src.shared.services.models import Insumo as _I
+        azucar = self.db.query(_I).filter(_I.ID_Insumo == self.AZUCAR).first()
+        azucar.Stock_Actual = 0.01          # 10 g, hacen falta 80
+        self.db.commit()
+
+        respuesta = self.iniciar_la_orden()
+        self.assertEqual(respuesta.status_code, 400)
+        detalle = self.detalle(respuesta).lower()
+        self.assertIn("insuficiente", detalle)
+        self.assertIn("azúcar blanca", detalle)
+        self.assertIn("kg", detalle)
+
+    def test_unidades_que_no_se_pueden_comparar_lo_dicen(self):
+        """Litros contra gramos: hay que arreglar la ficha, no comprar azúcar."""
+        self.receta_de_azucar(unidad_insumo="l", unidad_ficha="g")
+        respuesta = self.iniciar_la_orden()
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn("no se puede convertir", self.detalle(respuesta).lower())
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 13. Dos órdenes que necesitan la misma harina
+# ══════════════════════════════════════════════════════════════════════════
+class InsumoApartadoTests(PanelBase):
+    """Arrancar una orden pisa sus insumos; completarla es lo que los gasta.
+
+    Con 2 kg de harina en bodega y dos órdenes que necesitan 2 kg cada una,
+    solo una puede arrancar. Antes las dos arrancaban —la primera descontaba y
+    la segunda encontraba el stock en cero, o peor, ambas pasaban la validación
+    antes de que la otra descontara— y la panadería se quedaba con una masa a
+    medias en la mesa.
+    """
+
+    HARINA = 1
+
+    def dos_ordenes(self, gramos_por_torta=500.0, harina=4000.0):
+        """Dos órdenes de 4 tortas cada una sobre la misma harina.
+
+        Con 500 g por torta, cada orden necesita 2 kg y en bodega hay 4 kg:
+        alcanza justo para las dos, y bajando la bodega alcanza para una.
+        """
+        from src.shared.services.models import (
+            FichaTecnicaInsumo as _FI, Insumo as _I, LoteCompra as _LC,
+        )
+        self.db.query(_FI).filter(_FI.ID_Ficha == 1).update(
+            {"Cantidad": gramos_por_torta}
+        )
+        insumo = self.db.query(_I).filter(_I.ID_Insumo == self.HARINA).first()
+        insumo.Stock_Actual = harina
+        for lote in self.db.query(_LC).all():
+            lote.Cantidad_Actual = harina / 2
+            lote.Cantidad_Inicial = harina / 2
+        self.db.commit()
+
+        primera = self.pedido_con_faltante()
+        segunda = self.pedido_con_faltante()
+        self.venta_primera = primera["ID_Venta"]
+        self.venta_segunda = segunda["ID_Venta"]
+        self.confirmar_si_pendiente(self.venta_primera)
+        self.confirmar_si_pendiente(self.venta_segunda)
+        return (self.orden_de(self.venta_primera), self.orden_de(self.venta_segunda))
+
+    def orden_de(self, id_venta):
+        from src.shared.services.models import OrdenProduccion as _OP
+        self.db.expire_all()
+        return self.db.query(_OP).filter(
+            _OP.ID_Venta == id_venta
+        ).first().ID_Orden_Produccion
+
+    def arrancar(self, id_orden):
+        return self.patch(
+            f"/ordenes-produccion/{id_orden}/estado", self.admin,
+            {"Estado": ORDEN_EN_PROCESO},
+        )
+
+    def completar(self, id_orden):
+        return self.patch(
+            f"/ordenes-produccion/{id_orden}/estado", self.admin,
+            {"Estado": ORDEN_COMPLETADA},
+        )
+
+    def test_la_segunda_orden_no_arranca_con_la_harina_apartada(self):
+        """Justo para una: la primera la pisa y la segunda espera."""
+        primera, segunda = self.dos_ordenes(harina=2000.0)
+
+        self.afirmar_ok(self.arrancar(primera))
+        respuesta = self.arrancar(segunda)
+
+        self.assertEqual(respuesta.status_code, 400)
+        detalle = self.detalle(respuesta).lower()
+        self.assertIn("apartado por otra orden", detalle)
+        self.assertIn("harina", detalle)
+        # Y la harina sigue en bodega: apartada, no gastada.
+        self.assertAlmostEqual(self.harina(), 2000.0, places=3)
+
+    def test_completada_la_primera_la_segunda_ya_no_puede(self):
+        """Ahí la harina sí se gastó: no queda para la otra."""
+        primera, segunda = self.dos_ordenes(harina=2000.0)
+        self.afirmar_ok(self.arrancar(primera))
+        self.afirmar_ok(self.completar(primera))
+        self.assertAlmostEqual(self.harina(), 0.0, places=3)
+
+        respuesta = self.arrancar(segunda)
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn("stock insuficiente", self.detalle(respuesta).lower())
+
+    def test_cancelado_el_primer_pedido_la_segunda_orden_arranca(self):
+        """La reserva se suelta sola al dejar de estar en proceso.
+
+        La orden de un pedido no se anula por su cuenta: se cancela el pedido.
+        """
+        primera, segunda = self.dos_ordenes(harina=2000.0)
+        self.afirmar_ok(self.arrancar(primera))
+        self.assertEqual(self.arrancar(segunda).status_code, 400)
+
+        self.afirmar_ok(self.patch(
+            f"/pedidos/{self.venta_primera}/cancelar", self.admin
+        ))
+        self.afirmar_ok(self.arrancar(segunda))
+        # Y la harina nunca se movió: solo cambió de dueño.
+        self.assertAlmostEqual(self.harina(), 2000.0, places=3)
+
+    def test_si_alcanza_para_las_dos_las_dos_arrancan(self):
+        primera, segunda = self.dos_ordenes(harina=4000.0)
+
+        self.afirmar_ok(self.arrancar(primera))
+        self.afirmar_ok(self.arrancar(segunda))
+        self.assertAlmostEqual(self.harina(), 4000.0, places=3)
+
+        self.afirmar_ok(self.completar(primera))
+        self.assertAlmostEqual(self.harina(), 2000.0, places=3)
+        self.afirmar_ok(self.completar(segunda))
+        self.assertAlmostEqual(self.harina(), 0.0, places=3)
+
+    def test_una_tercera_orden_no_pasa_con_las_dos_apartadas(self):
+        primera, segunda = self.dos_ordenes(harina=4000.0)
+        self.afirmar_ok(self.arrancar(primera))
+        self.afirmar_ok(self.arrancar(segunda))
+
+        id_venta_tercera = self.pedido_con_faltante()["ID_Venta"]
+        self.confirmar_si_pendiente(id_venta_tercera)
+        tercera = self.orden_de(id_venta_tercera)
+        respuesta = self.arrancar(tercera)
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertIn("apartado por otra orden", self.detalle(respuesta).lower())
+
+    def test_el_mensaje_distingue_apartado_de_agotado(self):
+        """No es lo mismo: mandar a comprar harina que está en bodega no arregla nada."""
+        primera, segunda = self.dos_ordenes(harina=2000.0)
+        self.afirmar_ok(self.arrancar(primera))
+
+        apartado = self.detalle(self.arrancar(segunda)).lower()
+        self.assertIn("complet", apartado)          # "completá o anulá esa orden"
+        self.assertNotIn("stock insuficiente", apartado)
+
+        self.afirmar_ok(self.completar(primera))
+        agotado = self.detalle(self.arrancar(segunda)).lower()
+        self.assertIn("stock insuficiente", agotado)
+
+    def test_el_panel_ve_lo_que_queda_libre_y_no_el_stock_a_secas(self):
+        """Si el panel mira el stock total, da luz verde a algo que el servidor
+        va a rechazar. La ficha viaja con lo que de verdad queda disponible."""
+        primera, _segunda = self.dos_ordenes(harina=4000.0)
+
+        antes = self.afirmar_ok(self.get(f"/productos/{ID_TORTA}", self.admin))
+        harina = antes["ficha_tecnica"]["insumos"][0]
+        self.assertEqual(harina["Stock_Actual"], 4000.0)
+        self.assertEqual(harina["Stock_Disponible"], 4000.0)
+
+        self.afirmar_ok(self.arrancar(primera))
+        despues = self.afirmar_ok(self.get(f"/productos/{ID_TORTA}", self.admin))
+        harina = despues["ficha_tecnica"]["insumos"][0]
+        # El stock no se movió; lo que bajó es lo que queda libre.
+        self.assertEqual(harina["Stock_Actual"], 4000.0)
+        self.assertEqual(harina["Stock_Disponible"], 2000.0)
+
+    def test_completar_libera_la_reserva_y_baja_el_stock(self):
+        primera, _segunda = self.dos_ordenes(harina=4000.0)
+        self.afirmar_ok(self.arrancar(primera))
+        self.afirmar_ok(self.completar(primera))
+
+        harina = self.afirmar_ok(
+            self.get(f"/productos/{ID_TORTA}", self.admin)
+        )["ficha_tecnica"]["insumos"][0]
+        self.assertEqual(harina["Stock_Actual"], 2000.0)
+        self.assertEqual(harina["Stock_Disponible"], 2000.0)
+
+    def test_la_reserva_no_bloquea_a_la_orden_que_ya_la_tiene(self):
+        """Completar la propia orden no puede chocar con su propia reserva."""
+        primera, _segunda = self.dos_ordenes(harina=2000.0)
+        self.afirmar_ok(self.arrancar(primera))
+        self.afirmar_ok(self.completar(primera))
+        self.assertAlmostEqual(self.harina(), 0.0, places=3)
 
 
 if __name__ == "__main__":

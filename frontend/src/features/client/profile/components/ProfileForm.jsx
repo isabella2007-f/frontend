@@ -1,9 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
-import { MUNICIPIOS_VALLE_ABURRA } from '../../../../utils/departamentosYCiudades';
+import FormularioDireccion from '../../../../shared/components/FormularioDireccion';
+import {
+  aPerfil, desdeTexto, direccionVacia, queFalta,
+} from '../../../../utils/direccionEntrega';
 import { Mail, Phone, MapPin, Camera, Save, X, CreditCard, Lock, Eye, EyeOff, KeyRound, Clock, User, AlertTriangle } from 'lucide-react';
 import { apiFetch } from '../../../../utils/api';
-import { soloDigitos, esUbicacionValida } from '../../../../utils/inputFilters';
+import { soloDigitos } from '../../../../utils/inputFilters';
 import { subirImagenCloudinary } from '../../../../utils/cloudinary.js';
+import Avatar from '../../../../shared/components/Avatar';
 
 const TIPO_DOC_OPTS = ['CC', 'CE', 'TI', 'NIT', 'PP'];
 
@@ -49,21 +53,6 @@ const Field = ({ label, icon: Icon, error, children, locked }) => (
   </div>
 );
 
-const LocationSelects = ({ municipio, onMunicipio }) => {
-  const selStyle = { ...inputBase, cursor: 'pointer' };
-  return (
-    <Field label="Municipio (Valle de Aburrá)" icon={MapPin}>
-      <select
-        value={municipio || ''} onChange={e => onMunicipio(e.target.value)}
-        style={selStyle} onFocus={focusOn} onBlur={focusOff}
-      >
-        <option value="">— Seleccionar —</option>
-        {MUNICIPIOS_VALLE_ABURRA.map(m => <option key={m} value={m}>{m}</option>)}
-      </select>
-    </Field>
-  );
-};
-
 const ProfileForm = ({ user, onSave, onCancel }) => {
   const fileRef = useRef(null);
   const [errors,          setErrors]          = useState({});
@@ -72,6 +61,9 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
   const [showPassSection, setShowPassSection] = useState(false);
   const [passForm,        setPassForm]        = useState({ nueva: '', confirmar: '', showNueva: false, showConf: false });
   const [uploadingFoto,   setUploadingFoto]   = useState(false);
+
+  /// La dirección del perfil, campo por campo. Antes era un renglón libre.
+  const [direccion, setDireccion] = useState(direccionVacia());
 
   const [form, setForm] = useState({
     telefono:      '',
@@ -103,7 +95,16 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
           tipo_documento: data.Tipo_Documento || '',
         };
         setForm(f);
-        snapshotInicial.current = JSON.stringify(f);
+        // Lo guardado es texto libre de antes: se intenta separar en sus
+        // partes para no hacerle reescribir todo al cliente.
+        const dir = desdeTexto(data.Direccion, {
+          departamento: data.Departamento || 'Antioquia',
+          municipio:    data.Municipio    || '',
+          barrio:       data.Barrio       || '',
+          indicaciones: data.Indicaciones || '',
+        });
+        setDireccion(dir);
+        snapshotInicial.current = JSON.stringify({ f, dir });
       })
       .catch(() => {
         // Fallback a datos del prop si la API falla
@@ -117,7 +118,12 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
           tipo_documento: user.tipo_documento || user.Tipo_Documento || '',
         };
         setForm(f);
-        snapshotInicial.current = JSON.stringify(f);
+        const dir = desdeTexto(user.direccion || user.Direccion, {
+          departamento: user.departamento || user.Departamento || 'Antioquia',
+          municipio:    user.municipio    || user.Municipio    || '',
+        });
+        setDireccion(dir);
+        snapshotInicial.current = JSON.stringify({ f, dir });
       })
       .finally(() => setLoadingPerfil(false));
   }, []);
@@ -134,10 +140,6 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
         if (val.trim() && val.replace(/\D/g, '').length !== 10) n.telefono = 'El teléfono debe tener 10 dígitos';
         else delete n.telefono;
       }
-      if (k === 'direccion') {
-        if (val.trim() && !esUbicacionValida(val)) n.direccion = 'La dirección debe tener letras y números (mín. 5 caracteres)';
-        else delete n.direccion;
-      }
       if (k === 'tipo_documento') {
         if (!val && newForm.cedula.trim()) n.tipo_documento = 'Selecciona el tipo de documento';
         else delete n.tipo_documento;
@@ -149,11 +151,6 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
       return n;
     });
   };
-  const setVal = (k, v) => {
-    setForm(p => ({ ...p, [k]: v }));
-    setErrors(p => { const n = { ...p }; delete n[k]; return n; });
-  };
-
   const handlePhoto = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -181,8 +178,17 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
     if (form.telefono.trim() && form.telefono.replace(/\D/g, '').length !== 10)
       e.telefono = 'El teléfono debe tener 10 dígitos';
 
-    if (form.direccion?.trim() && !esUbicacionValida(form.direccion))
-      e.direccion = 'La dirección debe tener letras y números (mín. 5 caracteres)';
+    // La dirección es opcional en el perfil —se puede guardar solo el
+    // teléfono—, pero si se empezó a llenar tiene que quedar completa: media
+    // dirección no sirve para entregar nada.
+    const empezoDireccion = !!(
+      direccion.municipio || direccion.barrio.trim() ||
+      direccion.tipoVia || direccion.numero.trim() || direccion.numeral.trim()
+    );
+    if (empezoDireccion) {
+      const falta = queFalta(direccion);
+      if (falta) e.direccion = falta;
+    }
 
     if (!cedulaYaEstablecida && form.cedula.trim() && !form.tipo_documento)
       e.tipo_documento = 'Selecciona el tipo de documento';
@@ -200,26 +206,37 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
     return Object.keys(e).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
 
     // Sin cambios: mismos datos y sin contraseña nueva.
     const cambioPass = showPassSection && passForm.nueva;
-    if (!cambioPass && snapshotInicial.current !== null && JSON.stringify(form) === snapshotInicial.current) {
+    if (!cambioPass && snapshotInicial.current !== null
+        && JSON.stringify({ f: form, dir: direccion }) === snapshotInicial.current) {
       onSave({ sinCambios: true });
       return;
     }
 
+    // La dirección viaja partida: la vía en Direccion —que en el servidor son
+    // 50 caracteres— y el barrio, el complemento y las indicaciones en
+    // Indicaciones, que es texto largo y es lo que lee quien entrega.
+    // `Barrio` todavía no existe como columna; se manda igual porque el
+    // esquema descarta lo que no conoce y el día que exista empieza a llegar.
+    const partes = aPerfil(direccion);
     const payload = {
-      Telefono:    form.telefono    || null,
-      Direccion:   form.direccion   || null,
-      Municipio:   form.municipio   || null,
-      Departamento: form.departamento || null,
+      Telefono: form.telefono || null,
+      ...(queFalta(direccion) === null
+        ? partes
+        : { Direccion: null, Municipio: direccion.municipio || null }),
     };
 
-    if (form.fotoPerfil && form.fotoPerfil !== (perfil?.Foto_perfil || ''))
-      payload.Foto_perfil = form.fotoPerfil;
+    // La foto NO va acá: `PerfilUpdate` no la declara y el esquema la
+    // descarta en silencio. Tiene su propio endpoint.
+    const fotoNueva =
+      form.fotoPerfil && form.fotoPerfil !== (perfil?.Foto_perfil || '')
+        ? form.fotoPerfil
+        : null;
 
     if (showPassSection && passForm.nueva)
       payload.Contrasena = passForm.nueva;
@@ -228,6 +245,25 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
     if (!cedulaYaEstablecida && form.cedula.trim()) {
       payload.Cedula         = form.cedula.trim();
       payload.Tipo_Documento = form.tipo_documento || null;
+    }
+
+    // Primero la foto: si falla, que el resto del perfil se guarde igual.
+    if (fotoNueva) {
+      await apiFetch('/auth/foto-perfil', {
+        method: 'POST',
+        body: JSON.stringify({ url: fotoNueva }),
+      })
+        .then(() => {
+          // Que el encabezado la muestre sin recargar la página.
+          try {
+            const sesion = JSON.parse(localStorage.getItem('usuario') || '{}');
+            localStorage.setItem('usuario', JSON.stringify({
+              ...sesion, fotoPerfil: fotoNueva,
+            }));
+            window.dispatchEvent(new Event('profileUpdated'));
+          } catch { /* el navegador puede tener el almacenamiento bloqueado */ }
+        })
+        .catch(() => {});
     }
 
     onSave(payload);
@@ -262,7 +298,7 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
             }}
           >
             {form.fotoPerfil
-              ? <img src={form.fotoPerfil} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ? <Avatar url={form.fotoPerfil} lado={88} alt="Tu foto" />
               : <User size={36} strokeWidth={1} style={{color:"#bdbdbd"}} />
             }
           </div>
@@ -351,16 +387,34 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
           placeholder="300 123 4567" style={inputBase} onFocus={focusOn} onBlur={focusOff} />
       </Field>
 
-      {/* Dirección */}
-      <Field label="Dirección" icon={MapPin} error={errors.direccion}>
-        <input type="text" value={form.direccion} onChange={set('direccion')}
-          placeholder="Calle 45 # 32-10" style={inputBase} onFocus={focusOn} onBlur={focusOff} />
-      </Field>
-
-      <LocationSelects
-        municipio={form.municipio}
-        onMunicipio={v => { setVal('municipio', v); setVal('departamento', 'Antioquia'); }}
-      />
+      {/* Dirección de entrega, campo por campo. Era un renglón de texto libre
+          donde cada quien escribía como podía, y el barrio —de lo que va a
+          depender el costo del domicilio— quedaba enterrado en la frase. */}
+      <div style={{
+        borderTop: '1px solid #eef2f0', paddingTop: 16, marginBottom: 4,
+      }}>
+        <p style={{
+          margin: '0 0 12px', fontSize: 11, fontWeight: 800,
+          letterSpacing: '.05em', textTransform: 'uppercase',
+          color: 'var(--gray-500)', fontFamily: 'var(--font-body)',
+          display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          <MapPin size={11} /> ¿Dónde quieres recibir tus pedidos?
+        </p>
+        <FormularioDireccion
+          valor={direccion}
+          onCambio={(d) => {
+            setDireccion(d);
+            setErrors(p => { const n = { ...p }; delete n.direccion; return n; });
+          }}
+        />
+        {errors.direccion && (
+          <p style={{
+            margin: '-8px 0 16px', fontSize: 11,
+            color: 'var(--accent-red)', fontFamily: 'var(--font-body)',
+          }}>{errors.direccion}</p>
+        )}
+      </div>
 
       {/* Cambio de contraseña */}
       <div style={{ marginBottom: 16, borderRadius: 12, border: '1px solid #e2e8f0', overflow: 'hidden' }}>

@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
-import { getDomicilios, cambiarEstadoDomicilio, registrarPagoEfectivo } from "../../../services/domiciliosService.js";
+import { getTodosLosDomicilios, cambiarEstadoDomicilio, registrarPagoEfectivo } from "../../../services/domiciliosService.js";
 import { getUser } from "../../../services/authService.js";
 import { fmtFechaHora as fmtFecha } from "../../../utils/dateUtils.js";
 import { ESTADO_DOMICILIO, ESTADO_DOM_CONFIG, cobroEfectivoPendiente, esDomicilioActivo, esPagoMixto, montoACobrar, transicionesDom } from "./estadosDomicilio";
-import "./Domicilios.css";
+import "./DomiciliarioUI.css";
+import "./MisEntregas.css";
 import {
   Search, RefreshCw, Truck, Package, CheckCircle2, XCircle, Clock,
-  MapPin, MessageSquare, X, Check, Phone, Banknote,
+  MapPin, MessageSquare, X, Check, Phone, Banknote, Bike, Wallet,
+  AlertCircle, ChevronRight,
 } from "lucide-react";
 
 const fmt = (n) =>
@@ -14,11 +16,24 @@ const fmt = (n) =>
 
 // Los colores salen de la fuente única de estados; aquí solo el icono.
 const ICONO_ESTADO = {
-  3:  <Clock size={12} />,
-  10: <Package size={12} />,
-  9:  <Truck size={12} />,
-  8:  <CheckCircle2 size={12} />,
-  5:  <XCircle size={12} />,
+  3:  Clock,
+  10: Package,
+  9:  Truck,
+  8:  CheckCircle2,
+  5:  XCircle,
+};
+
+const IconoEstado = ({ estadoId, size = 12 }) => {
+  const Icono = ICONO_ESTADO[estadoId];
+  return Icono ? <Icono size={size} /> : null;
+};
+
+/* Las variables de color viajan al CSS: la hoja no repite ningún hex de
+   estado, así sigue mandando estadosDomicilio.js como fuente única. */
+const varsEstado = (estadoId) => {
+  const cfg = ESTADO_DOM_CONFIG[estadoId] ||
+    { dot: "#757575", bg: "#f5f5f5", border: "#e0e0e0", label: "—" };
+  return { cfg, vars: { "--e-dot": cfg.dot, "--e-bg": cfg.bg, "--e-border": cfg.border } };
 };
 
 const ESTADO_PAGO_INFO = {
@@ -34,11 +49,10 @@ function EstadoPagoBadge({ estadoPago }) {
   if (!estadoPago || estadoPago === "pendiente") return null;
   const cfg = ESTADO_PAGO_INFO[estadoPago] || { label: estadoPago, color: "#757575", bg: "#f5f5f5" };
   return (
-    <span style={{
-      display: "inline-block", padding: "2px 8px", borderRadius: 20,
-      fontSize: 10, fontWeight: 700, color: cfg.color, background: cfg.bg,
-      border: `1px solid ${cfg.color}33`,
-    }}>
+    <span
+      className="du-badge-pago"
+      style={{ "--p-color": cfg.color, "--p-bg": cfg.bg, "--p-border": `${cfg.color}33` }}
+    >
       {cfg.label}
     </span>
   );
@@ -47,37 +61,34 @@ function EstadoPagoBadge({ estadoPago }) {
 // Flujo real del domicilio: Asignado → En camino → Entregado (o Cancelado).
 // Antes había un paso "Llegué al local" que enviaba el estado 13, que es "En
 // producción" del PEDIDO, no un estado de domicilio: el backend lo rechaza.
-const ICONO_TRANSICION = { 9: <Truck size={14} />, 8: <CheckCircle2 size={14} />, 5: <XCircle size={14} /> };
+const ICONO_TRANSICION = { 9: Truck, 8: CheckCircle2, 5: XCircle };
 const LABEL_TRANSICION = { 9: "Iniciar entrega", 8: "Entregado", 5: "Cancelado" };
 
 const proximosEstados = (estadoId) =>
   transicionesDom(estadoId, true).map(t => ({
     valor: t.id,
     label: LABEL_TRANSICION[t.id] || t.label,
-    icon:  ICONO_TRANSICION[t.id] || "•",
+    Icono: ICONO_TRANSICION[t.id] || Truck,
   }));
 
 function Toast({ toast }) {
   if (!toast) return null;
   return (
-    <div className="toast" style={{ background: toast.type === "error" ? "#c62828" : "#2e7d32" }}>
-      <span className="toast-icon" style={{display:"flex"}}>{toast.type === "error" ? <X size={15} /> : <Check size={15} />}</span>
+    <div className={`du-toast du-toast--${toast.type === "error" ? "error" : "ok"}`}>
+      <span className="du-toast__icon">{toast.type === "error" ? <X size={15} /> : <Check size={15} />}</span>
       {toast.message}
     </div>
   );
 }
 
 function EstadoBadge({ estadoId }) {
-  const cfg = ESTADO_DOM_CONFIG[estadoId] ||
-    { dot: "#757575", bg: "#f5f5f5", border: "#e0e0e0", label: "—" };
+  const { cfg, vars } = varsEstado(estadoId);
   return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 5,
-      padding: "4px 10px", borderRadius: 20,
-      fontSize: 12, fontWeight: 700,
-      color: cfg.dot, background: cfg.bg, border: `1px solid ${cfg.border}`,
-    }}>
-      <span>{ICONO_ESTADO[estadoId] || "•"}</span> {cfg.label}
+    <span
+      className={`du-badge${estadoId === ESTADO_DOMICILIO.EN_CAMINO ? " du-badge--vivo" : ""}`}
+      style={vars}
+    >
+      <IconoEstado estadoId={estadoId} /> {cfg.label}
     </span>
   );
 }
@@ -103,94 +114,76 @@ function CobroEfectivoModal({ domicilio, saving, entregarDespues, onClose, onCon
     onConfirm({ recibido, motivo: motivo.trim() });
   };
 
-  const opcion = (valor, icono, titulo, color) => (
+  const opcion = (valor, Icono, titulo, color) => (
     <button
       type="button"
       onClick={() => { setRecibido(valor); setError(null); }}
-      style={{
-        flex: 1, minWidth: 130, padding: "12px 14px", borderRadius: 10,
-        cursor: "pointer", fontWeight: 700, fontSize: 13,
-        border: `${recibido === valor ? 2 : 1.5}px solid ${recibido === valor ? color : "#e0e0e0"}`,
-        background: recibido === valor ? `${color}14` : "#fafafa",
-        color: recibido === valor ? color : "#616161",
-      }}
+      className={`du-opcion${recibido === valor ? " du-opcion--on" : ""}`}
+      style={{ "--op-color": color, "--op-bg": `${color}14`, "--op-sombra": `${color}2e` }}
     >
-      <span style={{ marginRight: 6 }}>{icono}</span>{titulo}
+      <Icono size={19} /> {titulo}
     </button>
   );
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div
-        style={{
-          background: "#fff", borderRadius: 16, padding: "24px 28px",
-          width: "min(420px, 95vw)", boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
-        }}
-        onClick={e => e.stopPropagation()}
-      >
-        <h2 style={{ margin: "0 0 16px", fontSize: 17, fontWeight: 700 }}>
-          Cobro en efectivo
-        </h2>
+    <div className="modal-overlay">
+      <div className="du-modal" onClick={e => e.stopPropagation()}>
+        <div className="du-modal__head">
+          <span className="du-modal__head-icon"><Wallet size={20} /></span>
+          <div className="du-modal__head-txt">
+            <p className="du-modal__eyebrow">{domicilio.numero}</p>
+            <h2 className="du-modal__titulo">Cobro en efectivo</h2>
+          </div>
+          <button className="du-modal__cerrar" onClick={onClose} aria-label="Cerrar"><X size={17} /></button>
+        </div>
 
-        <div style={{
-          background: "#e8f5e9", borderRadius: 10, padding: "12px 14px", marginBottom: 16,
-        }}>
-          <div style={{ fontSize: 11.5, fontWeight: 700, color: "#66806a" }}>Total a cobrar</div>
-          <div style={{ fontSize: 26, fontWeight: 900, color: "#2e7d32" }}>{fmt(montoACobrar(domicilio))}</div>
-          {/* En un pedido mixto solo se cobra en mano una parte: el resto ya
-              entró por transferencia al hacer el pedido. */}
-          {esPagoMixto(domicilio.metodo_pago) && (
-            <div style={{ fontSize: 11.5, color: "#66806a", marginTop: 4 }}>
-              Parte en efectivo de un pedido de {fmt(domicilio.total)} — el resto ya se transfirió.
+        <div className="du-modal__body">
+          <div className="du-dato du-dato--total">
+            <div className="du-dato__label">Total a cobrar</div>
+            <div className="du-dato__valor">{fmt(montoACobrar(domicilio))}</div>
+            {/* En un pedido mixto solo se cobra en mano una parte: el resto ya
+                entró por transferencia al hacer el pedido. */}
+            {esPagoMixto(domicilio.metodo_pago) && (
+              <div className="du-dato__sub">
+                Parte en efectivo de un pedido de {fmt(domicilio.total)} — el resto ya se transfirió.
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="du-campo-label">¿Recibiste el pago completo del cliente?</label>
+            <div className="du-opciones">
+              {opcion(true,  CheckCircle2, "Sí, recibido", "#2e7d32")}
+              {opcion(false, XCircle,      "No lo recibí", "#c62828")}
             </div>
+          </div>
+
+          {recibido === false && (
+            <div>
+              <textarea
+                className="du-textarea"
+                rows={3}
+                value={motivo}
+                onChange={e => { setMotivo(e.target.value); setError(null); }}
+                placeholder="Ej: el cliente no tenía el efectivo completo"
+              />
+              <div className={`du-contador${motivo.trim().length < 10 ? " du-contador--falta" : ""}`}>
+                {motivo.trim().length}/10 caracteres mínimos
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="du-error"><AlertCircle size={15} /> {error}</div>
           )}
         </div>
 
-        <p style={{ margin: "0 0 10px", fontSize: 13.5, color: "#616161" }}>
-          ¿Recibiste el pago completo del cliente?
-        </p>
-        <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
-          {opcion(true,  <CheckCircle2 size={20} />, "Sí, recibido", "#2e7d32")}
-          {opcion(false, <XCircle size={20} />, "No lo recibí", "#c62828")}
-        </div>
-
-        {recibido === false && (
-          <textarea
-            rows={3}
-            value={motivo}
-            onChange={e => { setMotivo(e.target.value); setError(null); }}
-            placeholder="Ej: el cliente no tenía el efectivo completo"
-            style={{
-              width: "100%", padding: "10px 12px", borderRadius: 8,
-              border: "1.5px solid #e0e0e0", fontSize: 13, resize: "vertical",
-              fontFamily: "inherit", outline: "none", boxSizing: "border-box",
-              marginBottom: 6,
-            }}
-          />
-        )}
-        {recibido === false && (
-          <div style={{
-            fontSize: 11, marginBottom: 12,
-            color: motivo.trim().length < 10 ? "#c62828" : "#9e9e9e",
-          }}>
-            {motivo.trim().length}/10 caracteres mínimos
-          </div>
-        )}
-
-        {error && (
-          <div style={{
-            background: "#ffebee", color: "#c62828", borderRadius: 8,
-            padding: "9px 12px", fontSize: 12.5, marginBottom: 12,
-          }}>{error}</div>
-        )}
-
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <button onClick={onClose} disabled={saving}
-            style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid #e0e0e0", background: "#fff", color: "#555", fontSize: 13, cursor: "pointer" }}>
+        <div className="du-modal__foot">
+          <button className="du-btn du-btn--fantasma" onClick={onClose} disabled={saving}>
             Cancelar
           </button>
-          <button onClick={confirmar} disabled={saving}
-            style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: "#2e7d32", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+          <button className="du-btn du-btn--primario" onClick={confirmar} disabled={saving}>
+            <Banknote size={15} />
             {saving ? "Registrando…" : entregarDespues ? "Registrar y entregar" : "Registrar cobro"}
           </button>
         </div>
@@ -217,80 +210,70 @@ function CambiarEstadoModal({ domicilio, onClose, onSave }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div style={{
-        background: "#fff", borderRadius: 16, padding: "24px 28px",
-        width: "min(420px, 95vw)", boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
-      }} onClick={e => e.stopPropagation()}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#212121" }}>Actualizar entrega</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#9e9e9e", display: "flex", alignItems: "center" }}><X size={18} /></button>
+    <div className="modal-overlay">
+      <div className="du-modal" onClick={e => e.stopPropagation()}>
+        <div className="du-modal__head">
+          <span className="du-modal__head-icon"><Bike size={20} /></span>
+          <div className="du-modal__head-txt">
+            <p className="du-modal__eyebrow">{domicilio.numero}</p>
+            <h2 className="du-modal__titulo">Actualizar entrega</h2>
+          </div>
+          <button className="du-modal__cerrar" onClick={onClose} aria-label="Cerrar"><X size={17} /></button>
         </div>
 
-        <div style={{ background: "#f8f8f8", borderRadius: 10, padding: "12px 14px", marginBottom: 18, fontSize: 13 }}>
-          <div style={{ fontWeight: 700, color: "#212121", marginBottom: 4 }}>{domicilio.numero}</div>
-          <div style={{ color: "#616161" }}>{domicilio.cliente?.nombre || "—"}</div>
-          <div style={{ color: "#757575", marginTop: 2 }}>{domicilio.direccion_entrega}</div>
-        </div>
+        <div className="du-modal__body">
+          <div className="du-dato">
+            <div className="du-dato__label">Entrega</div>
+            <div className="du-dato__valor du-dato__valor--fuerte">{domicilio.cliente?.nombre || "—"}</div>
+            <div className="du-dato__sub">{domicilio.direccion_entrega || "Sin dirección"}</div>
+          </div>
 
-        {posibles.length === 0 ? (
-          <p style={{ color: "#757575", fontSize: 14, textAlign: "center" }}>
-            No hay cambios de estado disponibles para este domicilio.
-          </p>
-        ) : (
-          <>
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: "#616161", display: "block", marginBottom: 8 }}>
-                Nuevo estado
-              </label>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                {posibles.map(op => (
-                  <button
-                    key={op.valor}
-                    onClick={() => setNuevoEstado(op.valor)}
-                    style={{
-                      flex: 1, minWidth: 120, padding: "10px 14px",
-                      borderRadius: 10, border: nuevoEstado === op.valor ? "2px solid #4caf50" : "1.5px solid #e0e0e0",
-                      background: nuevoEstado === op.valor ? "#e8f5e9" : "#fafafa",
-                      color: nuevoEstado === op.valor ? "#2e7d32" : "#616161",
-                      fontWeight: 700, fontSize: 13, cursor: "pointer",
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                    }}
-                  >
-                    <span>{op.icon}</span> {op.label}
-                  </button>
-                ))}
+          {posibles.length === 0 ? (
+            <p className="du-nota">
+              No hay cambios de estado disponibles para este domicilio.
+            </p>
+          ) : (
+            <>
+              <div>
+                <label className="du-campo-label">Nuevo estado</label>
+                <div className="du-opciones">
+                  {posibles.map(op => {
+                    const { cfg } = varsEstado(op.valor);
+                    return (
+                      <button
+                        key={op.valor}
+                        onClick={() => setNuevoEstado(op.valor)}
+                        className={`du-opcion${nuevoEstado === op.valor ? " du-opcion--on" : ""}`}
+                        style={{ "--op-color": cfg.dot, "--op-bg": cfg.bg, "--op-sombra": `${cfg.dot}2e` }}
+                      >
+                        <op.Icono size={16} /> {op.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
 
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: "#616161", display: "block", marginBottom: 8 }}>
-                Observaciones (opcional)
-              </label>
-              <textarea
-                rows={3}
-                value={obs}
-                onChange={e => setObs(e.target.value)}
-                placeholder="Comentario o novedad del domicilio..."
-                style={{
-                  width: "100%", padding: "10px 12px", borderRadius: 8,
-                  border: "1.5px solid #e0e0e0", fontSize: 13, resize: "vertical",
-                  fontFamily: "inherit", outline: "none", boxSizing: "border-box",
-                }}
-              />
-            </div>
+              <div>
+                <label className="du-campo-label">Observaciones (opcional)</label>
+                <textarea
+                  className="du-textarea"
+                  rows={3}
+                  value={obs}
+                  onChange={e => setObs(e.target.value)}
+                  placeholder="Comentario o novedad del domicilio…"
+                />
+              </div>
+            </>
+          )}
+        </div>
 
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button onClick={onClose}
-                style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid #e0e0e0", background: "#fff", color: "#555", fontSize: 13, cursor: "pointer" }}>
-                Cancelar
-              </button>
-              <button onClick={handleSave} disabled={saving || !nuevoEstado}
-                style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: saving ? "#a5d6a7" : "#4caf50", color: "#fff", fontSize: 13, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer" }}>
-                {saving ? "Guardando…" : "Confirmar"}
-              </button>
-            </div>
-          </>
+        {posibles.length > 0 && (
+          <div className="du-modal__foot">
+            <button className="du-btn du-btn--fantasma" onClick={onClose}>Cancelar</button>
+            <button className="du-btn du-btn--primario" onClick={handleSave} disabled={saving || !nuevoEstado}>
+              <Check size={15} /> {saving ? "Guardando…" : "Confirmar"}
+            </button>
+          </div>
         )}
       </div>
     </div>
@@ -299,81 +282,67 @@ function CambiarEstadoModal({ domicilio, onClose, onSave }) {
 
 function DetallesModal({ domicilio, onClose, onCambiarEstado, onCobrar }) {
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div style={{
-        background: "#fff", borderRadius: 16, padding: "24px 28px",
-        width: "min(480px, 95vw)", maxHeight: "85vh", overflow: "auto",
-        boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
-      }} onClick={e => e.stopPropagation()}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div>
-            <p style={{ margin: 0, fontSize: 10, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: "0.08em" }}>Domicilio</p>
-            <h2 style={{ margin: "2px 0 0", fontSize: 17, fontWeight: 700 }}>{domicilio.numero}</h2>
+    <div className="modal-overlay">
+      <div className="du-modal du-modal--ancho" onClick={e => e.stopPropagation()}>
+        <div className="du-modal__head">
+          <span className="du-modal__head-icon"><Package size={20} /></span>
+          <div className="du-modal__head-txt">
+            <p className="du-modal__eyebrow">Domicilio</p>
+            <h2 className="du-modal__titulo">{domicilio.numero}</h2>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#9e9e9e", display: "flex", alignItems: "center" }}><X size={18} /></button>
+          <button className="du-modal__cerrar" onClick={onClose} aria-label="Cerrar"><X size={17} /></button>
         </div>
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-          <EstadoBadge estadoId={domicilio.estadoId} />
-          <span style={{ fontSize: 12, color: "#9e9e9e", alignSelf: "center" }}>
-            {fmtFecha(domicilio.fecha_pedido)}
-          </span>
-        </div>
+        <div className="du-modal__body">
+          <div className="du-meta-fila">
+            <EstadoBadge estadoId={domicilio.estadoId} />
+            <EstadoPagoBadge estadoPago={domicilio.estado_pago} />
+            <span>{fmtFecha(domicilio.fecha_pedido)}</span>
+          </div>
 
-        <div style={{ display: "grid", gap: 12, marginBottom: 16 }}>
-          <div style={{ background: "#f8f8f8", borderRadius: 10, padding: "12px 14px" }}>
-            <div style={{ fontSize: 11, color: "#9e9e9e", fontWeight: 700, marginBottom: 4 }}>CLIENTE</div>
-            <div style={{ fontWeight: 700, fontSize: 14 }}>{domicilio.cliente?.nombre || "—"}</div>
+          <div className="du-dato">
+            <div className="du-dato__label">Cliente</div>
+            <div className="du-dato__valor du-dato__valor--fuerte">{domicilio.cliente?.nombre || "—"}</div>
             {domicilio.cliente?.telefono && (
               <a
+                className="du-wa"
                 href={`https://wa.me/${domicilio.cliente.telefono.replace(/\D/g, "")}`}
                 target="_blank" rel="noopener noreferrer"
-                style={{ fontSize: 13, color: "#25d366", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 4, marginTop: 4 }}
               >
                 <Phone size={13} /> {domicilio.cliente.telefono}
               </a>
             )}
           </div>
-          <div style={{ background: "#f8f8f8", borderRadius: 10, padding: "12px 14px" }}>
-            <div style={{ fontSize: 11, color: "#9e9e9e", fontWeight: 700, marginBottom: 4 }}>DIRECCIÓN</div>
-            <div style={{ fontSize: 14 }}>{domicilio.direccion_entrega || "—"}</div>
-          </div>
-          <div style={{ background: "#f8f8f8", borderRadius: 10, padding: "12px 14px" }}>
-            <div style={{ fontSize: 11, color: "#9e9e9e", fontWeight: 700, marginBottom: 4 }}>TOTAL</div>
-            <div style={{ fontWeight: 700, fontSize: 16, color: "#2e7d32" }}>{fmt(domicilio.total || 0)}</div>
-          </div>
-        </div>
 
-        {domicilio.obs_domicilio && (
-          <div style={{ background: "#fff8e1", border: "1px solid #ffe082", borderRadius: 10, padding: "12px 14px", marginBottom: 16 }}>
-            <div style={{ fontSize: 11, color: "#f57f17", fontWeight: 700, marginBottom: 4 }}>OBSERVACIONES</div>
-            <div style={{ fontSize: 13, color: "#424242" }}>{domicilio.obs_domicilio}</div>
+          <div className="du-dato">
+            <div className="du-dato__label">Dirección</div>
+            <div className="du-dato__valor">{domicilio.direccion_entrega || "—"}</div>
           </div>
-        )}
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div className="du-dato du-dato--total">
+            <div className="du-dato__label">Total</div>
+            <div className="du-dato__valor">{fmt(domicilio.total || 0)}</div>
+          </div>
+
+          {domicilio.obs_domicilio && (
+            <div className="du-dato du-dato--obs">
+              <div className="du-dato__label">Observaciones</div>
+              <div className="du-dato__valor">{domicilio.obs_domicilio}</div>
+            </div>
+          )}
+
           {cobroEfectivoPendiente(domicilio) && esDomicilioActivo(domicilio.estadoId) && (
             <button
+              className="du-btn du-btn--oro du-btn--bloque"
               onClick={() => { onClose(); onCobrar(domicilio); }}
-              style={{
-                width: "100%", padding: "12px", borderRadius: 10,
-                background: "#fff8e1", color: "#f57f17", border: "1.5px solid #ffe082",
-                fontWeight: 700, fontSize: 14, cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              }}
             >
               <Banknote size={16} /> Registrar cobro en efectivo
             </button>
           )}
           {proximosEstados(domicilio.estadoId).length > 0 && (
             <button
+              className="du-btn du-btn--primario du-btn--bloque"
               onClick={() => { onClose(); onCambiarEstado(domicilio); }}
-              style={{
-                width: "100%", padding: "12px", borderRadius: 10,
-                background: "#4caf50", color: "#fff", border: "none",
-                fontWeight: 700, fontSize: 14, cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-              }}
             >
               <Truck size={16} /> Actualizar estado de entrega
             </button>
@@ -406,8 +375,10 @@ export default function GestionDomiciliosRepartidor() {
     if (!idEmpleado) return;
     setLoading(true);
     try {
-      const data = await getDomicilios({ porPagina: 100, idEmpleado });
-      setDomicilios(data.domicilios || []);
+      // Todas las páginas: los contadores de los filtros ("Activos", "Todos")
+      // se sacan de esta lista, y con una sola página de 100 empezaban a
+      // mentir en cuanto el repartidor acumulaba entregas.
+      setDomicilios(await getTodosLosDomicilios({ idEmpleado }));
     } catch (e) {
       showToast(e.message || "Error al cargar entregas", "error");
     } finally {
@@ -477,171 +448,190 @@ export default function GestionDomiciliosRepartidor() {
     }
   };
 
+  const activos     = domicilios.filter(esActivo);
+  const enCamino    = domicilios.filter(d => d.estadoId === ESTADO_DOMICILIO.EN_CAMINO);
+  const entregados  = domicilios.filter(d => d.estadoId === ESTADO_DOMICILIO.ENTREGADO);
+  // Plata que el repartidor todavía lleva pendiente de cobrar en la calle.
+  const porCobrar   = activos
+    .filter(cobroEfectivoPendiente)
+    .reduce((suma, d) => suma + Number(montoACobrar(d) || 0), 0);
+
   const FILTROS = [
-    { val: "activos",    label: "Activos",    count: domicilios.filter(esActivo).length },
-    { val: "entregados", label: "Entregados", count: domicilios.filter(d => d.estadoId === ESTADO_DOMICILIO.ENTREGADO).length },
+    { val: "activos",    label: "Activos",    count: activos.length },
+    { val: "entregados", label: "Entregados", count: entregados.length },
     { val: "todos",      label: "Todos",      count: domicilios.length },
   ];
 
+  const STATS = [
+    { Icono: Package,      valor: activos.length,    label: "Activos" },
+    { Icono: Truck,        valor: enCamino.length,   label: "En camino" },
+    { Icono: CheckCircle2, valor: entregados.length, label: "Entregados" },
+    { Icono: Wallet,       valor: fmt(porCobrar),    label: "Por cobrar", money: true, oro: true },
+  ];
+
+  const subtitulo = loading
+    ? "Cargando tu ruta…"
+    : activos.length === 0
+      ? "No tienes entregas pendientes ahora mismo. Buen trabajo."
+      : `Tienes ${activos.length} ${activos.length === 1 ? "entrega pendiente" : "entregas pendientes"} en tu ruta.`;
+
   return (
-    <div className="page-wrapper">
-      <div className="page-header">
-        <h1 className="page-header__title">Mis Entregas</h1>
-        <div className="page-header__line" />
-      </div>
-
-      <div className="page-inner">
-        {/* Buscador */}
-        <div style={{ position: "relative", marginBottom: 12 }}>
-          <span style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "#9e9e9e", pointerEvents: "none", display: "flex" }}><Search size={14} /></span>
-          <input
-            type="text"
-            placeholder="Buscar por número, cliente o dirección…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{
-              width: "100%", padding: "9px 12px 9px 32px",
-              border: "1.5px solid #e0e0e0", borderRadius: 10,
-              fontSize: 13, fontFamily: "inherit", outline: "none",
-              boxSizing: "border-box", background: "#fafafa",
-            }}
-          />
-        </div>
-
-        {/* Filtros */}
-        <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-          {FILTROS.map(f => (
-            <button
-              key={f.val}
-              onClick={() => setFiltro(f.val)}
-              style={{
-                padding: "8px 16px", borderRadius: 20,
-                border: filtro === f.val ? "1.5px solid #4caf50" : "1.5px solid #e0e0e0",
-                background: filtro === f.val ? "#e8f5e9" : "#fafafa",
-                color: filtro === f.val ? "#2e7d32" : "#616161",
-                fontWeight: filtro === f.val ? 700 : 400,
-                fontSize: 13, cursor: "pointer",
-                display: "flex", alignItems: "center", gap: 6,
-              }}
-            >
-              {f.label}
-              <span style={{
-                fontSize: 11, fontWeight: 700,
-                background: filtro === f.val ? "#c8e6c9" : "#eeeeee",
-                color: filtro === f.val ? "#2e7d32" : "#9e9e9e",
-                borderRadius: 10, padding: "1px 7px",
-              }}>{f.count}</span>
-            </button>
-          ))}
+    <div className="dom-ui mis-entregas">
+      <header className="du-hero">
+        <div className="du-hero__top">
+          <div>
+            <span className="du-hero__eyebrow"><Bike size={14} /> Panel del domiciliario</span>
+            <h1 className="du-hero__title">Mis Entregas</h1>
+            <p className="du-hero__sub">{subtitulo}</p>
+          </div>
           <button
+            className={`du-hero__refresh${loading ? " du-hero__refresh--girando" : ""}`}
             onClick={cargar}
-            style={{
-              marginLeft: "auto", padding: "8px 14px", borderRadius: 20,
-              border: "1.5px solid #e0e0e0", background: "#fff",
-              color: "#616161", fontSize: 13, cursor: "pointer",
-              display: "flex", alignItems: "center", gap: 6,
-            }}
+            disabled={loading}
           >
-            <RefreshCw size={13} /> Actualizar
+            <RefreshCw size={15} /> Actualizar
           </button>
         </div>
 
-        {/* Cards */}
+        <div className="du-stats">
+          {STATS.map(s => (
+            <div key={s.label} className={`du-stat${s.oro ? " du-stat--oro" : ""}`}>
+              <span className="du-stat__icon"><s.Icono size={19} /></span>
+              <div>
+                <div className={`du-stat__valor${s.money ? " du-stat__valor--money" : ""}`}>{s.valor}</div>
+                <div className="du-stat__label">{s.label}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </header>
+
+      <div className="du-inner">
+        <div className="me-toolbar">
+          <div className="du-search">
+            <span className="du-search__icon"><Search size={16} /></span>
+            <input
+              className="du-search__input"
+              type="text"
+              placeholder="Buscar por número, cliente o dirección…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+            {search && (
+              <button className="du-search__clear" onClick={() => setSearch("")} aria-label="Limpiar búsqueda">
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
+          <div className="du-filtros">
+            {FILTROS.map(f => (
+              <button
+                key={f.val}
+                onClick={() => setFiltro(f.val)}
+                className={`du-filtro${filtro === f.val ? " du-filtro--on" : ""}`}
+              >
+                {f.label}
+                <span className="du-filtro__count">{f.count}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {loading ? (
-          <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
+          <div className="me-grid">
             {[1, 2, 3].map(i => (
-              <div key={i} style={{ background: "#fff", borderRadius: 14, padding: 20, border: "1.5px solid #f0f0f0" }}>
+              <div key={i} className="du-skel-card">
                 {[70, 50, 90, 40].map((w, j) => (
-                  <div key={j} className="skeleton-cell" style={{ width: `${w}%`, height: 14, marginBottom: 10, borderRadius: 7 }} />
+                  <div key={j} className="du-skel" style={{ width: `${w}%` }} />
                 ))}
               </div>
             ))}
           </div>
         ) : filtrados.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "60px 0", color: "#9e9e9e" }}>
-            <div style={{ marginBottom: 12, color: "#d4d4d4", display: "flex", justifyContent: "center" }}><Truck size={48} strokeWidth={1} /></div>
-            <p style={{ fontSize: 15, fontWeight: 600 }}>
-              {q ? "Sin resultados para esa búsqueda" : filtro === "activos" ? "No tienes entregas pendientes" : "Sin resultados"}
+          <div className="du-vacio">
+            <span className="du-vacio__icon"><Truck size={38} strokeWidth={1.4} /></span>
+            <p className="du-vacio__titulo">
+              {q ? "Sin resultados para esa búsqueda"
+                 : filtro === "activos" ? "No tienes entregas pendientes"
+                 : "Sin resultados"}
+            </p>
+            <p className="du-vacio__texto">
+              {q ? "Prueba con otro número de pedido, cliente o dirección."
+                 : filtro === "activos" ? "Cuando te asignen un domicilio aparecerá aquí."
+                 : "No hay domicilios que coincidan con este filtro."}
             </p>
           </div>
         ) : (
-          <div style={{ display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
+          <div className="me-grid">
             {filtrados.map(dom => {
-              const info = ESTADO_DOM_CONFIG[dom.estadoId] || ESTADO_DOM_CONFIG[3];
+              const { vars } = varsEstado(dom.estadoId);
               const puedeCambiar = proximosEstados(dom.estadoId).length > 0;
               return (
                 <div
                   key={dom.id}
-                  style={{
-                    background: "#fff", borderRadius: 14, padding: 20,
-                    border: `1.5px solid ${info.border}`,
-                    boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
-                    cursor: "pointer",
-                    transition: "box-shadow 0.15s",
-                  }}
+                  className="me-card"
+                  style={vars}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setModal({ type: "detalles", dom })}
+                  onKeyDown={e => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setModal({ type: "detalles", dom });
+                    }
+                  }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                    <div>
-                      <div style={{ fontSize: 12, color: "#9e9e9e", fontWeight: 600 }}>{dom.numero}</div>
-                      <div style={{ fontSize: 15, fontWeight: 700, color: "#212121", marginTop: 2 }}>
-                        {dom.cliente?.nombre || "Cliente"}
-                      </div>
+                  <div className="me-card__head">
+                    <span className="me-card__avatar"><IconoEstado estadoId={dom.estadoId} size={20} /></span>
+                    <div className="me-card__ident">
+                      <div className="me-card__num">{dom.numero}</div>
+                      <div className="me-card__cliente">{dom.cliente?.nombre || "Cliente"}</div>
                     </div>
                     <EstadoBadge estadoId={dom.estadoId} />
                   </div>
 
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 10, color: "#616161", fontSize: 13 }}>
-                    <MapPin size={14} style={{ flexShrink: 0, marginTop: 2 }} />
-                    <span style={{ lineHeight: 1.4 }}>{dom.direccion_entrega || "Sin dirección"}</span>
+                  <div className="me-card__body">
+                    <div className="me-card__dir">
+                      <MapPin size={15} />
+                      <span>{dom.direccion_entrega || "Sin dirección"}</span>
+                    </div>
+
+                    {dom.obs_domicilio && (
+                      <div className="me-card__obs">
+                        <MessageSquare size={13} /> {dom.obs_domicilio}
+                      </div>
+                    )}
                   </div>
 
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div className="me-card__foot">
                     <div>
-                      <span style={{ fontSize: 16, fontWeight: 700, color: "#2e7d32" }}>{fmt(dom.total || 0)}</span>
-                      {dom.estado_pago && dom.estado_pago !== "pendiente" && (
-                        <div style={{ marginTop: 4 }}>
-                          <EstadoPagoBadge estadoPago={dom.estado_pago} />
-                        </div>
-                      )}
+                      <div className="me-card__monto-label">Total</div>
+                      <div className="me-card__monto">{fmt(dom.total || 0)}</div>
+                      <EstadoPagoBadge estadoPago={dom.estado_pago} />
                     </div>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <div className="me-card__acciones">
                       {/* Cobrar sin cerrar la entrega: a veces el cliente paga
                           y el repartidor todavía tiene algo que resolver. */}
                       {cobroEfectivoPendiente(dom) && esDomicilioActivo(dom.estadoId) && (
                         <button
+                          className="du-btn du-btn--oro du-btn--sm"
                           onClick={e => { e.stopPropagation(); setCobrando({ dom, entregarDespues: false }); }}
                           title="Registrar el cobro en efectivo"
-                          style={{
-                            padding: "7px 12px", borderRadius: 8,
-                            background: "#fff8e1", color: "#f57f17",
-                            border: "1.5px solid #ffe082", fontWeight: 700, fontSize: 12,
-                            cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
-                          }}
                         >
-                          <Banknote size={13} /> Cobrar
+                          <Banknote size={14} /> Cobrar
                         </button>
                       )}
                       {puedeCambiar && (
                         <button
+                          className="du-btn du-btn--primario du-btn--sm"
                           onClick={e => { e.stopPropagation(); setModal({ type: "cambiarEstado", dom }); }}
-                          style={{
-                            padding: "7px 14px", borderRadius: 8,
-                            background: "#4caf50", color: "#fff",
-                            border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer",
-                          }}
                         >
-                          Actualizar →
+                          Actualizar <ChevronRight size={14} />
                         </button>
                       )}
                     </div>
                   </div>
-
-                  {dom.obs_domicilio && (
-                    <div style={{ marginTop: 10, padding: "7px 10px", background: "#fff8e1", borderRadius: 7, fontSize: 12, color: "#616161", borderLeft: "3px solid #f9a825", display: "flex", alignItems: "flex-start", gap: 6 }}>
-                      <MessageSquare size={12} style={{ flexShrink: 0, marginTop: 1 }} />{dom.obs_domicilio}
-                    </div>
-                  )}
                 </div>
               );
             })}

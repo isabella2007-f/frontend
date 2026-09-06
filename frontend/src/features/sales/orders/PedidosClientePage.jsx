@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+﻿import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMisVentas, cancelarMiPedido, aceptarFechaProduccion, rechazarFechaProduccion } from '../../../services/pedidosService';
+import { getMisVentas, cancelarMiPedido, aceptarFechaProduccion, rechazarFechaProduccion, guardarEnvioCompletoDomingo, getItemsListos, crearGruposEnvio } from '../../../services/pedidosService';
 import { crearDevolucion } from '../../../services/devolucionesService';
 import { fmtFecha } from '../../../utils/dateUtils.js';
 import { getCurrentUser } from '../../client/profile/services/profileService.js';
@@ -173,6 +173,33 @@ const ESTADO_CONFIG = {
     border: 'border-indigo-200',
     badge: 'bg-indigo-100 text-indigo-700'
   },
+  'Fecha rechazada': {
+    color: 'orange',
+    icon: AlertTriangle,
+    label: 'Fecha rechazada',
+    bg: 'bg-orange-50',
+    text: 'text-orange-700',
+    border: 'border-orange-200',
+    badge: 'bg-orange-100 text-orange-700'
+  },
+  'Escalado a admin': {
+    color: 'red',
+    icon: AlertTriangle,
+    label: 'Escalado a admin',
+    bg: 'bg-red-50',
+    text: 'text-red-800',
+    border: 'border-red-300',
+    badge: 'bg-red-200 text-red-800'
+  },
+  'Parcialmente entregado': {
+    color: 'emerald',
+    icon: Package,
+    label: 'Parcialmente entregado',
+    bg: 'bg-emerald-50',
+    text: 'text-emerald-700',
+    border: 'border-emerald-200',
+    badge: 'bg-emerald-100 text-emerald-700'
+  },
 };
 
 const normalizeComprobanteSrc = (c) => {
@@ -252,7 +279,7 @@ function SolicitarDevolucionModal({ pedido, onClose, onSuccess }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div
         className="modal-box bg-white w-full max-w-lg shadow-2xl flex flex-col"
         style={{ borderRadius: 24, maxHeight: '90vh', overflow: 'hidden' }}
@@ -354,8 +381,23 @@ const PedidosClientePage = () => {
   const [cancelError,    setCancelError]    = useState('');
   const [accionFecha,    setAccionFecha]    = useState(null); // "aceptar" | "rechazar"
   const [accionFechaErr, setAccionFechaErr] = useState('');
-  const [devModal,       setDevModal]       = useState(null);
-  const [devToast,       setDevToast]       = useState(null);
+  const [devModal,             setDevModal]             = useState(null);
+  const [devToast,             setDevToast]             = useState(null);
+  const [guardandoEnvio,       setGuardandoEnvio]       = useState(false);
+  const [itemsListos,          setItemsListos]          = useState(null);
+  const [loadingItemsListos,   setLoadingItemsListos]   = useState(false);
+  const [fechaAnticipada,      setFechaAnticipada]      = useState('');
+  const [tipoEntregaA,         setTipoEntregaA]         = useState('');
+  const [tipoEntregaB,         setTipoEntregaB]         = useState('');
+  const [direccionA,           setDireccionA]           = useState('');
+  const [municipioA,           setMunicipioA]           = useState('');
+  const [deptoA,               setDeptoA]               = useState('');
+  const [direccionB,           setDireccionB]           = useState('');
+  const [municipioB,           setMunicipioB]           = useState('');
+  const [deptoB,               setDeptoB]               = useState('');
+  const [creandoGrupos,        setCreandoGrupos]        = useState(false);
+  const [gruposError,          setGruposError]          = useState('');
+  const [itemsListosError,     setItemsListosError]     = useState(null);
   const navigate = useNavigate();
 
   // Ref para acceder al pedido seleccionado dentro del interval sin recrear el callback
@@ -394,6 +436,70 @@ const PedidosClientePage = () => {
     const matchEstado = filterEstado === 'todos' || p.estado === filterEstado;
     return matchSearch && matchEstado;
   }).sort((a, b) => new Date(b.fecha_pedido) - new Date(a.fecha_pedido));
+
+  const handleEnvioCompletoDomingo = async (pedido, valor) => {
+    setGuardandoEnvio(true);
+    try {
+      const actualizado = await guardarEnvioCompletoDomingo(pedido.id, valor);
+      setPedidos(prev => prev.map(p => p.id === actualizado.id ? actualizado : p));
+      setSelectedPedido(actualizado);
+    } catch {
+      // silencioso: la UI ya muestra el estado
+    } finally {
+      setGuardandoEnvio(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedPedido || selectedPedido.envio_completo_domingo !== false || (selectedPedido.grupos_envio && selectedPedido.grupos_envio.length > 0)) {
+      setItemsListos(null);
+      setItemsListosError(null);
+      return;
+    }
+    let cancelado = false;
+    setLoadingItemsListos(true);
+    setItemsListosError(null);
+    getItemsListos(selectedPedido.id)
+      .then(data => { if (!cancelado) setItemsListos(data); })
+      .catch(err => {
+        if (!cancelado) {
+          setItemsListos(null);
+          setItemsListosError(err?.message || String(err) || 'Error desconocido');
+        }
+      })
+      .finally(() => { if (!cancelado) setLoadingItemsListos(false); });
+    return () => { cancelado = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPedido?.id, selectedPedido?.envio_completo_domingo, selectedPedido?.grupos_envio?.length]);
+
+  const handleCrearGrupos = async () => {
+    if (!fechaAnticipada) return;
+    setCreandoGrupos(true);
+    setGruposError('');
+    try {
+      const actualizado = await crearGruposEnvio(selectedPedido.id, {
+        fechaAnticipada: fechaAnticipada + 'T00:00:00',
+        tipoEntregaA:  tipoEntregaA || null,
+        tipoEntregaB:  tipoEntregaB || null,
+        direccionA:    tipoEntregaA === 'domicilio' ? direccionA || null : null,
+        municipioA:    tipoEntregaA === 'domicilio' ? municipioA || null : null,
+        departamentoA: tipoEntregaA === 'domicilio' ? deptoA     || null : null,
+        direccionB:    tipoEntregaB === 'domicilio' ? direccionB || null : null,
+        municipioB:    tipoEntregaB === 'domicilio' ? municipioB || null : null,
+        departamentoB: tipoEntregaB === 'domicilio' ? deptoB     || null : null,
+      });
+      setItemsListos(null);
+      setPedidos(prev => prev.map(p => p.id === actualizado.id ? actualizado : p));
+      setSelectedPedido(actualizado);
+      setFechaAnticipada('');
+      setTipoEntregaA('');
+      setTipoEntregaB('');
+    } catch (e) {
+      setGruposError(e.message || 'No se pudo guardar la entrega anticipada. Intenta de nuevo.');
+    } finally {
+      setCreandoGrupos(false);
+    }
+  };
 
   const handleRequestReturn = (pedido) => {
     closeModal();
@@ -435,9 +541,10 @@ const PedidosClientePage = () => {
     try {
       await rechazarFechaProduccion(pedido.id);
       fetchPedidos();
-      closeModal();
+      // keep modal open so user sees the "Fecha rechazada" / "Escalado a admin" state
     } catch (e) {
       setAccionFechaErr(e.message || 'No se pudo rechazar la fecha');
+    } finally {
       setAccionFecha(null);
     }
   };
@@ -447,6 +554,12 @@ const PedidosClientePage = () => {
     setConfirmCancel(false);
     setCancelError('');
     setAccionFechaErr('');
+    setItemsListos(null);
+    setItemsListosError(null);
+    setFechaAnticipada('');
+    setTipoEntregaA('');
+    setTipoEntregaB('');
+    setGruposError('');
   };
 
   const openModal = (pedido) => {
@@ -525,7 +638,7 @@ const PedidosClientePage = () => {
               >
                 Todos
               </button>
-              {['Pendiente', 'En producción', 'Fecha propuesta', 'En camino', 'Entregado', 'Cancelado'].map(estado => (
+              {['Pendiente', 'En producción', 'Fecha propuesta', 'Fecha rechazada', 'Escalado a admin', 'En camino', 'Entregado', 'Cancelado'].map(estado => (
                 <button
                   key={estado}
                   className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
@@ -684,7 +797,7 @@ const PedidosClientePage = () => {
 
       {/* ── Modal Detalle ── */}
       {selectedPedido && (
-        <div className="modal-overlay" onClick={closeModal}>
+        <div className="modal-overlay">
           <div
             className="modal-box relative bg-white w-full max-w-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col border-none"
             style={{ borderRadius: 28 }}
@@ -734,7 +847,7 @@ const PedidosClientePage = () => {
                     </div>
                   )}
                   <p style={{ fontSize: 11, color: '#3949ab', marginBottom: 12, lineHeight: 1.5 }}>
-                    ¿Puedes recibir tu pedido en esta fecha? Si rechazas, el pedido quedará cancelado.
+                    ¿Puedes recibir tu pedido en esta fecha? Si rechazas, te propondremos una nueva fecha.
                   </p>
                   {accionFechaErr && <p style={{ fontSize: 11, color: '#c62828', fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}><AlertTriangle size={12} /> {accionFechaErr}</p>}
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -746,6 +859,226 @@ const PedidosClientePage = () => {
                       style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: 'none', background: '#c62828', color: '#fff', fontWeight: 800, fontSize: 13, cursor: accionFecha ? 'not-allowed' : 'pointer', opacity: accionFecha === 'aceptar' ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
                       {accionFecha === 'rechazar' ? 'Rechazando…' : <><X size={14} /> Rechazar fecha</>}
                     </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Aviso: fecha rechazada */}
+              {selectedPedido.estado === 'Fecha rechazada' && (
+                <div style={{ background: 'linear-gradient(135deg,#fff3e0 0%,#fbe9e7 100%)', border: '2px solid #ffb74d', borderRadius: 16, padding: '16px 18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <AlertTriangle size={20} color="#e65100" />
+                    <p style={{ fontSize: 13, fontWeight: 800, color: '#bf360c', margin: 0 }}>Rechazaste la fecha propuesta</p>
+                  </div>
+                  <p style={{ fontSize: 11, color: '#e65100', lineHeight: 1.5, margin: 0 }}>
+                    El equipo te propondrá una nueva fecha pronto.
+                    {selectedPedido.intentos_rechazo > 0 && ` (intento ${selectedPedido.intentos_rechazo} de 3)`}
+                  </p>
+                </div>
+              )}
+
+              {/* Aviso: escalado a admin */}
+              {selectedPedido.estado === 'Escalado a admin' && (
+                <div style={{ background: 'linear-gradient(135deg,#fce4ec 0%,#f3e5f5 100%)', border: '2px solid #f48fb1', borderRadius: 16, padding: '16px 18px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <AlertTriangle size={20} color="#880e4f" />
+                    <p style={{ fontSize: 13, fontWeight: 800, color: '#880e4f', margin: 0 }}>Pedido en revisión por el administrador</p>
+                  </div>
+                  <p style={{ fontSize: 11, color: '#ad1457', lineHeight: 1.5, margin: 0 }}>
+                    Rechazaste la fecha propuesta varias veces. Un administrador revisará tu pedido y te contactará para acordar una solución.
+                  </p>
+                </div>
+              )}
+
+              {/* ── Pregunta: ¿envío completo el domingo? ── */}
+              {(selectedPedido.requiereFechaPropuesta || selectedPedido.sobre_stock) && (
+                <div style={{ background: selectedPedido.envio_completo_domingo === null ? '#fffde7' : '#e8f5e9', border: `1.5px solid ${selectedPedido.envio_completo_domingo === null ? '#ffe082' : '#a5d6a7'}`, borderRadius: 14, padding: '14px 16px' }}>
+                  <p style={{ fontSize: 10, fontWeight: 800, color: '#f57f17', letterSpacing: 1, textTransform: 'uppercase', margin: '0 0 6px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Truck size={12} /> Coordinar entrega
+                  </p>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#4a4a4a', margin: '0 0 12px', lineHeight: 1.5 }}>
+                    {selectedPedido.fecha_propuesta
+                      ? `¿Está de acuerdo con que le enviemos todo el pedido junto el ${new Date(selectedPedido.fecha_propuesta.slice(0, 10) + 'T00:00:00').toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' })}?`
+                      : '¿Está de acuerdo con que le enviemos todo el pedido junto en la fecha propuesta?'}
+                  </p>
+                  {selectedPedido.envio_completo_domingo === null ? (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        disabled={guardandoEnvio}
+                        onClick={() => handleEnvioCompletoDomingo(selectedPedido, true)}
+                        style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: '#2e7d32', color: '#fff', fontWeight: 800, fontSize: 13, cursor: guardandoEnvio ? 'not-allowed' : 'pointer', opacity: guardandoEnvio ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                        <Check size={14} /> {selectedPedido.fecha_propuesta ? `Sí, el ${new Date(selectedPedido.fecha_propuesta.slice(0,10)+'T00:00:00').toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long'})} está bien` : 'Sí, estoy de acuerdo'}
+                      </button>
+                      <button
+                        disabled={guardandoEnvio}
+                        onClick={() => handleEnvioCompletoDomingo(selectedPedido, false)}
+                        style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: '1.5px solid #e0e0e0', background: '#fff', color: '#424242', fontWeight: 700, fontSize: 13, cursor: guardandoEnvio ? 'not-allowed' : 'pointer', opacity: guardandoEnvio ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                        <X size={14} /> Prefiero recibir antes lo disponible
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: '1px solid #c8e6c9', borderRadius: 10, padding: '10px 14px' }}>
+                      <Check size={14} color="#2e7d32" />
+                      <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#2e7d32' }}>
+                        {selectedPedido.envio_completo_domingo
+                          ? (selectedPedido.fecha_propuesta ? `Elegiste recibir todo junto el ${new Date(selectedPedido.fecha_propuesta.slice(0,10)+'T00:00:00').toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long'})}.` : 'Elegiste recibir todo junto en la fecha acordada.')
+                          : 'Elegiste recibir primero lo que ya está disponible.'}
+                      </p>
+                      <button
+                        disabled={guardandoEnvio}
+                        onClick={() => handleEnvioCompletoDomingo(selectedPedido, !selectedPedido.envio_completo_domingo)}
+                        style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, color: '#757575', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                        Cambiar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Entrega anticipada (cuando eligió recibir antes lo disponible) ── */}
+              {selectedPedido.envio_completo_domingo === false && (!selectedPedido.grupos_envio || selectedPedido.grupos_envio.length === 0) && (
+                <div style={{ background: '#e3f2fd', border: '1.5px solid #90caf9', borderRadius: 14, padding: '14px 16px' }}>
+                  <p style={{ fontSize: 10, fontWeight: 800, color: '#1565c0', letterSpacing: 1, textTransform: 'uppercase', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Truck size={12} /> Entrega anticipada
+                  </p>
+                  {loadingItemsListos && (
+                    <p style={{ fontSize: 12, color: '#5c6bc0', margin: 0 }}>Verificando disponibilidad de productos...</p>
+                  )}
+                  {/* Ninguno listo aún: solo informativo, sin acción posible */}
+                  {!loadingItemsListos && itemsListos && itemsListos.listos && itemsListos.listos.length === 0 && (
+                    <p style={{ fontSize: 12, color: '#1565c0', margin: 0, lineHeight: 1.5 }}>
+                      Tus productos aún están en producción. Te avisaremos cuando haya disponibilidad para coordinar la entrega anticipada.
+                    </p>
+                  )}
+                  {/* Al menos uno listo (todos o algunos): mostrar formulario */}
+                  {!loadingItemsListos && itemsListos && itemsListos.listos && itemsListos.listos.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {/* Resumen de productos */}
+                      {itemsListos.pendientes && itemsListos.pendientes.length > 0 ? (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                          <div style={{ background: '#e8f5e9', borderRadius: 10, padding: '8px 10px' }}>
+                            <p style={{ fontSize: 9, fontWeight: 800, color: '#2e7d32', letterSpacing: 1, textTransform: 'uppercase', margin: '0 0 4px' }}>Listos ahora</p>
+                            {itemsListos.listos.map(p => (
+                              <p key={p.id_producto} style={{ fontSize: 11, color: '#1b5e20', margin: '0 0 2px' }}>{p.nombre} ×{p.cantidad}</p>
+                            ))}
+                          </div>
+                          <div style={{ background: '#fff8e1', borderRadius: 10, padding: '8px 10px' }}>
+                            <p style={{ fontSize: 9, fontWeight: 800, color: '#e65100', letterSpacing: 1, textTransform: 'uppercase', margin: '0 0 4px' }}>En producción</p>
+                            {itemsListos.pendientes.map(p => (
+                              <p key={p.id_producto} style={{ fontSize: 11, color: '#bf360c', margin: '0 0 2px' }}>{p.nombre} ×{p.cantidad}</p>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ background: '#e8f5e9', borderRadius: 10, padding: '8px 10px' }}>
+                          <p style={{ fontSize: 9, fontWeight: 800, color: '#2e7d32', letterSpacing: 1, textTransform: 'uppercase', margin: '0 0 4px' }}>Todos los productos listos</p>
+                          {itemsListos.listos.map(p => (
+                            <p key={p.id_producto} style={{ fontSize: 11, color: '#1b5e20', margin: '0 0 2px' }}>{p.nombre} ×{p.cantidad}</p>
+                          ))}
+                        </div>
+                      )}
+                      {/* Formulario: fecha + tipo de entrega por grupo */}
+                      <div>
+                        <p style={{ fontSize: 12, fontWeight: 700, color: '#1565c0', margin: '0 0 4px' }}>
+                          {itemsListos.pendientes && itemsListos.pendientes.length > 0
+                            ? '¿Cuándo quieres recibir los productos que ya están listos?'
+                            : '¿Cuándo quieres recibir el pedido?'}
+                        </p>
+                        <p style={{ fontSize: 10, color: '#5c6bc0', margin: '0 0 8px', lineHeight: 1.4 }}>
+                          {selectedPedido.fecha_propuesta
+                            ? `Debe ser al menos mañana y antes del ${new Date(selectedPedido.fecha_propuesta.slice(0,10)+'T00:00:00').toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long'})}.`
+                            : 'Debe ser al menos mañana y antes de la fecha de entrega acordada.'}
+                        </p>
+                        <input
+                          type="date"
+                          value={fechaAnticipada}
+                          onChange={e => { setFechaAnticipada(e.target.value); setGruposError(''); }}
+                          min={(() => { const d = new Date(); d.setDate(d.getDate()+1); return d.toISOString().slice(0,10); })()}
+                          max={selectedPedido.fecha_propuesta ? (() => { const d = new Date(selectedPedido.fecha_propuesta.slice(0,10)+'T00:00:00'); d.setDate(d.getDate()-1); return d.toISOString().slice(0,10); })() : undefined}
+                          style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 13, boxSizing: 'border-box', marginBottom: 8 }}
+                        />
+                        <p style={{ fontSize: 10, fontWeight: 700, color: '#1565c0', margin: '0 0 4px' }}>
+                          {itemsListos.pendientes && itemsListos.pendientes.length > 0 ? 'Tipo de entrega (productos listos)' : 'Tipo de entrega'}
+                        </p>
+                        <select
+                          value={tipoEntregaA}
+                          onChange={e => { setTipoEntregaA(e.target.value); if (!direccionA) { setDireccionA(selectedPedido.direccion_entrega || ''); setMunicipioA(selectedPedido.municipio || ''); setDeptoA(selectedPedido.departamento || ''); } }}
+                          style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 13, boxSizing: 'border-box', marginBottom: 8, background: '#fff' }}>
+                          <option value="">Sin especificar</option>
+                          <option value="domicilio">Domicilio</option>
+                          <option value="tienda">Retiro en tienda</option>
+                        </select>
+                        {tipoEntregaA === 'domicilio' && (
+                          <div style={{ marginBottom: 8 }}>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: '#1565c0', margin: '0 0 3px' }}>Dirección de entrega</p>
+                            <input value={direccionA} onChange={e => setDireccionA(e.target.value)} placeholder="Dirección" style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 12, boxSizing: 'border-box', marginBottom: 4 }} />
+                            <input value={municipioA} onChange={e => setMunicipioA(e.target.value)} placeholder="Municipio" style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 12, boxSizing: 'border-box', marginBottom: 4 }} />
+                            <input value={deptoA} onChange={e => setDeptoA(e.target.value)} placeholder="Departamento" style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 12, boxSizing: 'border-box' }} />
+                          </div>
+                        )}
+                        {itemsListos.pendientes && itemsListos.pendientes.length > 0 && (
+                          <>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: '#1565c0', margin: '0 0 4px' }}>Tipo de entrega (productos en producción)</p>
+                            <select
+                              value={tipoEntregaB}
+                              onChange={e => { setTipoEntregaB(e.target.value); if (!direccionB) { setDireccionB(selectedPedido.direccion_entrega || ''); setMunicipioB(selectedPedido.municipio || ''); setDeptoB(selectedPedido.departamento || ''); } }}
+                              style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 13, boxSizing: 'border-box', marginBottom: 8, background: '#fff' }}>
+                              <option value="">Sin especificar</option>
+                              <option value="domicilio">Domicilio</option>
+                              <option value="tienda">Retiro en tienda</option>
+                            </select>
+                            {tipoEntregaB === 'domicilio' && (
+                              <div style={{ marginBottom: 8 }}>
+                                <p style={{ fontSize: 10, fontWeight: 700, color: '#1565c0', margin: '0 0 3px' }}>Dirección de entrega</p>
+                                <input value={direccionB} onChange={e => setDireccionB(e.target.value)} placeholder="Dirección" style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 12, boxSizing: 'border-box', marginBottom: 4 }} />
+                                <input value={municipioB} onChange={e => setMunicipioB(e.target.value)} placeholder="Municipio" style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 12, boxSizing: 'border-box', marginBottom: 4 }} />
+                                <input value={deptoB} onChange={e => setDeptoB(e.target.value)} placeholder="Departamento" style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 12, boxSizing: 'border-box' }} />
+                              </div>
+                            )}
+                          </>
+                        )}
+                        {gruposError && <p style={{ fontSize: 11, color: '#c62828', margin: '0 0 8px' }}>{gruposError}</p>}
+                        <button
+                          onClick={handleCrearGrupos}
+                          disabled={creandoGrupos || !fechaAnticipada}
+                          style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: creandoGrupos || !fechaAnticipada ? '#b0bec5' : '#1565c0', color: '#fff', fontWeight: 800, fontSize: 13, cursor: creandoGrupos || !fechaAnticipada ? 'not-allowed' : 'pointer' }}>
+                          {creandoGrupos ? 'Guardando...' : 'Confirmar entrega anticipada'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Grupos de envío activos ── */}
+              {selectedPedido.grupos_envio && selectedPedido.grupos_envio.length > 0 && (
+                <div style={{ background: '#f3e5f5', border: '1.5px solid #ce93d8', borderRadius: 14, padding: '14px 16px' }}>
+                  <p style={{ fontSize: 10, fontWeight: 800, color: '#6a1b9a', letterSpacing: 1, textTransform: 'uppercase', margin: '0 0 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Package size={12} /> División de entrega
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {selectedPedido.grupos_envio.map(g => (
+                      <div key={g.id_grupo} style={{ background: '#fff', border: '1px solid #e1bee7', borderRadius: 10, padding: '10px 12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <p style={{ fontSize: 12, fontWeight: 800, color: '#4a148c', margin: 0 }}>
+                            {g.tipo === 'anticipado' ? '📦 Entrega anticipada' : '🕐 Entrega programada'}
+                          </p>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: g.estado === 'entregado' ? '#e8f5e9' : g.estado === 'enviado' ? '#e3f2fd' : '#fff8e1', color: g.estado === 'entregado' ? '#2e7d32' : g.estado === 'enviado' ? '#1565c0' : '#e65100' }}>
+                            {g.estado === 'entregado' ? 'Entregado' : g.estado === 'enviado' ? 'En camino' : 'Pendiente'}
+                          </span>
+                        </div>
+                        {g.fecha && (
+                          <p style={{ fontSize: 11, color: '#7b1fa2', margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Calendar size={11} /> {new Date(typeof g.fecha === 'string' ? g.fecha.slice(0,10)+'T00:00:00' : g.fecha).toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}
+                          </p>
+                        )}
+                        {g.productos && g.productos.length > 0 && (
+                          <p style={{ fontSize: 10, color: '#9c27b0', margin: 0 }}>
+                            {g.productos.length} producto(s) en este grupo
+                          </p>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

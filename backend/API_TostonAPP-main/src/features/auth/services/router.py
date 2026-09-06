@@ -75,6 +75,7 @@ def login(datos: LoginInput, db: Session = Depends(get_db)):
         apellidos    = registro.Apellidos,
         rol          = nombre_rol,
         correo_verificado = getattr(registro, "Correo_Verificado", 1),
+        foto_perfil  = getattr(registro, "Foto_perfil", None),
     )
 
 

@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { getUser } from "../../../services/authService";
 import { getDomicilios, getDomicilio, cambiarEstadoDomicilio, registrarPagoEfectivo } from "../../../services/domiciliosService";
-import { ESTADO_DOMICILIO, cobroEfectivoPendiente, esDomicilioActivo, esPagoMixto, montoACobrar, transicionesDom } from "./estadosDomicilio";
-import "./Domicilios.css";
+import { ESTADO_DOMICILIO, ESTADO_DOM_CONFIG, labelEstadoDom, cobroEfectivoPendiente, esDomicilioActivo, esPagoMixto, montoACobrar, transicionesDom } from "./estadosDomicilio";
+import "./DomiciliarioUI.css";
+import "./PedidoActual.css";
 import {
   Package, CheckCircle2, Truck, XCircle, MapPin, CreditCard,
-  Clock, X, Check, Navigation, Map, Banknote,
+  Clock, X, Check, Navigation, Map, Banknote, Bike, Wallet,
+  RefreshCw, AlertCircle, Route, ShoppingBag,
 } from "lucide-react";
 
 const fmt = (n) =>
@@ -18,33 +20,52 @@ const ESTADO_ORDEN = [
   ESTADO_DOMICILIO.PENDIENTE,
 ];
 
-const ESTADO_INFO = {
-  "Pendiente":  { color: "#f9a825", bg: "#fff8e1", icon: <Clock size={14} /> },
-  "Asignado":   { color: "#2e7d32", bg: "#e8f5e9", icon: <Package size={14} /> },
-  "En camino":  { color: "#8e24aa", bg: "#f3e5f5", icon: <Truck size={14} /> },
-  "Entregado":  { color: "#2e7d32", bg: "#e8f5e9", icon: <CheckCircle2 size={14} /> },
-  "Cancelado":  { color: "#c62828", bg: "#ffebee", icon: <XCircle size={14} /> },
+/* Recorrido que dibuja el stepper. Solo se pinta: el orden real y las
+   transiciones válidas siguen viviendo en estadosDomicilio.js. La lista
+   nunca trae pedidos entregados ni cancelados (se filtra por activos), así
+   que el último paso siempre queda por delante. */
+const PASOS = [
+  { id: ESTADO_DOMICILIO.ASIGNADO,  label: "Asignado",  Icono: Package },
+  { id: ESTADO_DOMICILIO.EN_CAMINO, label: "En camino", Icono: Truck },
+  { id: ESTADO_DOMICILIO.ENTREGADO, label: "Entregado", Icono: CheckCircle2 },
+];
+
+/* Las variables de color viajan al CSS: la hoja no repite ningún hex de
+   estado, así sigue mandando estadosDomicilio.js como fuente única. */
+const varsEstado = (estadoId) => {
+  const cfg = ESTADO_DOM_CONFIG[estadoId] ||
+    { dot: "#757575", bg: "#f5f5f5", border: "#e0e0e0", label: "—" };
+  return { cfg, vars: { "--e-dot": cfg.dot, "--e-bg": cfg.bg, "--e-border": cfg.border } };
 };
+
+const ICONO_ESTADO = { 3: Clock, 10: Package, 9: Truck, 8: CheckCircle2, 5: XCircle };
 
 /* Los pasos que puede dar el repartidor salen de la fuente única de estados.
    Aquí había una tabla propia con un paso "Llegué al local" que mandaba el
    estado 13: ese número es "En producción" de una venta, no un estado de
    domicilio, así que era un paso de más que además no correspondía. El
    recorrido real es Asignado → En camino → Entregado (o Cancelado). */
-const ESTILO_ACCION = {
-  [ESTADO_DOMICILIO.EN_CAMINO]: { label: "Iniciar entrega", icon: <Truck size={18} />,        color: "#8e24aa", bg: "#f3e5f5" },
-  [ESTADO_DOMICILIO.ENTREGADO]: { label: "Entregado",       icon: <CheckCircle2 size={18} />, color: "#2e7d32", bg: "#e8f5e9" },
-  [ESTADO_DOMICILIO.CANCELADO]: { label: "Cancelar",        icon: <XCircle size={18} />,      color: "#c62828", bg: "#ffebee", secondary: true },
+const ACCION_UI = {
+  [ESTADO_DOMICILIO.EN_CAMINO]: { label: "Iniciar entrega",   Icono: Truck },
+  [ESTADO_DOMICILIO.ENTREGADO]: { label: "Marcar entregado",  Icono: CheckCircle2 },
+  [ESTADO_DOMICILIO.CANCELADO]: { label: "Cancelar entrega",  Icono: XCircle, secundaria: true },
 };
 
 const accionesDe = (estadoId) =>
   transicionesDom(estadoId, true).map(tr => ({
     valor: tr.id,
-    ...(ESTILO_ACCION[tr.id] || { label: tr.label, icon: <Truck size={18} />, color: "#616161", bg: "#f5f5f5" }),
+    ...(ACCION_UI[tr.id] || { label: tr.label, Icono: Truck }),
   }));
 
+/* Waze y Google Maps conservan su color de marca solo en el icono y el borde:
+   así se reconocen de un vistazo sin romper el verde del resto. */
+const NAVEGADORES = [
+  { tipo: "google", label: "Google Maps", Icono: Map,        color: "#1a73e8", bg: "#eef4fe" },
+  { tipo: "waze",   label: "Waze",        Icono: Navigation, color: "#0b93bd", bg: "#e9f7fb" },
+];
+
 const ESTADO_PAGO_INFO = {
-  pendiente:             { label: "Pago pendiente",         color: "#757575", bg: "#f5f5f5" },
+  pendiente:             { label: "Pago pendiente",          color: "#757575", bg: "#f5f5f5" },
   pendiente_validacion:  { label: "Comprobante en revisión", color: "#e65100", bg: "#fff3e0" },
   pagado_completo:       { label: "Pago completo",           color: "#2e7d32", bg: "#e8f5e9" },
   anticipo_pagado:       { label: "Anticipo pagado",         color: "#f57f17", bg: "#fff8e1" },
@@ -57,13 +78,45 @@ function EstadoPagoBadge({ estadoPago }) {
   if (!estadoPago || estadoPago === "pendiente") return null;
   const cfg = ESTADO_PAGO_INFO[estadoPago] || { label: estadoPago, color: "#757575", bg: "#f5f5f5" };
   return (
-    <span style={{
-      display: "inline-block", padding: "3px 10px", borderRadius: 20,
-      fontSize: 11, fontWeight: 700, color: cfg.color, background: cfg.bg,
-      border: `1px solid ${cfg.color}22`,
-    }}>
+    <span
+      className="du-badge-pago"
+      style={{ "--p-color": cfg.color, "--p-bg": cfg.bg, "--p-border": `${cfg.color}33` }}
+    >
       {cfg.label}
     </span>
+  );
+}
+
+function EstadoBadge({ estadoId }) {
+  const { cfg, vars } = varsEstado(estadoId);
+  const Icono = ICONO_ESTADO[estadoId];
+  return (
+    <span
+      className={`du-badge du-badge--lg${estadoId === ESTADO_DOMICILIO.EN_CAMINO ? " du-badge--vivo" : ""}`}
+      style={vars}
+    >
+      {Icono && <Icono size={14} />} {cfg.label}
+    </span>
+  );
+}
+
+/* El recorrido del pedido, de un vistazo: dónde está y qué falta. */
+function Recorrido({ estadoId }) {
+  const actual = PASOS.findIndex(p => p.id === estadoId);
+  return (
+    <div className="pa-pasos">
+      {PASOS.map((paso, i) => (
+        <div
+          key={paso.id}
+          /* `--hecho` pinta también la barra hacia el siguiente paso, así que
+             el paso actual no la lleva: ese tramo todavía no se ha recorrido. */
+          className={`pa-paso${i < actual ? " pa-paso--hecho" : ""}${i === actual ? " pa-paso--activo" : ""}`}
+        >
+          <span className="pa-paso__punto"><paso.Icono size={17} /></span>
+          <span className="pa-paso__label">{paso.label}</span>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -91,98 +144,84 @@ function CobrarEfectivoModal({ pedido, entregarDespues, onClose, onConfirm }) {
     }
   };
 
+  const OPCIONES = [
+    { val: true,  label: "Sí, recibí el dinero", Icono: CheckCircle2, color: "#2e7d32" },
+    { val: false, label: "No recibí",            Icono: XCircle,      color: "#c62828" },
+  ];
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div style={{
-        background: "#fff", borderRadius: 16, padding: "24px 28px",
-        width: "min(420px, 95vw)", boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
-      }} onClick={e => e.stopPropagation()}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>Registrar cobro en efectivo</h2>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#9e9e9e", display: "flex", alignItems: "center" }}><X size={18} /></button>
+    <div className="modal-overlay">
+      <div className="du-modal" onClick={e => e.stopPropagation()}>
+        <div className="du-modal__head">
+          <span className="du-modal__head-icon"><Wallet size={20} /></span>
+          <div className="du-modal__head-txt">
+            <p className="du-modal__eyebrow">{pedido.numero}</p>
+            <h2 className="du-modal__titulo">Registrar cobro en efectivo</h2>
+          </div>
+          <button className="du-modal__cerrar" onClick={onClose} aria-label="Cerrar"><X size={17} /></button>
         </div>
 
-        <div style={{ marginBottom: 18, padding: "10px 14px", borderRadius: 10, background: "#f8f8f8", fontSize: 13 }}>
-          <div style={{ fontWeight: 600 }}>{pedido.cliente?.nombre || "Cliente"}</div>
-          <div style={{ color: "#2e7d32", fontWeight: 800, fontSize: 16 }}>{fmt(montoACobrar(pedido))}</div>
-          {/* Pago mixto: en mano solo va una parte, el resto ya se transfirió. */}
-          {esPagoMixto(pedido.metodo_pago) && (
-            <div style={{ color: "#757575", fontSize: 11.5, marginTop: 2 }}>
-              Parte en efectivo de un pedido de {fmt(pedido.total)}
+        <div className="du-modal__body">
+          <div className="du-dato du-dato--total">
+            <div className="du-dato__label">{pedido.cliente?.nombre || "Cliente"}</div>
+            <div className="du-dato__valor">{fmt(montoACobrar(pedido))}</div>
+            {/* Pago mixto: en mano solo va una parte, el resto ya se transfirió. */}
+            {esPagoMixto(pedido.metodo_pago) && (
+              <div className="du-dato__sub">
+                Parte en efectivo de un pedido de {fmt(pedido.total)}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="du-campo-label">¿Recibiste el pago?</label>
+            <div className="du-opciones">
+              {OPCIONES.map(op => (
+                <button
+                  key={String(op.val)}
+                  onClick={() => { setRecibido(op.val); setError(null); }}
+                  className={`du-opcion${recibido === op.val ? " du-opcion--on" : ""}`}
+                  style={{ "--op-color": op.color, "--op-bg": `${op.color}14`, "--op-sombra": `${op.color}2e` }}
+                >
+                  <op.Icono size={16} /> {op.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {recibido ? (
+            <div>
+              <label className="du-campo-label">Monto recibido (debe coincidir con el total)</label>
+              <input
+                className="du-input"
+                type="number"
+                value={monto}
+                onChange={e => setMonto(e.target.value)}
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="du-campo-label">Motivo (mínimo 10 caracteres)</label>
+              <textarea
+                className="du-textarea"
+                rows={3}
+                value={motivo}
+                onChange={e => setMotivo(e.target.value)}
+                placeholder="Ej: El cliente no tenía efectivo disponible…"
+              />
+              <div className={`du-contador${motivo.trim().length < 10 ? " du-contador--falta" : ""}`}>
+                {motivo.trim().length}/10 mín.
+              </div>
             </div>
           )}
+
+          {error && <div className="du-error"><AlertCircle size={15} /> {error}</div>}
         </div>
 
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "#616161", marginBottom: 8 }}>¿Recibiste el pago?</div>
-          <div style={{ display: "flex", gap: 10 }}>
-            {[{ val: true, label: "Sí, recibí el dinero", Icon: CheckCircle2 }, { val: false, label: "No recibí", Icon: XCircle }].map(op => (
-              <button key={String(op.val)} onClick={() => { setRecibido(op.val); setError(null); }} style={{
-                flex: 1, padding: "10px 12px", borderRadius: 10, cursor: "pointer",
-                border: recibido === op.val ? "2px solid #2e7d32" : "1.5px solid #e0e0e0",
-                background: recibido === op.val ? "#e8f5e9" : "#fafafa",
-                color: recibido === op.val ? "#2e7d32" : "#616161",
-                fontWeight: recibido === op.val ? 700 : 400, fontSize: 13,
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-              }}><op.Icon size={15} />{op.label}</button>
-            ))}
-          </div>
-        </div>
-
-        {recibido ? (
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 12, fontWeight: 700, color: "#616161", display: "block", marginBottom: 6 }}>
-              Monto recibido (debe coincidir con el total)
-            </label>
-            <input
-              type="number"
-              value={monto}
-              onChange={e => setMonto(e.target.value)}
-              style={{
-                width: "100%", padding: "10px 12px", borderRadius: 8,
-                border: "1.5px solid #e0e0e0", fontSize: 15, fontWeight: 700,
-                outline: "none", boxSizing: "border-box",
-              }}
-            />
-          </div>
-        ) : (
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 12, fontWeight: 700, color: "#616161", display: "block", marginBottom: 6 }}>
-              Motivo (mínimo 10 caracteres)
-            </label>
-            <textarea
-              rows={3}
-              value={motivo}
-              onChange={e => setMotivo(e.target.value)}
-              placeholder="Ej: El cliente no tenía efectivo disponible..."
-              style={{
-                width: "100%", padding: "10px 12px", borderRadius: 8,
-                border: "1.5px solid #e0e0e0", fontSize: 13, resize: "vertical",
-                fontFamily: "inherit", outline: "none", boxSizing: "border-box",
-              }}
-            />
-            <div style={{ fontSize: 11, color: motivo.trim().length >= 10 ? "#9e9e9e" : "#c62828", textAlign: "right" }}>
-              {motivo.trim().length}/10 mín.
-            </div>
-          </div>
-        )}
-
-        {error && (
-          <div style={{ color: "#c62828", fontSize: 13, marginBottom: 12, padding: "8px 12px", background: "#ffebee", borderRadius: 8 }}>
-            {error}
-          </div>
-        )}
-
-        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <button onClick={onClose} style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid #e0e0e0", background: "#fff", color: "#555", fontSize: 13, cursor: "pointer" }}>
-            Cancelar
-          </button>
-          <button onClick={handleConfirm} disabled={saving} style={{
-            padding: "9px 20px", borderRadius: 8, border: "none",
-            background: saving ? "#a5d6a7" : "#2e7d32",
-            color: "#fff", fontSize: 13, fontWeight: 700,
-            cursor: saving ? "not-allowed" : "pointer",
-          }}>
+        <div className="du-modal__foot">
+          <button className="du-btn du-btn--fantasma" onClick={onClose} disabled={saving}>Cancelar</button>
+          <button className="du-btn du-btn--primario" onClick={handleConfirm} disabled={saving}>
+            <Banknote size={15} />
             {saving ? "Registrando…" : entregarDespues ? "Confirmar y entregar" : "Confirmar cobro"}
           </button>
         </div>
@@ -194,8 +233,8 @@ function CobrarEfectivoModal({ pedido, entregarDespues, onClose, onConfirm }) {
 function Toast({ toast }) {
   if (!toast) return null;
   return (
-    <div className="toast" style={{ background: toast.type === "error" ? "#c62828" : "#2e7d32" }}>
-      <span className="toast-icon" style={{display:"flex"}}>{toast.type === "error" ? <X size={15} /> : <Check size={15} />}</span>
+    <div className={`du-toast du-toast--${toast.type === "error" ? "error" : "ok"}`}>
+      <span className="du-toast__icon">{toast.type === "error" ? <X size={15} /> : <Check size={15} />}</span>
       {toast.message}
     </div>
   );
@@ -270,7 +309,7 @@ export default function PedidoActual() {
   useEffect(() => { cargar(); }, [cargar]);
 
   const handleAccion = async (accion) => {
-    if (accion.secondary) { setConfirmando(accion); return; }
+    if (accion.secundaria) { setConfirmando(accion); return; }
     // Lo único que hay que resolver antes de entregar es la plata en mano: el
     // backend no acepta la entrega sin el cobro registrado. La evidencia (OTP,
     // foto, comprobante) ya no se pide.
@@ -326,41 +365,88 @@ export default function PedidoActual() {
     window.open(url, "_blank", "noopener");
   };
 
-  const estadoInfo = pedido ? (ESTADO_INFO[pedido.estado] || ESTADO_INFO["Asignado"]) : null;
-  const acciones   = pedido ? accionesDe(pedido.estadoId) : [];
+  const acciones  = pedido ? accionesDe(pedido.estadoId) : [];
+  const faltaPlata = pedido ? cobroEfectivoPendiente(pedido) : false;
+
+  const STATS = pedido ? [
+    { Icono: Route,      valor: cola.length,                                        label: "En cola" },
+    { Icono: Clock,      valor: labelEstadoDom(pedido.estadoId), money: true,       label: "Estado" },
+    { Icono: ShoppingBag, valor: fmt(pedido.total || 0),          money: true,      label: "Total" },
+    {
+      Icono: Wallet, oro: true, money: true, label: "Por cobrar",
+      valor: faltaPlata ? fmt(montoACobrar(pedido)) : "Al día",
+    },
+  ] : [];
+
+  const subtitulo = loading
+    ? "Cargando tu ruta…"
+    : !pedido
+      ? "No tienes ninguna entrega en curso en este momento."
+      : cola.length > 1
+        ? `Entrega ${cola.findIndex(d => String(d.id) === String(idActivo)) + 1} de ${cola.length} en tu ruta de hoy.`
+        : "Esta es la única entrega que tienes asignada ahora mismo.";
 
   return (
-    <div className="page-wrapper">
-      <div className="page-header">
-        <h1 className="page-header__title">
-          Mis entregas{cola.length > 0 ? ` · ${cola.length}` : ""}
-        </h1>
-        <div className="page-header__line" />
-      </div>
+    <div className="dom-ui pedido-actual">
+      <header className="du-hero">
+        <div className="du-hero__top">
+          <div>
+            <span className="du-hero__eyebrow"><Bike size={14} /> Ruta en curso</span>
+            <h1 className="du-hero__title">Pedido Actual</h1>
+            <p className="du-hero__sub">{subtitulo}</p>
+          </div>
+          <button
+            className={`du-hero__refresh${loading ? " du-hero__refresh--girando" : ""}`}
+            onClick={cargar}
+            disabled={loading}
+          >
+            <RefreshCw size={15} /> Actualizar
+          </button>
+        </div>
 
-      <div className="page-inner">
+        {STATS.length > 0 && (
+          <div className="du-stats">
+            {STATS.map(s => (
+              <div key={s.label} className={`du-stat${s.oro ? " du-stat--oro" : ""}`}>
+                <span className="du-stat__icon"><s.Icono size={19} /></span>
+                <div>
+                  <div className={`du-stat__valor${s.money ? " du-stat__valor--money" : ""}`}>{s.valor}</div>
+                  <div className="du-stat__label">{s.label}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </header>
+
+      <div className="du-inner du-inner--angosto">
         {loading ? (
-          <div style={{ textAlign: "center", padding: "60px 0", color: "#9e9e9e" }}>
-            <div style={{ marginBottom: 12, color: "#d4d4d4", display: "flex", justifyContent: "center" }}><Clock size={40} strokeWidth={1} /></div>
-            <p style={{ fontWeight: 600 }}>Cargando...</p>
+          <div className="pa-col">
+            {[1, 2].map(i => (
+              <div key={i} className="du-skel-card">
+                {[60, 90, 45, 75].map((w, j) => (
+                  <div key={j} className="du-skel" style={{ width: `${w}%` }} />
+                ))}
+              </div>
+            ))}
           </div>
         ) : !pedido ? (
-          <div style={{ textAlign: "center", padding: "80px 0", color: "#9e9e9e" }}>
-            <div style={{ marginBottom: 16, color: "#d4d4d4", display: "flex", justifyContent: "center" }}><Truck size={56} strokeWidth={1} /></div>
-            <p style={{ fontSize: 16, fontWeight: 700, color: "#424242", marginBottom: 8 }}>
-              Sin pedido activo
+          <div className="du-vacio">
+            <span className="du-vacio__icon"><Truck size={38} strokeWidth={1.4} /></span>
+            <p className="du-vacio__titulo">Sin pedido activo</p>
+            <p className="du-vacio__texto">
+              No tienes ninguna entrega en curso en este momento. Cuando te asignen un domicilio aparecerá aquí.
             </p>
-            <p style={{ fontSize: 14 }}>No tienes ninguna entrega en curso en este momento.</p>
           </div>
         ) : (
-          <div style={{ maxWidth: 560, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
+          <div className="pa-col">
 
             {/* ── Cola de entregas ──
                 Con más de una asignada hay que poder ver cuáles son y saltar
                 entre ellas: antes solo existía la primera y las demás eran
                 invisibles hasta cerrarla. */}
             {cola.length > 1 && (
-              <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
+              <div className="pa-cola">
                 {cola.map((d, i) => {
                   const activo = String(d.id) === String(idActivo);
                   const faltaCobro = cobroEfectivoPendiente(d);
@@ -369,22 +455,12 @@ export default function PedidoActual() {
                       key={d.id}
                       onClick={() => verEntrega(d.id)}
                       aria-current={activo ? "true" : undefined}
-                      style={{
-                        flexShrink: 0, cursor: "pointer", textAlign: "left",
-                        padding: "8px 14px", borderRadius: 12,
-                        border: `2px solid ${activo ? "#2e7d32" : "#e0e0e0"}`,
-                        background: activo ? "#f1f8f1" : "#fff",
-                        display: "flex", flexDirection: "column", gap: 2,
-                      }}
+                      className={`pa-cola__chip${activo ? " pa-cola__chip--on" : ""}`}
                     >
-                      <span style={{
-                        fontSize: 12, fontWeight: 800,
-                        color: activo ? "#2e7d32" : "#666",
-                      }}>
-                        {i + 1}. {d.numero || `#${d.id}`}
-                      </span>
-                      <span style={{ fontSize: 11, color: "#9e9e9e", fontWeight: 600 }}>
-                        {d.estado}{faltaCobro ? " · cobrar" : ""}
+                      <span className="pa-cola__n">{i + 1}</span>
+                      <span className="pa-cola__num">{d.numero || `#${d.id}`}</span>
+                      <span className={`pa-cola__estado${faltaCobro ? " pa-cola__cobro" : ""}`}>
+                        {labelEstadoDom(d.estadoId)}{faltaCobro ? " · cobrar" : ""}
                       </span>
                     </button>
                   );
@@ -392,170 +468,135 @@ export default function PedidoActual() {
               </div>
             )}
 
-            {/* ── Cabecera del pedido ── */}
-            <div style={{
-              background: "#fff", borderRadius: 16, padding: "20px 22px",
-              border: `1.5px solid ${estadoInfo.bg}`,
-              boxShadow: "0 2px 12px rgba(0,0,0,0.06)",
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <span style={{ fontSize: 12, color: "#9e9e9e", fontWeight: 700 }}>{pedido.numero}</span>
-                <span style={{
-                  padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 700,
-                  background: estadoInfo.bg, color: estadoInfo.color,
-                }}>
-                  {estadoInfo.icon} {pedido.estado}
-                </span>
+            {/* ── Recorrido y cabecera del pedido ── */}
+            <section className="du-panel">
+              <div className="du-panel__head">
+                <h2 className="du-panel__titulo">{pedido.numero}</h2>
+                <span style={{ marginLeft: "auto" }}><EstadoBadge estadoId={pedido.estadoId} /></span>
               </div>
-              <div style={{ fontSize: 13, color: "#757575" }}>
-                {new Date(pedido.fecha_pedido).toLocaleString("es-CO", {
-                  day: "2-digit", month: "2-digit", year: "numeric",
-                  hour: "2-digit", minute: "2-digit",
-                }) || "—"}
+              <div className="du-panel__body">
+                <Recorrido estadoId={pedido.estadoId} />
+                <div className="du-meta-fila" style={{ marginTop: 14, justifyContent: "center" }}>
+                  <Clock size={13} />
+                  {new Date(pedido.fecha_pedido).toLocaleString("es-CO", {
+                    day: "2-digit", month: "2-digit", year: "numeric",
+                    hour: "2-digit", minute: "2-digit",
+                  })}
+                </div>
               </div>
-            </div>
+            </section>
 
             {/* ── Cliente y dirección ── */}
-            <div style={{ background: "#fff", borderRadius: 16, padding: "20px 22px", border: "1.5px solid #f0f0f0" }}>
-              <div style={{ fontSize: 11, color: "#9e9e9e", fontWeight: 700, marginBottom: 12, letterSpacing: "0.05em" }}>
-                CLIENTE
-              </div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#212121", marginBottom: 10 }}>
-                {pedido.cliente?.nombre || "—"}
-              </div>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 8, color: "#616161", fontSize: 14 }}>
-                <MapPin size={16} style={{ flexShrink: 0, marginTop: 2 }} />
-                <span>{[pedido.direccion_entrega, pedido.municipio_entrega].filter(Boolean).join(", ") || "Sin dirección"}</span>
-              </div>
+            <section className="du-panel">
+              <div className="du-panel__head"><h2 className="du-panel__titulo">Destino</h2></div>
+              <div className="du-panel__body">
+                <div className="pa-destino">
+                  <span className="pa-destino__pin"><MapPin size={21} /></span>
+                  <div className="pa-destino__txt">
+                    <div className="pa-destino__cliente">{pedido.cliente?.nombre || "—"}</div>
+                    <div className="pa-destino__dir">
+                      {[pedido.direccion_entrega, pedido.municipio_entrega].filter(Boolean).join(", ") || "Sin dirección"}
+                    </div>
+                  </div>
+                </div>
 
-              {/* Botones de mapas */}
-              <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
-                <button
-                  onClick={() => abrirMaps("google")}
-                  style={{
-                    flex: 1, padding: "10px", borderRadius: 10, cursor: "pointer",
-                    border: "1.5px solid #4285f4", background: "#fff",
-                    color: "#4285f4", fontWeight: 700, fontSize: 13,
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                  }}
-                >
-                  <Map size={15} /> Google Maps
-                </button>
-                <button
-                  onClick={() => abrirMaps("waze")}
-                  style={{
-                    flex: 1, padding: "10px", borderRadius: 10, cursor: "pointer",
-                    border: "1.5px solid #33ccff", background: "#fff",
-                    color: "#0099cc", fontWeight: 700, fontSize: 13,
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                  }}
-                >
-                  <Navigation size={15} /> Waze
-                </button>
+                <div className="pa-navs">
+                  {NAVEGADORES.map(nav => (
+                    <button
+                      key={nav.tipo}
+                      className="pa-nav"
+                      onClick={() => abrirMaps(nav.tipo)}
+                      style={{ "--nav-color": nav.color, "--nav-bg": nav.bg }}
+                    >
+                      <nav.Icono size={15} /> {nav.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            </section>
 
             {/* ── Productos ── */}
             {pedido.productos?.length > 0 && (
-              <div style={{ background: "#fff", borderRadius: 16, padding: "20px 22px", border: "1.5px solid #f0f0f0" }}>
-                <div style={{ fontSize: 11, color: "#9e9e9e", fontWeight: 700, marginBottom: 14, letterSpacing: "0.05em" }}>
-                  PRODUCTOS
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {pedido.productos.map((p, i) => (
-                    <div key={i} style={{
-                      display: "flex", justifyContent: "space-between", alignItems: "center",
-                      padding: "10px 12px", background: "#f8f8f8", borderRadius: 10,
-                    }}>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 14, color: "#212121" }}>{p.nombre_producto}</div>
-                        <div style={{ fontSize: 12, color: "#9e9e9e" }}>x{p.Cantidad} · {fmt(p.precio_unitario)} c/u</div>
+              <section className="du-panel">
+                <div className="du-panel__head"><h2 className="du-panel__titulo">Productos</h2></div>
+                <div className="du-panel__body">
+                  <div className="pa-items">
+                    {pedido.productos.map((p, i) => (
+                      <div key={i} className="pa-item">
+                        <span className="pa-item__qty">×{p.Cantidad}</span>
+                        <div className="pa-item__txt">
+                          <div className="pa-item__nombre">{p.nombre_producto}</div>
+                          <div className="pa-item__unit">{fmt(p.precio_unitario)} c/u</div>
+                        </div>
+                        <span className="pa-item__sub">{fmt(p.subtotal)}</span>
                       </div>
-                      <div style={{ fontWeight: 700, color: "#2e7d32", fontSize: 14 }}>{fmt(p.subtotal)}</div>
-                    </div>
-                  ))}
-                </div>
-                <div style={{
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                  borderTop: "1.5px solid #f0f0f0", marginTop: 14, paddingTop: 12,
-                }}>
-                  <span style={{ fontWeight: 700, fontSize: 14, color: "#424242" }}>Total</span>
-                  <span style={{ fontWeight: 800, fontSize: 18, color: "#2e7d32" }}>{fmt(pedido.total)}</span>
-                </div>
-                {pedido.metodo_pago && (
-                  <div style={{ marginTop: 8, fontSize: 12, color: "#757575", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <span style={{ display: "flex", alignItems: "center", gap: 4 }}><CreditCard size={12} /> Pago: {pedido.metodo_pago}</span>
-                    <EstadoPagoBadge estadoPago={pedido.estado_pago} />
+                    ))}
                   </div>
-                )}
-              </div>
+
+                  <div className="pa-total">
+                    <span className="pa-total__label">Total</span>
+                    <span className="pa-total__valor">{fmt(pedido.total)}</span>
+                  </div>
+
+                  {pedido.metodo_pago && (
+                    <div className="pa-pago">
+                      <span className="pa-pago__metodo"><CreditCard size={13} /> Pago: {pedido.metodo_pago}</span>
+                      <EstadoPagoBadge estadoPago={pedido.estado_pago} />
+                    </div>
+                  )}
+                </div>
+              </section>
             )}
 
             {/* ── Cobro en efectivo ──
                 El repartidor puede registrar la plata apenas la recibe, sin
                 tener que cerrar la entrega en el mismo momento. */}
-            {cobroEfectivoPendiente(pedido) && (
-              <div style={{ background: "#fff", borderRadius: 16, padding: "20px 22px", border: "1.5px solid #ffe082" }}>
-                <div style={{ fontSize: 11, color: "#9e9e9e", fontWeight: 700, marginBottom: 6, letterSpacing: "0.05em" }}>
-                  COBRO EN EFECTIVO
+            {faltaPlata && (
+              <section className="du-panel du-panel--oro">
+                <div className="du-panel__head"><h2 className="du-panel__titulo">Cobro en efectivo</h2></div>
+                <div className="du-panel__body">
+                  <p style={{ margin: "0 0 14px", fontSize: 13.5, lineHeight: 1.5, color: "#7a5d00" }}>
+                    Este pedido se paga en mano. Registra <strong>{fmt(montoACobrar(pedido))}</strong> apenas
+                    lo recibas, aunque todavía no cierres la entrega.
+                  </p>
+                  <button
+                    className="du-btn du-btn--oro du-btn--grande"
+                    onClick={() => setCobrandoOpen("solo-cobro")}
+                    disabled={saving}
+                  >
+                    <Banknote size={17} /> Registrar cobro
+                  </button>
                 </div>
-                <p style={{ margin: "0 0 14px", fontSize: 13, color: "#757575" }}>
-                  Este pedido se paga en mano. Registra <strong>{fmt(montoACobrar(pedido))}</strong> apenas
-                  lo recibas, aunque todavía no cierres la entrega.
-                </p>
-                <button
-                  onClick={() => setCobrandoOpen("solo-cobro")}
-                  disabled={saving}
-                  style={{
-                    width: "100%", padding: "14px", borderRadius: 12,
-                    border: "2px solid #ffe082", background: "#fff8e1",
-                    color: "#f57f17", fontWeight: 800, fontSize: 15,
-                    cursor: saving ? "not-allowed" : "pointer",
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                  }}
-                >
-                  <Banknote size={17} /> Registrar cobro
-                </button>
-              </div>
+              </section>
             )}
 
             {/* ── Acciones de estado ── */}
             {acciones.length > 0 && (
-              <div style={{ background: "#fff", borderRadius: 16, padding: "20px 22px", border: "1.5px solid #f0f0f0" }}>
-                <div style={{ fontSize: 11, color: "#9e9e9e", fontWeight: 700, marginBottom: 14, letterSpacing: "0.05em" }}>
-                  ACTUALIZAR ESTADO
+              <section className="du-panel">
+                <div className="du-panel__head"><h2 className="du-panel__titulo">Actualizar estado</h2></div>
+                <div className="du-panel__body">
+                  <div className="pa-acciones">
+                    {acciones.map(ac => (
+                      <button
+                        key={ac.valor}
+                        className={`pa-accion pa-accion--${ac.secundaria ? "secundaria" : "principal"}`}
+                        onClick={() => handleAccion(ac)}
+                        disabled={saving}
+                      >
+                        <ac.Icono size={18} />
+                        {saving ? "Actualizando…" : ac.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {acciones.map(ac => (
-                    <button
-                      key={ac.valor}
-                      onClick={() => handleAccion(ac)}
-                      disabled={saving}
-                      style={{
-                        width: "100%", padding: "14px", borderRadius: 12, cursor: saving ? "not-allowed" : "pointer",
-                        border: `2px solid ${ac.secondary ? "#ffcdd2" : ac.bg}`,
-                        background: ac.secondary ? "#fff" : ac.bg,
-                        color: ac.color, fontWeight: 800, fontSize: 15,
-                        display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                        opacity: saving ? 0.6 : 1,
-                      }}
-                    >
-                      {ac.icon}
-                      {saving ? "Actualizando…" : ac.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              </section>
             )}
 
             {/* ── Observaciones ── */}
             {pedido.obs_domicilio && (
-              <div style={{
-                background: "#fff8e1", border: "1.5px solid #ffe082", borderRadius: 14,
-                padding: "14px 18px",
-              }}>
-                <div style={{ fontSize: 11, color: "#f57f17", fontWeight: 700, marginBottom: 6 }}>OBSERVACIONES</div>
-                <div style={{ fontSize: 13, color: "#424242" }}>{pedido.obs_domicilio}</div>
+              <div className="du-dato du-dato--obs">
+                <div className="du-dato__label">Observaciones</div>
+                <div className="du-dato__valor">{pedido.obs_domicilio}</div>
               </div>
             )}
 
@@ -575,23 +616,27 @@ export default function PedidoActual() {
 
       {/* ── Modal confirmación cancelar ── */}
       {confirmando && (
-        <div className="modal-overlay" onClick={() => setConfirmando(null)}>
-          <div style={{
-            background: "#fff", borderRadius: 16, padding: "28px",
-            width: "min(360px, 90vw)", boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
-          }} onClick={e => e.stopPropagation()}>
-            <h3 style={{ margin: "0 0 12px", fontSize: 17, color: "#c62828" }}>¿Cancelar entrega?</h3>
-            <p style={{ margin: "0 0 20px", fontSize: 14, color: "#616161" }}>
-              Esta acción cambiará el estado del pedido a <strong>Cancelado</strong>.
-            </p>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button onClick={() => setConfirmando(null)}
-                style={{ padding: "9px 18px", borderRadius: 8, border: "1px solid #e0e0e0", background: "#fff", color: "#555", fontSize: 13, cursor: "pointer" }}>
-                Volver
-              </button>
-              <button onClick={() => ejecutarCambio(confirmando.valor, confirmando.label)}
-                style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: "#c62828", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                Sí, cancelar
+        <div className="modal-overlay">
+          <div className="du-modal du-modal--estrecho" onClick={e => e.stopPropagation()}>
+            <div className="du-modal__head du-modal__head--peligro">
+              <span className="du-modal__head-icon"><AlertCircle size={20} /></span>
+              <div className="du-modal__head-txt">
+                <p className="du-modal__eyebrow">{pedido?.numero}</p>
+                <h2 className="du-modal__titulo">¿Cancelar entrega?</h2>
+              </div>
+            </div>
+            <div className="du-modal__body">
+              <p className="du-nota" style={{ padding: "6px 2px" }}>
+                Esta acción cambiará el estado del pedido a <strong>Cancelado</strong>.
+              </p>
+            </div>
+            <div className="du-modal__foot">
+              <button className="du-btn du-btn--fantasma" onClick={() => setConfirmando(null)}>Volver</button>
+              <button
+                className="du-btn du-btn--peligro-solido"
+                onClick={() => ejecutarCambio(confirmando.valor, confirmando.label)}
+              >
+                <XCircle size={15} /> Sí, cancelar
               </button>
             </div>
           </div>

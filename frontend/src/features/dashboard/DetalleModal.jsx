@@ -43,7 +43,7 @@ export default function DetalleModal({ card, detalle, rangoLabel, filenameBase, 
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div
         className="modal-card"
         onClick={e => e.stopPropagation()}

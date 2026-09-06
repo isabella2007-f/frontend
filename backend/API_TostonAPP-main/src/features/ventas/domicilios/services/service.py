@@ -1,13 +1,15 @@
 import re
 import logging
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
 from datetime import datetime, timedelta
+from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from src.shared.services.models import (
     Domicilio, Venta, Usuario, Estado, Producto, ProductoImagen,
-    VentaXProducto, Rol, MensajeChat, OrdenProduccion,
+    VentaXProducto, Rol, MensajeChat, OrdenProduccion, GrupoEnvio, GrupoEnvioItem,
 )
 from src.shared.services.notificaciones_utils import notificar, notificar_stock_producto
 from src.features.ventas.gestion_ventas.services.service import (
@@ -16,7 +18,9 @@ from src.features.ventas.gestion_ventas.services.service import (
     cambiar_estado as _cambiar_estado_venta,
 )
 from src.shared.services.observaciones_utils import observaciones_limpias
-from src.shared.services.pagos_utils import cobro_efectivo_pendiente
+from src.shared.services.pagos_utils import (
+    cobro_efectivo_pendiente, es_pago_efectivo, es_pago_mixto,
+)
 from .estados import (
     EstadoDomicilio, ESTADO_DOM_A_VENTA, normalizar_estado, puede_reasignarse,
     validar_cambio,
@@ -115,7 +119,22 @@ def _formato_domicilio(dom: Domicilio, db: Session) -> dict:
         "estado_pago":          venta.Estado_Pago if venta else None,
         "productos":            productos,
         "telefono_cliente":     cliente.Telefono if cliente else "",
+        "ID_Grupo":             dom.ID_Grupo,
+        "tipo_grupo":           dom.grupo.Tipo if dom.ID_Grupo and dom.grupo else None,
     }
+
+
+# La fecha por la que un domicilio cae en un día u otro.
+#
+# `Fecha_asignacion` es, pese al nombre, la fecha en que se CREÓ el domicilio:
+# nadie la toca al asignarle repartidor. Filtrando por ella, el historial del
+# repartidor perdía justo las entregas que le importan —la que cerró hoy de un
+# pedido de ayer no aparecía en "Hoy"— y su panel se contradecía solo: el
+# resumen decía 2 entregas hoy y el historial le mostraba 1.
+#
+# Un domicilio cerrado pertenece al día en que se entregó; uno abierto, al día
+# en que entró. Es la misma regla que ya usaba la app móvil por su cuenta.
+FECHA_DEL_DOMICILIO = func.coalesce(Domicilio.Fecha_entrega, Domicilio.Fecha_asignacion)
 
 
 def obtener_repartidores(db: Session) -> list:
@@ -132,35 +151,82 @@ def obtener_repartidores(db: Session) -> list:
     ]
 
 
+# Estados canónicos del domicilio (ver estados.py). Antes se contaba el 13,
+# que es "En producción" del PEDIDO y no un estado de domicilio, y las
+# entregas solo miraban el 8, dejando fuera el 4 que escribían las versiones
+# viejas de la app móvil: el repartidor veía menos entregas de las hechas.
+ESTADOS_ACTIVOS = [
+    int(EstadoDomicilio.PENDIENTE),
+    int(EstadoDomicilio.ASIGNADO),
+    int(EstadoDomicilio.EN_CAMINO),
+]
+ESTADOS_ENTREGADOS = [int(EstadoDomicilio.ENTREGADO), 4]
+
+
 def obtener_resumen_dia(db: Session, id_empleado: int) -> dict:
+    """Lo que el repartidor hizo hoy.
+
+    `total_hoy` contaba los domicilios CREADOS hoy, que no es nada que al
+    repartidor le sirva: quedaba al lado de "Entregados hoy" bajo una etiqueta
+    que promete plata ("Total del día") y mostraba otro conteo. Ahora es lo que
+    dice ser: los pesos que movió en las entregas que cerró hoy.
+
+    `efectivo_hoy` es la parte de eso que recibió en mano —en un mixto, solo la
+    mitad en efectivo—, que es la plata que tiene encima y de la que responde.
+    """
     hoy_inicio = _now().replace(hour=0, minute=0, second=0, microsecond=0)
     hoy_fin    = hoy_inicio + timedelta(days=1)
 
     base = db.query(Domicilio).filter(Domicilio.ID_Empleado == id_empleado)
 
-    # Estados canónicos del domicilio (ver estados.py). Antes se contaba el 13,
-    # que es "En producción" del PEDIDO y no un estado de domicilio, y las
-    # entregas solo miraban el 8, dejando fuera el 4 que escribían las versiones
-    # viejas de la app móvil: el repartidor veía menos entregas de las hechas.
-    _ACTIVOS = [
-        int(EstadoDomicilio.PENDIENTE),
-        int(EstadoDomicilio.ASIGNADO),
-        int(EstadoDomicilio.EN_CAMINO),
-    ]
-    _ENTREGADOS = [int(EstadoDomicilio.ENTREGADO), 4]
+    activos = base.filter(Domicilio.Estado.in_(ESTADOS_ACTIVOS)).count()
 
-    activos        = base.filter(Domicilio.Estado.in_(_ACTIVOS)).count()
-    entregados_hoy = base.filter(
-        Domicilio.Estado.in_(_ENTREGADOS),
+    entregas_hoy = base.filter(
+        Domicilio.Estado.in_(ESTADOS_ENTREGADOS),
         Domicilio.Fecha_entrega >= hoy_inicio,
         Domicilio.Fecha_entrega < hoy_fin,
-    ).count()
-    total_hoy = base.filter(
-        Domicilio.Fecha_asignacion >= hoy_inicio,
-        Domicilio.Fecha_asignacion < hoy_fin,
-    ).count()
+    ).all()
 
-    return {"activos": activos, "entregados_hoy": entregados_hoy, "total_hoy": total_hoy}
+    total_hoy    = Decimal("0")
+    efectivo_hoy = Decimal("0")
+    ventas = _ventas_de(db, entregas_hoy)
+    for dom in entregas_hoy:
+        venta = ventas.get(dom.ID_Venta)
+        if not venta:
+            continue
+        total_hoy    += Decimal(str(venta.Total or 0))
+        efectivo_hoy += _cobrado_en_mano(venta)
+
+    return {
+        "activos":        activos,
+        "entregados_hoy": len(entregas_hoy),
+        "total_hoy":      float(total_hoy),
+        "efectivo_hoy":   float(efectivo_hoy),
+    }
+
+
+def _ventas_de(db: Session, domicilios: list) -> dict:
+    """Las ventas de esos domicilios, en una sola consulta."""
+    ids = [d.ID_Venta for d in domicilios if d.ID_Venta]
+    if not ids:
+        return {}
+    return {v.ID_Venta: v for v in db.query(Venta).filter(Venta.ID_Venta.in_(ids)).all()}
+
+
+def _cobrado_en_mano(venta) -> Decimal:
+    """Cuánta plata de esta venta pasó por las manos del repartidor.
+
+    En un pedido mixto solo la parte en efectivo: el resto se transfirió antes
+    de que el repartidor saliera. Y si quedó registrado que NO se pudo cobrar,
+    no cuenta: no la tiene.
+    """
+    if (getattr(venta, "Estado_Pago", None) or "").strip() == "no_recibido":
+        return Decimal("0")
+    if not es_pago_efectivo(venta.Metodo_Pago):
+        return Decimal("0")
+    if es_pago_mixto(venta.Metodo_Pago):
+        return Decimal(str(getattr(venta, "Monto_Efectivo", None) or 0))
+    return Decimal(str(venta.Total or 0))
 
 
 def obtener_domicilios(
@@ -182,11 +248,13 @@ def obtener_domicilios(
     if estado:
         query = query.filter(Domicilio.Estado == estado)
 
+    # Ver FECHA_DEL_DOMICILIO: el rango se mide contra el día al que el
+    # domicilio pertenece de verdad, no contra el día en que se creó.
     if fecha_inicio:
-        query = query.filter(Domicilio.Fecha_asignacion >= fecha_inicio)
+        query = query.filter(FECHA_DEL_DOMICILIO >= fecha_inicio)
 
     if fecha_fin:
-        query = query.filter(Domicilio.Fecha_asignacion < fecha_fin)
+        query = query.filter(FECHA_DEL_DOMICILIO < fecha_fin)
 
     if busqueda:
         termino = f"%{busqueda}%"
@@ -220,7 +288,7 @@ def obtener_domicilios(
 
     total      = query.count()
     offset     = (pagina - 1) * por_pagina
-    domicilios = query.order_by(Domicilio.Fecha_asignacion.desc()).offset(offset).limit(por_pagina).all()
+    domicilios = query.order_by(FECHA_DEL_DOMICILIO.desc()).offset(offset).limit(por_pagina).all()
 
     if not domicilios:
         return {"total": total, "pagina": pagina, "por_pagina": por_pagina, "domicilios": []}
@@ -320,6 +388,8 @@ def obtener_domicilios(
             "comprobante_pago":     venta.Comprobante_Pago if venta else None,
             "productos":            prods,
             "telefono_cliente":     cliente.Telefono if cliente else "",
+            "ID_Grupo":             dom.ID_Grupo,
+            "tipo_grupo":           None,   # no se carga en batch; usar _formato_domicilio si se necesita
         }
 
     return {
@@ -559,15 +629,29 @@ def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observacio
         "no_recibido", "pendiente_validacion",
     }
 
-    # No sale a la calle lo que todavía se está fabricando. El pedido pasa por
-    # Listo cuando su producción termina; despacharlo antes desde el módulo de
-    # domicilios se saltaba ese control por la puerta de atrás, porque "En
-    # camino" mueve la venta directo al estado 9.
+    es_domicilio_grupo = bool(dom.ID_Grupo)
+
+    # Validación de producción: aplica a todos, pero para domicilios de grupo
+    # solo se cuentan las OPs de los productos de ESE grupo, no de toda la venta.
     if nuevo_estado in (EstadoDomicilio.EN_CAMINO, EstadoDomicilio.ENTREGADO) and dom.ID_Venta:
-        ordenes_abiertas = db.query(OrdenProduccion).filter(
-            OrdenProduccion.ID_Venta == dom.ID_Venta,
-            OrdenProduccion.Estado.notin_([11, 5]),
-        ).count()
+        if es_domicilio_grupo:
+            ids_grupo = [
+                i.ID_Producto for i in
+                db.query(GrupoEnvioItem).filter(GrupoEnvioItem.ID_Grupo == dom.ID_Grupo).all()
+            ]
+            ordenes_abiertas = (
+                db.query(OrdenProduccion).filter(
+                    OrdenProduccion.ID_Venta == dom.ID_Venta,
+                    OrdenProduccion.ID_Producto.in_(ids_grupo),
+                    OrdenProduccion.Estado.notin_([11, 5]),
+                ).count()
+                if ids_grupo else 0
+            )
+        else:
+            ordenes_abiertas = db.query(OrdenProduccion).filter(
+                OrdenProduccion.ID_Venta == dom.ID_Venta,
+                OrdenProduccion.Estado.notin_([11, 5]),
+            ).count()
         if ordenes_abiertas > 0:
             raise HTTPException(
                 status_code=400,
@@ -576,16 +660,19 @@ def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observacio
                     "Completá la orden de producción antes de despacharlo."
                 ),
             )
-        faltantes = _faltantes_sin_cubrir(db, dom.ID_Venta, True)
-        if faltantes:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"Falta producto de {', '.join(faltantes)}: el pedido pidió más de lo "
-                    "que había y ese faltante todavía no se fabricó ni se repuso."
-                ),
-            )
+        if not es_domicilio_grupo:
+            faltantes = _faltantes_sin_cubrir(db, dom.ID_Venta, True)
+            if faltantes:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Falta producto de {', '.join(faltantes)}: el pedido pidió más de lo "
+                        "que había y ese faltante todavía no se fabricó ni se repuso."
+                    ),
+                )
 
+    # Validación de pago: aplica a todos los domicilios, incluidos los de grupo.
+    # El pago nunca se divide — se revisa el estado del pedido completo.
     if nuevo_estado == EstadoDomicilio.ENTREGADO and dom.ID_Venta:
         venta_check = db.query(Venta).filter(Venta.ID_Venta == dom.ID_Venta).first()
         if venta_check:
@@ -595,10 +682,6 @@ def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observacio
                     status_code=400,
                     detail="Debes registrar el cobro antes de marcar el pedido como entregado",
                 )
-            # El filtro de arriba deja pasar "anticipo_pagado" y
-            # "pendiente_validacion", que en un pedido mixto solo dicen que
-            # entró la mitad transferida: la plata en mano seguía sin cobrarse y
-            # el pedido se entregaba igual.
             if cobro_efectivo_pendiente(venta_check):
                 raise HTTPException(
                     status_code=400,
@@ -618,8 +701,24 @@ def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observacio
             if _venta_fe and not _venta_fe.Fecha_entrega:
                 _venta_fe.Fecha_entrega = entregado_en
 
-    # Propagar a la Venta. "Asignado" no la mueve: el pedido sigue Listo.
-    if nuevo_estado in ESTADO_DOM_A_VENTA and dom.ID_Venta:
+    if es_domicilio_grupo and nuevo_estado == EstadoDomicilio.ENTREGADO:
+        # Propagar entrega al grupo y desde el grupo a la venta.
+        grupo = db.query(GrupoEnvio).filter(GrupoEnvio.ID_Grupo == dom.ID_Grupo).first()
+        if grupo:
+            grupo.Estado = "entregado"
+            venta = db.query(Venta).filter(Venta.ID_Venta == dom.ID_Venta).with_for_update().first()
+            if venta:
+                grupos_venta = db.query(GrupoEnvio).filter(GrupoEnvio.ID_Venta == dom.ID_Venta).all()
+                estados_grupos = {g.Estado for g in grupos_venta}
+                if estados_grupos == {"entregado"}:
+                    _descontar_stock_venta(db, dom.ID_Venta)
+                    venta.Estado = 8   # ENTREGADO
+                    if not getattr(venta, "Fecha_entrega", None):
+                        venta.Fecha_entrega = _now()
+                elif "entregado" in estados_grupos:
+                    venta.Estado = 18  # PARCIALMENTE_ENTREGADO
+    elif nuevo_estado in ESTADO_DOM_A_VENTA and dom.ID_Venta:
+        # Propagar a la Venta. "Asignado" no la mueve: el pedido sigue Listo.
         venta = db.query(Venta).filter(Venta.ID_Venta == dom.ID_Venta).with_for_update().first()
         if venta:
             nuevo_estado_venta = ESTADO_DOM_A_VENTA[nuevo_estado]

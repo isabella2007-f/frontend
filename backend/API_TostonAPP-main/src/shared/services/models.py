@@ -417,6 +417,12 @@ class Venta(Base):
     # Usar este valor (snapshot) evita que el botón "proponer fecha" aparezca incorrectamente
     # cuando el stock cambia después de crear el pedido.
     Necesita_Produccion      = Column(Integer,      default=0,           nullable=True)
+    # Respuesta del cliente a "¿Quiere que enviemos todo el pedido junto el domingo?"
+    # NULL = no respondió todavía, 1 = sí, 0 = no.
+    Envio_Completo_Domingo   = Column(Integer,                           nullable=True)
+    # Cuántas veces el cliente ha rechazado fechas propuestas. Al llegar a
+    # LIMITE_INTENTOS_RECHAZO el pedido pasa a ESCALADO_A_ADMIN.
+    intentos_rechazo         = Column(Integer,      default=0,           nullable=True)
 
     usuario            = relationship("Usuario", back_populates="ventas")
     productos          = relationship("VentaXProducto", back_populates="venta")
@@ -424,6 +430,7 @@ class Venta(Base):
     domicilios         = relationship("Domicilio", back_populates="venta")
     devoluciones       = relationship("Devolucion", back_populates="venta")
     ordenes_produccion = relationship("OrdenProduccion", back_populates="venta")
+    grupos_envio       = relationship("GrupoEnvio", back_populates="venta", cascade="all, delete-orphan")
 
 
 class VentaXProducto(Base):
@@ -438,6 +445,54 @@ class VentaXProducto(Base):
 
     venta    = relationship("Venta", back_populates="productos")
     producto = relationship("Producto", back_populates="ventas")
+
+
+class GrupoEnvio(Base):
+    """Divide un pedido en dos grupos de envío: el anticipado (items ya listos)
+    y el programado (items que esperan producción). Solo existe cuando el cliente
+    eligió recibir antes lo que ya está disponible."""
+    __tablename__ = "Grupos_Envio"
+
+    ID_Grupo      = Column(Integer, primary_key=True, autoincrement=True)
+    ID_Venta      = Column(Integer, ForeignKey("Ventas.ID_Venta"), nullable=False)
+    # 'anticipado' = items listos (envío antes); 'programado' = items en producción
+    Tipo          = Column(String(20), nullable=False)
+    Fecha_Entrega = Column(DateTime, nullable=True)
+    # 'domicilio' | 'tienda' — editable por cliente y admin
+    Tipo_Entrega  = Column(String(20), nullable=True)
+    # 'pendiente' | 'enviado' | 'entregado'
+    Estado        = Column(String(20), default="pendiente", nullable=False)
+
+    venta = relationship("Venta", back_populates="grupos_envio")
+    items = relationship("GrupoEnvioItem", back_populates="grupo", cascade="all, delete-orphan")
+
+
+class GrupoEnvioItem(Base):
+    """Asocia cada producto del pedido a uno de sus grupos de envío."""
+    __tablename__ = "Grupo_Envio_Item"
+
+    ID_Item     = Column(Integer, primary_key=True, autoincrement=True)
+    ID_Grupo    = Column(Integer, ForeignKey("Grupos_Envio.ID_Grupo"), nullable=False)
+    ID_Venta    = Column(Integer, ForeignKey("Ventas.ID_Venta"), nullable=False)
+    ID_Producto = Column(Integer, ForeignKey("Productos.ID_Producto"), nullable=False)
+    # Unidades de este producto asignadas a este grupo (puede ser < Cantidad total
+    # cuando el producto está parcialmente cubierto por stock y parcialmente por OP)
+    Cantidad    = Column(Integer, nullable=False, default=1)
+
+    grupo    = relationship("GrupoEnvio", back_populates="items")
+    producto = relationship("Producto")
+
+
+class HistorialFechasPropuestas(Base):
+    __tablename__ = "Historial_Fechas_Propuestas"
+
+    ID_Historial   = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    ID_Venta       = Column(Integer, ForeignKey("Ventas.ID_Venta"), nullable=False)
+    ID_Usuario     = Column(Integer, ForeignKey("Usuarios.ID_Usuario"), nullable=True)
+    Fecha_Propuesta = Column(DateTime, nullable=True)   # la fecha de entrega propuesta/aceptada
+    Fecha_Accion   = Column(DateTime, nullable=False)   # cuándo ocurrió la acción
+    Tipo_Accion    = Column(String(20), nullable=False)  # 'propuesta' | 'aceptada' | 'rechazada'
+    Motivo_Rechazo = Column(Text, nullable=True)
 
 
 class DetalleVenta(Base):
@@ -480,8 +535,11 @@ class Domicilio(Base):
     OTP        = Column(String(10), nullable=True)
     OTP_Expira = Column(DateTime, nullable=True)
 
+    ID_Grupo = Column(Integer, ForeignKey("Grupos_Envio.ID_Grupo"), nullable=True)
+
     venta    = relationship("Venta", back_populates="domicilios")
     empleado = relationship("Usuario", foreign_keys=[ID_Empleado])
+    grupo    = relationship("GrupoEnvio", foreign_keys=[ID_Grupo])
 
 
 class Devolucion(Base):
@@ -603,6 +661,9 @@ class Notificacion(Base):
     Ruta            = Column(String(200), nullable=True)
     Fecha           = Column(DateTime)
     Leida           = Column(Boolean, default=False)
+    # El admin la sacó del panel. No se borra la fila: las de stock hay que
+    # recordarlas para no volver a crearlas mientras el problema sea el mismo.
+    Descartada      = Column(Boolean, default=False, nullable=False)
 
 
 # ─────────────────────────────────────────

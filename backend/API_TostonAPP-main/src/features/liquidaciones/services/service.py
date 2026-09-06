@@ -45,6 +45,22 @@ def _normalizar(texto: str) -> str:
     return "".join(c for c in nfkd if unicodedata.category(c) != "Mn").lower()
 
 
+def obtener_empleados_para_liquidaciones(db: Session) -> list:
+    usuarios = (
+        db.query(Usuario)
+        .filter(
+            Usuario.Estado == 1,
+            or_(Usuario.ID_Rol != 3, Usuario.ID_Rol.is_(None)),
+        )
+        .order_by(Usuario.Nombre, Usuario.Apellidos)
+        .all()
+    )
+    return [
+        {"id": u.ID_Usuario, "nombre": u.Nombre, "apellidos": u.Apellidos}
+        for u in usuarios
+    ]
+
+
 # ── Tarifas ───────────────────────────────────────────────────────────────────
 
 def crear_tarifa(db: Session, datos: TarifaCreate) -> TarifaEmpleado:

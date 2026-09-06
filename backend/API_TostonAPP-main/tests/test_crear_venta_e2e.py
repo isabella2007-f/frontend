@@ -56,6 +56,7 @@ from src.shared.services.models import (
     CreditoCliente,
     Domicilio,
     FichaTecnica,
+    FichaTecnicaInsumo,
     OrdenProduccion,
     Producto,
     Usuario,
@@ -276,7 +277,14 @@ class ProductoDesactivadoTests(CrearVentaBase):
         self.assertEqual(self.venta_creada().Total, Decimal("20000"))
 
     def test_agotado_no_es_lo_mismo_que_desactivado(self):
-        """Sin stock se puede pedir igual: eso lo resuelve el anticipo."""
+        """Sin stock se puede pedir igual, si la panadería lo fabrica.
+
+        Son dos negativas distintas y el cliente tiene que poder diferenciarlas:
+        "no lo vendemos" no es "se acabó, lo horneamos". Antes esto se probaba
+        con un producto que no se fabrica, y hoy ese pedido lo rechaza el
+        servidor por otra razón.
+        """
+        self.marcar_por_encargo(ID_TOSTON)
         prod = self.db.query(Producto).filter(
             Producto.ID_Producto == ID_TOSTON
         ).first()
@@ -287,6 +295,24 @@ class ProductoDesactivadoTests(CrearVentaBase):
             comprobante_pago="https://cloudinary.test/comp.jpg",
         ))
         self.assertEqual(self.venta_creada().Sobre_Stock, 1)
+
+    def test_agotado_y_sin_fabricar_se_rechaza_con_otro_motivo(self):
+        """La otra mitad: agotado y que además no se fabrica.
+
+        El mensaje habla del stock, no de que el producto esté desactivado.
+        """
+        prod = self.db.query(Producto).filter(
+            Producto.ID_Producto == ID_TOSTON
+        ).first()
+        prod.Stock = 0
+        self.db.commit()
+        with self.assertRaises(HTTPException) as ctx:
+            self.crear(self.pedido(
+                Metodo_Pago="Transferencia",
+                comprobante_pago="https://cloudinary.test/comp.jpg",
+            ))
+        self.assertIn("no se fabrican por encargo", ctx.exception.detail)
+        self.assertNotIn("desactivado", ctx.exception.detail.lower())
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -533,20 +559,20 @@ class SinAnticipoTests(CrearVentaBase):
             ))
         self.assertIn("anticipo", ctx.exception.detail.lower())
 
-    def test_lo_que_la_panaderia_no_fabrica_no_pide_anticipo(self):
-        """Sin ficha técnica ni marca de producción no hay orden que abrir.
+    def test_lo_que_la_panaderia_no_fabrica_no_se_pide_con_anticipo(self):
+        """Cobrar por adelantado no acerca el producto.
 
-        Cobrar por adelantado no acerca el producto: el admin tiene que cargar
-        la ficha o reponer el stock, y hasta entonces el pedido no pasa a Listo.
+        Sin ficha técnica ni marca de producción no hay orden que abrir, así
+        que el anticipo no compra nada: el pedido se rechaza en vez de quedar
+        esperando a que alguien reponga.
         """
-        self.crear(self.pedido(
-            productos=[ProductoVentaInput(ID_Producto=ID_TORTA, Cantidad=8)],
-        ))
-        v = self.venta_creada()
-        self.assertEqual(v.Total, Decimal("80000"))
-        self.assertEqual(v.Sobre_Stock, 1)
-        self.assertEqual(v.Necesita_Produccion, 0)
-        self.assertEqual(v.Requiere_Anticipo or 0, 0)
+        with self.assertRaises(HTTPException) as ctx:
+            self.crear(self.pedido(
+                productos=[ProductoVentaInput(ID_Producto=ID_TORTA, Cantidad=8)],
+            ))
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("no se fabrican por encargo", ctx.exception.detail)
+        self.assertIsNone(self.venta_creada())
 
     def test_la_ficha_tecnica_sola_ya_cuenta_como_fabricable(self):
         """Igual que las órdenes de producción: la receta manda, no el flag.
@@ -771,10 +797,10 @@ class OrdenProduccionDelFaltanteTests(CrearVentaBase):
         return self.pedido(**base)
 
     def sin_receta(self, cantidad=5):
-        """Sobre stock, pero el producto no se puede fabricar.
+        """Sobre stock y sin forma de fabricarlo: el servidor lo rechaza.
 
-        Ni ficha técnica ni `Requiere_Produccion`: no hay orden que abrir, así
-        que el faltante solo se cubre reponiendo stock.
+        Ni ficha técnica ni `Requiere_Produccion`: no hay orden que abrir, y
+        cobrar por adelantado no acerca el producto.
         """
         return self.pedido(
             productos=[ProductoVentaInput(ID_Producto=ID_TORTA, Cantidad=cantidad)],
@@ -785,6 +811,32 @@ class OrdenProduccionDelFaltanteTests(CrearVentaBase):
             anticipo_comprobante_url="https://cloudinary.test/ant.jpg",
             anticipo_registrado=True,
         )
+
+    def se_quedo_sin_receta(self, cantidad=5):
+        """Un pedido legal que después pierde la forma de fabricarse.
+
+        Pedir de entrada algo que no se fabrica y no hay en stock ya no se
+        puede. Pero un pedido hecho cuando el producto sí se fabricaba puede
+        quedarse sin receta después —alguien la borra, o le quita la marca— y
+        su orden puede cancelarse. Ahí el faltante se queda sin quién lo cubra,
+        y es cuando el control de abajo tiene que actuar.
+
+        Devuelve el ID de la venta.
+        """
+        self.crear(self.con_anticipo(cantidad))
+        id_venta = self.venta_creada().ID_Venta
+        cambiar_estado(self.db, id_venta, EstadoPedido.CONFIRMADO)
+
+        producto = self.db.query(Producto).filter(
+            Producto.ID_Producto == ID_TORTA
+        ).first()
+        producto.Requiere_Produccion = 0
+        self.db.query(FichaTecnicaInsumo).delete()
+        self.db.query(FichaTecnica).delete()
+        for orden in self.ordenes():
+            orden.Estado = 5          # Cancelada
+        self.db.commit()
+        return id_venta
 
     def reponer(self, id_producto, stock):
         prod = self.db.query(Producto).filter(
@@ -884,18 +936,42 @@ class OrdenProduccionDelFaltanteTests(CrearVentaBase):
 
     # ── Producto que no se puede fabricar ───────────────────────────
 
-    def test_sin_ficha_ni_flag_no_se_abre_ninguna_orden(self):
-        self.crear(self.sin_receta())
-        self.assertEqual(self.ordenes(), [])
-        self.assertEqual(self.venta_creada().Sobre_Stock, 1)
+    def test_sin_ficha_ni_flag_no_se_puede_pedir_sobre_stock(self):
+        """Lo que no se fabrica y no hay, no se vende.
 
-    def test_sin_ficha_ni_flag_el_pedido_no_llega_a_listo(self):
-        """El hueco que quedaba: sin orden, nada bloqueaba el paso a Listo."""
-        self.crear(self.sin_receta())
-        id_venta = self.venta_creada().ID_Venta
-        cambiar_estado(self.db, id_venta, EstadoPedido.CONFIRMADO)
-        # No hay produccion que arrancar: el pedido queda Confirmado.
-        self.assertEqual(self.venta_creada().Estado, EstadoPedido.CONFIRMADO)
+        Antes el pedido se creaba y quedaba trabado hasta que alguien
+        repusiera: nadie lo miraba y el cliente esperaba por algo que no
+        estaba en camino. Ahora se rechaza de entrada, diciendo qué producto
+        es y cuánto hay.
+        """
+        with self.assertRaises(HTTPException) as ctx:
+            self.crear(self.sin_receta())
+        self.assertEqual(ctx.exception.status_code, 400)
+        self.assertIn("Torta Tropical", ctx.exception.detail)
+        self.assertIn("disponible 2", ctx.exception.detail)
+        self.assertIn("pediste 5", ctx.exception.detail)
+        # Y no queda nada a medio crear.
+        self.assertIsNone(self.venta_creada())
+
+    def test_lo_que_si_hay_en_stock_se_pide_igual(self):
+        """El rechazo mira el faltante, no si el producto se fabrica.
+
+        Sin esta línea, un producto que la panadería compra hecho —y del que
+        hay de sobra— habría dejado de poder venderse.
+        """
+        self.crear(self.pedido(
+            productos=[ProductoVentaInput(ID_Producto=ID_TORTA, Cantidad=2)],
+        ))
+        self.assertEqual(self.venta_creada().Sobre_Stock, 0)
+
+    def test_el_que_se_queda_sin_receta_no_llega_a_listo(self):
+        """El control de fondo: no se da por Listo lo que no existe.
+
+        Ya no se puede pedir algo no fabricable sobre el stock, pero un pedido
+        legal puede quedarse sin receta después. El faltante se queda sin quién
+        lo cubra y el pedido no puede darse por listo igual.
+        """
+        id_venta = self.se_quedo_sin_receta()
 
         with self.assertRaises(HTTPException) as ctx:
             cambiar_estado(self.db, id_venta, EstadoPedido.LISTO)
@@ -903,12 +979,9 @@ class OrdenProduccionDelFaltanteTests(CrearVentaBase):
         self.assertIn("Torta Tropical", ctx.exception.detail)
 
     def test_al_reponer_el_stock_el_pedido_ya_puede_estar_listo(self):
-        """La salida del bloqueo cuando el producto no se fabrica: comprarlo."""
-        self.crear(self.sin_receta())
-        id_venta = self.venta_creada().ID_Venta
-        cambiar_estado(self.db, id_venta, EstadoPedido.CONFIRMADO)
-        # Pickup: al confirmar se descontaron las 2 que había y quedan
-        # debiendo 3. Con esas 3 repuestas ya hay qué entregar.
+        """La salida del bloqueo cuando ya no se puede fabricar: comprarlo."""
+        id_venta = self.se_quedo_sin_receta()
+        # Quedan debiendo 3 de las 5 pedidas. Con esas 3 ya hay qué entregar.
         self.reponer(ID_TORTA, 3)
 
         cambiar_estado(self.db, id_venta, EstadoPedido.LISTO)

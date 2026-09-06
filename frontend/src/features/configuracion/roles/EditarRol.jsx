@@ -110,7 +110,7 @@ export default function EditarRol({ rol, mode = "edit", onClose, onSave }) {
 
   return createPortal(
     <>
-      <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-overlay">
         <div className="modal-box modal-box--wide" onClick={e => e.stopPropagation()}>
           <div className="modal-header">
             <div>
