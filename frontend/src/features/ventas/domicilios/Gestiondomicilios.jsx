@@ -1140,7 +1140,7 @@ export default function GestionDomicilios() {
      cancelados (5), para poder cerrarlos. Mismo criterio que la app móvil.
      Si el backend no envía el estado de la venta, no se oculta nada. */
   const listoParaSalir = (d) =>
-    d.venta_estado_id == null || [11, 9, 8, 5].includes(d.venta_estado_id);
+    d.id_grupo || d.venta_estado_id == null || [11, 9, 8, 5].includes(d.venta_estado_id);
 
   const gestionables = domicilios.filter(listoParaSalir);
 
