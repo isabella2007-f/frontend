@@ -67,6 +67,18 @@ const adaptPedido = (p) => {
     estado_pago:               p.estado_pago         || null,
     envio_completo_domingo:
       p.envio_completo_domingo == null ? null : !!p.envio_completo_domingo,
+    grupos_envio: (p.grupos_envio || []).map(g => ({
+      id_grupo:    g.id_grupo,
+      tipo:        g.tipo,          // 'anticipado' | 'programado'
+      fecha:       g.fecha,
+      tipo_entrega: g.tipo_entrega,
+      estado:      g.estado,        // 'pendiente' | 'enviado' | 'entregado' | 'cancelado'
+      // productos: [{id_producto, cantidad}] — un producto puede aparecer en dos
+      // grupos con cantidades distintas si está parcialmente cubierto por stock
+      productos:   (g.productos || []).map(pr =>
+        typeof pr === 'object' ? pr : { id_producto: pr, cantidad: null }
+      ),
+    })),
     cliente: {
       nombre:   p.nombre_cliente   || "",
       correo:   p.correo_cliente   || "",
@@ -192,6 +204,55 @@ export const guardarEnvioCompletoDomingo = async (id, valor) => {
     method: "PATCH",
     body: JSON.stringify({ envio_completo_domingo: valor }),
   });
+  return adaptPedido(data);
+};
+
+// ── Grupos de envío ────────────────────────────────────────────────────────
+
+export const getItemsListos = async (idVenta) =>
+  apiFetch(`/ventas/${idVenta}/items-listos`);
+
+export const crearGruposEnvio = async (idVenta, {
+  fechaAnticipada,
+  tipoEntregaA = null, tipoEntregaB = null,
+  direccionA = null, municipioA = null, departamentoA = null,
+  direccionB = null, municipioB = null, departamentoB = null,
+}) => {
+  const data = await apiFetch(`/ventas/${idVenta}/crear-grupos-envio`, {
+    method: "POST",
+    body: JSON.stringify({
+      fecha_anticipada:  fechaAnticipada,
+      tipo_entrega_a:    tipoEntregaA,
+      tipo_entrega_b:    tipoEntregaB,
+      direccion_a:       direccionA    || null,
+      municipio_a:       municipioA    || null,
+      departamento_a:    departamentoA || null,
+      direccion_b:       direccionB    || null,
+      municipio_b:       municipioB    || null,
+      departamento_b:    departamentoB || null,
+    }),
+  });
+  return adaptPedido(data);
+};
+
+export const actualizarEstadoGrupo = async (idVenta, idGrupo, estado) => {
+  const data = await apiFetch(`/ventas/${idVenta}/grupos/${idGrupo}/estado`, {
+    method: "PATCH",
+    body: JSON.stringify({ estado }),
+  });
+  return adaptPedido(data);
+};
+
+export const actualizarTipoEntregaGrupo = async (idVenta, idGrupo, tipoEntrega) => {
+  const data = await apiFetch(`/ventas/${idVenta}/grupos/${idGrupo}/tipo-entrega`, {
+    method: "PATCH",
+    body: JSON.stringify({ tipo_entrega: tipoEntrega }),
+  });
+  return adaptPedido(data);
+};
+
+export const cancelarGrupoPendiente = async (idVenta, idGrupo) => {
+  const data = await apiFetch(`/ventas/${idVenta}/grupos/${idGrupo}`, { method: "DELETE" });
   return adaptPedido(data);
 };
 

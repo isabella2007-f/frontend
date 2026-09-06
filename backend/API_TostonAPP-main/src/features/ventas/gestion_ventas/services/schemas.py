@@ -146,6 +146,8 @@ class VentaResponse(BaseModel):
     # Sin esto el pedido reaparecía idéntico a uno recién hecho.
     fecha_rechazada:               Optional[datetime] = None
     intentos_rechazo:              int              = 0
+    # División del pedido en grupos de envío
+    grupos_envio:                  list             = []
 
     class Config:
         from_attributes = True
@@ -177,3 +179,33 @@ class AcuerdoManualInput(BaseModel):
 # ── Rechazar comprobante de transferencia ──
 class RechazoComprobante(BaseModel):
     motivo: str
+
+
+# ── Crear grupos de envío (división del pedido) ──
+class CrearGruposEnvioInput(BaseModel):
+    # Fecha para el Grupo A (anticipado, items ya listos). Mínimo hoy+1 y antes de la fecha aceptada.
+    fecha_anticipada:    datetime
+    tipo_entrega_a:      Optional[str]  = None   # 'domicilio' | 'tienda'
+    tipo_entrega_b:      Optional[str]  = None
+    # Dirección de entrega para el grupo A (solo cuando tipo_entrega_a = 'domicilio')
+    direccion_a:         Optional[str]  = None
+    municipio_a:         Optional[str]  = None
+    departamento_a:      Optional[str]  = None
+    # Dirección de entrega para el grupo B (solo cuando tipo_entrega_b = 'domicilio')
+    direccion_b:         Optional[str]  = None
+    municipio_b:         Optional[str]  = None
+    departamento_b:      Optional[str]  = None
+
+
+# ── Actualizar estado de un grupo de envío ──
+class ActualizarEstadoGrupoInput(BaseModel):
+    # 'enviado' | 'entregado'
+    estado: str
+
+    class Config:
+        from_attributes = True
+
+
+# ── Actualizar tipo de entrega de un grupo ──
+class ActualizarTipoEntregaGrupoInput(BaseModel):
+    tipo_entrega: str

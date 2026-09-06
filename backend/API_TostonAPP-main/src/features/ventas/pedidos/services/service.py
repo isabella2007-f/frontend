@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from src.shared.services.models import (
     Venta, Estado, DetalleVenta, Domicilio,
     VentaXProducto, Producto, DescuentoXVenta,
+    GrupoEnvio, GrupoEnvioItem,
 )
 from src.features.ventas.gestion_ventas.services.service import (
     COSTO_DOMICILIO, _formato_venta, _now, cambiar_estado as _gv_cambiar_estado,
@@ -61,6 +62,8 @@ def obtener_pedidos(
             selectinload(Venta.domicilios)
                 .selectinload(Domicilio.empleado),
             selectinload(Venta.ordenes_produccion),
+            selectinload(Venta.grupos_envio)
+                .selectinload(GrupoEnvio.items),
         )
         .order_by(Venta.Fecha_pedido.desc())
         .offset(offset)
@@ -86,7 +89,23 @@ def obtener_pedidos(
 
 def obtener_pedido(db: Session, id_venta: int) -> dict:
     """Retorna un pedido por ID — sin filtro de estado para que admins puedan ver históricos."""
-    pedido = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
+    pedido = (
+        db.query(Venta)
+        .options(
+            selectinload(Venta.usuario),
+            selectinload(Venta.productos)
+                .selectinload(VentaXProducto.producto)
+                .selectinload(Producto.imagenes),
+            selectinload(Venta.detalle),
+            selectinload(Venta.domicilios)
+                .selectinload(Domicilio.empleado),
+            selectinload(Venta.ordenes_produccion),
+            selectinload(Venta.grupos_envio)
+                .selectinload(GrupoEnvio.items),
+        )
+        .filter(Venta.ID_Venta == id_venta)
+        .first()
+    )
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
     return _formato_venta(pedido, db)

@@ -37,9 +37,9 @@
   --liq-head: 'Nunito', sans-serif;
   --liq-body: 'DM Sans', sans-serif;
 
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 24px 26px 60px;
+  /* Sin tope de ancho: la pantalla aprovecha todo el espacio disponible. */
+  width: 100%;
+  padding: 16px 20px 32px;
   font-family: var(--liq-body);
   color: var(--liq-tinta);
 }
@@ -60,14 +60,14 @@
   display: flex;
   align-items: center;
   gap: 18px;
-  padding: 26px 30px;
-  margin-bottom: 22px;
-  border-radius: 24px;
+  padding: 20px 24px;
+  margin-bottom: 16px;
+  border-radius: 20px;
   color: #fff;
   background:
-    radial-gradient(90% 130% at 88% -20%, rgba(139, 195, 74, .45) 0%, transparent 58%),
-    radial-gradient(70% 120% at 4% 130%, rgba(67, 160, 71, .5) 0%, transparent 60%),
-    linear-gradient(128deg, var(--liq-verde-900) 0%, var(--liq-verde-700) 48%, var(--liq-verde-600) 100%);
+    radial-gradient(90% 130% at 88% -20%, rgba(174, 213, 129, .5) 0%, transparent 58%),
+    radial-gradient(70% 120% at 4% 130%, rgba(129, 199, 132, .45) 0%, transparent 60%),
+    linear-gradient(125deg, var(--liq-verde-600) 0%, #3d9142 45%, var(--liq-verde-500) 100%);
   box-shadow: var(--liq-sombra-lg);
   flex-wrap: wrap;
   animation: liqFadeUp .45s cubic-bezier(.16, 1, .3, 1) both;
@@ -89,12 +89,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 58px;
-  height: 58px;
+  width: 52px;
+  height: 52px;
   flex-shrink: 0;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, .16);
-  border: 1px solid rgba(255, 255, 255, .26);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .2);
+  border: 1px solid rgba(255, 255, 255, .34);
   backdrop-filter: blur(8px);
 }
 .liq-root .liq-hero__txt { position: relative; z-index: 1; flex: 1 1 280px; min-width: 0; }
@@ -106,7 +106,8 @@
   font-weight: 800;
   letter-spacing: .12em;
   text-transform: uppercase !important;
-  color: rgba(220, 243, 223, .8);
+  color: #fff;
+  text-shadow: 0 1px 6px rgba(13, 59, 30, .35);
 }
 .liq-root .liq-hero h1 {
   margin: 5px 0 5px;
@@ -121,8 +122,10 @@
   margin: 0;
   max-width: 52ch;
   font-size: 13.5px;
+  font-weight: 500;
   line-height: 1.5;
-  color: rgba(232, 245, 233, .82);
+  color: #fff;
+  text-shadow: 0 1px 6px rgba(13, 59, 30, .35);
 }
 
 .liq-root .liq-hero__badge {
@@ -134,9 +137,9 @@
   flex-shrink: 0;
   padding: 8px 15px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, .28);
-  background: rgba(255, 255, 255, .14);
-  color: #eaf7ec;
+  border: 1px solid rgba(255, 255, 255, .36);
+  background: rgba(255, 255, 255, .2);
+  color: #fff;
   font-size: 12.5px;
   font-weight: 700;
   backdrop-filter: blur(8px);
@@ -152,7 +155,7 @@
   width: fit-content;
   gap: 5px;
   padding: 5px;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
   border-radius: 16px;
   border: 1.5px solid var(--liq-borde);
   background: #fff;
@@ -187,8 +190,8 @@
    PANEL DE CONTENIDO
    ───────────────────────────────────────────────────────────── */
 .liq-root .liq-tab-content {
-  padding: 20px 22px 22px;
-  border-radius: 22px;
+  padding: 16px 18px 18px;
+  border-radius: 20px;
   border: 1.5px solid var(--liq-borde);
   background: #fff;
   box-shadow: var(--liq-sombra-sm);
@@ -200,8 +203,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 18px;
+  gap: 10px;
+  margin-bottom: 14px;
   flex-wrap: wrap;
 }
 .liq-root .liq-toolbar__left {
@@ -216,8 +219,8 @@
   position: relative;
   display: flex;
   align-items: center;
-  flex: 1 1 240px;
-  max-width: 380px;
+  flex: 1 1 260px;
+  max-width: 520px;
   min-width: 200px;
 }
 .liq-root .liq-search > svg {
@@ -628,8 +631,8 @@
   padding: 19px 22px;
   color: #fff;
   background:
-    radial-gradient(85% 150% at 92% -30%, rgba(139, 195, 74, .5) 0%, transparent 60%),
-    linear-gradient(126deg, var(--liq-verde-900) 0%, var(--liq-verde-700) 52%, var(--liq-verde-600) 100%);
+    radial-gradient(85% 150% at 92% -30%, rgba(174, 213, 129, .5) 0%, transparent 60%),
+    linear-gradient(125deg, var(--liq-verde-600) 0%, #3d9142 50%, var(--liq-verde-500) 100%);
 }
 .liq-root .liq-modal__header--peligro {
   background:
@@ -773,9 +776,7 @@
 /* ─────────────────────────────────────────────────────────────
    DETALLE DE LA LIQUIDACIÓN
    ───────────────────────────────────────────────────────────── */
-/* El detalle se lee mejor más angosto que el listado: es una ficha, no una
-   tabla ancha. */
-.liq-root .liq-detalle { max-width: 980px; margin: 0 auto; }
+.liq-root .liq-detalle { width: 100%; }
 .liq-root .liq-detalle__back { margin-bottom: 16px; }
 
 .liq-root .liq-detalle__card {
@@ -985,16 +986,16 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 56px 24px;
-  border-radius: 20px;
+  gap: 5px;
+  padding: 34px 22px;
+  border-radius: 18px;
   border: 1.5px dashed var(--liq-borde);
   background: linear-gradient(180deg, #fff 0%, var(--liq-crema) 100%);
   text-align: center;
 }
 .liq-root .liq-empty-state > svg {
-  padding: 18px;
-  margin-bottom: 6px;
+  padding: 14px;
+  margin-bottom: 4px;
   border-radius: 50%;
   background: #e7f4e9;
   color: var(--liq-verde-400);
