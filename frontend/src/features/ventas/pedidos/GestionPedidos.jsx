@@ -190,7 +190,17 @@ function ComprobanteAdjunto({ url, titulo }) {
 /* ═══════════════════════════════════════════════════════════
    MODAL — VER DETALLE
    ═══════════════════════════════════════════════════════════ */
-function ModalVerPedido({ pedido, empleados, onClose, onEdit, onUpdatePedido }) {
+function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpdatePedido }) {
+  const [pedido, setPedido] = useState(pedidoProp);
+
+  useEffect(() => {
+    let cancelado = false;
+    getPedido(pedidoProp.id)
+      .then(data => { if (!cancelado) setPedido(data); })
+      .catch(() => {});
+    return () => { cancelado = true; };
+  }, [pedidoProp.id]);
+
   const navigate = useNavigate();
   const comprobantes = [
     { url: pedido.comprobante || pedido.anticipo_comprobante_url, titulo: "Comprobante de pago adjuntado." },
@@ -261,6 +271,7 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit, onUpdatePedido }) 
         municipioB:      adminTipoB === 'domicilio' ? adminMunicipioB || null : null,
         departamentoB:   adminTipoB === 'domicilio' ? adminDeptoB     || null : null,
       });
+      setPedido(actualizado);
       onUpdatePedido?.(actualizado);
     } catch (e) {
       setErrorAdmin(e.message || 'No se pudo crear la división. Intenta de nuevo.');
@@ -274,6 +285,7 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit, onUpdatePedido }) 
     setErrorGrupo('');
     try {
       const actualizado = await actualizarEstadoGrupo(pedido.id, idGrupo, nuevoEstado);
+      setPedido(actualizado);
       onUpdatePedido?.(actualizado);
     } catch (e) {
       setErrorGrupo(e.message || 'No se pudo avanzar el estado del grupo.');
@@ -287,6 +299,7 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit, onUpdatePedido }) 
     setErrorGrupo('');
     try {
       const actualizado = await cancelarGrupoPendiente(pedido.id, idGrupo);
+      setPedido(actualizado);
       onUpdatePedido?.(actualizado);
     } catch (e) {
       setErrorGrupo(e.message || 'No se pudo cancelar el grupo.');
