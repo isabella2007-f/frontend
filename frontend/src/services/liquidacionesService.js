@@ -100,12 +100,14 @@ export async function editarLiquidacion(idLiquidacion, { registrosAgregar = [], 
   });
 }
 
-export async function pagarLiquidacion(idLiquidacion, { metodoPago, fechaPago }) {
+export async function pagarLiquidacion(idLiquidacion, { metodoPago, referenciaPago, fechaPago, observacionesPago }) {
   return apiFetch(`${BASE}/${idLiquidacion}/pagar`, {
     method: "POST",
     body: JSON.stringify({
-      Metodo_Pago: metodoPago,
-      Fecha_Pago:  fechaPago,
+      Metodo_Pago:        metodoPago,
+      Referencia_Pago:    referenciaPago,
+      Fecha_Pago:         fechaPago,
+      Observaciones_Pago: observacionesPago || null,
     }),
   });
 }
