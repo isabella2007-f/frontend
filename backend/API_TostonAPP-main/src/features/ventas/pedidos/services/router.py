@@ -3,7 +3,9 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from src.shared.services.database import get_db
-from src.features.auth.services.dependencies import requiere_permiso, obtener_usuario_actual
+from src.features.auth.services.dependencies import (
+    requiere_permiso, permiso_o_cliente, obtener_usuario_actual,
+)
 from .schemas import PedidoResponse, PedidoListResponse, PedidoUpdate, RegistroCobro
 from .service import (
     obtener_pedidos, obtener_pedido, confirmar_pedido, cancelar_pedido,
@@ -21,7 +23,7 @@ router = APIRouter(prefix="/pedidos", tags=["Pedidos"])
 def crear(
     datos:  VentaCreate,
     db:     Session = Depends(get_db),
-    actual: dict    = Depends(requiere_permiso("crear_pedidos")),
+    actual: dict    = Depends(permiso_o_cliente("crear_pedidos")),
 ):
     """
     Crea un pedido (una venta es un pedido; no son módulos separados).

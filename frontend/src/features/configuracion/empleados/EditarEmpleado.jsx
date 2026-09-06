@@ -229,7 +229,29 @@ export default function EditarEmpleado({ empleado, onClose, onSave, roles = [] }
   const [step, setStep]         = useState(1);
   const fotoRef = useRef();
 
-  useEffect(() => { if (empleado) setForm({ ...empleado, contrasena:"", confirmar:"" }); }, [empleado]);
+  // Instantánea al abrir, para detectar "guardar sin cambios".
+  const snapshot = (f) => JSON.stringify({
+    tipoDoc:      f.tipoDoc ?? "",
+    numDoc:       String(f.numDoc ?? "").trim(),
+    idRol:        String(f.idRol ?? ""),
+    nombre:       (f.nombre ?? "").trim(),
+    apellidos:    (f.apellidos ?? "").trim(),
+    correo:       (f.correo ?? "").trim(),
+    telefono:     String(f.telefono ?? "").replace(/\D/g, ""),
+    fechaIngreso: f.fechaIngreso ?? "",
+    direccion:    (f.direccion ?? "").trim(),
+    departamento: f.departamento ?? "",
+    municipio:    f.municipio ?? "",
+    estado:       !!f.estado,
+  });
+  const snapshotInicial = useRef(snapshot(empleado || {}));
+
+  useEffect(() => {
+    if (empleado) {
+      setForm({ ...empleado, contrasena:"", confirmar:"" });
+      snapshotInicial.current = snapshot(empleado);
+    }
+  }, [empleado]);
 
   const set = (k, v) => {
     let val = v;
@@ -321,6 +343,11 @@ export default function EditarEmpleado({ empleado, onClose, onSave, roles = [] }
   const handleSave = async () => {
     const e = validateStep(4);
     if (Object.keys(e).length) { setErrors(e); return; }
+    // Sin cambios: mismos datos, sin contraseña nueva y sin foto nueva.
+    if (!form.contrasena && !form.fotoFile && snapshot(form) === snapshotInicial.current) {
+      onSave({ sinCambios: true });
+      return;
+    }
     setSaving(true);
     try {
       const { confirmar, ...data } = form;

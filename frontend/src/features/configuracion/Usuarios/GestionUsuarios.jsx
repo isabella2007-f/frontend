@@ -1,15 +1,18 @@
 import { useState, useEffect, useRef } from "react";
-import { Check, X, Search, User, Eye, PenLine, Trash2, Phone } from "lucide-react";
+import { Check, X, Search, User, Eye, PenLine, Trash2, Phone, Shield } from "lucide-react";
 import {
-  getUsuarios, eliminarUsuario, toggleEstadoUsuario,
+  getUsuarios, eliminarUsuario, toggleEstadoUsuario, cambiarRolUsuario,
 } from "../../../services/usuariosService.js";
 import { getRoles } from "../../../services/rolesService.js";
 import { getUser } from "../../../services/authService.js";
+import { usePrivilegio, usePrivilegios } from "../../../context/PrivilegiosContext.jsx";
 import { Avatar, Toggle, RolBadge } from "./CrearUsuario.jsx";
 import CrearUsuario from "./CrearUsuario.jsx";
 import { ModalVerUsuario, ModalEliminarUsuario } from "./EditarUsuario.jsx";
+import ModalCambiarRol from "./ModalCambiarRol.jsx";
 import "./Usuarios.css";
 import DateRangeFilter from "../../../shared/components/DateRangeFilter";
+import FilasRelleno from "../../../shared/components/FilasRelleno";
 import { getRecordDate } from "../../../utils/dateUtils";
 
 const PER_PAGE = 5;
@@ -44,6 +47,12 @@ function SkeletonRows() {
 }
 
 export default function GestionUsuarios() {
+  const puedeCambiarRol = usePrivilegio("Usuarios_cambiar_rol");
+  const { isAdmin }     = usePrivilegios();
+  const sesion          = getUser();
+  const soySuperAdmin   = !!sesion && String(sesion.id) === "1";
+  const soyAdmin        = soySuperAdmin || isAdmin;
+
   const [usuarios,   setUsuarios]   = useState([]);
   const [roles,      setRoles]      = useState([]);
   const [loading,    setLoading]    = useState(true);
@@ -57,6 +66,29 @@ export default function GestionUsuarios() {
   const [modal,      setModal]      = useState(null);
   const [toast,      setToast]      = useState(null);
   const filterRef = useRef();
+
+  // Qué acciones ofrece cada fila (solo UX; el backend revalida todo).
+  //  - Nadie toca al super admin (usuario id 1) salvo el propio super admin.
+  //  - A un admin normal (idRol 1, id != 1) solo lo gestiona el super admin.
+  //  - Un gestor de usuarios no admin no gestiona a otro gestor de usuarios.
+  //  - Nadie se cambia el rol / estado / se elimina a sí mismo.
+  const permisosFila = (u) => {
+    const esSuperAdminFila = u.id === 1;
+    const esAdminNormal    = u.idRol === 1 && u.id !== 1;
+    const esFilaPropia     = !!sesion && String(sesion.id) === String(u.id);
+    const rolObjetivo      = roles.find(r => r.nombre === u.rol);
+    const objetivoEsGestor = !!rolObjetivo && (rolObjetivo.esAdmin || (rolObjetivo.permisos || []).some(c => c.startsWith("Usuarios_")));
+    const gestionable =
+      !(esSuperAdminFila && !esFilaPropia) &&
+      !(esAdminNormal && !soySuperAdmin) &&
+      !(objetivoEsGestor && !esFilaPropia && !soyAdmin);
+    return {
+      puedeEditar:     gestionable,
+      puedeEliminar:   gestionable && !esFilaPropia && !esSuperAdminFila,
+      puedeToggle:     gestionable && !esFilaPropia && !esSuperAdminFila,
+      puedeCambiarRol: puedeCambiarRol && gestionable && !esFilaPropia && !esSuperAdminFila,
+    };
+  };
 
   const showToast = (msg, type = "success") => {
     setToast({ message: msg, type });
@@ -128,17 +160,28 @@ export default function GestionUsuarios() {
 
   useEffect(() => { setPage(1); }, [search, filter, filterRol, filterDesde, filterHasta]);
 
-  const handleSave = async () => {
+  const handleSave = async (info) => {
     await cargarDatos();
-    // Si el admin editó al usuario de la sesión actual, refrescar el contexto de privilegios
-    if (modal?.user) {
-      const sesion = getUser();
-      if (sesion && String(sesion.id) === String(modal.user.id)) {
-        window.dispatchEvent(new CustomEvent("session-changed"));
-      }
+    // Si el admin editó al usuario de la sesión actual, refrescar sus privilegios
+    if (modal?.user && sesion && String(sesion.id) === String(modal.user.id)) {
+      window.dispatchEvent(new CustomEvent("session-changed"));
     }
-    showToast(modal?.user ? "Usuario actualizado" : "Usuario creado");
+    if (info?.sinCambios) {
+      showToast("No se hicieron cambios");
+    } else {
+      showToast(modal?.user ? "Usuario actualizado" : "Usuario creado");
+    }
     setModal(null);
+  };
+
+  const handleCambiarRol = async (idRol) => {
+    await cambiarRolUsuario(modal.user.id, idRol);
+    if (sesion && String(sesion.id) === String(modal.user.id)) {
+      window.dispatchEvent(new CustomEvent("session-changed"));
+    }
+    setModal(null);
+    showToast("Rol actualizado");
+    await cargarDatos();
   };
 
   const handleDeleteConfirm = async (id) => {
@@ -155,7 +198,7 @@ export default function GestionUsuarios() {
   };
 
   const handleToggleClick = async (user) => {
-    if (user.tipo === "empleado" && user.idRol === 1) return;
+    if (!permisosFila(user).puedeToggle) return;
     const match = u => u.id === user.id && u.tipo === user.tipo;
     setUsuarios(prev => prev.map(u => match(u) ? { ...u, estado: !u.estado } : u));
     try {
@@ -255,7 +298,7 @@ export default function GestionUsuarios() {
 
         <div className="card">
           <div className="tbl-wrapper">
-            <table className="tbl">
+            <table className="tbl tbl--fixed-rows" style={{ "--tbl-row-h": "64px" }}>
               <thead>
                 <tr>
                   <th style={{ width: 48 }}>Nº</th>
@@ -320,42 +363,57 @@ export default function GestionUsuarios() {
                     <td><RolBadge rol={user.rol} roles={roles} /></td>
                     <td>
                       {(() => {
-                        const esAdmin = user.tipo === "empleado" && user.idRol === 1;
-                        const rolDesactivado = !esAdmin &&
-                          user.rol && roles.some(r => r.nombre === user.rol && !r.estado);
+                        const acc = permisosFila(user);
+                        const esSuperAdminFila = user.id === 1;
+                        const rolDesactivado = user.rol && roles.some(r => r.nombre === user.rol && !r.estado);
+                        const razon =
+                          esSuperAdminFila   ? "El super administrador siempre está activo"
+                          : !acc.puedeToggle ? "No puedes cambiar el estado de este usuario"
+                          : rolDesactivado   ? `El rol "${user.rol}" está desactivado`
+                          : null;
                         return (
                           <ToggleConTooltip
-                            on={esAdmin ? true : (!rolDesactivado && user.estado)}
+                            on={esSuperAdminFila ? true : (!rolDesactivado && user.estado)}
                             onToggle={() => handleToggleClick(user)}
-                            disabled={esAdmin || rolDesactivado}
-                            razon={
-                              esAdmin         ? "El administrador siempre está activo"
-                              : rolDesactivado ? `El rol "${user.rol}" está desactivado`
-                              : null
-                            }
+                            disabled={!acc.puedeToggle || rolDesactivado}
+                            razon={razon}
                           />
                         );
                       })()}
                     </td>
                     <td>
-                      <div className="actions-cell">
-                        <button className="act-btn act-btn--view" data-tooltip="Ver usuario"
-                          onClick={() => setModal({ type: "ver", user })}><Eye size={16} /></button>
-                        <button className="act-btn act-btn--edit" data-tooltip="Editar usuario"
-                          onClick={() => setModal({ type: "form", user })}><PenLine size={16} /></button>
-                        {!(user.tipo === "empleado" && user.idRol === 1) && (
-                          <button className="act-btn act-btn--delete" data-tooltip="Eliminar usuario"
-                            onClick={() => {
-                              const advertencias = user.tipo === "empleado"
-                                ? ["Si tiene domicilios asignados, la eliminación será rechazada."]
-                                : ["Si tiene ventas o pedidos registrados, la eliminación será rechazada."];
-                              setModal({ type: "delete", user, advertencias, razon: null });
-                            }}><Trash2 size={16} /></button>
-                        )}
-                      </div>
+                      {(() => {
+                        const acc = permisosFila(user);
+                        return (
+                          <div className="actions-cell">
+                            <button className="act-btn act-btn--view" data-tooltip="Ver usuario"
+                              onClick={() => setModal({ type: "ver", user })}><Eye size={16} /></button>
+                            {acc.puedeEditar && (
+                              <button className="act-btn act-btn--edit" data-tooltip="Editar usuario"
+                                onClick={() => setModal({ type: "form", user })}><PenLine size={16} /></button>
+                            )}
+                            {acc.puedeCambiarRol && (
+                              <button className="act-btn act-btn--edit" data-tooltip="Cambiar rol"
+                                onClick={() => setModal({ type: "rol", user })}><Shield size={16} /></button>
+                            )}
+                            {acc.puedeEliminar && (
+                              <button className="act-btn act-btn--delete" data-tooltip="Eliminar usuario"
+                                onClick={() => {
+                                  const advertencias = user.tipo === "empleado"
+                                    ? ["Si tiene domicilios asignados, la eliminación será rechazada."]
+                                    : ["Si tiene ventas o pedidos registrados, la eliminación será rechazada."];
+                                  setModal({ type: "delete", user, advertencias, razon: null });
+                                }}><Trash2 size={16} /></button>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
                   </tr>
                 ))}
+                {!loading && (
+                  <FilasRelleno current={paged.length} perPage={PER_PAGE} colSpan={8} />
+                )}
               </tbody>
             </table>
           </div>
@@ -393,6 +451,14 @@ export default function GestionUsuarios() {
           advertencias={modal.advertencias ?? []}
           onClose={() => setModal(null)}
           onConfirm={handleDeleteConfirm}
+        />
+      )}
+      {modal?.type === "rol" && (
+        <ModalCambiarRol
+          user={modal.user}
+          roles={roles}
+          onClose={() => setModal(null)}
+          onConfirm={handleCambiarRol}
         />
       )}
 

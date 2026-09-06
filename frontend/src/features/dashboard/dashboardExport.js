@@ -100,7 +100,6 @@ export function clientesDataset(clientesNuevos, name = "Clientes nuevos") {
     name,
     columns: [
       { key: "nombre", label: "Cliente", type: "text" },
-      { key: "correo", label: "Correo",  type: "text" },
       { key: "fecha",  label: "Registro", type: "date" },
     ],
     rows: clientesNuevos,

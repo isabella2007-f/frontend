@@ -103,8 +103,8 @@ def toggle_estado(
 ):
     """
     Cambia el estado de un rol (1=Activo / 2=Inactivo).
-    Al desactivar: desactiva todos los empleados y usuarios con ese rol.
-    Al activar: reactiva todos los empleados y usuarios con ese rol.
+    Al desactivar: desactiva también los usuarios con ese rol.
+    Al reactivar: no toca a los usuarios (se reactivan uno a uno).
     Admin no puede modificarse.
     """
     return cambiar_estado(db, id_rol, datos.Estado)

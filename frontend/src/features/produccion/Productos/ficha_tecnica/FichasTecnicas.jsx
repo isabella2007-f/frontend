@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Check, X, Search, Trash2, Eye, PenLine, ClipboardList } from "lucide-react";
 import CrearFicha from "./CrearFicha.jsx";
 import EditarFicha from "./EditarFicha.jsx";
+import FilasRelleno from "../../../../shared/components/FilasRelleno";
 import { getFichas, crearFicha, editarFicha, eliminarFicha, toggleEstadoFicha } from "../../../../services/fichaTecnicaService.js";
 import "./FichasTecnicas.css";
 
@@ -122,6 +123,11 @@ export default function FichaTecnica() {
   };
 
   const handleEdit = async (form) => {
+    if (form?.sinCambios) {
+      showToast("No se hicieron cambios");
+      setModal(null);
+      return;
+    }
     try {
       await editarFicha(form.productoId, form);
       showToast("Cambios guardados");
@@ -197,7 +203,7 @@ export default function FichaTecnica() {
 
         <div className="card">
           <div className="tbl-wrapper">
-            <table className="tbl">
+            <table className="tbl tbl--fixed-rows" style={{ "--tbl-row-h": "58px" }}>
               <thead>
                 <tr>
                   <th>Nº</th>
@@ -258,6 +264,9 @@ export default function FichaTecnica() {
                     </td>
                   </tr>
                 ))}
+                {!loading && (
+                  <FilasRelleno current={paginated.length} perPage={ITEMS_PER_PAGE} colSpan={7} />
+                )}
               </tbody>
             </table>
           </div>

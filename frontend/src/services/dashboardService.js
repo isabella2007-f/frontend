@@ -7,16 +7,23 @@ const money = (n) => `$${Math.round(Number(n) || 0).toLocaleString("es-CO")}`;
 const fmtDelta = (pct, subiendo) => {
   if (pct === null || pct === undefined) return null;
   const sign = subiendo ? "+" : "-";
-  return `${sign}${Math.abs(pct).toFixed(1)}%`;
+  const abs = Math.abs(pct);
+  // Por encima de 999% el número deja de aportar y desborda la tarjeta.
+  if (abs > 999) return `${sign}999%`;
+  return `${sign}${Math.round(abs * 100) / 100}%`;
 };
 
 const kpi = (t, { moneda = false } = {}) => {
   const raw = Number(t?.valor ?? 0);
+  const pct = t?.variacion_pct;
   return {
     raw,
     valor: moneda ? money(raw) : String(Math.round(raw)),
-    delta: fmtDelta(t?.variacion_pct, t?.subiendo),
+    delta: fmtDelta(pct, t?.subiendo),
     positive: t?.subiendo ?? null,
+    // Valor real del cambio (sin cap) para la tarjeta de Resumen general.
+    deltaPct: pct === null || pct === undefined ? null : Number(pct),
+    deltaSinBase: !!t?.sin_base,
   };
 };
 
@@ -41,7 +48,6 @@ const adaptDetalle = (d) => {
     })),
     clientesNuevos: (d.clientes_nuevos || []).map(c => ({
       nombre: c.nombre || "—",
-      correo: c.correo || "—",
       fecha:  c.fecha || null,
     })),
     productos: (d.productos || []).map(p => ({

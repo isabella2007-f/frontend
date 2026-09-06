@@ -4,6 +4,7 @@ import { ITEMS_PER_PAGE } from "./empleadosUtils.js";
 import { RolBadge } from "./CrearEmpleado.jsx";
 import CrearEmpleado from "./CrearEmpleado.jsx";
 import EditarEmpleado, { ModalVerEmpleado, ModalEliminarEmpleado } from "./EditarEmpleado.jsx";
+import FilasRelleno from "../../../shared/components/FilasRelleno";
 import { getUsuarios, crearEmpleado, editarUsuario, eliminarUsuario, toggleEstadoUsuario } from "../../../services/usuariosService.js";
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
 import { getRoles } from "../../../services/rolesService.js";
@@ -134,6 +135,11 @@ export default function GestionEmpleados() {
   };
 
   const handleEdit = async (data) => {
+    if (data?.sinCambios) {
+      showToast("No se hicieron cambios");
+      setModal(null);
+      return;
+    }
     const fotoUrl = data.fotoFile
       ? await subirImagenCloudinary(data.fotoFile).catch(() => data.fotoPreview)
       : data.fotoPreview;
@@ -240,7 +246,7 @@ export default function GestionEmpleados() {
         {/* Tabla */}
         <div className="card">
           <div className="tbl-wrapper">
-            <table className="tbl">
+            <table className="tbl tbl--fixed-rows" style={{ "--tbl-row-h": "64px" }}>
               <thead>
                 <tr>
                   <th style={{ width:48 }}>Nº</th>
@@ -291,6 +297,9 @@ export default function GestionEmpleados() {
                     </td>
                   </tr>
                 ))}
+                {!loading && (
+                  <FilasRelleno current={paginated.length} perPage={ITEMS_PER_PAGE} colSpan={8} />
+                )}
               </tbody>
             </table>
           </div>

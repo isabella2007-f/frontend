@@ -11,6 +11,7 @@ import "./FichasTecnicas.css";
 export default function CrearFicha({ onClose, onSave, productoNombre = "", productoId: productoIdProp = null }) {
   const [categoriasInsumosActivas, setCategoriasInsumosActivas] = useState([]);
   const [insumosPorCategoriaId,    setInsumosPorCategoriaId]    = useState({});
+  const [insumosFlat,              setInsumosFlat]              = useState([]);
   const [productosDisponibles,     setProductosDisponibles]     = useState([]);
   const [insumosError,             setInsumosError]             = useState(null);
 
@@ -26,19 +27,24 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
     getInsumos()
       .then(insData => {
         const map = {};
+        const flat = [];
         (insData.insumos || insData.items || []).forEach(i => {
           if (i.Estado !== 0 && i.estado !== false) {
             const catId = String(i.ID_Categoria || i.id_categoria || "");
-            if (!map[catId]) map[catId] = [];
-            map[catId].push({
+            const item = {
               id: i.ID_Insumo || i.id,
               nombre: i.Nombre || i.nombre,
               unidad: i.simbolo_unidad || i.Unidad || i.unidad || "",
               precioUnitario: Number(i.precio_unitario || 0),
-            });
+              idCategoria: catId,
+            };
+            if (!map[catId]) map[catId] = [];
+            map[catId].push(item);
+            flat.push(item);
           }
         });
         setInsumosPorCategoriaId(map);
+        setInsumosFlat(flat);
       })
       .catch(() => setInsumosError("No se pudieron cargar los insumos. Verifica que el rol tiene el permiso 'ver_insumos'."));
     getProductos({ porPagina: 100 })
@@ -99,7 +105,8 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
   // servidor no sabe convertir, así que elegirla hacía fallar la orden— y se
   // quedaba con una sola opción si el insumo estaba medido en "gr" o "Kg".
   const getUnidadOptions = (insumoId, categoriaId) => {
-    const insumo = (insumosPorCategoriaId[String(categoriaId)] || []).find(i => String(i.id) === String(insumoId));
+    const insumo = (insumosPorCategoriaId[String(categoriaId)] || []).find(i => String(i.id) === String(insumoId))
+      || insumosFlat.find(i => String(i.id) === String(insumoId));
     return unidadesCompatibles(insumo?.unidad);
   };
 
@@ -107,12 +114,21 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
     ...p,
     insumos: p.insumos.map(i => {
       if (i.id !== id) return i;
-      if (k === "idCategoria") return { ...i, idCategoria: v, idInsumo: "", nombre: "", unidad: "" };
+      if (k === "idCategoria") {
+        // Al cambiar de categoría solo se limpia el insumo si ya no pertenece a ella.
+        const perteneceNueva = i.idInsumo &&
+          (insumosPorCategoriaId[String(v)] || []).some(x => String(x.id) === String(i.idInsumo));
+        return perteneceNueva
+          ? { ...i, idCategoria: v }
+          : { ...i, idCategoria: v, idInsumo: "", nombre: "", unidad: "" };
+      }
       if (k === "idInsumo") {
-        const found = (insumosPorCategoriaId[i.idCategoria] || []).find(x => String(x.id) === String(v));
+        // Se puede elegir el insumo primero: la categoría se autocompleta con la suya.
+        const found = insumosFlat.find(x => String(x.id) === String(v));
         return {
           ...i,
           idInsumo: v ? Number(v) : "",
+          idCategoria: found?.idCategoria || i.idCategoria || "",
           nombre: found?.nombre || "",
           unidad: found?.unidad || "",
           precioUnitario: found?.precioUnitario ?? 0,
@@ -290,15 +306,13 @@ export default function CrearFicha({ onClose, onSave, productoNombre = "", produ
                         <td>
                           <SearchableSelect
                             className="ficha-select"
-                            options={insumosPorCategoriaId[String(ins.idCategoria)] || []}
+                            options={ins.idCategoria ? (insumosPorCategoriaId[String(ins.idCategoria)] || []) : insumosFlat}
                             value={ins.idInsumo}
                             onChange={e => setInsumo(ins.id, "idInsumo", e.target.value)}
                             getValue={i => i.id}
                             getLabel={i => i.nombre}
                             placeholder="— Insumo —"
                             searchPlaceholder="Insumo…"
-                            disabled={!ins.idCategoria}
-                            style={{ opacity: ins.idCategoria ? 1 : 0.45 }}
                           />
                         </td>
                         <td>

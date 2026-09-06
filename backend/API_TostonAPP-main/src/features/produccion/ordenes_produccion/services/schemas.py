@@ -57,6 +57,8 @@ class OrdenEstado(BaseModel):
 class OrdenResponse(BaseModel):
     ID_Orden_Produccion: int
     ID_Venta:            Optional[int]      = None
+    venta_estado:        Optional[int]      = None
+    venta_estado_label:  Optional[str]      = None
     ID_Producto:         Optional[int]      = None
     nombre_producto:     Optional[str]      = None
     ID_Insumo:           Optional[int]      = None

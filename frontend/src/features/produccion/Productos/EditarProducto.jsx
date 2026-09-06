@@ -119,6 +119,32 @@ export default function EditarProducto({ product, categorias = [], onClose, onSa
   const [step,      setStep]      = useState(1);
   const fileRef = useRef();
 
+  // Instantánea de los datos del producto al abrir, para detectar
+  // "guardar sin cambios" (las imágenes se comprueban aparte, con las colas
+  // de subida/borrado).
+  const snapshot = (f) => JSON.stringify({
+    nombre:             (f.nombre ?? "").trim(),
+    idCategoria:        String(f.idCategoria ?? ""),
+    precio:             String(Number(f.precio || 0)),
+    stockMinimo:        String(Number(f.stockMinimo || 0)),
+    activo:             f.activo !== false,
+    publicado:          f.publicado !== false,
+    requiereProduccion: !!f.requiereProduccion,
+    descripcion_corta:  (f.descripcion_corta ?? "").trim(),
+    descripcion_larga:  (f.descripcion_larga ?? "").trim(),
+  });
+  const snapshotInicial = useRef(snapshot({
+    nombre:             product.nombre,
+    idCategoria:        product.idCategoria,
+    precio:             product.precio,
+    stockMinimo:        product.stockMinimo ?? 10,
+    activo:             product.activo,
+    publicado:          product.publicado,
+    requiereProduccion: product.requiereProduccion,
+    descripcion_corta:  product.descripcion_corta,
+    descripcion_larga:  product.descripcion_larga,
+  }));
+
   /* ── Costos ── */
   const costoProduccion = calcularCostoProduccion
     ? calcularCostoProduccion(product)
@@ -235,6 +261,16 @@ export default function EditarProducto({ product, categorias = [], onClose, onSa
   const handleSave = async () => {
     const e = validateStep(2);
     if (Object.keys(e).length) { setErrors(e); return; }
+
+    // Sin cambios: mismos datos y sin imágenes por subir ni por borrar.
+    if (
+      form.archivosNuevos.length === 0 &&
+      form.imagenesABorrar.length === 0 &&
+      snapshot(form) === snapshotInicial.current
+    ) {
+      onSave({ sinCambios: true });
+      return;
+    }
 
     setSaving(true);
     setErrors({});

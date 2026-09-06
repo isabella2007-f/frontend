@@ -83,8 +83,14 @@ No tocar, o tocar solo con confirmación explícita del usuario antes de escribi
 - **`backend/.../configuracion/descuentos/`** — módulo postergado, no implementar ni modificar.
 - **`bcrypt==4.0.1`** en `requirements.txt` — no actualizar, versiones superiores rompen el hashing existente.
 - **Sistema de lotes FEFO** (`LoteInsumo`, `LoteProducto`) y **fichas técnicas** (`FichaTecnica`) — lógica transaccional crítica de inventario. No reimplementar ni alterar el orden de consumo (FEFO estricto) salvo que se pida explícitamente.
-- **Reserva/"pisado" de insumos al pasar una Orden de Producción a "En proceso"** — cambio de comportamiento transaccional nuevo (ver [`prompts/prompt-orden-produccion.md`](./prompts/prompt-orden-produccion.md), punto 3.7); requiere que el usuario apruebe explícitamente el mecanismo elegido antes de tocar `service.py`.
-- **Sincronización Pedido ↔ Orden de Producción automática** (`ventas/gestion_ventas/services/service.py`) — cualquier cambio debe mantener la propiedad "una orden generada por un pedido no cambia de estado por sí sola" y la cancelación en cadena.
+- **Identidad del super admin y del rol Cliente** — el **super admin** es el usuario `ID_Usuario = 1` (el del seed); tiene control total *por ser ese usuario*, no por su rol, y no puede ser modificado por nadie (ni por sí mismo puede cambiarse el rol). El rol **Cliente** (`ID_Rol = 3`) es estático (como Admin `ID_Rol = 1`): no editable ni eliminable, solo cambio de estado, y **sin permisos asignados** — el comportamiento de un cliente se gobierna por `ID_Rol == 3` en el código, no por permisos del rol. No toques ninguna de estas dos identidades sin confirmación explícita; el blindaje se valida en backend, nunca solo en frontend. Ver [`prompts/prompt-roles.md`](./prompts/prompt-roles.md).
+- **Anulación de Compras** — no anular una compra si cualquier insumo de sus lotes ya fue consumido (orden de producción, salida o cualquier descuento de stock). Es bloqueo total, validado en backend. Ver [`prompts/prompt-compras.md`](./prompts/prompt-compras.md), punto 3.13.
+- **Reserva/"pisado" de insumos al pasar una Orden de Producción a "En proceso"** — cambio de comportamiento transaccional; requiere que el usuario apruebe explícitamente el mecanismo elegido antes de tocar `service.py`.
+- **Sincronización Pedido ↔ Orden de Producción automática** (`ventas/gestion_ventas/services/service.py` y `produccion/ordenes_produccion/services/service.py`) — reglas al tocar cualquiera de los dos lados:
+  1. Una orden generada por un pedido (`ID_Venta` no nulo) **no se avanza de estado a mano** mientras el pedido siga «Pendiente». En cuanto el pedido entra en producción (Confirmado / En producción / Fecha propuesta) se **desbloquea** el avance manual de la orden (iniciar → completar). Esto NO significa que la orden siga al pedido: el admin la gestiona a mano una vez desbloqueada.
+  2. La orden **nunca** se cancela ni se anula por separado. Se cancela **solo en cadena** al cancelar el pedido (`cambiar_estado` de la venta → `_cambiar_estado_orden(..., commit=False)`).
+  3. Completar la orden sincroniza el pedido a «Listo» (`_sync_venta_por_ordenes`). Ningún otro cambio de estado del pedido arrastra el de la orden.
+  4. Una orden ligada a un pedido tampoco se edita desde el módulo de órdenes (se gestiona desde el pedido).
 - **CORS** en el backend — actualmente `allow_origins=["*"]` con `allow_credentials=False`; está pendiente corregir a los orígenes reales de producción (ver CLAUDE.md del backend). No lo cambies como efecto colateral de otro cambio sin decirlo explícitamente.
 - **Contraseñas/secrets** — nunca hardcodear; siempre variables de entorno vía `python-dotenv`.
 - **Migraciones de base de datos** (nuevas tablas/columnas, ej. historial de emojis de Roles) — preséntalas en el plan antes de aplicarlas, nunca las apliques silenciosamente dentro de una tanda más grande de cambios.
@@ -93,12 +99,15 @@ No tocar, o tocar solo con confirmación explícita del usuario antes de escribi
 
 ## Prompts de corrección pendientes
 
-Hay una lista de cambios pendientes, ya convertidos en prompts listos para ejecutar uno por uno (uno por módulo, pensados para conversaciones independientes de Claude Pro) en [`prompts/`](./prompts/):
+Hay una lista de cambios pendientes, ya convertidos en prompts listos para ejecutar uno por uno (uno por módulo, pensados para conversaciones independientes de Claude Pro) en [`prompts/`](./prompts/). Ver [`prompts/README.md`](./prompts/README.md) para el detalle y el orden sugerido:
 
-- [`prompts/prompt-dashboard.md`](./prompts/prompt-dashboard.md)
-- [`prompts/prompt-roles.md`](./prompts/prompt-roles.md)
-- [`prompts/prompt-compras.md`](./prompts/prompt-compras.md)
-- [`prompts/prompt-orden-produccion.md`](./prompts/prompt-orden-produccion.md)
+- [`prompts/prompt-dashboard.md`](./prompts/prompt-dashboard.md) — porcentaje que se desborda en la tarjeta de resumen general.
+- [`prompts/prompt-roles.md`](./prompts/prompt-roles.md) — Roles/Permisos **+ Usuarios**: permiso "cambiar rol", Cliente estático sin permisos, super admin (usuario ID 1) blindado, separación entre admin, bug de comportamiento por tipo de origen.
+- [`prompts/prompt-compras.md`](./prompts/prompt-compras.md) — comprobante con zoom, precarga al editar, validaciones, "ver detalles", bloqueo de anulación, y despliegue de lotes en **Productos**.
+- [`prompts/prompt-orden-produccion.md`](./prompts/prompt-orden-produccion.md) — explicar por qué no se puede cambiar el estado de una orden.
+- [`prompts/prompt-todos.md`](./prompts/prompt-todos.md) — transversal: no re-guardar sin cambios, paginación fija, ficha técnica insumo↔categoría.
+
+El punto "analizar automáticamente el módulo en busca de bugs/seguridad/optimización pidiendo permiso por cada cambio" está incluido dentro de **cada** prompt de módulo (no en `prompt-todos.md`).
 
 Si te piden implementar alguno de esos cambios directamente en una sesión de Claude Code (en vez de en Claude Pro), usa el prompt correspondiente como base del plan: define el alcance exacto, las reglas de negocio y el protocolo (plan → confirmación → implementación → hallazgos adicionales con permiso → verificación).
 

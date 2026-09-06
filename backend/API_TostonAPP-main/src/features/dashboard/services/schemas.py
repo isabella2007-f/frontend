@@ -7,8 +7,9 @@ from datetime import datetime
 # ── Tarjetas del resumen general ──
 class TarjetaResumen(BaseModel):
     valor:         Decimal
-    variacion_pct: Optional[float] = None    # None = sin periodo anterior con qué comparar
-    subiendo:      Optional[bool]  = None     # True = verde, False = rojo, None = sin comparación
+    variacion_pct: Optional[float] = None    # None = sin comparación o base = 0 (cambio indefinido)
+    subiendo:      Optional[bool]  = None     # True = verde, False = rojo, None = sin dirección
+    sin_base:      bool            = False    # True = el periodo anterior fue 0 → el % no se puede calcular
 
 
 class ResumenGeneral(BaseModel):
@@ -82,7 +83,6 @@ class VentaDetalle(BaseModel):
 
 class ClienteNuevoDetalle(BaseModel):
     nombre: str
-    correo: str
     fecha:  Optional[datetime] = None
 
 

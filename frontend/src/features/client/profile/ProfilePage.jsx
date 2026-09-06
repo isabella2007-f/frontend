@@ -246,6 +246,11 @@ const ProfilePage = () => {
   }, []);
 
   const handleSave = async (updatedData) => {
+    if (updatedData?.sinCambios) {
+      setIsEditing(false);
+      showToast('No se hicieron cambios', 'success');
+      return;
+    }
     try {
       await updateUser(updatedData);
       await cargarPerfil();

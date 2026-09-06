@@ -93,22 +93,82 @@ class BucketsTests(unittest.TestCase):
 
 
 class VariacionTests(unittest.TestCase):
-    def test_sin_anterior(self):
-        self.assertEqual(svc._variacion(100, 0), (100.0, True))
-        self.assertEqual(svc._variacion(0, 0), (0.0, True))
+    def test_sin_anterior_es_indefinido(self):
+        # base 0 → el cambio porcentual no se puede calcular (no se inventa 100%)
+        self.assertEqual(svc._variacion(100, 0), (None, True, True))
+        self.assertEqual(svc._variacion(0, 0), (None, None, True))
 
     def test_normal(self):
-        pct, sube = svc._variacion(150, 100)
+        pct, sube, sin_base = svc._variacion(150, 100)
         self.assertEqual(pct, 50.0)
         self.assertTrue(sube)
-        pct, sube = svc._variacion(80, 100)
+        self.assertFalse(sin_base)
+        pct, sube, sin_base = svc._variacion(80, 100)
         self.assertEqual(pct, -20.0)
         self.assertFalse(sube)
+        self.assertFalse(sin_base)
 
     def test_tarjeta_sin_comparar(self):
         t = svc._tarjeta(500, 300, comparar=False)
         self.assertIsNone(t["variacion_pct"])
         self.assertIsNone(t["subiendo"])
+        self.assertFalse(t["sin_base"])
+
+    def test_tarjeta_base_cero(self):
+        t = svc._tarjeta(500, 0, comparar=True)
+        self.assertIsNone(t["variacion_pct"])
+        self.assertTrue(t["sin_base"])
+
+
+class GraficasTests(unittest.TestCase):
+    def _buckets_2dias(self):
+        b_ini = datetime(2026, 3, 3)
+        b_fin = datetime(2026, 3, 4, 23, 59, 59, 999999)
+        buckets = svc._bucket_edges(b_ini, b_fin, "dia")
+        dur = (b_fin - b_ini) + timedelta(microseconds=1)
+        return buckets, dur
+
+    def test_indice_bucket(self):
+        buckets, _ = self._buckets_2dias()
+        self.assertEqual(svc._indice_bucket(buckets, datetime(2026, 3, 4, 15)), 1)
+        self.assertEqual(svc._indice_bucket(buckets, datetime(2026, 1, 1)), -1)
+
+    def test_recortar_top_recalcula_porcentaje(self):
+        full = [
+            {"ID_Producto": 1, "nombre": "A", "cantidad": 60, "ingresos": 0, "porcentaje": 60.0},
+            {"ID_Producto": 2, "nombre": "B", "cantidad": 30, "ingresos": 0, "porcentaje": 30.0},
+            {"ID_Producto": 3, "nombre": "C", "cantidad": 10, "ingresos": 0, "porcentaje": 10.0},
+        ]
+        top2 = svc._recortar_top(full, 2)
+        self.assertEqual([p["ID_Producto"] for p in top2], [1, 2])
+        self.assertEqual(round(sum(p["porcentaje"] for p in top2)), 100)
+        self.assertEqual(top2[0]["porcentaje"], 66.7)
+
+    def test_ventas_tiempo_actual_y_anterior(self):
+        from decimal import Decimal
+        buckets, dur = self._buckets_2dias()
+        rows = [
+            (1, datetime(2026, 3, 3, 10), 100),   # actual bucket 0
+            (2, datetime(2026, 3, 4, 10), 200),   # actual bucket 1
+            (3, datetime(2026, 3, 1, 10), 50),    # ventana anterior de bucket 0
+        ]
+        out = svc._ventas_tiempo(rows, buckets, dur, None, comparar=True)
+        self.assertEqual(out[0]["actual"], Decimal("100"))
+        self.assertEqual(out[1]["actual"], Decimal("200"))
+        self.assertEqual(out[0]["anterior"], Decimal("50"))
+
+    def test_ventas_tiempo_sin_comparar(self):
+        buckets, dur = self._buckets_2dias()
+        rows = [(1, datetime(2026, 3, 3, 10), 100)]
+        out = svc._ventas_tiempo(rows, buckets, dur, None, comparar=False)
+        self.assertIsNone(out[0]["anterior"])
+
+    def test_ventas_tiempo_anterior_parcial_es_none(self):
+        # el primer dato del historial cae dentro de la ventana anterior → punto parcial → None
+        buckets, dur = self._buckets_2dias()
+        rows = [(3, datetime(2026, 3, 1, 10), 50)]
+        out = svc._ventas_tiempo(rows, buckets, dur, datetime(2026, 3, 1, 12), comparar=True)
+        self.assertIsNone(out[0]["anterior"])
 
 
 class DisponibilidadTests(unittest.TestCase):

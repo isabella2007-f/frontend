@@ -9,7 +9,7 @@ from src.shared.services.permisos_catalogo import (
     MODULO_DE_PERMISO, VER_DE_MODULO,
 )
 from src.features.auth.services.dependencies import rol_tiene_permiso
-from .schemas import RolUpdate, ROLES_PROTEGIDOS
+from .schemas import RolUpdate, ROLES_PROTEGIDOS, ROLES_ESTATICOS
 
 # Estados quemados
 ESTADO_ACTIVO   = 1
@@ -77,7 +77,13 @@ def normalizar_y_validar_permisos(
 
 
 def _es_protegido(id_rol: int) -> bool:
+    """No se puede cambiar el estado del rol (solo Admin)."""
     return id_rol in ROLES_PROTEGIDOS
+
+
+def _es_estatico(id_rol: int) -> bool:
+    """No se puede editar (nombre/ícono/permisos) ni eliminar el rol."""
+    return id_rol in ROLES_ESTATICOS
 
 
 
@@ -104,6 +110,7 @@ def _formato_rol(rol, db: Session) -> dict:
         "Estado":         rol.Estado,
         "total_usuarios": _contar_usuarios(db, rol.ID_Rol),
         "protegido":      _es_protegido(rol.ID_Rol),
+        "es_estatico":    _es_estatico(rol.ID_Rol),
         "permisos": [
             {
                 "ID_Permiso":  p.ID_Permiso,
@@ -164,6 +171,7 @@ def obtener_roles(
                 "Estado":         r.Estado,
                 "total_usuarios": count_by_rol.get(r.ID_Rol, 0),
                 "protegido":      _es_protegido(r.ID_Rol),
+                "es_estatico":    _es_estatico(r.ID_Rol),
                 "permisos":       permisos_by_rol.get(r.ID_Rol, []),
             }
             for r in roles
@@ -241,14 +249,14 @@ def editar_rol(
 ):
     """
     Edita nombre e ícono de un rol.
-    - Roles protegidos (Admin) no se pueden editar.
+    - Roles estáticos (Admin, Cliente) no se pueden editar.
     - limpiar_icono=True permite quitar el ícono sin enviar uno nuevo.
     - Valida nombre duplicado si se cambia.
     """
-    if _es_protegido(id_rol):
+    if _es_estatico(id_rol):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="El rol Admin está protegido y no puede editarse",
+            detail="Este rol es estático y no puede editarse",
         )
 
     rol = db.query(Rol).filter(Rol.ID_Rol == id_rol).first()
@@ -286,8 +294,11 @@ def cambiar_estado(db: Session, id_rol: int, nuevo_estado: int):
     """
     Cambia el estado de un rol (Activo/Inactivo).
     - Roles protegidos (Admin) no se pueden modificar.
-    - Si se desactiva: desactiva todos los empleados y usuarios (clientes) con ese rol.
-    - Si se activa: reactiva todos los empleados y usuarios con ese rol.
+    - Al DESACTIVAR: se desactivan también todos los usuarios con ese rol (les
+      cierra el acceso mientras el rol esté inactivo).
+    - Al REACTIVAR: NO se tocan los usuarios. Reactivar el rol solo levanta la
+      barrera; los usuarios que estaban activos se reactivan uno a uno desde
+      Gestión de Usuarios. Así no se "resucita" a quien fue desactivado a mano.
     """
     if _es_protegido(id_rol):
         raise HTTPException(
@@ -307,12 +318,12 @@ def cambiar_estado(db: Session, id_rol: int, nuevo_estado: int):
 
     rol.Estado = nuevo_estado
 
-    # Propagar estado a todos los usuarios con este rol
-    (
-        db.query(Usuario)
-        .filter(Usuario.ID_Rol == id_rol)
-        .update({"Estado": nuevo_estado}, synchronize_session=False)
-    )
+    if nuevo_estado == ESTADO_INACTIVO:
+        (
+            db.query(Usuario)
+            .filter(Usuario.ID_Rol == id_rol, Usuario.Estado == ESTADO_ACTIVO)
+            .update({"Estado": ESTADO_INACTIVO}, synchronize_session=False)
+        )
 
     db.commit()
     db.refresh(rol)
@@ -322,13 +333,13 @@ def cambiar_estado(db: Session, id_rol: int, nuevo_estado: int):
 def eliminar_rol(db: Session, id_rol: int):
     """
     Elimina un rol.
-    - Admin nunca se puede eliminar.
+    - Roles estáticos (Admin, Cliente) nunca se pueden eliminar.
     - Si tiene usuarios o empleados asociados, retorna error 400.
     """
-    if _es_protegido(id_rol):
+    if _es_estatico(id_rol):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="El rol Admin está protegido y no puede eliminarse",
+            detail="Este rol es estático y no puede eliminarse",
         )
 
     rol = db.query(Rol).filter(Rol.ID_Rol == id_rol).first()
@@ -354,17 +365,21 @@ def asignar_permisos(db: Session, id_rol: int, permisos: list[str], actual: dict
     Lista vacía = quitar todos los permisos.
 
     Aplica anti-escalación y forzado de `ver_` (ver `normalizar_y_validar_permisos`).
-    El rol Admin (protegido) tiene bypass total en `requiere_permiso`: gestionar
-    su tabla `Rol_x_Permiso` no tiene efecto y solo ensucia datos → se bloquea.
+    Roles estáticos:
+      - Admin (bypass total en `requiere_permiso`): gestionar su `Rol_x_Permiso`
+        no tiene efecto y solo ensucia datos.
+      - Cliente: es estático y sin permisos por diseño (su comportamiento se
+        decide por ID_Rol == 3).
+    En ambos casos se bloquea.
     """
     rol = db.query(Rol).filter(Rol.ID_Rol == id_rol).first()
     if not rol:
         raise HTTPException(status_code=404, detail="Rol no encontrado")
 
-    if _es_protegido(id_rol):
+    if _es_estatico(id_rol):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="El rol Admin está protegido: tiene todos los permisos por defecto",
+            detail="Este rol es estático: sus permisos no se pueden modificar",
         )
 
     ids_final = normalizar_y_validar_permisos(db, actual, permisos)

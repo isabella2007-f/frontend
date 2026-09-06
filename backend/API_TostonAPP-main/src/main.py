@@ -71,6 +71,7 @@ def migrate_db():
             )""",
             "ALTER TABLE Productos ADD COLUMN Fecha_Creacion DATETIME NULL",
             "ALTER TABLE Compras ADD COLUMN Notas TEXT NULL",
+            "ALTER TABLE Compras ADD COLUMN Comprobante VARCHAR(500) NULL",
             "ALTER TABLE Compras ADD COLUMN Costo_Transporte DECIMAL(30,2) NULL",
             "ALTER TABLE Compras ADD COLUMN IVA_Porcentaje DECIMAL(5,2) NULL",
             "ALTER TABLE Compras ADD COLUMN Descuento_Porcentaje DECIMAL(5,2) NULL",
@@ -558,18 +559,19 @@ def migrate_db():
         except Exception:
             pass
 
-    # ── Permisos del rol "Cliente" ───────────────────────────────────────────
-    # El cliente solo necesita crear_pedidos (hacer pedidos). Las demás acciones
-    # del cliente (mis-ventas, mis-devoluciones, cancelar pedido propio) usan
-    # obtener_usuario_actual sin requiere_permiso.
+    # ── Rol "Cliente": estático y SIN permisos ──────────────────────────────
+    # El rol Cliente (ID_Rol = 3) no lleva permisos en Rol_x_Permiso. Todo lo
+    # que un cliente puede hacer se decide por su ID_Rol actual:
+    #   - confirmar / crear pedidos  → dependencies.permiso_o_cliente()
+    #   - mis-ventas, mis-devoluciones, cancelar pedido propio, perfil, crédito
+    #     → obtener_usuario_actual (sin requiere_permiso)
+    # Este DELETE deja el rol limpio en cada arranque (idempotente).
     with engine.connect() as conn:
         try:
             conn.execute(text("""
-                INSERT IGNORE INTO Rol_x_Permiso (ID_Rol, ID_Permiso)
-                SELECT r.ID_Rol, p.ID_Permiso
-                FROM Roles r
-                JOIN Permisos p ON p.Permiso = 'crear_pedidos'
-                WHERE LOWER(TRIM(r.Rol)) = 'cliente'
+                DELETE rxp FROM Rol_x_Permiso rxp
+                JOIN Roles r ON r.ID_Rol = rxp.ID_Rol
+                WHERE r.ID_Rol = 3 OR LOWER(TRIM(r.Rol)) = 'cliente'
             """))
             conn.commit()
         except Exception:

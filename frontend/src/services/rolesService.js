@@ -19,6 +19,7 @@ const CLAVE_A_PERMISO = {
   "Usuarios_crear":                  "crear_usuarios",
   "Usuarios_editar":                 "editar_usuarios",
   "Usuarios_eliminar":               "eliminar_usuarios",
+  "Usuarios_cambiar_rol":            "cambiar_rol_usuarios",
   "GestionSalidas_ver":              "ver_salidas",
   "GestionSalidas_crear":            "crear_salidas",
   "GestionSalidas_editar":           "editar_salidas",
@@ -144,7 +145,10 @@ function adaptarRol(r) {
     iconoPreview:  isUrl ? r.Icono : null,
     estado:        r.Estado === 1,
     totalUsuarios: r.total_usuarios ?? 0,
+    // esAdmin  → no se le puede cambiar el estado (solo Admin)
+    // esEstatico → no se puede editar ni eliminar (Admin, Cliente)
     esAdmin:       r.protegido ?? false,
+    esEstatico:    r.es_estatico ?? r.protegido ?? false,
     permisos:      claves,
     fecha:         null,
   };

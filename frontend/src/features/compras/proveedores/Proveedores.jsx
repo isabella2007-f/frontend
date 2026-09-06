@@ -11,6 +11,7 @@ import {
   eliminarProveedor,
 } from "../../../services/proveedoresService.js";
 import DateRangeFilter from "../../../shared/components/DateRangeFilter";
+import FilasRelleno from "../../../shared/components/FilasRelleno";
 import { getRecordDate } from "../../../utils/dateUtils";
 
 const ITEMS_PER_PAGE = 5;
@@ -136,6 +137,11 @@ export default function GestionProveedores() {
   };
 
   const handleEdit = async (payload) => {
+    if (payload?.sinCambios) {
+      showToast("No se hicieron cambios");
+      setModal(null);
+      return;
+    }
     try {
       await editarProveedor(modal.proveedor.id, payload);
       showToast("Cambios guardados");
@@ -232,7 +238,7 @@ export default function GestionProveedores() {
 
         <div className="card">
           <div className="tbl-wrapper">
-            <table className="tbl">
+            <table className="tbl tbl--fixed-rows" style={{ "--tbl-row-h": "64px" }}>
               <thead>
                 <tr>
                   <th style={{ width: 48 }}>Nº</th>
@@ -308,6 +314,9 @@ export default function GestionProveedores() {
 
                   </tr>
                 ))}
+                {!loading && (
+                  <FilasRelleno current={paginated.length} perPage={ITEMS_PER_PAGE} colSpan={5} />
+                )}
               </tbody>
             </table>
           </div>

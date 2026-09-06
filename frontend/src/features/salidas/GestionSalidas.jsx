@@ -4,6 +4,7 @@ import { getSalidas, registrarSalida, anularSalida, procesarVencidos } from "../
 import { getProductos } from "../../services/productosService.js";
 import { getInsumos } from "../../services/insumosService.js";
 import { usePrivilegios } from "../../context/PrivilegiosContext.jsx";
+import FilasRelleno from "../../shared/components/FilasRelleno";
 import { Clock, Flame, Scale, Utensils, CornerUpLeft, ClipboardList, X, Package, Archive, Ban, Search, CheckCircle2, XCircle, RefreshCw, BarChart2, Calendar, Printer, TrendingDown, Lock, AlertTriangle, Eye } from "lucide-react";
 import "./Salidas.css";
 
@@ -533,7 +534,7 @@ function HistorialSalidas({ salidas, loading, onAgregarClick, cargarSalidas }) {
       </div>
 
       <div className="card">
-        <table className="tbl">
+        <table className="tbl tbl--fixed-rows" style={{ "--tbl-row-h": "60px" }}>
             <thead>
               <tr>
                 <th>Tipo</th>
@@ -590,6 +591,9 @@ function HistorialSalidas({ salidas, loading, onAgregarClick, cargarSalidas }) {
                   </tr>
                 );
               })}
+              {!loading && (
+                <FilasRelleno current={paginadas.length} perPage={ITEMS_PER_PAGE} colSpan={7} />
+              )}
             </tbody>
           </table>
       </div>
@@ -724,7 +728,7 @@ function Vencidos({ salidas, loading, cargarSalidas }) {
 
       {/* Tabla compacta */}
       <div className="card">
-        <table className="tbl">
+        <table className="tbl tbl--fixed-rows" style={{ "--tbl-row-h": "60px" }}>
           <thead>
             <tr>
               <th>Elemento</th>
@@ -777,6 +781,9 @@ function Vencidos({ salidas, loading, cargarSalidas }) {
                 </td>
               </tr>
             ))}
+            {!loading && (
+              <FilasRelleno current={paginados.length} perPage={ITEMS_PER_PAGE} colSpan={6} />
+            )}
           </tbody>
         </table>
       </div>

@@ -993,6 +993,27 @@
   border-radius: 0 0 8px 8px;
 }
 
+/* Botón "Ver otros N lotes de este insumo" (3.15 / 3.16) */
+.compra-det-lote-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 10px;
+  border: 1.5px solid #e8e8e8;
+  border-top: none;
+  background: #fafafa;
+  color: #616161;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.compra-det-lote-toggle:last-child { border-radius: 0 0 8px 8px; }
+.compra-det-lote-toggle:hover { background: #f1f8f1; color: #2e7d32; }
+
 .compra-det-lote-item {
   display: flex;
   align-items: center;
