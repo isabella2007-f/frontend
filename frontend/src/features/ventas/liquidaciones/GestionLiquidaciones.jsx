@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import {
   FileText, Clock, DollarSign, Plus, Search, Filter, X, Check,
   ChevronLeft, ChevronRight, Eye, Pencil, Ban, CreditCard,
-  AlertCircle, Loader2, Trash2, ArrowLeft, RefreshCw,
+  AlertCircle, Loader2, Trash2, ArrowLeft, CalendarRange, User,
+  Wallet, Receipt,
 } from "lucide-react";
 import {
   listarLiquidaciones, generarLiquidacion, obtenerLiquidacion,
@@ -36,12 +37,19 @@ function fmtMoneda(v) {
   if (v === null || v === undefined) return "—";
   return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(v);
 }
-function toIso(localDateStr) {
-  // "2024-06-01" → "2024-06-01T00:00:00"
-  return localDateStr ? `${localDateStr}T00:00:00` : null;
+
+/** Nombre completo del empleado, venga en PascalCase o en minúscula. */
+function nombreEmpleado(e) {
+  return `${e.Nombre || e.nombre || ""} ${e.Apellidos || e.apellidos || ""}`.trim();
 }
-function toIsoEnd(localDateStr) {
-  return localDateStr ? `${localDateStr}T23:59:59` : null;
+
+/** Opciones de empleado: el mismo <select> se repetía en cinco sitios. */
+function OpcionesEmpleados({ empleados }) {
+  return empleados.map(e => (
+    <option key={e.ID_Usuario || e.id} value={e.ID_Usuario || e.id}>
+      {nombreEmpleado(e)}
+    </option>
+  ));
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -50,7 +58,7 @@ function Toast({ toast }) {
   if (!toast) return null;
   return (
     <div className={`liq-toast ${toast.type === "success" ? "liq-toast--ok" : "liq-toast--err"}`}>
-      {toast.type === "success" ? <Check size={14} /> : <AlertCircle size={14} />}
+      {toast.type === "success" ? <Check size={15} /> : <AlertCircle size={15} />}
       {toast.msg}
     </div>
   );
@@ -58,15 +66,17 @@ function Toast({ toast }) {
 
 // ─── Badge de estado ──────────────────────────────────────────────────────────
 
+const ESTADO_CFG = {
+  Borrador: { cls: "badge--draft",   label: "Borrador",       color: "#f9a825" },
+  Pagada:   { cls: "badge--paid",    label: "Pagada",         color: "#43a047" },
+  Anulada:  { cls: "badge--voided",  label: "Anulada",        color: "#c62828" },
+  pendiente:      { cls: "badge--pending", label: "Pendiente",      color: "#93a598" },
+  en_liquidacion: { cls: "badge--draft",   label: "En liquidación", color: "#f9a825" },
+  liquidado:      { cls: "badge--paid",    label: "Liquidado",      color: "#43a047" },
+};
+
 function EstadoBadge({ estado }) {
-  const cfg = {
-    Borrador: { cls: "badge--draft",   label: "Borrador" },
-    Pagada:   { cls: "badge--paid",    label: "Pagada" },
-    Anulada:  { cls: "badge--voided",  label: "Anulada" },
-    pendiente:       { cls: "badge--pending",  label: "Pendiente" },
-    en_liquidacion:  { cls: "badge--draft",    label: "En liquidación" },
-    liquidado:       { cls: "badge--paid",     label: "Liquidado" },
-  }[estado] || { cls: "badge--neutral", label: estado };
+  const cfg = ESTADO_CFG[estado] || { cls: "badge--neutral", label: estado };
   return <span className={`liq-badge ${cfg.cls}`}>{cfg.label}</span>;
 }
 
@@ -77,26 +87,52 @@ function Paginacion({ pagina, total, porPagina, onCambiar }) {
   if (totalPags <= 1) return null;
   return (
     <div className="liq-paginacion">
-      <button disabled={pagina === 1} onClick={() => onCambiar(pagina - 1)}>
-        <ChevronLeft size={14} />
+      <button disabled={pagina === 1} onClick={() => onCambiar(pagina - 1)} aria-label="Página anterior">
+        <ChevronLeft size={15} />
       </button>
       <span>{pagina} / {totalPags}</span>
-      <button disabled={pagina >= totalPags} onClick={() => onCambiar(pagina + 1)}>
-        <ChevronRight size={14} />
+      <button disabled={pagina >= totalPags} onClick={() => onCambiar(pagina + 1)} aria-label="Página siguiente">
+        <ChevronRight size={15} />
       </button>
+    </div>
+  );
+}
+
+// ─── Esqueleto de carga ───────────────────────────────────────────────────────
+
+function SkeletonTabla({ filas = 5 }) {
+  return (
+    <div>
+      {Array.from({ length: filas }, (_, i) => <div key={i} className="liq-skel-fila" />)}
+    </div>
+  );
+}
+
+// ─── Estado vacío ─────────────────────────────────────────────────────────────
+
+function Vacio({ icono, titulo, texto }) {
+  // El plugin de React no está en esta config de eslint: un componente recibido
+  // como parámetro se marca sin uso, así que se reasigna a una constante.
+  const Icono = icono;
+  return (
+    <div className="liq-empty-state">
+      <Icono size={30} strokeWidth={1.5} />
+      <p><strong>{titulo}</strong>{texto}</p>
     </div>
   );
 }
 
 // ─── Modal genérico ───────────────────────────────────────────────────────────
 
-function Modal({ titulo, onClose, children, ancho = "500px" }) {
+function Modal({ titulo, onClose, children, ancho = "500px", icono, peligro = false }) {
+  const Icono = icono || FileText;
   return (
     <div className="liq-overlay">
       <div className="liq-modal" style={{ maxWidth: ancho }}>
-        <div className="liq-modal__header">
+        <div className={`liq-modal__header${peligro ? " liq-modal__header--peligro" : ""}`}>
+          <span className="liq-modal__header-icon"><Icono size={19} /></span>
           <h3>{titulo}</h3>
-          <button className="liq-modal__close" onClick={onClose}><X size={18} /></button>
+          <button className="liq-modal__close" onClick={onClose} aria-label="Cerrar"><X size={17} /></button>
         </div>
         <div className="liq-modal__body">{children}</div>
       </div>
@@ -132,16 +168,12 @@ function ModalTarifa({ empleados, onClose, onGuardado }) {
   }
 
   return (
-    <Modal titulo="Configurar tarifa por hora" onClose={onClose}>
+    <Modal titulo="Configurar tarifa por hora" onClose={onClose} icono={DollarSign}>
       <div className="liq-form">
         <label>Empleado *</label>
         <select value={form.idEmpleado} onChange={e => setForm(f => ({ ...f, idEmpleado: e.target.value }))}>
           <option value="">Seleccionar…</option>
-          {empleados.map(e => (
-            <option key={e.ID_Usuario || e.id} value={e.ID_Usuario || e.id}>
-              {e.Nombre || e.nombre} {e.Apellidos || e.apellidos}
-            </option>
-          ))}
+          <OpcionesEmpleados empleados={empleados} />
         </select>
         <label>Tarifa por hora (COP) *</label>
         <input type="number" min="0.01" step="0.01" placeholder="Ej: 15000"
@@ -149,11 +181,11 @@ function ModalTarifa({ empleados, onClose, onGuardado }) {
         <label>Fecha de vigencia *</label>
         <input type="date" value={form.fechaInicio}
           onChange={e => setForm(f => ({ ...f, fechaInicio: e.target.value }))} />
-        {err && <p className="liq-form__error">{err}</p>}
+        {err && <p className="liq-form__error"><AlertCircle size={14} /> {err}</p>}
         <div className="liq-form__actions">
-          <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn-ghost" onClick={onClose}>Cancelar</button>
           <button className="btn-primary" onClick={guardar} disabled={loading}>
-            {loading ? <Loader2 size={14} className="spin" /> : null} Guardar tarifa
+            {loading ? <Loader2 size={14} className="spin" /> : <Check size={14} />} Guardar tarifa
           </button>
         </div>
       </div>
@@ -215,16 +247,12 @@ function ModalRegistrarHoras({ empleados, onClose, onGuardado }) {
   }
 
   return (
-    <Modal titulo="Registrar horas trabajadas" onClose={onClose} ancho="540px">
+    <Modal titulo="Registrar horas trabajadas" onClose={onClose} ancho="560px" icono={Clock}>
       <div className="liq-form">
         <label>Empleado *</label>
         <select value={form.idEmpleado} onChange={e => handleChange("idEmpleado", e.target.value)}>
           <option value="">Seleccionar…</option>
-          {empleados.map(e => (
-            <option key={e.ID_Usuario || e.id} value={e.ID_Usuario || e.id}>
-              {e.Nombre || e.nombre} {e.Apellidos || e.apellidos}
-            </option>
-          ))}
+          <OpcionesEmpleados empleados={empleados} />
         </select>
         <div className="liq-form__row">
           <div>
@@ -252,14 +280,14 @@ function ModalRegistrarHoras({ empleados, onClose, onGuardado }) {
         </div>
         {horas !== null && (
           <p className="liq-form__info">
-            <Clock size={13} /> Horas calculadas: <strong>{horas} h</strong>
+            <Clock size={15} /> Horas calculadas: <strong>{horas} h</strong>
           </p>
         )}
-        {err && <p className="liq-form__error">{err}</p>}
+        {err && <p className="liq-form__error"><AlertCircle size={14} /> {err}</p>}
         <div className="liq-form__actions">
-          <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn-ghost" onClick={onClose}>Cancelar</button>
           <button className="btn-primary" onClick={guardar} disabled={loading}>
-            {loading ? <Loader2 size={14} className="spin" /> : null} Guardar registro
+            {loading ? <Loader2 size={14} className="spin" /> : <Check size={14} />} Guardar registro
           </button>
         </div>
       </div>
@@ -294,16 +322,16 @@ function ModalGenerarLiquidacion({ empleados, onClose, onGenerada }) {
   }
 
   return (
-    <Modal titulo="Generar liquidación" onClose={onClose}>
+    <Modal titulo="Generar liquidación" onClose={onClose} icono={Receipt}>
+      <p className="liq-modal__desc">
+        Se reunirán todas las horas <strong>pendientes</strong> del empleado dentro del rango
+        elegido. La liquidación queda en estado Borrador y podrás ajustarla antes de pagar.
+      </p>
       <div className="liq-form">
         <label>Empleado *</label>
         <select value={form.idEmpleado} onChange={e => setForm(f => ({ ...f, idEmpleado: e.target.value }))}>
           <option value="">Seleccionar…</option>
-          {empleados.map(e => (
-            <option key={e.ID_Usuario || e.id} value={e.ID_Usuario || e.id}>
-              {e.Nombre || e.nombre} {e.Apellidos || e.apellidos}
-            </option>
-          ))}
+          <OpcionesEmpleados empleados={empleados} />
         </select>
         <div className="liq-form__row">
           <div>
@@ -317,11 +345,11 @@ function ModalGenerarLiquidacion({ empleados, onClose, onGenerada }) {
               onChange={e => setForm(f => ({ ...f, fechaFin: e.target.value }))} />
           </div>
         </div>
-        {err && <p className="liq-form__error">{err}</p>}
+        {err && <p className="liq-form__error"><AlertCircle size={14} /> {err}</p>}
         <div className="liq-form__actions">
-          <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn-ghost" onClick={onClose}>Cancelar</button>
           <button className="btn-primary" onClick={generar} disabled={loading}>
-            {loading ? <Loader2 size={14} className="spin" /> : null} Generar
+            {loading ? <Loader2 size={14} className="spin" /> : <Plus size={14} />} Generar
           </button>
         </div>
       </div>
@@ -357,7 +385,7 @@ function ModalPago({ liquidacion, onClose, onPagada }) {
   }
 
   return (
-    <Modal titulo="Registrar pago" onClose={onClose}>
+    <Modal titulo="Registrar pago" onClose={onClose} icono={Wallet}>
       <p className="liq-modal__desc">
         Total a pagar: <strong>{fmtMoneda(liquidacion.Total)}</strong> a{" "}
         <strong>{liquidacion.nombre_empleado}</strong>
@@ -371,11 +399,11 @@ function ModalPago({ liquidacion, onClose, onPagada }) {
         <label>Fecha de pago *</label>
         <input type="date" max={hoy} value={form.fechaPago}
           onChange={e => setForm(f => ({ ...f, fechaPago: e.target.value }))} />
-        {err && <p className="liq-form__error">{err}</p>}
+        {err && <p className="liq-form__error"><AlertCircle size={14} /> {err}</p>}
         <div className="liq-form__actions">
-          <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn-ghost" onClick={onClose}>Cancelar</button>
           <button className="btn-primary" onClick={pagar} disabled={loading}>
-            {loading ? <Loader2 size={14} className="spin" /> : null} Confirmar pago
+            {loading ? <Loader2 size={14} className="spin" /> : <CreditCard size={14} />} Confirmar pago
           </button>
         </div>
       </div>
@@ -404,20 +432,23 @@ function ModalAnular({ liquidacion, onClose, onAnulada }) {
   }
 
   return (
-    <Modal titulo="Anular liquidación" onClose={onClose}>
+    <Modal titulo="Anular liquidación" onClose={onClose} icono={Ban} peligro>
       <p className="liq-modal__desc liq-modal__desc--warn">
-        <AlertCircle size={15} /> Esta acción es irreversible. La liquidación quedará anulada
-        y sus horas volverán a estar disponibles.
+        <AlertCircle size={16} />
+        <span>
+          Esta acción es irreversible. La liquidación quedará anulada y sus horas volverán a
+          estar disponibles.
+        </span>
       </p>
       <div className="liq-form">
         <label>Motivo de anulación * (mínimo 10 caracteres)</label>
         <textarea rows={4} value={motivo} onChange={e => setMotivo(e.target.value)}
           placeholder="Describe el motivo de la anulación…" />
-        {err && <p className="liq-form__error">{err}</p>}
+        {err && <p className="liq-form__error"><AlertCircle size={14} /> {err}</p>}
         <div className="liq-form__actions">
-          <button className="btn-secondary" onClick={onClose}>Cancelar</button>
+          <button className="btn-ghost" onClick={onClose}>Cancelar</button>
           <button className="btn-danger" onClick={anular} disabled={loading}>
-            {loading ? <Loader2 size={14} className="spin" /> : null} Anular liquidación
+            {loading ? <Loader2 size={14} className="spin" /> : <Ban size={14} />} Anular liquidación
           </button>
         </div>
       </div>
@@ -500,12 +531,14 @@ function DetalleLiquidacion({ idLiquidacion, onVolver, onCambio }) {
     finally { setLoadingEdit(false); }
   }
 
-  if (loading) return <div className="liq-loading"><Loader2 className="spin" size={28} /> Cargando detalle…</div>;
+  if (loading) return <div className="liq-loading"><Loader2 className="spin" size={26} /> Cargando detalle…</div>;
   if (err) return <div className="liq-error"><AlertCircle size={18} /> {err}</div>;
   if (!detalle) return null;
 
   const esBorrador = detalle.Estado === "Borrador";
   const esAnulada  = detalle.Estado === "Anulada";
+  const colorEstado = (ESTADO_CFG[detalle.Estado] || {}).color || "#43a047";
+  const editable   = modoEdicion && esBorrador;
 
   return (
     <div className="liq-detalle">
@@ -515,22 +548,26 @@ function DetalleLiquidacion({ idLiquidacion, onVolver, onCambio }) {
       </div>
 
       {/* Cabecera */}
-      <div className="liq-detalle__card">
+      <div className="liq-detalle__card" style={{ "--e-color": colorEstado }}>
         <div className="liq-detalle__card-header">
           <div>
             <h2>Liquidación #{detalle.ID_Liquidacion}</h2>
             <p className="liq-detalle__empleado">{detalle.nombre_empleado}</p>
-            <p className="liq-detalle__periodo">
-              Período: {fmtFecha(detalle.Fecha_Inicio)} – {fmtFecha(detalle.Fecha_Fin)}
-            </p>
-            <p className="liq-detalle__creacion">Creada: {fmtFechaHora(detalle.Fecha_Creacion)}</p>
+            <div className="liq-detalle__meta">
+              <span>
+                <CalendarRange size={13} />
+                {fmtFecha(detalle.Fecha_Inicio)} – {fmtFecha(detalle.Fecha_Fin)}
+              </span>
+              <span><Clock size={13} /> Creada {fmtFechaHora(detalle.Fecha_Creacion)}</span>
+            </div>
           </div>
           <div className="liq-detalle__card-right">
             <EstadoBadge estado={detalle.Estado} />
+            <span className="liq-detalle__total-label">Total</span>
             <p className="liq-detalle__total">{fmtMoneda(detalle.Total)}</p>
             {detalle.Metodo_Pago && (
               <p className="liq-detalle__pago-info">
-                {detalle.Metodo_Pago} — {fmtFecha(detalle.Fecha_Pago)}
+                <Wallet size={13} /> {detalle.Metodo_Pago} — {fmtFecha(detalle.Fecha_Pago)}
               </p>
             )}
           </div>
@@ -538,7 +575,7 @@ function DetalleLiquidacion({ idLiquidacion, onVolver, onCambio }) {
 
         {esAnulada && (
           <div className="liq-detalle__anulacion-info">
-            <Ban size={14} />
+            <Ban size={15} />
             <span><strong>Motivo de anulación:</strong> {detalle.Motivo_Anulacion}</span>
             <span className="liq-detalle__anulacion-fecha">({fmtFechaHora(detalle.Fecha_Anulacion)})</span>
           </div>
@@ -548,13 +585,13 @@ function DetalleLiquidacion({ idLiquidacion, onVolver, onCambio }) {
         {esBorrador && (
           <div className="liq-detalle__acciones">
             <button className="btn-secondary" onClick={() => { setModoEdicion(true); cargarPendientes(); }}>
-              <Pencil size={13} /> Editar registros
+              <Pencil size={14} /> Editar registros
             </button>
             <button className="btn-primary" onClick={() => setModalPago(true)}>
-              <CreditCard size={13} /> Registrar pago
+              <CreditCard size={14} /> Registrar pago
             </button>
             <button className="btn-danger-outline" onClick={() => setModalAnular(true)}>
-              <Ban size={13} /> Anular
+              <Ban size={14} /> Anular
             </button>
           </div>
         )}
@@ -564,89 +601,95 @@ function DetalleLiquidacion({ idLiquidacion, onVolver, onCambio }) {
       <div className="liq-detalle__tabla-card">
         <div className="liq-detalle__tabla-header">
           <h3>Desglose de horas</h3>
-          {modoEdicion && esBorrador && (
-            <button className="btn-ghost" onClick={() => setModoEdicion(false)}>
+          {editable && (
+            <button className="btn-ghost btn-ghost--sm" onClick={() => setModoEdicion(false)}>
               <X size={13} /> Cerrar edición
             </button>
           )}
         </div>
 
         {detalle.registros && detalle.registros.length > 0 ? (
-          <table className="liq-tabla">
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Origen</th>
-                <th>Horario</th>
-                <th>Horas</th>
-                <th>Tarifa/h</th>
-                <th>Subtotal</th>
-                {modoEdicion && esBorrador && <th>Quitar</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {detalle.registros.map(r => (
-                <tr key={r.ID_Registro}>
-                  <td>{fmtFecha(r.Fecha)}</td>
-                  <td>{r.origen_label}</td>
-                  <td>{fmtHora(r.Hora_Inicio)} – {fmtHora(r.Hora_Fin)}</td>
-                  <td>{r.Horas_Trabajadas} h</td>
-                  <td>{fmtMoneda(r.tarifa_aplicada)}</td>
-                  <td><strong>{fmtMoneda(r.subtotal)}</strong></td>
-                  {modoEdicion && esBorrador && (
-                    <td>
-                      <button className="btn-icon btn-icon--danger" disabled={loadingEdit}
-                        onClick={() => quitarRegistro(r.ID_Registro)}>
-                        <Trash2 size={13} />
-                      </button>
-                    </td>
-                  )}
+          <div className="liq-tabla-wrap">
+            <table className="liq-tabla">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Origen</th>
+                  <th>Horario</th>
+                  <th>Horas</th>
+                  <th>Tarifa/h</th>
+                  <th>Subtotal</th>
+                  {editable && <th>Quitar</th>}
                 </tr>
-              ))}
-              <tr className="liq-tabla__total-row">
-                <td colSpan={modoEdicion && esBorrador ? 5 : 5}><strong>TOTAL</strong></td>
-                <td><strong>{fmtMoneda(detalle.Total)}</strong></td>
-                {modoEdicion && esBorrador && <td />}
-              </tr>
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {detalle.registros.map(r => (
+                  <tr key={r.ID_Registro}>
+                    <td data-label="Fecha" className="liq-celda-fuerte">{fmtFecha(r.Fecha)}</td>
+                    <td data-label="Origen">{r.origen_label}</td>
+                    <td data-label="Horario" className="liq-celda-tenue">{fmtHora(r.Hora_Inicio)} – {fmtHora(r.Hora_Fin)}</td>
+                    <td data-label="Horas"><span className="liq-horas">{r.Horas_Trabajadas} h</span></td>
+                    <td data-label="Tarifa/h" className="liq-celda-tenue">{fmtMoneda(r.tarifa_aplicada)}</td>
+                    <td data-label="Subtotal"><span className="liq-monto">{fmtMoneda(r.subtotal)}</span></td>
+                    {editable && (
+                      <td>
+                        <button className="btn-icon btn-icon--danger" disabled={loadingEdit}
+                          aria-label="Quitar registro"
+                          onClick={() => quitarRegistro(r.ID_Registro)}>
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+                <tr className="liq-tabla__total-row">
+                  <td colSpan={5}>TOTAL</td>
+                  <td data-label="Total"><span className="liq-monto">{fmtMoneda(detalle.Total)}</span></td>
+                  {editable && <td />}
+                </tr>
+              </tbody>
+            </table>
+          </div>
         ) : (
           <p className="liq-empty">Esta liquidación no tiene registros de horas.</p>
         )}
 
         {/* Panel para agregar registros */}
-        {modoEdicion && esBorrador && (
+        {editable && (
           <div className="liq-edicion-agregar">
             <h4>Registros pendientes disponibles para agregar</h4>
             {pendientes.length === 0 ? (
               <p className="liq-empty">No hay registros pendientes para este empleado.</p>
             ) : (
               <>
-                <table className="liq-tabla liq-tabla--seleccion">
-                  <thead>
-                    <tr>
-                      <th>Sel.</th><th>Fecha</th><th>Origen</th><th>Horario</th><th>Horas</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pendientes.map(r => (
-                      <tr key={r.ID_Registro} className={selAgregar.includes(r.ID_Registro) ? "selected" : ""}>
-                        <td>
-                          <input type="checkbox" checked={selAgregar.includes(r.ID_Registro)}
-                            onChange={() => toggleAgregar(r.ID_Registro)} />
-                        </td>
-                        <td>{fmtFecha(r.Fecha)}</td>
-                        <td>{r.origen_label}</td>
-                        <td>{fmtHora(r.Hora_Inicio)} – {fmtHora(r.Hora_Fin)}</td>
-                        <td>{r.Horas_Trabajadas} h</td>
+                <div className="liq-tabla-wrap">
+                  <table className="liq-tabla liq-tabla--seleccion">
+                    <thead>
+                      <tr>
+                        <th>Sel.</th><th>Fecha</th><th>Origen</th><th>Horario</th><th>Horas</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <div className="liq-form__actions" style={{ marginTop: "12px" }}>
+                    </thead>
+                    <tbody>
+                      {pendientes.map(r => (
+                        <tr key={r.ID_Registro} className={selAgregar.includes(r.ID_Registro) ? "selected" : ""}>
+                          <td>
+                            <input type="checkbox" checked={selAgregar.includes(r.ID_Registro)}
+                              aria-label={`Seleccionar registro ${r.ID_Registro}`}
+                              onChange={() => toggleAgregar(r.ID_Registro)} />
+                          </td>
+                          <td data-label="Fecha" className="liq-celda-fuerte">{fmtFecha(r.Fecha)}</td>
+                          <td data-label="Origen">{r.origen_label}</td>
+                          <td data-label="Horario" className="liq-celda-tenue">{fmtHora(r.Hora_Inicio)} – {fmtHora(r.Hora_Fin)}</td>
+                          <td data-label="Horas"><span className="liq-horas">{r.Horas_Trabajadas} h</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="liq-form__actions">
                   <button className="btn-primary" disabled={!selAgregar.length || loadingEdit}
                     onClick={agregarSeleccionados}>
-                    {loadingEdit ? <Loader2 size={13} className="spin" /> : <Plus size={13} />}
+                    {loadingEdit ? <Loader2 size={14} className="spin" /> : <Plus size={14} />}
                     Agregar seleccionados ({selAgregar.length})
                   </button>
                 </div>
@@ -711,6 +754,8 @@ function TabLiquidaciones({ empleados, onVerDetalle }) {
     setTimeout(() => cargar(1), 0);
   }
 
+  const hayFiltros = filtros.idEmpleado || filtros.estado || filtros.fechaInicio || filtros.fechaFin;
+
   return (
     <div className="liq-tab-content">
       <Toast toast={toast} />
@@ -719,89 +764,109 @@ function TabLiquidaciones({ empleados, onVerDetalle }) {
       <div className="liq-toolbar">
         <div className="liq-toolbar__left">
           <div className="liq-search">
-            <Search size={14} />
+            <Search size={15} />
             <input placeholder="Buscar por empleado…" value={filtros.busqueda}
               onChange={e => setFiltros(f => ({ ...f, busqueda: e.target.value }))}
               onKeyDown={e => e.key === "Enter" && buscar()} />
           </div>
-          <button className="btn-icon-label" onClick={() => setShowFiltros(v => !v)}>
+          <button className={`btn-icon-label${hayFiltros ? " btn-icon-label--active" : ""}`}
+            onClick={() => setShowFiltros(v => !v)}>
             <Filter size={14} /> Filtros
+            {hayFiltros && <span className="btn-icon-label__punto" />}
           </button>
-          {(filtros.idEmpleado || filtros.estado || filtros.fechaInicio || filtros.fechaFin) && (
+          {hayFiltros && (
             <button className="btn-ghost btn-ghost--sm" onClick={limpiar}>
               <X size={12} /> Limpiar
             </button>
           )}
         </div>
         <button className="btn-primary" onClick={() => setModalGenerar(true)}>
-          <Plus size={14} /> Generar liquidación
+          <Plus size={15} /> Generar liquidación
         </button>
       </div>
 
       {/* Panel de filtros */}
       {showFiltros && (
         <div className="liq-filtros-panel">
-          <select value={filtros.idEmpleado} onChange={e => setFiltros(f => ({ ...f, idEmpleado: e.target.value }))}>
-            <option value="">Todos los empleados</option>
-            {empleados.map(e => (
-              <option key={e.ID_Usuario || e.id} value={e.ID_Usuario || e.id}>
-                {e.Nombre || e.nombre} {e.Apellidos || e.apellidos}
-              </option>
-            ))}
-          </select>
-          <select value={filtros.estado} onChange={e => setFiltros(f => ({ ...f, estado: e.target.value }))}>
-            <option value="">Todos los estados</option>
-            <option value="Borrador">Borrador</option>
-            <option value="Pagada">Pagada</option>
-            <option value="Anulada">Anulada</option>
-          </select>
-          <input type="date" value={filtros.fechaInicio}
-            onChange={e => setFiltros(f => ({ ...f, fechaInicio: e.target.value }))} />
-          <input type="date" value={filtros.fechaFin}
-            onChange={e => setFiltros(f => ({ ...f, fechaFin: e.target.value }))} />
-          <button className="btn-primary btn-sm" onClick={buscar}>Aplicar</button>
+          <div>
+            <label className="liq-filtro__label">Empleado</label>
+            <select value={filtros.idEmpleado} onChange={e => setFiltros(f => ({ ...f, idEmpleado: e.target.value }))}>
+              <option value="">Todos los empleados</option>
+              <OpcionesEmpleados empleados={empleados} />
+            </select>
+          </div>
+          <div>
+            <label className="liq-filtro__label">Estado</label>
+            <select value={filtros.estado} onChange={e => setFiltros(f => ({ ...f, estado: e.target.value }))}>
+              <option value="">Todos los estados</option>
+              <option value="Borrador">Borrador</option>
+              <option value="Pagada">Pagada</option>
+              <option value="Anulada">Anulada</option>
+            </select>
+          </div>
+          <div>
+            <label className="liq-filtro__label">Desde</label>
+            <input type="date" value={filtros.fechaInicio}
+              onChange={e => setFiltros(f => ({ ...f, fechaInicio: e.target.value }))} />
+          </div>
+          <div>
+            <label className="liq-filtro__label">Hasta</label>
+            <input type="date" value={filtros.fechaFin}
+              onChange={e => setFiltros(f => ({ ...f, fechaFin: e.target.value }))} />
+          </div>
+          <div className="liq-filtros-panel__acciones">
+            <button className="btn-primary btn-sm" onClick={buscar}>Aplicar</button>
+          </div>
         </div>
       )}
 
       {/* Tabla */}
       {loading ? (
-        <div className="liq-loading"><Loader2 className="spin" size={22} /> Cargando…</div>
+        <SkeletonTabla />
       ) : data.items.length === 0 ? (
-        <div className="liq-empty-state">
-          <FileText size={36} />
-          <p>No hay liquidaciones{Object.values(filtros).some(Boolean) ? " que coincidan con los filtros" : " registradas"}.</p>
-        </div>
+        <Vacio
+          icono={FileText}
+          titulo={hayFiltros || filtros.busqueda ? "Sin coincidencias" : "Sin liquidaciones"}
+          texto={hayFiltros || filtros.busqueda
+            ? "Ninguna liquidación coincide con los filtros aplicados."
+            : "Aún no se ha generado ninguna liquidación. Empieza por «Generar liquidación»."}
+        />
       ) : (
-        <table className="liq-tabla">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Empleado</th>
-              <th>Período</th>
-              <th>Total</th>
-              <th>Estado</th>
-              <th>Creada</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.items.map(liq => (
-              <tr key={liq.ID_Liquidacion} className={liq.Estado === "Anulada" ? "row--voided" : ""}>
-                <td>{liq.ID_Liquidacion}</td>
-                <td>{liq.nombre_empleado}</td>
-                <td>{fmtFecha(liq.Fecha_Inicio)} – {fmtFecha(liq.Fecha_Fin)}</td>
-                <td><strong>{fmtMoneda(liq.Total)}</strong></td>
-                <td><EstadoBadge estado={liq.Estado} /></td>
-                <td>{fmtFecha(liq.Fecha_Creacion)}</td>
-                <td>
-                  <button className="btn-icon" title="Ver detalle" onClick={() => onVerDetalle(liq.ID_Liquidacion)}>
-                    <Eye size={14} />
-                  </button>
-                </td>
+        <div className="liq-tabla-wrap">
+          <table className="liq-tabla">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Empleado</th>
+                <th>Período</th>
+                <th>Total</th>
+                <th>Estado</th>
+                <th>Creada</th>
+                <th>Acciones</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.items.map(liq => (
+                <tr key={liq.ID_Liquidacion} className={liq.Estado === "Anulada" ? "row--voided" : ""}>
+                  <td data-label="#"><span className="liq-celda-id">{liq.ID_Liquidacion}</span></td>
+                  <td data-label="Empleado" className="liq-celda-fuerte">{liq.nombre_empleado}</td>
+                  <td data-label="Período" className="liq-celda-tenue">
+                    {fmtFecha(liq.Fecha_Inicio)} – {fmtFecha(liq.Fecha_Fin)}
+                  </td>
+                  <td data-label="Total"><span className="liq-monto">{fmtMoneda(liq.Total)}</span></td>
+                  <td data-label="Estado"><EstadoBadge estado={liq.Estado} /></td>
+                  <td data-label="Creada" className="liq-celda-tenue">{fmtFecha(liq.Fecha_Creacion)}</td>
+                  <td>
+                    <button className="btn-icon" title="Ver detalle" aria-label="Ver detalle"
+                      onClick={() => onVerDetalle(liq.ID_Liquidacion)}>
+                      <Eye size={15} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       <Paginacion pagina={pagina} total={data.total} porPagina={data.por_pagina} onCambiar={p => { setPagina(p); cargar(p); }} />
@@ -876,7 +941,8 @@ function TabRegistros({ empleados }) {
         <div className="liq-toolbar__left">
           <button className={`btn-icon-label${hayFiltros ? " btn-icon-label--active" : ""}`}
             onClick={() => setShowFiltros(v => !v)}>
-            <Filter size={14} /> Filtros{hayFiltros ? " ●" : ""}
+            <Filter size={14} /> Filtros
+            {hayFiltros && <span className="btn-icon-label__punto" />}
           </button>
           {hayFiltros && (
             <button className="btn-ghost btn-ghost--sm" onClick={limpiarFiltros}>
@@ -885,65 +951,84 @@ function TabRegistros({ empleados }) {
           )}
         </div>
         <button className="btn-primary" onClick={() => setModal(true)}>
-          <Plus size={14} /> Registrar horas
+          <Plus size={15} /> Registrar horas
         </button>
       </div>
 
       {showFiltros && (
         <div className="liq-filtros-panel">
-          <select value={filtros.idEmpleado} onChange={e => setFiltros(f => ({ ...f, idEmpleado: e.target.value }))}>
-            <option value="">Todos los empleados</option>
-            {empleados.map(e => (
-              <option key={e.ID_Usuario || e.id} value={e.ID_Usuario || e.id}>
-                {e.Nombre || e.nombre} {e.Apellidos || e.apellidos}
-              </option>
-            ))}
-          </select>
-          <select value={filtros.estado} onChange={e => setFiltros(f => ({ ...f, estado: e.target.value }))}>
-            <option value="">Todos los estados</option>
-            <option value="pendiente">Pendiente</option>
-            <option value="en_liquidacion">En liquidación</option>
-            <option value="liquidado">Liquidado</option>
-          </select>
-          <input type="date" value={filtros.fechaInicio} onChange={e => setFiltros(f => ({ ...f, fechaInicio: e.target.value }))} />
-          <input type="date" value={filtros.fechaFin} onChange={e => setFiltros(f => ({ ...f, fechaFin: e.target.value }))} />
-          <button className="btn-primary btn-sm" onClick={() => { setPagina(1); cargar(1); }}>Aplicar</button>
+          <div>
+            <label className="liq-filtro__label">Empleado</label>
+            <select value={filtros.idEmpleado} onChange={e => setFiltros(f => ({ ...f, idEmpleado: e.target.value }))}>
+              <option value="">Todos los empleados</option>
+              <OpcionesEmpleados empleados={empleados} />
+            </select>
+          </div>
+          <div>
+            <label className="liq-filtro__label">Estado</label>
+            <select value={filtros.estado} onChange={e => setFiltros(f => ({ ...f, estado: e.target.value }))}>
+              <option value="">Todos los estados</option>
+              <option value="pendiente">Pendiente</option>
+              <option value="en_liquidacion">En liquidación</option>
+              <option value="liquidado">Liquidado</option>
+            </select>
+          </div>
+          <div>
+            <label className="liq-filtro__label">Desde</label>
+            <input type="date" value={filtros.fechaInicio} onChange={e => setFiltros(f => ({ ...f, fechaInicio: e.target.value }))} />
+          </div>
+          <div>
+            <label className="liq-filtro__label">Hasta</label>
+            <input type="date" value={filtros.fechaFin} onChange={e => setFiltros(f => ({ ...f, fechaFin: e.target.value }))} />
+          </div>
+          <div className="liq-filtros-panel__acciones">
+            <button className="btn-primary btn-sm" onClick={() => { setPagina(1); cargar(1); }}>Aplicar</button>
+          </div>
         </div>
       )}
 
       {loading ? (
-        <div className="liq-loading"><Loader2 className="spin" size={22} /></div>
+        <SkeletonTabla />
       ) : data.items.length === 0 ? (
-        <div className="liq-empty-state"><Clock size={36} /><p>No hay registros de horas.</p></div>
+        <Vacio
+          icono={Clock}
+          titulo={hayFiltros ? "Sin coincidencias" : "Sin registros de horas"}
+          texto={hayFiltros
+            ? "Ningún registro coincide con los filtros aplicados."
+            : "Las horas que registres aquí son las que después se agrupan en una liquidación."}
+        />
       ) : (
-        <table className="liq-tabla">
-          <thead>
-            <tr>
-              <th>#</th><th>Empleado</th><th>Fecha</th><th>Origen</th>
-              <th>Horario</th><th>Horas</th><th>Estado</th><th>Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.items.map(r => (
-              <tr key={r.ID_Registro}>
-                <td>{r.ID_Registro}</td>
-                <td>{r.nombre_empleado}</td>
-                <td>{fmtFecha(r.Fecha)}</td>
-                <td>{r.origen_label}</td>
-                <td>{fmtHora(r.Hora_Inicio)} – {fmtHora(r.Hora_Fin)}</td>
-                <td>{r.Horas_Trabajadas} h</td>
-                <td><EstadoBadge estado={r.Estado} /></td>
-                <td>
-                  {r.Estado === "pendiente" && (
-                    <button className="btn-icon btn-icon--danger" title="Eliminar" onClick={() => borrarRegistro(r.ID_Registro)}>
-                      <Trash2 size={13} />
-                    </button>
-                  )}
-                </td>
+        <div className="liq-tabla-wrap">
+          <table className="liq-tabla">
+            <thead>
+              <tr>
+                <th>#</th><th>Empleado</th><th>Fecha</th><th>Origen</th>
+                <th>Horario</th><th>Horas</th><th>Estado</th><th>Acción</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.items.map(r => (
+                <tr key={r.ID_Registro}>
+                  <td data-label="#"><span className="liq-celda-id">{r.ID_Registro}</span></td>
+                  <td data-label="Empleado" className="liq-celda-fuerte">{r.nombre_empleado}</td>
+                  <td data-label="Fecha">{fmtFecha(r.Fecha)}</td>
+                  <td data-label="Origen">{r.origen_label}</td>
+                  <td data-label="Horario" className="liq-celda-tenue">{fmtHora(r.Hora_Inicio)} – {fmtHora(r.Hora_Fin)}</td>
+                  <td data-label="Horas"><span className="liq-horas">{r.Horas_Trabajadas} h</span></td>
+                  <td data-label="Estado"><EstadoBadge estado={r.Estado} /></td>
+                  <td>
+                    {r.Estado === "pendiente" && (
+                      <button className="btn-icon btn-icon--danger" title="Eliminar" aria-label="Eliminar registro"
+                        onClick={() => borrarRegistro(r.ID_Registro)}>
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       <Paginacion pagina={pagina} total={data.total} porPagina={20} onCambiar={p => { setPagina(p); cargar(p); }} />
@@ -987,44 +1072,52 @@ function TabTarifas({ empleados }) {
       <Toast toast={toast} />
       <div className="liq-toolbar">
         <div className="liq-toolbar__left">
-          <select value={filtroEmp} onChange={e => setFiltroEmp(e.target.value)}>
-            <option value="">Todos los empleados</option>
-            {empleados.map(e => (
-              <option key={e.ID_Usuario || e.id} value={e.ID_Usuario || e.id}>
-                {e.Nombre || e.nombre} {e.Apellidos || e.apellidos}
-              </option>
-            ))}
-          </select>
+          <div style={{ maxWidth: 280, width: "100%" }}>
+            <select value={filtroEmp} onChange={e => setFiltroEmp(e.target.value)}>
+              <option value="">Todos los empleados</option>
+              <OpcionesEmpleados empleados={empleados} />
+            </select>
+          </div>
         </div>
         <button className="btn-primary" onClick={() => setModal(true)}>
-          <Plus size={14} /> Configurar tarifa
+          <Plus size={15} /> Configurar tarifa
         </button>
       </div>
 
       {loading ? (
-        <div className="liq-loading"><Loader2 className="spin" size={22} /></div>
+        <SkeletonTabla filas={4} />
       ) : tarifas.length === 0 ? (
-        <div className="liq-empty-state"><DollarSign size={36} /><p>No hay tarifas configuradas.</p></div>
+        <Vacio
+          icono={DollarSign}
+          titulo="Sin tarifas configuradas"
+          texto="Sin una tarifa vigente no se puede calcular el valor de las horas de un empleado."
+        />
       ) : (
-        <table className="liq-tabla">
-          <thead>
-            <tr>
-              <th>#</th><th>Empleado</th><th>Tarifa/hora</th><th>Vigente desde</th><th>Vigente hasta</th><th>Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tarifas.map(t => (
-              <tr key={t.ID_Tarifa}>
-                <td>{t.ID_Tarifa}</td>
-                <td>{t.nombre_empleado}</td>
-                <td><strong>{fmtMoneda(t.Tarifa_Hora)}</strong></td>
-                <td>{fmtFecha(t.Fecha_Inicio)}</td>
-                <td>{t.Fecha_Fin ? fmtFecha(t.Fecha_Fin) : "—"}</td>
-                <td><span className={`liq-badge ${t.vigente ? "badge--paid" : "badge--neutral"}`}>{t.vigente ? "Vigente" : "Histórica"}</span></td>
+        <div className="liq-tabla-wrap">
+          <table className="liq-tabla">
+            <thead>
+              <tr>
+                <th>#</th><th>Empleado</th><th>Tarifa/hora</th><th>Vigente desde</th><th>Vigente hasta</th><th>Estado</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {tarifas.map(t => (
+                <tr key={t.ID_Tarifa}>
+                  <td data-label="#"><span className="liq-celda-id">{t.ID_Tarifa}</span></td>
+                  <td data-label="Empleado" className="liq-celda-fuerte">{t.nombre_empleado}</td>
+                  <td data-label="Tarifa/hora"><span className="liq-monto">{fmtMoneda(t.Tarifa_Hora)}</span></td>
+                  <td data-label="Vigente desde">{fmtFecha(t.Fecha_Inicio)}</td>
+                  <td data-label="Vigente hasta" className="liq-celda-tenue">{t.Fecha_Fin ? fmtFecha(t.Fecha_Fin) : "—"}</td>
+                  <td data-label="Estado">
+                    <span className={`liq-badge ${t.vigente ? "badge--paid" : "badge--neutral"}`}>
+                      {t.vigente ? "Vigente" : "Histórica"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {modal && (
@@ -1053,7 +1146,7 @@ export default function GestionLiquidaciones() {
   const [detalleId, setDetalleId]   = useState(null);
 
   useEffect(() => {
-    setEmpCargando(true);
+    // `empCargando` ya arranca en true y este efecto corre una sola vez.
     getEmpleadosParaLiquidaciones()
       .then(res => {
         setEmpleados(Array.isArray(res) ? res : []);
@@ -1063,50 +1156,54 @@ export default function GestionLiquidaciones() {
       .finally(() => setEmpCargando(false));
   }, []);
 
+  // El detalle también cuelga de `.liq-root`: de ahí salen las variables de
+  // color y el escopado de botones, badges y modales.
   if (detalleId !== null) {
     return (
-      <DetalleLiquidacion
-        idLiquidacion={detalleId}
-        onVolver={() => setDetalleId(null)}
-        onCambio={() => {}}
-      />
+      <div className="liq-root">
+        <DetalleLiquidacion
+          idLiquidacion={detalleId}
+          onVolver={() => setDetalleId(null)}
+          onCambio={() => {}}
+        />
+      </div>
     );
   }
 
   return (
     <div className="liq-root">
-      <div className="liq-page-header">
-        <div className="liq-page-header__icon">
-          <DollarSign size={26} />
-        </div>
-        <div className="liq-page-header__text">
+      <header className="liq-hero">
+        <span className="liq-hero__icon"><DollarSign size={27} /></span>
+        <div className="liq-hero__txt">
+          <span className="liq-hero__eyebrow">Nómina y pagos</span>
           <h1>Gestión de Liquidaciones</h1>
-          <p>Administra tarifas, registra horas y gestiona el pago de empleados</p>
+          <p>Administra tarifas, registra horas y gestiona el pago de empleados.</p>
         </div>
-        <div className="liq-page-header__badges">
-          {empCargando ? (
-            <span className="liq-page-badge liq-page-badge--loading">
-              <Loader2 size={12} className="spin" /> Cargando empleados…
-            </span>
-          ) : empError ? (
-            <span className="liq-page-badge liq-page-badge--error">
-              <AlertCircle size={12} /> Sin acceso a empleados
-            </span>
-          ) : (
-            <span className="liq-page-badge">
-              <Check size={12} /> {empleados.length} empleado{empleados.length !== 1 ? "s" : ""}
-            </span>
-          )}
-        </div>
-      </div>
+        {empCargando ? (
+          <span className="liq-hero__badge liq-hero__badge--loading">
+            <Loader2 size={13} className="spin" /> Cargando empleados…
+          </span>
+        ) : empError ? (
+          <span className="liq-hero__badge liq-hero__badge--error">
+            <AlertCircle size={13} /> Sin acceso a empleados
+          </span>
+        ) : (
+          <span className="liq-hero__badge">
+            <User size={13} /> {empleados.length} empleado{empleados.length !== 1 ? "s" : ""}
+          </span>
+        )}
+      </header>
 
       <div className="liq-tabs">
-        {TABS.map(({ key, label, Icon }) => (
-          <button key={key} className={`liq-tab-btn ${tab === key ? "liq-tab-btn--active" : ""}`}
-            onClick={() => setTab(key)}>
-            <Icon size={15} /> {label}
-          </button>
-        ))}
+        {TABS.map(t => {
+          const Icono = t.Icon;
+          return (
+            <button key={t.key} className={`liq-tab-btn ${tab === t.key ? "liq-tab-btn--active" : ""}`}
+              onClick={() => setTab(t.key)}>
+              <Icono size={15} /> {t.label}
+            </button>
+          );
+        })}
       </div>
 
       {tab === "liquidaciones" && (
