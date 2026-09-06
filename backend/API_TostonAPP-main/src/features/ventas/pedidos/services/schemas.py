@@ -58,6 +58,8 @@ class PedidoResponse(BaseModel):
     Numero_Pedido:                Optional[str]     = None
     # Solo los pedidos sobre stock o de producción necesitan fecha propuesta
     requiere_fecha_propuesta:     bool              = False
+    # Respuesta del cliente a "¿todo junto el domingo?" (None = sin responder)
+    envio_completo_domingo:       Optional[bool]    = None
     # Grupos de envío (entrega anticipada + programada al dividir un pedido)
     grupos_envio:                 list              = []
 
