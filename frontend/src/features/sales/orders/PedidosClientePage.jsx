@@ -476,6 +476,7 @@ const PedidosClientePage = () => {
         tipoEntregaA: tipoEntregaA || null,
         tipoEntregaB: tipoEntregaB || null,
       });
+      setItemsListos(null);
       setPedidos(prev => prev.map(p => p.id === actualizado.id ? actualizado : p));
       setSelectedPedido(actualizado);
       setFechaAnticipada('');

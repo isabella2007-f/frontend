@@ -2316,14 +2316,15 @@ def crear_grupos_envio(
     - fecha_anticipada >= hoy + MARGEN_MINIMO_DIAS_ENVIO_ANTICIPADO
     - fecha_anticipada < Fecha_entrega_esperada
     """
-    if actual["tipo"] != "cliente":
-        raise HTTPException(status_code=403, detail="Solo disponible para clientes")
-    id_usuario = actual["registro"].ID_Usuario
+    es_admin = actual["tipo"] in ("admin", "empleado")
+    es_cliente = actual["tipo"] == "cliente"
+    if not es_admin and not es_cliente:
+        raise HTTPException(status_code=403, detail="Acción no permitida para este tipo de usuario")
 
     venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
-    if venta.ID_Usuario != id_usuario:
+    if es_cliente and venta.ID_Usuario != actual["registro"].ID_Usuario:
         raise HTTPException(status_code=403, detail="No puedes modificar pedidos de otros clientes")
 
     estados_validos = (EstadoPedido.CONFIRMADO, EstadoPedido.PREPARANDO, EstadoPedido.LISTO)
