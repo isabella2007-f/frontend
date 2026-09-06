@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
-import unicodedata
 
 from src.shared.services.database import get_db
+from src.shared.services.roles_utils import es_repartidor
 from src.shared.services.models import Domicilio, Venta  # Venta para validar acceso de cliente al chat
 from src.features.auth.services.dependencies import requiere_permiso, obtener_usuario_actual
 from .schemas import (
@@ -22,19 +22,9 @@ from .service import (
 router = APIRouter(prefix="/domicilios", tags=["Domicilios"])
 
 
-def _es_repartidor(actual: dict) -> bool:
-    """¿Quien llama es de reparto?
-
-    El rol de reparto no siempre es el ID 4: desde Configuración → Roles se
-    puede crear otro ("Repartidor", "Domiciliario 2"…) y entonces todas las
-    reglas de "solo lo suyo" dejaban de aplicarse en silencio. Se reconoce
-    también por el nombre, igual que el panel web y la app móvil.
-    """
-    if getattr(actual["registro"], "ID_Rol", None) == 4:
-        return True
-    nombre = unicodedata.normalize("NFD", (actual.get("rol") or "").lower())
-    nombre = "".join(c for c in nombre if unicodedata.category(c) != "Mn")
-    return "domicil" in nombre or "repart" in nombre
+# La regla de "quién es de reparto" vive en shared/roles_utils.py: estaba
+# escrita aquí y otra vez —mal— en el router de notificaciones.
+_es_repartidor = es_repartidor
 
 
 def _exigir_domicilio_propio(db: Session, actual: dict, id_domicilio: int) -> None:

@@ -1,8 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getUser } from "../../../services/authService";
 import { getDomicilios } from "../../../services/domiciliosService";
-import "./Domicilios.css";
-import { Package, CheckCircle2, XCircle, Bell, X } from "lucide-react";
+import "./DomiciliarioUI.css";
+import "./NotificacionesDomiciliario.css";
+import {
+  Package, CheckCircle2, XCircle, Bell, X, Clock, BellRing,
+  CheckCheck, Bike,
+} from "lucide-react";
 
 const POLL_INTERVAL = 30_000; // 30 segundos
 const STORAGE_KEY   = "domiciliario_notifs_visto";
@@ -20,10 +24,12 @@ const fmtFecha = (iso) => {
   return d.toLocaleDateString("es-CO", { day: "2-digit", month: "short" });
 };
 
-const NOTIF_ICON = {
-  cancelado: <XCircle size={20} />,
-  nuevo:     <Package size={20} />,
-  entregado: <CheckCircle2 size={20} />,
+/* Icono, color y etiqueta de cada tipo, en un solo sitio. Antes el color
+   viajaba dentro de cada notificación generada, repetido en tres ramas. */
+const TIPO_UI = {
+  nuevo:     { Icono: Package,      color: "#2e7d32", bg: "#e8f5e9", label: "Asignadas" },
+  entregado: { Icono: CheckCircle2, color: "#558b2f", bg: "#eef6e4", label: "Completadas" },
+  cancelado: { Icono: XCircle,      color: "#c62828", bg: "#ffebee", label: "Canceladas" },
 };
 
 function generarNotifs(domicilios) {
@@ -42,8 +48,6 @@ function generarNotifs(domicilios) {
         titulo:  "Entrega cancelada",
         mensaje: `${dom.numero} · ${dom.cliente?.nombre || "Cliente"}`,
         fecha:   dom.fecha_pedido,
-        color:   "#c62828",
-        bg:      "#ffebee",
       });
       return;
     }
@@ -57,8 +61,6 @@ function generarNotifs(domicilios) {
         titulo:  "Nueva entrega asignada",
         mensaje: `${dom.numero} · ${dom.cliente?.nombre || "Cliente"} · ${dom.direccion_entrega || "Sin dirección"}`,
         fecha:   dom.fecha_pedido,
-        color:   "#1565c0",
-        bg:      "#e3f2fd",
       });
     }
 
@@ -72,8 +74,6 @@ function generarNotifs(domicilios) {
           titulo:  "Entrega completada",
           mensaje: `${dom.numero} · ${dom.cliente?.nombre || "Cliente"}`,
           fecha:   dom.fecha_entrega_real,
-          color:   "#2e7d32",
-          bg:      "#e8f5e9",
         });
       }
     }
@@ -86,20 +86,17 @@ function generarNotifs(domicilios) {
 function Toast({ msg, onClose }) {
   if (!msg) return null;
   return (
-    <div style={{
-      position: "fixed", bottom: 24, right: 24, zIndex: 9999,
-      background: "#1565c0", color: "#fff", borderRadius: 12,
-      padding: "14px 18px", maxWidth: 320,
-      boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
-      display: "flex", alignItems: "flex-start", gap: 10,
-    }}>
-      <span style={{ display: "flex", alignItems: "center" }}><Package size={20} /></span>
+    <div className="du-toast du-toast--ok">
+      <span className="du-toast__icon"><Bike size={15} /></span>
       <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 3 }}>{msg.titulo}</div>
-        <div style={{ fontSize: 12, opacity: 0.85 }}>{msg.mensaje}</div>
+        <div style={{ fontWeight: 800 }}>{msg.titulo}</div>
+        <div style={{ opacity: 0.85, fontSize: 12, marginTop: 2 }}>{msg.mensaje}</div>
       </div>
-      <button onClick={onClose}
-        style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", padding: 0 }}>
+      <button
+        onClick={onClose}
+        aria-label="Cerrar aviso"
+        style={{ background: "none", border: "none", color: "#fff", cursor: "pointer", display: "flex", padding: 0 }}
+      >
         <X size={16} />
       </button>
     </div>
@@ -111,6 +108,7 @@ export default function NotificacionesDomiciliario() {
   const [notifs, setNotifs]     = useState([]);
   const [loading, setLoading]   = useState(true);
   const [toast,   setToast]     = useState(null);
+  const [filtro,  setFiltro]    = useState("todas");
   const [leidas,  setLeidas]    = useState(() => {
     try { return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "[]"); }
     catch { return []; }
@@ -164,116 +162,128 @@ export default function NotificacionesDomiciliario() {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(nuevas));
   };
 
-  const sinLeer = notifs.filter(n => !leidas.includes(n.id)).length;
+  const esLeida = (n) => leidas.includes(n.id);
+  const sinLeer = notifs.filter(n => !esLeida(n)).length;
+  const porTipo = (tipo) => notifs.filter(n => n.tipo === tipo).length;
+
+  const FILTROS = [
+    { id: "todas",     label: "Todas",    count: notifs.length },
+    { id: "sin-leer",  label: "Sin leer", count: sinLeer },
+    ...Object.entries(TIPO_UI).map(([tipo, cfg]) => ({
+      id: tipo, label: cfg.label, count: porTipo(tipo),
+    })),
+  ];
+
+  const visibles = notifs.filter(n =>
+    filtro === "todas" ? true
+    : filtro === "sin-leer" ? !esLeida(n)
+    : n.tipo === filtro
+  );
+
+  const STATS = [
+    { label: "Sin leer",    valor: sinLeer,               Icono: BellRing, oro: sinLeer > 0 },
+    { label: "Asignadas",   valor: porTipo("nuevo"),      Icono: Package },
+    { label: "Completadas", valor: porTipo("entregado"),  Icono: CheckCircle2 },
+    { label: "Canceladas",  valor: porTipo("cancelado"),  Icono: XCircle },
+  ];
+
+  const subtitulo = loading
+    ? "Buscando novedades…"
+    : sinLeer > 0
+      ? `Tienes ${sinLeer} ${sinLeer === 1 ? "aviso sin leer" : "avisos sin leer"} de las últimas 24–48 horas.`
+      : "Estás al día. Aquí aparecen las asignaciones y el cierre de tus entregas.";
 
   return (
-    <div className="page-wrapper">
-      <div className="page-header">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <div className="dom-ui notifs">
+      <header className="du-hero">
+        <div className="du-hero__top">
           <div>
-            <h1 className="page-header__title" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              Notificaciones
-              {sinLeer > 0 && (
-                <span style={{
-                  background: "#c62828", color: "#fff", borderRadius: 20,
-                  fontSize: 12, fontWeight: 700, padding: "2px 8px",
-                }}>
-                  {sinLeer}
-                </span>
-              )}
-            </h1>
+            <span className="du-hero__eyebrow"><Bell size={14} /> Tu buzón</span>
+            <h1 className="du-hero__title">Notificaciones</h1>
+            <p className="du-hero__sub">{subtitulo}</p>
           </div>
           {sinLeer > 0 && (
-            <button onClick={marcarTodas} style={{
-              padding: "7px 16px", borderRadius: 20, border: "1.5px solid #e0e0e0",
-              background: "#fff", color: "#616161", fontSize: 12, cursor: "pointer", fontWeight: 600,
-            }}>
-              Marcar todas como leídas
+            <button className="du-hero__refresh" onClick={marcarTodas}>
+              <CheckCheck size={15} /> Marcar todas como leídas
             </button>
           )}
         </div>
-        <div className="page-header__line" />
-      </div>
 
-      <div className="page-inner">
-        <div style={{ marginBottom: 12, fontSize: 12, color: "#9e9e9e" }}>
-          Se actualiza automáticamente cada 30 segundos · últimas 24–48 h de actividad
+        <div className="du-stats">
+          {STATS.map(s => (
+            <div key={s.label} className={`du-stat${s.oro ? " du-stat--oro" : ""}`}>
+              <span className="du-stat__icon"><s.Icono size={19} /></span>
+              <div>
+                <div className="du-stat__valor">{loading ? "—" : s.valor}</div>
+                <div className="du-stat__label">{s.label}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </header>
+
+      <div className="du-inner">
+        <div className="nt-barra">
+          <div className="du-filtros">
+            {FILTROS.map(f => (
+              <button
+                key={f.id}
+                onClick={() => setFiltro(f.id)}
+                className={`du-filtro${filtro === f.id ? " du-filtro--on" : ""}`}
+              >
+                {f.label}
+                <span className="du-filtro__count">{f.count}</span>
+              </button>
+            ))}
+          </div>
+          <span className="nt-barra__auto">
+            <span className="nt-barra__pulso" /> Se actualiza sola cada 30 s
+          </span>
         </div>
 
         {loading ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div className="nt-lista">
             {[1, 2, 3].map(i => (
-              <div key={i} style={{ background: "#fff", borderRadius: 12, padding: 18, border: "1.5px solid #f0f0f0" }}>
+              <div key={i} className="du-skel-card">
                 {[60, 40].map((w, j) => (
-                  <div key={j} className="skeleton-cell" style={{ width: `${w}%`, height: 14, marginBottom: 8, borderRadius: 7 }} />
+                  <div key={j} className="du-skel" style={{ width: `${w}%` }} />
                 ))}
               </div>
             ))}
           </div>
-        ) : notifs.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "70px 0", color: "#9e9e9e" }}>
-            <div style={{ marginBottom: 14, color: "#bdbdbd", display: "flex", justifyContent: "center" }}>
-              <Bell size={52} strokeWidth={1} />
-            </div>
-            <p style={{ fontSize: 15, fontWeight: 600, color: "#424242" }}>Sin notificaciones</p>
-            <p style={{ fontSize: 13, marginTop: 6 }}>
-              Aquí aparecerán nuevas asignaciones y actualizaciones de tus entregas.
+        ) : visibles.length === 0 ? (
+          <div className="du-vacio">
+            <span className="du-vacio__icon"><Bell size={38} strokeWidth={1.4} /></span>
+            <p className="du-vacio__titulo">
+              {notifs.length === 0 ? "Sin notificaciones" : "Nada en este filtro"}
+            </p>
+            <p className="du-vacio__texto">
+              {notifs.length === 0
+                ? "Aquí aparecerán las nuevas asignaciones y las actualizaciones de tus entregas."
+                : "Prueba con otro filtro para ver el resto de tus avisos."}
             </p>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {notifs.map(n => {
-              const esLeida = leidas.includes(n.id);
-              const IconEl = NOTIF_ICON[n.tipo] || null;
+          <div className="nt-lista">
+            {visibles.map(n => {
+              const cfg = TIPO_UI[n.tipo] || TIPO_UI.nuevo;
+              const leida = esLeida(n);
               return (
-                <div
+                <button
                   key={n.id}
+                  type="button"
                   onClick={() => marcarLeida(n.id)}
-                  style={{
-                    background: esLeida ? "#fafafa" : "#fff",
-                    borderRadius: 12, padding: "16px 18px",
-                    border: `1.5px solid ${esLeida ? "#f0f0f0" : n.bg}`,
-                    boxShadow: esLeida ? "none" : "0 2px 8px rgba(0,0,0,0.05)",
-                    cursor: "pointer",
-                    display: "flex", alignItems: "flex-start", gap: 14,
-                    transition: "all 0.15s",
-                  }}
+                  className={`nt-card${leida ? " nt-card--leida" : ""}`}
+                  style={{ "--n-color": cfg.color, "--n-bg": cfg.bg }}
                 >
-                  {/* Icono */}
-                  <div style={{
-                    width: 44, height: 44, borderRadius: 12, flexShrink: 0,
-                    background: esLeida ? "#f5f5f5" : n.bg,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    color: esLeida ? "#9e9e9e" : n.color,
-                  }}>
-                    {IconEl}
+                  <span className="nt-card__icono"><cfg.Icono size={20} /></span>
+                  <div className="nt-card__txt">
+                    <div className="nt-card__titulo">{n.titulo}</div>
+                    <div className="nt-card__msg">{n.mensaje}</div>
+                    <div className="nt-card__fecha"><Clock size={11} /> {fmtFecha(n.fecha)}</div>
                   </div>
-
-                  {/* Contenido */}
-                  <div style={{ flex: 1 }}>
-                    <div style={{
-                      fontWeight: esLeida ? 500 : 700, fontSize: 14,
-                      color: esLeida ? "#757575" : n.color,
-                      marginBottom: 3,
-                    }}>
-                      {n.titulo}
-                    </div>
-                    <div style={{ fontSize: 13, color: esLeida ? "#9e9e9e" : "#424242" }}>
-                      {n.mensaje}
-                    </div>
-                    <div style={{ fontSize: 11, color: "#bdbdbd", marginTop: 6 }}>
-                      {fmtFecha(n.fecha)}
-                    </div>
-                  </div>
-
-                  {/* Punto no leído */}
-                  {!esLeida && (
-                    <div style={{
-                      width: 10, height: 10, borderRadius: "50%",
-                      background: n.color, flexShrink: 0, marginTop: 6,
-                    }} />
-                  )}
-                </div>
+                  {!leida && <span className="nt-card__punto" />}
+                </button>
               );
             })}
           </div>
