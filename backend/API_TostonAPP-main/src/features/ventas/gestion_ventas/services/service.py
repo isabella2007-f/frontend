@@ -1349,6 +1349,22 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
     # Valida que la transición esté permitida por la máquina de estados
     validar_transicion(venta.Estado, nuevo_estado, tiene_domicilio)
 
+    # No se puede cancelar el pedido completo si al menos un grupo ya fue entregado.
+    # En ese caso solo se puede cancelar el grupo pendiente individualmente.
+    if nuevo_estado == EstadoPedido.CANCELADO:
+        grupos_entregados = db.query(GrupoEnvio).filter(
+            GrupoEnvio.ID_Venta == id_venta,
+            GrupoEnvio.Estado == "entregado",
+        ).count()
+        if grupos_entregados > 0:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "No se puede cancelar el pedido completo porque al menos un grupo "
+                    "ya fue entregado. Cancelá únicamente el grupo que sigue pendiente."
+                ),
+            )
+
     # Confirmar es aceptar el pedido: no se acepta un pago que nadie revisó.
     # El comprobante lo sube el cliente y lo aprueba el admin; si se confirma
     # antes, el pedido entra a producción y se despacha contra una imagen que
@@ -2670,6 +2686,15 @@ def cancelar_grupo_pendiente(
             reembolso = (anticipo * (valor_b / total_venta)).quantize(Decimal("1"), rounding=ROUND_CEILING)
             if reembolso > 0:
                 _abonar_credito(db, venta.ID_Usuario, reembolso, id_venta)
+
+    # Cancelar el domicilio asociado al grupo si existe y no está ya en estado final.
+    dom_grupo = db.query(Domicilio).filter(
+        Domicilio.ID_Venta == id_venta,
+        Domicilio.ID_Grupo == id_grupo,
+        Domicilio.Estado.notin_([8, 5]),
+    ).first()
+    if dom_grupo:
+        dom_grupo.Estado = 5  # Cancelado
 
     grupo.Estado = "cancelado"
     venta.Estado = EstadoPedido.PARCIALMENTE_ENTREGADO

@@ -639,7 +639,7 @@ function ModalVerPedido({ pedido, empleados, onClose, onEdit, onUpdatePedido }) 
                 };
                 const cfg = ESTADO_GRUPO[g.estado] || ESTADO_GRUPO.pendiente;
                 const grupoAnticipado = pedido.grupos_envio.find(x => x.tipo === "anticipado");
-                const puedeAvanzar = g.estado === "pendiente" || g.estado === "enviado";
+                const puedeAvanzar = (g.estado === "pendiente" || g.estado === "enviado") && g.tipo_entrega !== "domicilio";
                 const siguienteEstado = g.estado === "pendiente" ? "enviado" : g.estado === "enviado" ? "entregado" : null;
                 const puedeCancel = g.tipo === "programado" && g.estado !== "entregado" && g.estado !== "cancelado" && grupoAnticipado?.estado === "entregado";
                 return (
