@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getUsuarios, editarUsuario } from "../../../services/usuariosService.js";
 import SearchableSelect from "../../../shared/components/SearchableSelect.jsx";
 import { soloLetras, soloDigitos } from "../../../utils/inputFilters";
@@ -205,6 +205,30 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
   const [saved,           setSaved]           = useState(false);
   const [editandoCliente, setEditandoCliente] = useState(false);
 
+  // Instantánea de los datos que realmente persiste el pedido, para detectar
+  // "guardar sin cambios".
+  const snap = (o) => {
+    const items = (o.productosItems || [])
+      .map(p => ({ id: p.idProducto, c: Number(p.cantidad) || 0, precio: Number(p.precio) || 0 }))
+      .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    const sub  = items.reduce((a, p) => a + p.precio * p.c, 0);
+    const desc = Number(o.descuento) || 0;
+    return JSON.stringify({
+      metodo:       (o.metodo_pago || "").split(" ")[0] || "",
+      domicilio:    !!o.domicilio,
+      direccion:    (o.direccion_entrega || "").trim(),
+      municipio:    (o.municipio || "").trim(),
+      departamento: (o.departamento || "").trim(),
+      notas:        (o.notas || "").trim(),
+      descuento:    desc,
+      subtotal:     sub,
+      total:        Math.max(0, sub - desc),
+      comprobante:  o.comprobante instanceof File ? "__nuevo__" : (o.comprobante || null),
+      items,
+    });
+  };
+  const snapshotInicial = useRef(snap({ ...pedido, comprobante: pedido.comprobante || null }));
+
   // Anticipo: registrar que fue recibido (cuando no se confirmó al crear)
   const [apMetodo,   setApMetodo]   = useState("");
   const [apEfectivo, setApEfectivo] = useState(false);
@@ -338,6 +362,8 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
   const handleSave = async () => {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
+
+    if (snap(form) === snapshotInicial.current) { onSave({ sinCambios: true }); return; }
 
     let comprobanteUrl = typeof form.comprobante === "string" ? form.comprobante : null;
     if (form.comprobante instanceof File) {

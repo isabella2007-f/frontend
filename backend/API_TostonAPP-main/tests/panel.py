@@ -119,12 +119,11 @@ DEV_RECHAZADA = 7
 # que se le carga desde Configuración → Roles.
 PERMISOS_REPARTO = ["ver_domicilios", "ver_detalle_domicilios", "cambiar_estado_domicilios"]
 
-# Lo que necesita el rol Cliente para comprar. `requiere_permiso` NO exceptúa a
-# los clientes (su docstring dice que sí, pero el código solo exceptúa al rol
-# Administrador), así que sin este permiso cargado en Rol_x_Permiso la tienda
-# entera devuelve 403 al confirmar el pedido. Se siembra igual que en producción
-# para que estas pruebas reproduzcan lo que ve el cliente de verdad.
-PERMISOS_CLIENTE = ["crear_pedidos"]
+# El rol Cliente (ID_Rol = 3) es estático y SIN permisos: no lleva nada en
+# Rol_x_Permiso. Confirmar/crear un pedido pasa por `permiso_o_cliente()`, que
+# deja entrar al cliente por su rol; el resto de acciones del cliente usan
+# `obtener_usuario_actual` sin permiso. Se siembra vacío igual que en producción.
+PERMISOS_CLIENTE = []
 
 # Todos los permisos que tocan los módulos de venta/producción, para poder darle
 # a un rol exactamente los que hagan falta en cada caso. Una venta es un pedido
@@ -410,8 +409,15 @@ class PanelBase(unittest.TestCase):
         cuerpo.update(kw)
         return self.crear_pedido(**cuerpo)
 
+    def confirmar_si_pendiente(self, id_venta):
+        """La producción de una orden ligada a un pedido solo se gestiona a mano
+        cuando el pedido ya salió de «Pendiente»: se confirma primero."""
+        if self.venta(id_venta).Estado == PEDIDO_PENDIENTE:
+            self.afirmar_ok(self.patch(f"/pedidos/{id_venta}/confirmar", self.admin))
+
     def hornear(self, id_venta):
         """Inicia y completa la orden del pedido, como el panel de producción."""
+        self.confirmar_si_pendiente(id_venta)
         id_orden = self.orden(id_venta).ID_Orden_Produccion
         self.afirmar_ok(self.patch(
             f"/ordenes-produccion/{id_orden}/estado", self.admin,

@@ -1,6 +1,6 @@
 import { esEmpleadoRepartidor } from "../../../utils/roles.js";
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { fmtFecha, getRecordDate } from "../../../utils/dateUtils.js";
 import DateRangeFilter from "../../../shared/components/DateRangeFilter";
 import { descargarFacturaPedido } from "../../../utils/facturaGenerator.js";
@@ -12,6 +12,7 @@ import { getUsuarios } from "../../../services/usuariosService.js";
 import { getProductos } from "../../../services/productosService.js";
 import CrearPedido from "./CrearPedido.jsx";
 import EditarPedido from "./EditarPedido.jsx";
+import FilasRelleno from "../../../shared/components/FilasRelleno";
 import { puedeEditarsePedido } from "./permisosEdicion.js";
 import { esPagoEfectivo, esPagoMixto, esPagoTransferencia, montoACobrar, montoTransferido } from "../../../utils/metodosPago.js";
 import SearchableSelect from "../../../shared/components/SearchableSelect.jsx";
@@ -1371,11 +1372,16 @@ export default function GestionPedidos() {
   // como opción al elegir repartidor.
   const repartidores = (usuarios || []).filter(esEmpleadoRepartidor);
 
+  // Búsqueda inicial desde ?search= (p. ej. al llegar desde Órdenes de Producción,
+  // que enlaza al pedido de una orden con ?search=<ID_Venta>).
+  const location      = useLocation();
+  const initialSearch = new URLSearchParams(location.search).get("search") || "";
+
   const [pedidos,       setPedidos]       = useState([]);
   const [totalPedidos,  setTotalPedidos]  = useState(0);
   const [loading,       setLoading]       = useState(true);
   const [actionSaving,  setActionSaving]  = useState(false);
-  const [search,        setSearch]        = useState("");
+  const [search,        setSearch]        = useState(initialSearch);
   const [filterEstado, setFilterEstado] = useState("todos");
   const [filterTipo,   setFilterTipo]   = useState("todos");
   const [filterDesde,  setFilterDesde]  = useState("");
@@ -1478,6 +1484,8 @@ export default function GestionPedidos() {
   };
 
   useEffect(() => {
+    // El texto inicial de ?search= (normalmente un nº de pedido) se filtra en
+    // cliente: la búsqueda del servidor es por nombre de cliente, no por nº.
     cargarDatos();
     getUsuarios({ porPagina: 100 }).then(setUsuarios).catch(() => {});
   }, []);
@@ -1834,6 +1842,11 @@ export default function GestionPedidos() {
       showToast("Pago final registrado");
       return;
     }
+    if (formData?.sinCambios) {
+      setModal(null);
+      showToast("No se hicieron cambios");
+      return;
+    }
     try {
       const payload = {
         Metodo_Pago:          (formData.metodo_pago || "").split(" ")[0] || null,
@@ -1986,7 +1999,7 @@ export default function GestionPedidos() {
 
         <div className="card">
           <div className="tbl-wrapper">
-            <table className="tbl">
+            <table className="tbl tbl--fixed-rows" style={{ "--tbl-row-h": "82px" }}>
               <thead>
                 <tr>
                   <th style={{ width: 44 }}>Nº</th>
@@ -2132,6 +2145,9 @@ export default function GestionPedidos() {
                     </tr>
                   );
                 })}
+                {!(vista === "activos" ? loading : loadingHistorial) && (
+                  <FilasRelleno current={paged.length} perPage={PER_PAGE} colSpan={8} />
+                )}
               </tbody>
             </table>
           </div>

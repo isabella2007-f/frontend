@@ -83,13 +83,17 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
     tipo_documento: '',
   });
 
+  // Instantánea del formulario tras cargar el perfil, para detectar
+  // "guardar sin cambios".
+  const snapshotInicial = useRef(null);
+
   // Cargar perfil completo desde la API al abrir el formulario
   useEffect(() => {
     setLoadingPerfil(true);
     apiFetch('/auth/perfil')
       .then(data => {
         setPerfil(data);
-        setForm({
+        const f = {
           telefono:       data.Telefono      || '',
           direccion:      data.Direccion     || '',
           municipio:      data.Municipio     || '',
@@ -97,11 +101,13 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
           fotoPerfil:     data.Foto_perfil   || '',
           cedula:         data.Cedula        || '',
           tipo_documento: data.Tipo_Documento || '',
-        });
+        };
+        setForm(f);
+        snapshotInicial.current = JSON.stringify(f);
       })
       .catch(() => {
         // Fallback a datos del prop si la API falla
-        setForm({
+        const f = {
           telefono:      user.telefono      || user.Telefono      || '',
           direccion:     user.direccion     || user.Direccion     || '',
           municipio:     user.municipio     || user.Municipio     || '',
@@ -109,7 +115,9 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
           fotoPerfil:    user.fotoPerfil    || user.Foto_perfil   || '',
           cedula:        user.cedula        || user.Cedula        || '',
           tipo_documento: user.tipo_documento || user.Tipo_Documento || '',
-        });
+        };
+        setForm(f);
+        snapshotInicial.current = JSON.stringify(f);
       })
       .finally(() => setLoadingPerfil(false));
   }, []);
@@ -195,6 +203,13 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!validate()) return;
+
+    // Sin cambios: mismos datos y sin contraseña nueva.
+    const cambioPass = showPassSection && passForm.nueva;
+    if (!cambioPass && snapshotInicial.current !== null && JSON.stringify(form) === snapshotInicial.current) {
+      onSave({ sinCambios: true });
+      return;
+    }
 
     const payload = {
       Telefono:    form.telefono    || null,

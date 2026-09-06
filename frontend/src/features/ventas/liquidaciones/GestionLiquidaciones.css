@@ -103,6 +103,11 @@
   border-collapse: collapse;
   font-size: 0.875rem;
 }
+/* Reserva el alto de una página completa (10 filas) para que la paginación
+   no salte de posición entre páginas ni al quedar la última incompleta. */
+.liq-tabla-wrap {
+  min-height: 445px;
+}
 .liq-tabla th {
   background: #f3f4f6;
   text-align: left;

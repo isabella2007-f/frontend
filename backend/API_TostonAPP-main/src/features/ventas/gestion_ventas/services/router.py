@@ -3,7 +3,9 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from src.shared.services.database import get_db
-from src.features.auth.services.dependencies import requiere_permiso, obtener_usuario_actual
+from src.features.auth.services.dependencies import (
+    requiere_permiso, permiso_o_cliente, obtener_usuario_actual,
+)
 from .schemas import VentaCreate, VentaEstado, VentaResponse, VentaListResponse, FechaEntregaInput, PagoFinalCreate
 from .service import (
     obtener_ventas, obtener_venta, obtener_mi_venta, crear_venta, cambiar_estado,
@@ -83,7 +85,7 @@ def ver_venta(
 def registrar_venta(
     datos:  VentaCreate,
     db:     Session = Depends(get_db),
-    actual: dict    = Depends(requiere_permiso("crear_pedidos"))
+    actual: dict    = Depends(permiso_o_cliente("crear_pedidos"))
 ):
     """
     Crea una venta aplicando el flujo completo:

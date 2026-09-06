@@ -7,7 +7,10 @@ from decimal import Decimal
 
 logger = logging.getLogger(__name__)
 
-from src.shared.services.models import OrdenProduccion, Producto, Insumo, FichaTecnica, FichaTecnicaInsumo, Estado, Venta, LoteProducto, LoteCompra, UnidadMedida, DetalleCompra
+from src.shared.services.models import OrdenProduccion, Producto, Insumo, FichaTecnica, FichaTecnicaInsumo, Estado, Venta, LoteProducto, LoteCompra, UnidadMedida, DetalleCompra, Compra
+
+# Estado de compra Anulada: sus líneas ya no valen como referencia de precio.
+_COMPRA_ANULADA = 12
 from src.shared.services.notificaciones_utils import notificar_stock_insumo, notificar_stock_producto
 from .schemas import OrdenCreate, OrdenUpdate
 
@@ -65,7 +68,11 @@ def _convertir(cantidad: float, desde: str, hasta: str) -> float:
     if factor is None:
         raise HTTPException(
             status_code=400,
-            detail=f"No se puede convertir de '{desde}' a '{hasta}'. Revisa las unidades en la ficha técnica."
+            detail=(
+                f"No se puede calcular la receta: la unidad «{desde}» del insumo no es "
+                f"convertible a «{hasta}» de la ficha técnica. Corrige las unidades en "
+                f"la ficha técnica del producto."
+            ),
         )
     return cantidad * factor
 
@@ -168,7 +175,9 @@ def _calcular_costo_detalle(
         else:
             detalle_compra = (
                 db.query(DetalleCompra)
-                .filter(DetalleCompra.ID_Insumo == fi.ID_Insumo)
+                .join(Compra, Compra.ID_Compra == DetalleCompra.ID_Compra)
+                .filter(DetalleCompra.ID_Insumo == fi.ID_Insumo,
+                        Compra.Estado != _COMPRA_ANULADA)
                 .order_by(DetalleCompra.ID_Detalle_Compra.desc())
                 .first()
             )
@@ -196,7 +205,7 @@ def _calcular_costo_detalle(
 
 
 # ── FEFO: descontar lotes del que vence primero al último ────
-def _descontar_fefo(db: Session, id_insumo: int, cantidad: float) -> None:
+def _descontar_fefo(db: Session, id_insumo: int, cantidad: float, nombre_insumo: str | None = None) -> None:
     """Descuenta `cantidad` del insumo consumiendo los lotes en orden FEFO.
 
     Bloquea las filas de lote (`with_for_update`) con un orden determinista
@@ -228,15 +237,18 @@ def _descontar_fefo(db: Session, id_insumo: int, cantidad: float) -> None:
         restante -= tomar
 
     if restante > 0.001:  # tolerancia para errores de punto flotante
+        ref = f"«{nombre_insumo}»" if nombre_insumo else f"con ID {id_insumo}"
         raise HTTPException(
             status_code=409,
-            detail=f"Stock en lotes insuficiente para insumo {id_insumo}: "
-                   f"faltan {round(restante, 4)} unidades en los lotes activos. "
-                   "Verifica el inventario.",
+            detail=(
+                f"Los lotes activos del insumo {ref} no alcanzan para producir: "
+                f"faltan {round(restante, 4)} unidades. Revisa el inventario por lotes "
+                f"del insumo antes de iniciar la producción."
+            ),
         )
 
 
-def _restaurar_fefo(db: Session, id_insumo: int, cantidad: float) -> None:
+def _restaurar_fefo(db: Session, id_insumo: int, cantidad: float, nombre_insumo: str | None = None) -> None:
     """Devuelve `cantidad` al insumo en orden FEFO inverso (del último al primero en vencer)."""
     lotes = (
         db.query(LoteCompra)
@@ -263,11 +275,56 @@ def _restaurar_fefo(db: Session, id_insumo: int, cantidad: float) -> None:
         lote.Cantidad_Actual = round(actual + devolver, 4)
         restante -= devolver
 
+    # Si los lotes activos no tienen hueco para todo lo devuelto (p. ej. un lote
+    # que se consumió por completo quedó inactivo), el remanente se acumula en el
+    # lote más reciente: así la suma de lotes no se descuadra contra el
+    # Stock_Actual del insumo, que el llamador ajusta por separado.
+    if restante > 0.001 and lotes:
+        lotes[0].Cantidad_Actual = round(float(lotes[0].Cantidad_Actual or 0) + restante, 4)
+        logger.warning(
+            "restaurar_fefo insumo %s (%s): %s unidades sin hueco en lotes activos; "
+            "acumuladas en el lote %s",
+            id_insumo, nombre_insumo or "s/n", round(restante, 4), lotes[0].ID_Lote_Compra,
+        )
+
 
 ESTADO_PENDIENTE  = 1
 ESTADO_EN_PROCESO = 13
 ESTADO_COMPLETADA = 11
 ESTADO_CANCELADA  = 5
+
+# Nombres legibles de los estados operativos de una orden (la tabla Estados es
+# compartida y para el ID 1 devuelve "Activo", que aquí significa "Pendiente").
+_ORDEN_ESTADO_LABEL = {
+    ESTADO_PENDIENTE:  "Pendiente",
+    ESTADO_EN_PROCESO: "En proceso",
+    ESTADO_COMPLETADA: "Completada",
+    ESTADO_CANCELADA:  "Cancelada",
+}
+
+# Nombres legibles de los estados de un pedido (Venta), para explicar por qué la
+# producción de una orden ligada a un pedido está o no habilitada.
+_VENTA_ESTADO_LABEL = {
+    1: "Pendiente", 4: "Confirmado", 5: "Cancelado", 8: "Entregado",
+    9: "En camino", 10: "Asignado", 11: "Listo", 13: "En producción",
+    16: "Fecha propuesta",
+}
+
+
+def _label_orden(estado: int) -> str:
+    return _ORDEN_ESTADO_LABEL.get(estado, f"estado {estado}")
+
+
+def _transiciones_texto(estado_actual: int) -> str:
+    """Explica en lenguaje claro a qué estados se puede pasar desde el actual."""
+    if estado_actual == ESTADO_PENDIENTE:
+        return ("Desde «Pendiente» solo puede pasar a «En proceso» (iniciar la "
+                "producción); para cancelarla se usa la acción «Anular».")
+    if estado_actual == ESTADO_EN_PROCESO:
+        return ("Desde «En proceso» solo puede pasar a «Completada» (finalizar la "
+                "producción); para cancelarla se usa la acción «Anular».")
+    return (f"Una orden «{_label_orden(estado_actual)}» es un estado final: ya no "
+            f"admite cambios de estado.")
 
 # Estados de venta que no se deben tocar (ya terminados)
 _ESTADOS_VENTA_FINALES = {5, 8, 9}  # Cancelado, Entregado, En camino
@@ -392,7 +449,9 @@ def _precio_ultimo_lote(db: Session, id_insumo: int) -> Decimal:
     """Precio unitario del insumo en su compra más reciente."""
     detalle = (
         db.query(DetalleCompra)
-        .filter(DetalleCompra.ID_Insumo == id_insumo)
+        .join(Compra, Compra.ID_Compra == DetalleCompra.ID_Compra)
+        .filter(DetalleCompra.ID_Insumo == id_insumo,
+                Compra.Estado != _COMPRA_ANULADA)
         .order_by(DetalleCompra.ID_Detalle_Compra.desc())
         .first()
     )
@@ -475,9 +534,20 @@ def _formato_orden(
 
     costo = costo_calculado if costo_calculado > 0 else (orden.Costo or Decimal("0"))
 
+    # Estado del pedido que generó la orden (si lo hay): el frontend lo usa para
+    # explicar por qué el cambio manual de estado está o no habilitado.
+    venta_rel = orden.venta if orden.ID_Venta else None
+    venta_estado = venta_rel.Estado if venta_rel else None
+    venta_estado_label = (
+        _VENTA_ESTADO_LABEL.get(venta_estado)
+        or (_label_estado(db, venta_estado) if venta_estado else None)
+    )
+
     return {
         "ID_Orden_Produccion": orden.ID_Orden_Produccion,
         "ID_Venta":            orden.ID_Venta,
+        "venta_estado":        venta_estado,
+        "venta_estado_label":  venta_estado_label,
         "ID_Producto":         orden.ID_Producto,
         "nombre_producto":     producto.nombre if producto else None,
         "ID_Insumo":           orden.ID_Insumo,
@@ -533,6 +603,7 @@ def obtener_ordenes(
         .options(
             selectinload(OrdenProduccion.producto),
             selectinload(OrdenProduccion.insumo),
+            selectinload(OrdenProduccion.venta),
             selectinload(OrdenProduccion.ficha)
                 .selectinload(FichaTecnica.insumos_ficha)
                 .selectinload(FichaTecnicaInsumo.insumo)
@@ -564,7 +635,9 @@ def obtener_ordenes(
                 DetalleCompra.ID_Insumo,
                 func.max(DetalleCompra.ID_Detalle_Compra).label("max_id"),
             )
-            .filter(DetalleCompra.ID_Insumo.in_(all_insumo_ids))
+            .join(Compra, Compra.ID_Compra == DetalleCompra.ID_Compra)
+            .filter(DetalleCompra.ID_Insumo.in_(all_insumo_ids),
+                    Compra.Estado != _COMPRA_ANULADA)
             .group_by(DetalleCompra.ID_Insumo)
             .subquery()
         )
@@ -647,6 +720,19 @@ def editar_orden(db: Session, id_orden: int, datos: OrdenUpdate) -> dict:
     ).with_for_update().first()
     if not orden:
         raise HTTPException(status_code=404, detail="Orden no encontrada")
+
+    # Una orden generada por un pedido no se edita por separado: sus datos
+    # (producto, cantidad, fechas) los define el pedido. Editarla aquí la
+    # desincronizaría de la línea del pedido.
+    if orden.ID_Venta:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"La orden #{id_orden} se generó a partir del pedido #{orden.ID_Venta} "
+                f"y no se edita de forma independiente. Gestiónala desde el pedido en "
+                f"Gestión de Pedidos."
+            ),
+        )
 
     # 3.6 — En proceso / Completada / Cancelada no admiten edición de ningún campo.
     if orden.Estado != ESTADO_PENDIENTE:
@@ -733,47 +819,87 @@ def cambiar_estado(
     Fecha_Vencimiento.
 
     - `origen_manual`: True cuando la petición llega por el endpoint (un usuario).
-      Con la orden ligada a un pedido, un usuario NO puede cancelarla a mano:
-      la cancelación baja siempre del pedido. Los llamadores internos (la
-      cancelación en cadena desde ventas) usan el valor por defecto (False).
+      Una orden generada por un pedido no se gestiona sola desde aquí: no se
+      cancela a mano (la cancelación baja del pedido en cadena) y su avance
+      (iniciar / completar) solo se habilita cuando el pedido ya salió de
+      «Pendiente». Los llamadores internos (la cancelación en cadena desde
+      ventas) usan el valor por defecto (False).
     - `commit`: False cuando el llamador maneja la transacción (cascada de
       cancelación del pedido) para que todo cierre en un solo commit.
     """
-    import time
-    _t0 = time.time()
     # compat: si pasaron solo un int
     if isinstance(datos, int):
         nuevo_estado = datos
         lote_info = {}
     else:
         nuevo_estado = datos.Estado
-        lote_info = { 'Numero_Lote': getattr(datos, 'Numero_Lote', None), 'Fecha_Vencimiento': getattr(datos, 'Fecha_Vencimiento', None) }
-    logger.debug(f"[1] cambiar_estado START id={id_orden} nuevo_estado={nuevo_estado}")
+        lote_info = {
+            'Numero_Lote': getattr(datos, 'Numero_Lote', None),
+            'Fecha_Vencimiento': getattr(datos, 'Fecha_Vencimiento', None),
+        }
     try:
-        logger.debug(f"[2] query OrdenProduccion | +{time.time()-_t0:.3f}s")
         orden = db.query(OrdenProduccion).filter(
             OrdenProduccion.ID_Orden_Produccion == id_orden
         ).with_for_update().first()
-        logger.debug(f"[3] orden found={orden is not None} estado_actual={getattr(orden,'Estado',None)} | +{time.time()-_t0:.3f}s")
         if not orden:
             raise HTTPException(status_code=404, detail="Orden no encontrada")
 
-        # "Cambiar estado" no es "anular": desde este endpoint (permiso
-        # cambiar_estado_ordenes) no se cancela una orden. La cancelación va por
-        # el endpoint de anular (permiso anular_ordenes) o, si la orden pertenece
-        # a un pedido, cancelando el pedido (3.12).
-        if origen_manual and nuevo_estado == ESTADO_CANCELADA:
-            if orden.ID_Venta:
-                detalle = (
-                    f"La orden #{id_orden} pertenece al pedido #{orden.ID_Venta}. "
-                    "Para cancelarla, cancela el pedido."
-                )
-            else:
-                detalle = "Para cancelar una orden usa la acción Anular."
-            raise HTTPException(status_code=400, detail=detalle)
-
         if orden.Estado == nuevo_estado:
             return _formato_orden(orden, db)
+
+        # ── Órdenes generadas por un pedido: su gestión manual está atada al pedido ──
+        if origen_manual and orden.ID_Venta:
+            venta = db.query(Venta).filter(Venta.ID_Venta == orden.ID_Venta).first()
+            venta_estado = venta.Estado if venta else None
+            venta_label  = _VENTA_ESTADO_LABEL.get(venta_estado, "desconocido")
+
+            # La cancelación de una orden ligada a un pedido baja siempre del
+            # pedido, nunca a mano desde aquí (ni desde "Anular").
+            if nuevo_estado == ESTADO_CANCELADA:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"El estado de la orden #{id_orden} lo controla el pedido "
+                        f"#{orden.ID_Venta}: una orden generada por un pedido no se "
+                        f"cancela por separado. Para cancelarla, cancela el pedido "
+                        f"#{orden.ID_Venta} desde Gestión de Pedidos y la orden se "
+                        f"cancelará en cadena."
+                    ),
+                )
+
+            # El avance manual (iniciar, completar) solo se habilita cuando el
+            # pedido ya entró en producción. Mientras siga «Pendiente» —esperando
+            # confirmación o que el cliente acepte la fecha— la orden queda
+            # bloqueada: primero se mueve el pedido.
+            if venta_estado not in _ESTADOS_VENTA_PRODUCIENDO:
+                if venta_estado == 1:
+                    detalle = (
+                        f"La orden #{id_orden} pertenece al pedido #{orden.ID_Venta}, "
+                        f"que todavía está «Pendiente». Confirma el pedido en Gestión "
+                        f"de Pedidos para poder iniciar y gestionar su producción."
+                    )
+                elif venta_estado in _ESTADOS_VENTA_FINALES:
+                    detalle = (
+                        f"La orden #{id_orden} pertenece al pedido #{orden.ID_Venta}, "
+                        f"que está «{venta_label}»: su producción ya no se gestiona."
+                    )
+                else:
+                    detalle = (
+                        f"La orden #{id_orden} pertenece al pedido #{orden.ID_Venta} "
+                        f"(actualmente «{venta_label}»). Su producción se habilita "
+                        f"cuando el pedido está confirmado o en producción."
+                    )
+                raise HTTPException(status_code=400, detail=detalle)
+
+        elif origen_manual and nuevo_estado == ESTADO_CANCELADA:
+            # Orden suelta (sin pedido): cancelar es "Anular", no "cambiar estado".
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Para cancelar una orden se usa la acción «Anular» (el botón con "
+                    "el ícono de prohibido), no el cambio de estado."
+                ),
+            )
 
         # Mapa de transiciones válidas — cualquier otra combinación es un error
         _TRANSICIONES_VALIDAS = {
@@ -785,7 +911,11 @@ def cambiar_estado(
         if nuevo_estado not in _TRANSICIONES_VALIDAS.get(orden.Estado, set()):
             raise HTTPException(
                 status_code=400,
-                detail=f"Transición no permitida: estado actual {orden.Estado} → {nuevo_estado}",
+                detail=(
+                    f"La orden #{id_orden} está «{_label_orden(orden.Estado)}» y desde "
+                    f"ese estado no puede pasar a «{_label_orden(nuevo_estado)}». "
+                    f"{_transiciones_texto(orden.Estado)}"
+                ),
             )
 
         # Al iniciar (13=En proceso): validar ficha, descontar todos los insumos de la receta
@@ -801,24 +931,27 @@ def cambiar_estado(
             if not orden.ID_Ficha:
                 raise HTTPException(
                     status_code=400,
-                    detail="El producto debe tener una ficha técnica asignada antes de iniciar la producción"
+                    detail=(
+                        "El producto no tiene ficha técnica y sin ella no se puede "
+                        "iniciar la producción. Créala en Gestión de Productos."
+                    ),
                 )
-            logger.debug(f"[4] query FichaTecnicaInsumo id_ficha={orden.ID_Ficha} | +{time.time()-_t0:.3f}s")
             insumos_ficha = db.query(FichaTecnicaInsumo).filter(
                 FichaTecnicaInsumo.ID_Ficha == orden.ID_Ficha
             ).all()
-            logger.debug(f"[5] insumos_ficha count={len(insumos_ficha)} | +{time.time()-_t0:.3f}s")
             if not insumos_ficha:
                 raise HTTPException(
                     status_code=400,
-                    detail="La ficha técnica no tiene insumos registrados. Agrégalos antes de iniciar producción."
+                    detail=(
+                        "La ficha técnica del producto no tiene insumos registrados. "
+                        "Agrégalos en Gestión de Productos antes de iniciar la producción."
+                    ),
                 )
             # Batch-load: 2 queries en lugar de 4N (N insumos × 2 loops × 2 tablas).
             # Bloqueo de filas de insumo con orden determinista (por ID): dos
             # órdenes concurrentes que comparten un insumo se serializan y no
             # pueden ambas pasar la validación de stock sobre el mismo saldo.
             ids_insumo = [fi.ID_Insumo for fi in insumos_ficha]
-            logger.debug(f"[6] batch query Insumo IN {ids_insumo} | +{time.time()-_t0:.3f}s")
             insumos_map = {
                 i.ID_Insumo: i
                 for i in db.query(Insumo)
@@ -828,7 +961,6 @@ def cambiar_estado(
                     .all()
             }
             unidad_ids = {i.Unidad_Medida for i in insumos_map.values() if i.Unidad_Medida}
-            logger.debug(f"[7] batch query UnidadMedida IN {unidad_ids} | +{time.time()-_t0:.3f}s")
             unidades_map = (
                 {
                     u.ID_Unidad_Medida: u
@@ -838,14 +970,20 @@ def cambiar_estado(
                 }
                 if unidad_ids else {}
             )
-            logger.debug(f"[8] batch done, validando stock | +{time.time()-_t0:.3f}s")
 
             # Validar stock (en memoria, sin queries adicionales a BD)
             ficha_plan = []
             for fi in insumos_ficha:
                 insumo = insumos_map.get(fi.ID_Insumo)
                 if not insumo:
-                    raise HTTPException(status_code=404, detail=f"Insumo ID {fi.ID_Insumo} no encontrado")
+                    raise HTTPException(
+                        status_code=404,
+                        detail=(
+                            f"Un insumo de la ficha técnica (ID {fi.ID_Insumo}) ya no "
+                            f"existe. Revisa la ficha técnica del producto en Gestión "
+                            f"de Productos."
+                        ),
+                    )
                 unidad_ins = unidades_map.get(insumo.Unidad_Medida)
                 simbolo_ins = unidad_ins.Simbolo if unidad_ins else None
                 necesario = _convertir(
@@ -853,29 +991,29 @@ def cambiar_estado(
                     fi.Unidad or simbolo_ins,
                     simbolo_ins,
                 )
-                if float(insumo.Stock_Actual or 0) < necesario:
+                disponible = float(insumo.Stock_Actual or 0)
+                if disponible < necesario:
+                    u = f" {simbolo_ins}" if simbolo_ins else ""
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Stock insuficiente de '{insumo.Nombre}': necesario {necesario:.4g} {simbolo_ins}, disponible {float(insumo.Stock_Actual or 0):.4g} {simbolo_ins}"
+                        detail=(
+                            f"Stock insuficiente de «{insumo.Nombre}» para iniciar la "
+                            f"producción: se necesitan {necesario:.4g}{u} y solo hay "
+                            f"{disponible:.4g}{u} (faltan {necesario - disponible:.4g}{u}). "
+                            f"Registra una compra del insumo para reponer el stock."
+                        ),
                     )
                 ficha_plan.append((insumo, necesario))
 
-            logger.debug(f"[9] validacion OK {len(ficha_plan)} insumos, iniciando FEFO | +{time.time()-_t0:.3f}s")
             # Descontar FEFO (todos los stocks validados → descuento atómico)
-            for _i, (insumo, necesario) in enumerate(ficha_plan):
-                logger.debug(f"[10a] _descontar_fefo insumo={insumo.ID_Insumo} necesario={necesario} | +{time.time()-_t0:.3f}s")
-                _descontar_fefo(db, insumo.ID_Insumo, necesario)
+            for insumo, necesario in ficha_plan:
+                _descontar_fefo(db, insumo.ID_Insumo, necesario, insumo.Nombre)
                 insumo.Stock_Actual = round(max(0.0, float(insumo.Stock_Actual or 0) - necesario), 4)
                 _actualizar_estado_insumo(insumo)
-                logger.debug(f"[10b] notificar_stock_insumo insumo={insumo.ID_Insumo} | +{time.time()-_t0:.3f}s")
                 notificar_stock_insumo(db, insumo)
-                logger.debug(f"[10c] insumo {_i+1}/{len(ficha_plan)} completo | +{time.time()-_t0:.3f}s")
 
-            logger.debug(f"[11] FEFO done, ID_Venta={orden.ID_Venta} | +{time.time()-_t0:.3f}s")
             if orden.ID_Venta:
-                logger.debug(f"[11a] _sync_venta START | +{time.time()-_t0:.3f}s")
                 _sync_venta_por_ordenes(db, orden.ID_Venta, orden.ID_Orden_Produccion, ESTADO_EN_PROCESO)
-                logger.debug(f"[11b] _sync_venta END | +{time.time()-_t0:.3f}s")
 
         # Al completar (11=Completada): incrementar stock del producto y crear lote
         elif nuevo_estado == ESTADO_COMPLETADA and orden.Estado == ESTADO_EN_PROCESO:
@@ -885,7 +1023,10 @@ def cambiar_estado(
                 Producto.ID_Producto == orden.ID_Producto
             ).with_for_update().first()
             if not producto:
-                raise HTTPException(status_code=404, detail="Producto no encontrado")
+                raise HTTPException(
+                    status_code=404,
+                    detail="El producto de esta orden ya no existe; no se puede completar la producción.",
+                )
             producto.Stock = (producto.Stock or 0) + orden.Cantidad
             _actualizar_estado_producto(producto)
             notificar_stock_producto(db, producto)
@@ -956,7 +1097,7 @@ def cambiar_estado(
                             fi.Unidad or simbolo_ins,
                             simbolo_ins,
                         )
-                        _restaurar_fefo(db, insumo.ID_Insumo, devolver)
+                        _restaurar_fefo(db, insumo.ID_Insumo, devolver, insumo.Nombre)
                         insumo.Stock_Actual = round(float(insumo.Stock_Actual or 0) + devolver, 4)
                         _actualizar_estado_insumo(insumo)
                         notificar_stock_insumo(db, insumo)
@@ -966,7 +1107,7 @@ def cambiar_estado(
                 ).with_for_update().first()
                 if insumo:
                     devolver = float(orden.Cantidad)
-                    _restaurar_fefo(db, insumo.ID_Insumo, devolver)
+                    _restaurar_fefo(db, insumo.ID_Insumo, devolver, insumo.Nombre)
                     insumo.Stock_Actual = round(float(insumo.Stock_Actual or 0) + devolver, 4)
                     _actualizar_estado_insumo(insumo)
                     notificar_stock_insumo(db, insumo)
@@ -974,17 +1115,12 @@ def cambiar_estado(
             if orden.ID_Venta:
                 _sync_venta_por_ordenes(db, orden.ID_Venta, orden.ID_Orden_Produccion, ESTADO_CANCELADA)
 
-        logger.debug(f"[12] SET estado={nuevo_estado} | +{time.time()-_t0:.3f}s")
         orden.Estado = nuevo_estado
         db.flush()
         if commit:
             db.commit()
-        logger.debug(f"[13] flush/commit done (commit={commit}) | +{time.time()-_t0:.3f}s")
         db.refresh(orden)
-        logger.debug(f"[14] _formato_orden START | +{time.time()-_t0:.3f}s")
-        result = _formato_orden(orden, db)
-        logger.debug(f"[15] _formato_orden DONE, total={time.time()-_t0:.3f}s")
-        return result
+        return _formato_orden(orden, db)
 
     except Exception:
         # Deshacer lo que este cambio dejó a medias. Si el llamador maneja la
@@ -992,8 +1128,7 @@ def cambiar_estado(
         if commit:
             db.rollback()
         logger.exception(
-            "Error en cambiar_estado id=%s nuevo_estado=%s (+%.3fs)",
-            id_orden, nuevo_estado, time.time() - _t0,
+            "Error en cambiar_estado id=%s nuevo_estado=%s", id_orden, nuevo_estado,
         )
         raise
 
@@ -1015,16 +1150,20 @@ def anular_orden(db: Session, id_orden: int) -> dict:
         raise HTTPException(
             status_code=400,
             detail=(
-                f"La orden #{id_orden} pertenece al pedido #{orden.ID_Venta}. "
-                "Para anularla, cancela el pedido."
+                f"El estado de la orden #{id_orden} lo controla el pedido "
+                f"#{orden.ID_Venta}. Para anularla, cancela el pedido #{orden.ID_Venta} "
+                f"desde Gestión de Pedidos y la orden se cancelará en cadena."
             ),
         )
     if orden.Estado == ESTADO_CANCELADA:
-        raise HTTPException(status_code=400, detail="La orden ya está anulada.")
+        raise HTTPException(status_code=400, detail=f"La orden #{id_orden} ya está anulada.")
     if orden.Estado == ESTADO_COMPLETADA:
         raise HTTPException(
             status_code=400,
-            detail="No se puede anular una orden completada.",
+            detail=(
+                f"La orden #{id_orden} ya está «Completada» y no puede anularse: su "
+                f"producto y su lote ya fueron generados."
+            ),
         )
 
     return cambiar_estado(db, id_orden, ESTADO_CANCELADA)

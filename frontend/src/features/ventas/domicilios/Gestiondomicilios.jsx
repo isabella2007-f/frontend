@@ -16,6 +16,7 @@ import { esRolRepartidor, INICIO_REPARTIDOR } from "../../../utils/roles.js";
 import { fmtFecha } from "../../../utils/dateUtils.js";
 import DateRangeFilter from "../../../shared/components/DateRangeFilter";
 import SearchableSelect from "../../../shared/components/SearchableSelect.jsx";
+import FilasRelleno from "../../../shared/components/FilasRelleno";
 import {
   ESTADO_DOMICILIO, ESTADO_DOM_CONFIG, ESTADO_PAGO_LABEL, FILTRO_ESTADOS_DOM,
   bloqueoEntrega, cobroEfectivoPendiente, esDomicilioActivo, esPagoEfectivo, esPagoMixto, esPagoTransferencia,
@@ -1501,7 +1502,7 @@ export default function GestionDomicilios() {
 
             <div className="card">
               <div className="tbl-wrapper">
-                <table className="tbl">
+                <table className="tbl tbl--fixed-rows" style={{ "--tbl-row-h": "78px" }}>
                   <thead>
                     <tr>
                       <th>Pedido</th>
@@ -1649,6 +1650,9 @@ export default function GestionDomicilios() {
                         </tr>
                       );
                     })}
+                    {!loading && !errorCarga && (
+                      <FilasRelleno current={paged.length} perPage={PER_PAGE} colSpan={7} />
+                    )}
                   </tbody>
                 </table>
               </div>

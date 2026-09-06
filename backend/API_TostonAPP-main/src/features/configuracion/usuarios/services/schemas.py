@@ -23,6 +23,22 @@ def validar_telefono(telefono: str) -> Optional[str]:
     return None
 
 
+def validar_contrasena(contrasena: str) -> Optional[str]:
+    """Política de contraseña (misma regla que el frontend). El panel de Usuarios
+    validaba solo en el cliente: un admin podía fijar '123' a cualquiera."""
+    if not contrasena or len(contrasena) < 8:
+        return "La contraseña debe tener al menos 8 caracteres"
+    if not any(c.isupper() for c in contrasena):
+        return "La contraseña debe tener al menos una mayúscula"
+    if not any(c.islower() for c in contrasena):
+        return "La contraseña debe tener al menos una minúscula"
+    if not any(c.isdigit() for c in contrasena):
+        return "La contraseña debe tener al menos un número"
+    if all(c.isalnum() for c in contrasena):
+        return "La contraseña debe tener al menos un carácter especial"
+    return None
+
+
 # ── Crear empleado (cualquier rol no-cliente) ──
 class EmpleadoCreate(BaseModel):
     Cedula:         str
@@ -56,6 +72,9 @@ class UsuarioCreate(BaseModel):
 
 
 # ── Editar (aplica para todos) ──
+# NOTA: sin ID_Rol a propósito. El rol solo se cambia por su endpoint dedicado
+# (PATCH /usuarios/{id}/rol, permiso `cambiar_rol_usuarios`). Cualquier ID_Rol
+# que llegue en este payload se ignora (Pydantic lo descarta al no estar aquí).
 class PersonaUpdate(BaseModel):
     Cedula:         Optional[str]       = None
     Tipo_Documento: Optional[str]       = None
@@ -69,12 +88,16 @@ class PersonaUpdate(BaseModel):
     Telefono:       Optional[str]       = None
     Foto:           Optional[str]       = None
     Contrasena:     Optional[str]       = None
-    ID_Rol:         Optional[int]       = None
 
 
 # ── Cambiar estado ON/OFF ──
 class PersonaEstado(BaseModel):
     Estado: int
+
+
+# ── Cambiar el rol de un usuario (acción rápida del listado) ──
+class RolUpdateUsuario(BaseModel):
+    ID_Rol: int
 
 
 # ── Respuesta unificada ──

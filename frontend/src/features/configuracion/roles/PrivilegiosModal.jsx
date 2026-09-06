@@ -29,6 +29,7 @@ const TODAS_ACCIONES = {
   generar_salida: { key: "generar_salida", label: "Generar Salida", Icon: Upload,       color: "#00695c", bg: "#e0f2f1", border: "#80cbc4" },
   ver_detalles:   { key: "ver_detalles",   label: "Ver Detalles",   Icon: Search,       color: "#1565c0", bg: "#e3f2fd", border: "#90caf9" },
   cambiar_estado: { key: "cambiar_estado", label: "Cambiar Estado", Icon: RefreshCw,    color: "#f57f17", bg: "#fff8e1", border: "#ffe082" },
+  cambiar_rol:    { key: "cambiar_rol",    label: "Cambiar Rol",    Icon: Shield,       color: "#6a1b9a", bg: "#f3e5f5", border: "#ce93d8" },
   aprobar:        { key: "aprobar",        label: "Aprobar",        Icon: CheckCircle2, color: "#1b5e20", bg: "#e8f5e9", border: "#81c784" },
   desaprobar:     { key: "desaprobar",     label: "Desaprobar",     Icon: XCircle,      color: "#b71c1c", bg: "#ffebee", border: "#ef5350" },
   cancelar:       { key: "cancelar",       label: "Cancelar",       Icon: X,            color: "#4e342e", bg: "#efebe9", border: "#bcaaa4" },
@@ -50,7 +51,7 @@ const GRUPOS_MODULOS = [
     modulos: [
       { key: "Dashboard",       label: "Dashboard",       Icon: BarChart2,     acciones: ["ver"] },
       { key: "Roles",           label: "Roles",           Icon: Shield,        acciones: STD },
-      { key: "Usuarios",        label: "Usuarios",        Icon: Users,         acciones: STD },
+      { key: "Usuarios",        label: "Usuarios",        Icon: Users,         acciones: ["ver", "crear", "editar", "eliminar", "cambiar_rol"] },
       { key: "GestionSalidas",  label: "Gestión Salidas", Icon: Upload,        acciones: ["ver", "crear", "editar", "eliminar"] },
     ],
   },

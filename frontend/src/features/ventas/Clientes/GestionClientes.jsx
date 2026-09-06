@@ -10,6 +10,7 @@ import CrearCliente from "./CrearCliente.jsx";
 import { ModalVerCliente, ModalEditarCliente } from "./EditarCliente.jsx";
 import ModalEliminarValidado from "../../../ModalEliminarValidado";
 import DateRangeFilter from "../../../shared/components/DateRangeFilter";
+import FilasRelleno from "../../../shared/components/FilasRelleno";
 import { Search, X, User, Phone, Eye, PenLine, Trash2, Check } from "lucide-react";
 import "./clientes.css";
 
@@ -119,6 +120,11 @@ export default function GestionClientes() {
   };
 
   const handleEdit = async (data) => {
+    if (data?.sinCambios) {
+      showToast("No se hicieron cambios");
+      setModal(null);
+      return;
+    }
     try {
       await editarUsuario("cliente", data.id, {
         Nombre:         data.nombre,
@@ -222,7 +228,7 @@ export default function GestionClientes() {
 
         <div className="card">
           <div className="tbl-wrapper">
-            <table className="tbl">
+            <table className="tbl tbl--fixed-rows" style={{ "--tbl-row-h": "64px" }}>
               <thead>
                 <tr>
                   <th style={{ width: 48 }}>Nº</th>
@@ -273,6 +279,7 @@ export default function GestionClientes() {
                     </td>
                   </tr>
                 ))}
+                <FilasRelleno current={paginated.length} perPage={ITEMS_PER_PAGE} colSpan={8} />
               </tbody>
             </table>
           </div>

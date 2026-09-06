@@ -1,18 +1,27 @@
 import { useState, useEffect } from "react";
-import { Check, X, Package, ClipboardList, Building2, Calendar, CreditCard, PenLine, AlertTriangle, CheckCircle2, Ban, Banknote, Receipt, Tag, Paperclip, Clock, ShoppingCart } from "lucide-react";
+import {
+  Check, X, Package, ClipboardList, Building2, Calendar, CreditCard, PenLine,
+  AlertTriangle, CheckCircle2, Ban, Banknote, Receipt, Tag, Paperclip, Clock, ChevronDown,
+} from "lucide-react";
 import { getProveedores } from "../../../services/proveedoresService.js";
-import { getInsumos, getLotesInsumo } from "../../../services/insumosService.js";
+import { getInsumos } from "../../../services/insumosService.js";
+import { getCompra } from "../../../services/comprasService.js";
 import { fmtFecha } from "../../../utils/dateUtils";
 import SearchableSelect from "../../../shared/components/SearchableSelect.jsx";
+import ImageLightbox from "../../../shared/components/ImageLightbox.jsx";
+import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
+import DetalleInsumoFields from "./DetalleInsumoFields.jsx";
+import { GRUPO_UNIDAD, CANT_MAX } from "./compraDetalleUtils.js";
 import "./compras.css";
 
-const CANT_MAX   = 10_000;
 const TOTAL_MIN  = 0;
 const TOTAL_MAX  = 50_000_000;
-const PORC_MAX   = 100;
-const MONTO_MAX  = 9_999_999_999;
+const PORC_MAX   = 100;   // IVA y descuento en % (admiten decimales)
 
-const soloNumero = (v) => v === "" || /^\d*\.?\d*$/.test(v);
+const soloPorcentaje = (v) => v === "" || /^\d{0,3}(\.\d{0,2})?$/.test(v);
+const soloEnteroTxt  = (v) => v === "" || /^\d{0,8}$/.test(v);
+const bloquearSigno       = (e) => { if (["+", "-", "e", "E"].includes(e.key)) e.preventDefault(); };
+const bloquearSignoYPunto = (e) => { if (["+", "-", "e", "E", ".", ","].includes(e.key)) e.preventDefault(); };
 
 /* Íconos de estado — mismos que usa el listado de compras (GestionCompras) */
 const ESTADO_ICON = { pendiente: Clock, completada: CheckCircle2, anulada: Ban };
@@ -39,7 +48,7 @@ const COP = (n) =>
     maximumFractionDigits: 0,
   }).format(n);
 
-const calcularTotal = (items) =>
+const calcularSubtotal = (items) =>
   (items || []).reduce((s, i) => s + (Number(i.cantidad) || 0) * (Number(i.precioUnd) || 0), 0);
 
 const sumarDias = (n) => {
@@ -55,23 +64,6 @@ const diasHasta = (fecha) => {
   return Math.round((new Date(fecha) - hoy) / (1000 * 60 * 60 * 24));
 };
 
-const UNIDADES = [
-  { id: 1, nombre: "Kilogramo", simbolo: "kg"   },
-  { id: 2, nombre: "Gramo",     simbolo: "g"    },
-  { id: 3, nombre: "Litro",     simbolo: "L"    },
-  { id: 4, nombre: "Mililitro", simbolo: "ml"   },
-  { id: 5, nombre: "Unidad",    simbolo: "uds." },
-  { id: 6, nombre: "Libra",     simbolo: "lb"   },
-];
-
-const GRUPO_UNIDAD = { 1: "masa", 2: "masa", 6: "masa", 3: "vol", 4: "vol", 5: "und" };
-
-const unidadesDelGrupo = (idUnidadBase) => {
-  const grupo = GRUPO_UNIDAD[Number(idUnidadBase)];
-  if (!grupo) return [];
-  return UNIDADES.filter(u => GRUPO_UNIDAD[u.id] === grupo);
-};
-
 const emptyDetalle = () => ({
   _key:             Date.now() + Math.random(),
   idInsumo:         "",
@@ -82,12 +74,12 @@ const emptyDetalle = () => ({
   vencimientoTipo:  "dias",
   vencimientoValor: "30",
   fechaVencimiento: "",
-  isExpanded:       true,
 });
 
 const STEPS = [
   { idx: 1, label: "Información general" },
   { idx: 2, label: "Insumos comprados"   },
+  { idx: 3, label: "Gastos adicionales"  },
 ];
 
 function StepsBar({ current }) {
@@ -108,17 +100,6 @@ function StepsBar({ current }) {
           </div>
         );
       })}
-    </div>
-  );
-}
-
-/* ── Panel de lotes ─────────────────────────────────────── */
-export function LotesInsumoPanel() {
-  return (
-    <div className="lotes-empty">
-      <Package size={48} strokeWidth={1} style={{ color: "#bdbdbd" }} />
-      <p>No hay lotes registrados para este insumo todavía.</p>
-      <p className="lotes-empty__sub">Los lotes se crean automáticamente al completar una compra.</p>
     </div>
   );
 }
@@ -147,10 +128,12 @@ export function AnularCompraModal({ compra, onClose, onConfirm }) {
             <div className="stock-aviso stock-aviso--block" style={{ marginTop: 12, textAlign: "left" }}>
               <p style={{ margin: "0 0 6px" }}>
                 <AlertTriangle size={13} style={{ verticalAlign: "middle" }} /> Esta compra ya fue <strong>completada</strong> y su stock fue aplicado al inventario.
-                Al anularla, el sistema intentará <strong>revertir el stock</strong> de cada insumo.
+                Al anularla, el sistema revierte el stock de cada insumo.
               </p>
               <p style={{ margin: 0, fontSize: 12, color: "#b71c1c" }}>
-                Si algún insumo ya fue consumido en producción, la anulación será bloqueada para evitar inventario negativo.
+                Si cualquier lote de esta compra ya tuvo consumo (orden de producción, salida o cualquier
+                descuento de stock), la anulación se bloquea por completo. Solo se puede anular si el 100%
+                de lo comprado sigue disponible.
               </p>
             </div>
           ) : (
@@ -184,6 +167,69 @@ export function AnularCompraModal({ compra, onClose, onConfirm }) {
   );
 }
 
+/* ── Lote (3.15 / 3.16): fila con datos de consumo, opcionalmente desplegable ── */
+function LoteRow({ lote, unidad, destacado = false }) {
+  const uni = unidad || "uds.";
+  return (
+    <div className={"compra-det-lote-item" + (lote.vencido ? " compra-det-lote-item--vencido" : "") + (destacado ? " compra-det-lote-item--origen" : "")}>
+      <div className="compra-det-lote-item__main">
+        <div className="compra-det-lote-item__num">
+          Lote #{lote.id}
+          {lote.vencido && <span className="compra-det-lote-badge--vencido">Vencido</span>}
+          {destacado && <span className="compra-det-lote-badge--origen">Esta compra</span>}
+        </div>
+        <div className="compra-det-lote-item__meta">
+          {lote.idCompra ? `Compra de origen: #${lote.idCompra}` : "Compra de origen: —"}
+          {lote.fechaVencimiento && ` · Vence: ${fmtFecha(lote.fechaVencimiento)}`}
+        </div>
+        <div className="compra-det-lote-item__meta">
+          Comprado: {lote.cantidadInicial} {uni} · Restante: {lote.cantidadActual} {uni}
+          {lote.consumido > 0 && ` · Consumido: ${lote.consumido} ${uni}`}
+        </div>
+      </div>
+      <div className="compra-det-lote-item__qty">
+        <span className="compra-det-lote-item__qty-num">{lote.cantidadActual}</span>
+        <span className="compra-det-lote-item__qty-unit">{uni}</span>
+      </div>
+    </div>
+  );
+}
+
+function LotesInsumoGrupo({ item, insumosActivos = [] }) {
+  const [abierto, setAbierto] = useState(false);
+  const ins    = insumosActivos.find(i => i.id === Number(item.idInsumo));
+  const uni    = item.unidad || ins?.unidad || "";
+  const nombre = item.nombre || ins?.nombre || "Insumo";
+  const otros  = item.otrosLotes || [];
+
+  return (
+    <div className="compra-det-lote-grupo">
+      <div className="compra-det-lote-grupo__header">
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Package size={14} /> {nombre}</span>
+        <span className="compra-det-lote-grupo__qty">{item.cantidad} {uni} comprados</span>
+      </div>
+
+      {item.loteOrigen
+        ? <LoteRow lote={item.loteOrigen} unidad={uni} destacado />
+        : <div className="compra-det-lotes-empty">Sin lote registrado para este insumo</div>}
+
+      {otros.length > 0 && (
+        <>
+          <button
+            type="button"
+            className="compra-det-lote-toggle"
+            onClick={() => setAbierto(a => !a)}
+          >
+            <ChevronDown size={13} style={{ transform: abierto ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+            {abierto ? "Ocultar" : `Ver otros ${otros.length} lote${otros.length === 1 ? "" : "s"} de este insumo`}
+          </button>
+          {abierto && otros.map(l => <LoteRow key={l.id} lote={l} unidad={uni} />)}
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ── EditarCompra / VerCompra ───────────────────────────── */
 export default function EditarCompra({ compra, mode, onClose, onSave }) {
   const [proveedores,    setProveedores]    = useState([]);
@@ -207,38 +253,27 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
       .catch(() => {});
   }, []);
 
-  const getInsumoById    = (id) => insumosActivos.find(i => i.id === Number(id)) || null;
-  const getProveedorById = (id) => proveedores.find(p => (p.ID_Proveedor || p.id) === id || (p.ID_Proveedor || p.id) === Number(id)) || null;
+  const getProveedorById = (id) =>
+    proveedores.find(p => String(p.ID_Proveedor || p.id) === String(id)) || null;
 
   const isView   = mode === "view";
-  const isLocked = compra.stockAplicado === true;
+  const isLocked = compra.stockAplicado === true;   // completada: stock aplicado
+  const esAnulada = compra.estado === "anulada";
 
-  // Estado para el tab del detalle (solo se usa en isView)
-  const [viewTab,      setViewTab]      = useState("resumen");
-  const [lotesMap,     setLotesMap]     = useState({});
-  const [lotesLoading, setLotesLoading] = useState(false);
+  const editable = {
+    proveedor:    compra.estado === "pendiente" && !isLocked,
+    fecha:        compra.estado === "pendiente" && !isLocked,
+    metodo:       !esAnulada,
+    comprobante:  !esAnulada,
+    notas:        !esAnulada,
+    lineas:       compra.estado === "pendiente" && !isLocked,
+    gastos:       compra.estado === "pendiente" && !isLocked,
+    fechaLlegada: isLocked || compra.estado === "completada",
+  };
 
-  useEffect(() => {
-    if (!isView || viewTab !== "lotes") return;
-    if (Object.keys(lotesMap).length > 0) return;
-    const ids = (compra.items || []).map(i => i.idInsumo).filter(Boolean);
-    if (!ids.length) return;
-    setLotesLoading(true);
-    Promise.all(
-      ids.map(id =>
-        getLotesInsumo(id)
-          .then(d => ({ id, lotes: Array.isArray(d) ? d : (d.lotes || []) }))
-          .catch(() => ({ id, lotes: [] }))
-      )
-    )
-      .then(res => {
-        const map = {};
-        res.forEach(({ id, lotes }) => { map[id] = lotes; });
-        setLotesMap(map);
-      })
-      .finally(() => setLotesLoading(false));
-  }, [viewTab, isView]);
+  const hoy = new Date().toISOString().split("T")[0];
 
+  /* ─────────── Estado del formulario ─────────── */
   const [step, setStep] = useState(1);
 
   const [form, setForm] = useState({
@@ -249,34 +284,62 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
     fecha_llegada: compra.fecha_llegada || "",
   });
 
-  const [comprobante, setComprobante] = useState(null);
+  const [comprobanteFile,    setComprobanteFile]    = useState(null);
+  const [comprobantePreview, setComprobantePreview] = useState(null);
+  const [comprobanteUrl,     setComprobanteUrl]     = useState(compra.comprobante || "");
 
-  // Gastos adicionales — precargados con lo ingresado al crear la compra.
-  // Solo editables mientras la compra está Pendiente (ver `puedeEditarGastos`).
+  const onComprobanteFile = (file) => {
+    if (!file) { setComprobanteFile(null); setComprobantePreview(null); return; }
+    setComprobanteFile(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setComprobantePreview(ev.target.result);
+    reader.readAsDataURL(file);
+  };
+  const quitarComprobante = () => {
+    setComprobanteFile(null);
+    setComprobantePreview(null);
+    setComprobanteUrl("");
+  };
+
   const [gastos, setGastos] = useState({
-    transporte: compra.transporte           ? String(compra.transporte)           : "",
-    iva:        compra.ivaPorcentaje         ? String(compra.ivaPorcentaje)        : "",
-    descuento:  compra.descuentoPorcentaje   ? String(compra.descuentoPorcentaje)  : "",
-    otros:      compra.otros                 ? String(compra.otros)                : "",
+    transporte: compra.transporte         ? String(compra.transporte)         : "",
+    iva:        compra.ivaPorcentaje       ? String(compra.ivaPorcentaje)      : "",
+    descuento:  compra.descuentoPorcentaje ? String(compra.descuentoPorcentaje): "",
+    otros:      compra.otros               ? String(compra.otros)              : "",
   });
-  const setGasto = (k, v) => { if (soloNumero(v)) setGastos(g => ({ ...g, [k]: v })); };
+
+  const validarGasto = (k, v) => {
+    if (v === "") return "";
+    const n = Number(v);
+    if (k === "iva")       return (n < 0 || n > PORC_MAX) ? "El IVA debe estar entre 0 y 100%" : "";
+    if (k === "descuento") return (n < 0 || n > PORC_MAX) ? "El descuento debe estar entre 0 y 100%" : "";
+    if (n < 0) return "No puede ser negativo";
+    if (v.length > 8) return "Máximo 8 dígitos";
+    return "";
+  };
+  const setGasto = (k, v) => {
+    const permitido = (k === "iva" || k === "descuento") ? soloPorcentaje(v) : soloEnteroTxt(v);
+    if (!permitido) return;
+    setGastos(g => ({ ...g, [k]: v }));
+    setErrors(e => ({ ...e, [k]: validarGasto(k, v) }));
+  };
 
   const [detalles, setDetalles] = useState(
     (compra.items || []).map((d, i) => ({
-      ...d,
       _key:             d.idDetalle || d.idInsumo || `item-${i}`,
+      idInsumo:         d.idInsumo ? String(d.idInsumo) : "",
       idUnidad:         d.idUnidad ? String(d.idUnidad) : "",
+      cantidad:         d.cantidad != null ? String(d.cantidad) : "",
+      precioUnd:        d.precioUnd != null ? String(d.precioUnd) : "",
+      notas:            d.notas || "",
       vencimientoTipo:  "fecha",
       vencimientoValor: "30",
-      isExpanded:       false,
+      fechaVencimiento: d.fechaVencimiento ? String(d.fechaVencimiento).split("T")[0] : "",
     }))
   );
 
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
-
-  const hoy = new Date().toISOString().split("T")[0];
-  const puedeEditarGastos = !isLocked && compra.estado === "pendiente";
 
   const set = (k, v) => {
     setForm(f => ({ ...f, [k]: v }));
@@ -286,7 +349,7 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
       if (!v) err = "Ingresa la fecha";
       else if (v > hoy) err = "La fecha no puede ser futura";
     }
-    if (k === "metodoPago" && !v) err = "Selecciona el método de pago";
+    if (k === "metodoPago" && !v) err = "El método de pago es obligatorio";
     setErrors(e => ({ ...e, [k]: err }));
   };
 
@@ -307,122 +370,177 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
       if (field === "precioUnd") {
         if (!value || Number(value) <= 0) err = "El precio unitario debe ser mayor a $0";
       }
+      if (field === "fechaVencimiento" && updated.vencimientoTipo === "fecha" && !value) err = "Ingresa la fecha";
+      if (field === "vencimientoValor" && updated.vencimientoTipo === "dias" && (!value || Number(value) <= 0)) err = "Ingresa los días";
       const errKey = field === "idInsumo" ? `ins_${i}`
         : field === "cantidad" ? `cant_${i}`
         : field === "precioUnd" ? `precio_${i}`
+        : (field === "fechaVencimiento" || field === "vencimientoValor") ? `venc_${i}`
         : null;
-      if (errKey) {
-        setErrors(prev => ({ ...prev, [errKey]: err }));
-      }
+      if (errKey) setErrors(prev => ({ ...prev, [errKey]: err }));
       return updated;
     }));
-  const toggleExpand = (key) =>
-    setDetalles(ds => ds.map(d => d._key === key ? { ...d, isExpanded: !d.isExpanded } : d));
-  const addDetalle   = () =>
-    setDetalles(ds => [...ds.map(d => ({ ...d, isExpanded: false })), emptyDetalle()]);
-  const removeDetalle = (key) =>
-    setDetalles(ds => ds.filter(d => d._key !== key));
+
+  const addDetalle    = () => setDetalles(ds => [...ds, emptyDetalle()]);
+  const removeDetalle = (key) => setDetalles(ds => ds.filter(d => d._key !== key));
 
   const idsSeleccionados = detalles.map(d => String(d.idInsumo)).filter(Boolean);
 
-  const subtotalActual = calcularTotal(
-    detalles.map(d => ({ cantidad: Number(d.cantidad) || 0, precioUnd: Number(d.precioUnd) || 0 }))
-  );
-
-  // Gastos efectivos: los del formulario si son editables, si no los que ya tenía la compra
-  const gTransporte = puedeEditarGastos ? Number(gastos.transporte) || 0 : Number(compra.transporte) || 0;
-  const gIvaPct     = puedeEditarGastos ? Number(gastos.iva)        || 0 : Number(compra.ivaPorcentaje) || 0;
-  const gDescPct    = puedeEditarGastos ? Number(gastos.descuento)  || 0 : Number(compra.descuentoPorcentaje) || 0;
-  const gOtros      = puedeEditarGastos ? Number(gastos.otros)      || 0 : Number(compra.otros) || 0;
+  const subtotalActual = calcularSubtotal(detalles);
+  const gTransporte = Number(gastos.transporte) || 0;
+  const gIvaPct     = Number(gastos.iva)        || 0;
+  const gDescPct    = Number(gastos.descuento)  || 0;
+  const gOtros      = Number(gastos.otros)      || 0;
   const valorIvaActual  = subtotalActual * gIvaPct  / 100;
   const valorDescActual = subtotalActual * gDescPct / 100;
   const totalActual = subtotalActual + gTransporte + valorIvaActual - valorDescActual + gOtros;
 
-  const handleNextStep = () => {
+  /* ─────────── 3.18: detección de "sin cambios" ─────────── */
+  // `compra` es un prop estable durante la vida del modal → const simple.
+  const snapshotInicial = JSON.stringify({
+    idProveedor: String(compra.idProveedor || ""),
+    fecha:       compra.fecha || "",
+    metodoPago:  compra.metodoPago || "",
+    notas:       String(compra.notas || ""),
+    fecha_llegada: compra.fecha_llegada || "",
+    comprobante: compra.comprobante || "",
+    gastos: {
+      transporte: compra.transporte         ? String(compra.transporte)          : "",
+      iva:        compra.ivaPorcentaje       ? String(compra.ivaPorcentaje)       : "",
+      descuento:  compra.descuentoPorcentaje ? String(compra.descuentoPorcentaje) : "",
+      otros:      compra.otros               ? String(compra.otros)               : "",
+    },
+    detalles: (compra.items || []).map(d => ({
+      idInsumo:  String(d.idInsumo || ""),
+      cantidad:  d.cantidad != null ? String(d.cantidad) : "",
+      precioUnd: d.precioUnd != null ? String(d.precioUnd) : "",
+      venc:      d.fechaVencimiento ? String(d.fechaVencimiento).split("T")[0] : "",
+    })),
+  });
+
+  const snapshotActual = () => JSON.stringify({
+    idProveedor: String(form.idProveedor || ""),
+    fecha:       form.fecha || "",
+    metodoPago:  form.metodoPago || "",
+    notas:       String(form.notas || ""),
+    fecha_llegada: form.fecha_llegada || "",
+    comprobante: comprobanteFile ? "__nuevo__" : (comprobanteUrl || ""),
+    gastos: {
+      transporte: gastos.transporte, iva: gastos.iva, descuento: gastos.descuento, otros: gastos.otros,
+    },
+    detalles: detalles.map(d => ({
+      idInsumo:  String(d.idInsumo || ""),
+      cantidad:  d.cantidad || "",
+      precioUnd: d.precioUnd || "",
+      venc:      d.vencimientoTipo === "dias" ? sumarDias(d.vencimientoValor) : (d.fechaVencimiento || ""),
+    })),
+  });
+
+  /* ─────────── Validación ─────────── */
+  const validarInfo = () => {
     const e = {};
-    if (!form.idProveedor) e.idProveedor = "Selecciona un proveedor";
-    if (!form.fecha)       e.fecha       = "Ingresa la fecha";
-    else if (form.fecha > hoy) e.fecha   = "La fecha no puede ser futura";
-    if (!form.metodoPago)  e.metodoPago  = "Selecciona el método de pago";
-    if (Object.keys(e).length) { setErrors(e); return; }
-    setErrors({});
-    setStep(2);
+    if (editable.proveedor && !form.idProveedor) e.idProveedor = "Selecciona un proveedor";
+    if (editable.fecha) {
+      if (!form.fecha) e.fecha = "Ingresa la fecha";
+      else if (form.fecha > hoy) e.fecha = "La fecha no puede ser futura";
+    }
+    if (!form.metodoPago) e.metodoPago = "El método de pago es obligatorio";
+    return e;
+  };
+
+  const validarLineas = () => {
+    const e = {};
+    if (!editable.lineas) return e;
+    if (!detalles.length) e.detalles = "Agrega al menos un insumo";
+    detalles.forEach((d, i) => {
+      const n = Number(d.cantidad);
+      const grupo = GRUPO_UNIDAD[Number(d.idUnidad)];
+      const soloEntero = grupo === "und";
+      if (!d.idInsumo) e[`ins_${i}`] = "Selecciona un insumo";
+      if (!d.cantidad || n <= 0) e[`cant_${i}`] = "Cantidad inválida";
+      else if (soloEntero && !Number.isInteger(n)) e[`cant_${i}`] = "La cantidad debe ser un número entero";
+      else if (n > CANT_MAX) e[`cant_${i}`] = `Máximo ${CANT_MAX.toLocaleString("es-CO")} por línea`;
+      if (!d.precioUnd || Number(d.precioUnd) <= 0) e[`precio_${i}`] = "El precio unitario debe ser mayor a $0";
+      if (d.vencimientoTipo === "fecha" && !d.fechaVencimiento) e[`venc_${i}`] = "Ingresa la fecha";
+      else if (d.vencimientoTipo === "dias" && (!d.vencimientoValor || Number(d.vencimientoValor) <= 0)) e[`venc_${i}`] = "Ingresa los días";
+    });
+    return e;
   };
 
   const validarGastos = () => {
-    if (gIvaPct  < 0 || gIvaPct  > PORC_MAX)  return "El IVA debe estar entre 0 y 100%";
-    if (gDescPct < 0 || gDescPct > PORC_MAX)  return "El descuento debe estar entre 0 y 100%";
-    if (gTransporte < 0 || gOtros < 0)        return "Los costos no pueden ser negativos";
-    if (gTransporte > MONTO_MAX || gOtros > MONTO_MAX) return "Transporte y otros costos admiten máximo 10 dígitos";
-    return "";
+    const e = {};
+    if (!editable.gastos) return e;
+    ["iva", "descuento", "transporte", "otros"].forEach(k => {
+      const msg = validarGasto(k, gastos[k]);
+      if (msg) e[k] = msg;
+    });
+    if (totalActual < TOTAL_MIN) e.total = `El total (${COP(totalActual)}) no puede ser negativo`;
+    else if (totalActual > TOTAL_MAX) e.total = `El total (${COP(totalActual)}) supera el máximo permitido de ${COP(TOTAL_MAX)} COP`;
+    return e;
+  };
+
+  const handleNextStep = () => {
+    const e = step === 1 ? validarInfo() : step === 2 ? validarLineas() : {};
+    if (Object.keys(e).length) { setErrors(e); return; }
+    setErrors({});
+    setStep(s => s + 1);
   };
 
   const handleSave = async () => {
     if (saving) return;
 
-    // Compra completada/bloqueada: solo método, notas y fecha de llegada.
-    if (isLocked) {
-      setSaving(true);
-      await new Promise(r => setTimeout(r, 400));
-      onSave({
-        ...compra,
-        ...form,
-        comprobante: comprobante || compra.comprobante || null,
-      });
+    // 3.18 — se abrió y no se tocó nada: no se dispara ninguna escritura.
+    if (snapshotActual() === snapshotInicial) {
+      onSave({ sinCambios: true });
       return;
     }
 
-    const errores = {};
-    detalles.forEach((d, i) => {
-      const n = Number(d.cantidad);
-      const grupo = GRUPO_UNIDAD[Number(d.idUnidad)];
-      const soloEntero = grupo === "und";
-      if (!d.idInsumo)
-        errores[`ins_${i}`] = "Selecciona un insumo";
-      if (!d.cantidad || n <= 0)
-        errores[`cant_${i}`] = "Cantidad inválida";
-      else if (soloEntero && !Number.isInteger(n))
-        errores[`cant_${i}`] = "La cantidad debe ser un número entero";
-      else if (n > CANT_MAX)
-        errores[`cant_${i}`] = `Máximo ${CANT_MAX.toLocaleString("es-CO")} por línea`;
-      if (!d.precioUnd || Number(d.precioUnd) <= 0)
-        errores[`precio_${i}`] = "El precio unitario debe ser mayor a $0";
-    });
-    if (!detalles.length) errores.detalles = "Agrega al menos un insumo";
+    const e = { ...validarInfo(), ...validarLineas(), ...validarGastos() };
+    if (Object.keys(e).length) { setErrors(e); return; }
 
-    const errGastos = validarGastos();
-    if (errGastos) errores.gastos = errGastos;
-
-    if (totalActual < TOTAL_MIN)
-      errores.total = `El total (${COP(totalActual)}) no puede ser negativo`;
-    else if (totalActual > TOTAL_MAX)
-      errores.total = `El total (${COP(totalActual)}) supera el máximo permitido de ${COP(TOTAL_MAX)} COP`;
-
-    if (Object.keys(errores).length) { setErrors(errores); return; }
     setSaving(true);
-    await new Promise(r => setTimeout(r, 400));
-    const detallesLimpios = detalles.map(d => ({
-      idInsumo:         Number(d.idInsumo),
-      idUnidad:         d.idUnidad ? Number(d.idUnidad) : null,
-      cantidad:         Number(d.cantidad),
-      precioUnd:        Number(d.precioUnd),
-      notas:            d.notas?.trim() || "",
-      fechaVencimiento: d.vencimientoTipo === "dias"
-        ? sumarDias(d.vencimientoValor)
-        : d.fechaVencimiento || "",
-    }));
-    onSave({
-      ...compra,
-      ...form,
-      comprobante:  comprobante || compra.comprobante || null,
-      detalles:     detallesLimpios,
-      gastos: {
-        transporte: gTransporte,
-        iva:        gIvaPct,   // porcentaje
-        descuento:  gDescPct,  // porcentaje
-        otros:      gOtros,
-      },
-    });
+
+    // Comprobante
+    let comprobanteOut = "";
+    if (form.metodoPago === "transferencia") {
+      if (comprobanteFile) {
+        try {
+          comprobanteOut = await subirImagenCloudinary(comprobanteFile);
+        } catch {
+          setErrors(prev => ({ ...prev, comprobante: "No se pudo subir el comprobante. Intenta de nuevo." }));
+          setSaving(false);
+          return;
+        }
+      } else {
+        comprobanteOut = comprobanteUrl || "";
+      }
+    }
+
+    // Payload explícito: solo los campos editables en el estado actual. Los que
+    // no lo son NO se envían (el backend rechaza campos no permitidos).
+    const payload = {
+      id:         compra.id,
+      metodoPago: form.metodoPago,
+      notas:      form.notas,
+      comprobante: comprobanteOut,
+    };
+    if (editable.fechaLlegada) payload.fecha_llegada = form.fecha_llegada || "";
+    if (editable.proveedor)    payload.idProveedor   = form.idProveedor;
+    if (editable.fecha)        payload.fecha         = form.fecha;
+    if (editable.lineas) {
+      payload.detalles = detalles.map(d => ({
+        idInsumo:  Number(d.idInsumo),
+        idUnidad:  d.idUnidad ? Number(d.idUnidad) : null,
+        cantidad:  Number(d.cantidad),
+        precioUnd: Number(d.precioUnd),
+        notas:     d.notas?.trim() || "",
+        fechaVencimiento: d.vencimientoTipo === "dias" ? sumarDias(d.vencimientoValor) : (d.fechaVencimiento || ""),
+      }));
+    }
+    if (editable.gastos) {
+      payload.gastos = { transporte: gTransporte, iva: gIvaPct, descuento: gDescPct, otros: gOtros };
+    }
+    onSave(payload);
   };
 
   const modalStyle = {
@@ -434,249 +552,57 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
     overflow: "hidden",
   };
 
-  /* ── Vista detalle ── */
+  /* ═══════════════ VISTA DETALLE (mode="view") ═══════════════ */
   if (isView) {
-    const _prov = getProveedorById(compra.idProveedor);
-    const provNombre = compra.proveedor || _prov?.Responsable || _prov?.responsable || "—";
-    const metodo = METODOS_PAGO.find(m => m.value === compra.metodoPago);
+    return <VerCompra compraBase={compra} onClose={onClose} getProveedorById={getProveedorById} insumosActivos={insumosActivos} />;
+  }
 
-    return (
-      <div className="modal-overlay" onClick={onClose}>
-        <div className="modal-card modal-card--compra-det" onClick={e => e.stopPropagation()}>
+  /* ═══════════════ MODO EDITAR (wizard de 3 pasos) ═══════════════ */
+  const provNombre = (() => {
+    const p = getProveedorById(form.idProveedor);
+    return compra.proveedor || p?.Responsable || p?.responsable || "—";
+  })();
 
-          {/* Header */}
-          <div className="modal-header" style={{ flexShrink: 0, padding: "16px 24px" }}>
-            <div>
-              <p className="modal-header__eyebrow">Compra #{compra.id}</p>
-              <h2 className="modal-header__title">Detalle de Compra</h2>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <EstadoChip estado={compra.estado} />
-              <button type="button" className="modal-close-btn" onClick={onClose}><X size={16} /></button>
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div className="compra-det-tabs">
-            <button
-              className={`compra-det-tab${viewTab === "resumen" ? " compra-det-tab--active" : ""}`}
-              onClick={() => setViewTab("resumen")}
-            >
-              <ClipboardList size={14} style={{ verticalAlign: "middle", marginRight: 4 }} /> Resumen
-            </button>
-            {compra.stockAplicado && (
-              <button
-                className={`compra-det-tab${viewTab === "lotes" ? " compra-det-tab--active" : ""}`}
-                onClick={() => setViewTab("lotes")}
-              >
-                <Package size={14} style={{ verticalAlign: "middle", marginRight: 4 }} /> Lotes generados
+  const renderComprobante = () => (
+    <div className="field-wrap comprobante-wrap">
+      <label className="field-label">Comprobante de transferencia</label>
+      {editable.comprobante ? (
+        <>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <label className="comprobante-upload-btn" style={{ flex: 1 }}>
+              <input type="file" accept="image/*" style={{ display: "none" }}
+                onChange={e => onComprobanteFile(e.target.files?.[0] || null)} />
+              <span className="comprobante-upload-icon" style={{ display: "flex", alignItems: "center" }}><Paperclip size={16} /></span>
+              {comprobanteFile
+                ? <span className="comprobante-filename">{comprobanteFile.name}</span>
+                : comprobanteUrl
+                  ? <span className="comprobante-filename">Comprobante adjunto</span>
+                  : <span>Adjuntar comprobante (imagen)</span>}
+            </label>
+            {(comprobanteFile || comprobanteUrl) && (
+              <button type="button" onClick={quitarComprobante}
+                style={{ flexShrink: 0, padding: "0 12px", height: 36, borderRadius: 8, border: "1.5px solid #ef5350", background: "#fff", color: "#c62828", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}>
+                <X size={14} /> Quitar
               </button>
             )}
           </div>
+          {(comprobantePreview || comprobanteUrl) && (
+            <div style={{ marginTop: 8 }}>
+              <ImageLightbox src={comprobantePreview || comprobanteUrl} alt="Comprobante" label="Comprobante de transferencia" thumbStyle={{ maxWidth: 220 }} />
+            </div>
+          )}
+          {errors.comprobante
+            ? <span className="field-error">{errors.comprobante}</span>
+            : <span className="field-hint">Opcional — puedes adjuntarlo ahora o más tarde</span>}
+        </>
+      ) : (
+        comprobanteUrl
+          ? <ImageLightbox src={comprobanteUrl} alt="Comprobante" label="Comprobante de transferencia" thumbStyle={{ maxWidth: 220 }} />
+          : <span className="field-hint">Sin comprobante adjunto.</span>
+      )}
+    </div>
+  );
 
-          <div className="modal-body" style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
-
-            {/* ── Tab: Resumen ── */}
-            {viewTab === "resumen" && (
-              <>
-                <p className="section-label" style={{ marginTop: 0 }}>Información general</p>
-                <div className="compra-det-info-grid">
-                  <div className="compra-det-info-card compra-det-info-card--prov">
-                    <div className="compra-det-info-card__lbl">Proveedor</div>
-                    <div className="compra-det-info-card__val" style={{ display: "flex", alignItems: "center", gap: 4 }}><Building2 size={14} /> {provNombre}</div>
-                  </div>
-                  <div className="compra-det-info-card">
-                    <div className="compra-det-info-card__lbl">Fecha de compra</div>
-                    <div className="compra-det-info-card__val" style={{ display: "flex", alignItems: "center", gap: 4 }}><Calendar size={14} /> {fmtFecha(compra.fecha)}</div>
-                  </div>
-                  <div className="compra-det-info-card">
-                    <div className="compra-det-info-card__lbl">Método de pago</div>
-                    <div className="compra-det-info-card__val" style={{ display: "flex", alignItems: "center", gap: 4 }}>{metodo ? <metodo.Icon size={14} /> : <CreditCard size={14} />} {metodo?.label || compra.metodoPago || "—"}</div>
-                  </div>
-                  {compra.fecha_llegada && (
-                    <div className="compra-det-info-card">
-                      <div className="compra-det-info-card__lbl">Fecha de completación</div>
-                      <div className="compra-det-info-card__val" style={{ display: "flex", alignItems: "center", gap: 4, color: "#2e7d32" }}><CheckCircle2 size={14} /> {fmtFecha(compra.fecha_llegada)}</div>
-                    </div>
-                  )}
-                  {compra.fecha_anulada && (
-                    <div className="compra-det-info-card">
-                      <div className="compra-det-info-card__lbl">Fecha de anulación</div>
-                      <div className="compra-det-info-card__val" style={{ display: "flex", alignItems: "center", gap: 4, color: "#c62828" }}><Ban size={14} /> {fmtFecha(compra.fecha_anulada)}</div>
-                    </div>
-                  )}
-                </div>
-
-                {compra.notas && (
-                  <div className="compra-det-notas" style={{ display: "flex", alignItems: "flex-start", gap: 6 }}><PenLine size={14} style={{ flexShrink: 0, marginTop: 2 }} /> {compra.notas}</div>
-                )}
-
-                <p className="section-label">Insumos comprados</p>
-                <div className="compra-det-insumos">
-                  <div className="compra-det-insumos__header">
-                    <span>Insumo</span>
-                    <span>Cantidad</span>
-                    <span>Precio/u</span>
-                    <span>Subtotal</span>
-                    <span>Vencimiento</span>
-                  </div>
-                  {(compra.items || []).length === 0 ? (
-                    <div className="compra-det-insumos__empty">Sin insumos registrados en esta compra</div>
-                  ) : (
-                    (compra.items || []).map((d, idx) => {
-                      const ins  = insumosActivos.find(i => i.id === Number(d.idInsumo));
-                      const uni  = d.unidad || ins?.unidad || "";
-                      const dias = diasHasta(d.fechaVencimiento);
-                      return (
-                        <div key={d.idInsumo || idx} className="compra-det-insumos__row">
-                          <span className="compra-det-insumos__name">
-                            {d.nombre || ins?.nombre || "—"}
-                          </span>
-                          <span className="compra-det-insumos__qty">{d.cantidad} {uni}</span>
-                          <span className="compra-det-insumos__pu">{COP(d.precioUnd)}</span>
-                          <span className="compra-det-insumos__sub">{COP(d.cantidad * d.precioUnd)}</span>
-                          <span className={`compra-det-insumos__venc${dias !== null && dias < 0 ? " venc-danger" : dias !== null && dias <= 7 ? " venc-warn" : ""}`}>
-                            {d.fechaVencimiento ? fmtFecha(d.fechaVencimiento) : "—"}
-                            {dias !== null && dias < 0 && <AlertTriangle size={13} style={{ verticalAlign: "middle" }} />}
-                            {dias !== null && dias >= 0 && dias <= 7 && ` (${dias}d)`}
-                          </span>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-
-                <p className="section-label">Desglose de costos</p>
-                {(() => {
-                  const subtotal  = (compra.items || []).reduce((s, d) => s + d.cantidad * d.precioUnd, 0);
-                  const transporte = compra.transporte || 0;
-                  const ivaPct     = compra.ivaPorcentaje || 0;
-                  const descPct    = compra.descuentoPorcentaje || 0;
-                  const otros      = compra.otros || 0;
-                  const valorIva   = subtotal * ivaPct / 100;
-                  const valorDesc  = subtotal * descPct / 100;
-                  return (
-                    <div className="compra-det-costos">
-                      <div className="compra-det-costos__row">
-                        <span>Subtotal insumos</span><span>{COP(subtotal)}</span>
-                      </div>
-                      {transporte > 0 && (
-                        <div className="compra-det-costos__row">
-                          <span>Transporte</span><span>{COP(transporte)}</span>
-                        </div>
-                      )}
-                      {valorIva > 0 && (
-                        <div className="compra-det-costos__row">
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Receipt size={13} /> IVA ({ivaPct}%)</span><span>{COP(valorIva)}</span>
-                        </div>
-                      )}
-                      {valorDesc > 0 && (
-                        <div className="compra-det-costos__row compra-det-costos__row--desc">
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Tag size={13} /> Descuento ({descPct}%)</span><span>−{COP(valorDesc)}</span>
-                        </div>
-                      )}
-                      {otros > 0 && (
-                        <div className="compra-det-costos__row">
-                          <span>Otros costos</span><span>{COP(otros)}</span>
-                        </div>
-                      )}
-                      <div className="compra-det-costos__total">
-                        <span>Total final</span><span>{COP(compra.total)}</span>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </>
-            )}
-
-            {/* ── Tab: Lotes generados ── */}
-            {viewTab === "lotes" && (
-              <>
-                <p className="section-label" style={{ marginTop: 0 }}>Lotes generados</p>
-                <div className="compra-det-lotes-info" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <CheckCircle2 size={13} /> Compra completada el {fmtFecha(compra.fecha_llegada || compra.fecha)}. Stock aplicado al inventario.
-                </div>
-
-                {lotesLoading ? (
-                  <div style={{ textAlign: "center", padding: "40px 0", color: "#9e9e9e", fontSize: 13 }}>
-                    Cargando lotes…
-                  </div>
-                ) : (
-                  (compra.items || []).map((d, idx) => {
-                    const ins    = insumosActivos.find(i => i.id === Number(d.idInsumo));
-                    const uni    = d.unidad || ins?.unidad || "";
-                    const nombre = d.nombre || ins?.nombre || "Insumo";
-                    const lotes  = lotesMap[d.idInsumo] || [];
-
-                    return (
-                      <div key={d.idInsumo || idx} className="compra-det-lote-grupo">
-                        <div className="compra-det-lote-grupo__header">
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Package size={14} /> {nombre}</span>
-                          <span className="compra-det-lote-grupo__qty">{d.cantidad} {uni} comprados</span>
-                        </div>
-
-                        {lotes.length === 0 ? (
-                          <div className="compra-det-lotes-empty">
-                            Sin lotes registrados para este insumo
-                          </div>
-                        ) : (
-                          lotes.map(l => {
-                            const esDeEstaCompra = d.idLoteCompra != null && Number(l.id) === Number(d.idLoteCompra);
-                            return (
-                              <div
-                                key={l.id}
-                                className={
-                                  "compra-det-lote-item"
-                                  + (l.vencido ? " compra-det-lote-item--vencido" : "")
-                                  + (esDeEstaCompra ? " compra-det-lote-item--origen" : "")
-                                }
-                              >
-                                <div className="compra-det-lote-item__main">
-                                  <div className="compra-det-lote-item__num">
-                                    Lote #{l.id}
-                                    {l.numero_lote && (
-                                      <span className="compra-det-lote-item__ref">{l.numero_lote}</span>
-                                    )}
-                                    {l.vencido && (
-                                      <span className="compra-det-lote-badge--vencido">Vencido</span>
-                                    )}
-                                    {esDeEstaCompra && (
-                                      <span className="compra-det-lote-badge--origen">Esta compra</span>
-                                    )}
-                                  </div>
-                                  <div className="compra-det-lote-item__meta">
-                                    {l.fecha_produccion && `Producción: ${fmtFecha(l.fecha_produccion)}`}
-                                    {l.fecha_produccion && l.fecha_vencimiento && " · "}
-                                    {l.fecha_vencimiento && `Vence: ${fmtFecha(l.fecha_vencimiento)}`}
-                                  </div>
-                                </div>
-                                <div className="compra-det-lote-item__qty">
-                                  <span className="compra-det-lote-item__qty-num">
-                                    {l.cantidad ?? l.cantidad_inicial ?? "—"}
-                                  </span>
-                                  <span className="compra-det-lote-item__qty-unit">{uni || "uds."}</span>
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </>
-            )}
-          </div>
-
-          <div className="modal-footer">
-            <button className="btn-ghost" onClick={onClose}>Cerrar</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  /* ── Modo editar ── */
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-card" onClick={e => e.stopPropagation()} style={modalStyle}>
@@ -692,390 +618,413 @@ export default function EditarCompra({ compra, mode, onClose, onSave }) {
           </div>
         </div>
 
-        {isLocked ? (
-          <>
-            <div className="modal-body" style={{ flex: 1, overflowY: "auto", padding: "20px 28px" }}>
-              <div className="stock-aviso stock-aviso--info" style={{ marginBottom: 16 }}>
-                Esta compra ya fue <strong>completada y su stock fue aplicado</strong>. Solo puedes editar las notas y el método de pago.
+        <StepsBar current={step} />
+
+        <div className="modal-body" style={{ flex: 1, overflowY: "auto", padding: "22px 28px" }}>
+
+          {isLocked && (
+            <div className="stock-aviso stock-aviso--info" style={{ marginBottom: 16 }}>
+              Esta compra ya fue <strong>completada y su stock fue aplicado</strong>. Solo puedes editar el
+              método de pago, el comprobante, las notas y la fecha de llegada; el resto se muestra como referencia.
+            </div>
+          )}
+
+          {/* ── PASO 1 ── */}
+          {step === 1 && (
+            <>
+              <div className="field-wrap">
+                <label className="field-label">Proveedor <span className="required">*</span></label>
+                {editable.proveedor ? (
+                  <SearchableSelect
+                    options={proveedores}
+                    value={form.idProveedor}
+                    onChange={e => set("idProveedor", e.target.value)}
+                    getValue={p => p.ID_Proveedor || p.id}
+                    getLabel={p => `${p.Responsable || p.responsable} · ${p.Municipio || p.ciudad}`}
+                    placeholder="— Seleccionar proveedor —"
+                    searchPlaceholder="Buscar proveedor…"
+                    className={`field-select ${errors.idProveedor ? "error" : ""}`}
+                  />
+                ) : (
+                  <input className="field-input" value={provNombre} disabled />
+                )}
+                {errors.idProveedor && <span className="field-error">{errors.idProveedor}</span>}
               </div>
+
               <div className="field-grid-2">
                 <div className="field-wrap">
-                  <label className="field-label">Método de pago</label>
+                  <label className="field-label">Fecha de compra <span className="required">*</span></label>
+                  <input
+                    type="date"
+                    max={hoy}
+                    className={`field-input ${errors.fecha ? "error" : ""}`}
+                    value={form.fecha}
+                    disabled={!editable.fecha}
+                    onChange={e => set("fecha", e.target.value)}
+                  />
+                  {errors.fecha && <span className="field-error">{errors.fecha}</span>}
+                </div>
+                <div className="field-wrap">
+                  <label className="field-label">Método de pago <span className="required">*</span></label>
                   <SearchableSelect
                     options={METODOS_PAGO}
                     value={form.metodoPago}
-                    onChange={e => { set("metodoPago", e.target.value); setComprobante(null); }}
+                    onChange={e => { set("metodoPago", e.target.value); if (e.target.value !== "transferencia") quitarComprobante(); }}
                     getValue={m => m.value}
                     getLabel={m => m.label}
-                    placeholder="— Seleccionar —"
+                    placeholder="— Seleccionar método —"
                     searchPlaceholder="Método…"
-                    className="field-select"
+                    className={`field-select ${errors.metodoPago ? "error" : ""}`}
+                    disabled={!editable.metodo}
                   />
+                  {errors.metodoPago && <span className="field-error">{errors.metodoPago}</span>}
                 </div>
-                <div />
               </div>
 
-              {form.metodoPago === "transferencia" && (
-                <div className="field-wrap comprobante-wrap">
-                  <label className="field-label">Comprobante de transferencia</label>
-                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <label className="comprobante-upload-btn" style={{ flex: 1 }}>
-                      <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => setComprobante(e.target.files?.[0] || null)} />
-                      <span className="comprobante-upload-icon" style={{ display: "flex", alignItems: "center" }}><Paperclip size={16} /></span>
-                      {comprobante
-                        ? <span className="comprobante-filename">{comprobante.name}</span>
-                        : compra.comprobante
-                          ? <span className="comprobante-filename">{compra.comprobante.name || "Comprobante existente"}</span>
-                          : <span>Adjuntar comprobante (imagen)</span>
-                      }
-                    </label>
-                    {(comprobante || compra.comprobante) && (
-                      <button
-                        type="button"
-                        onClick={e => { e.preventDefault(); setComprobante(null); }}
-                        style={{ flexShrink: 0, padding: "0 12px", height: 36, borderRadius: 8, border: "1.5px solid #ef5350", background: "#fff", color: "#c62828", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
-                      >
-                        <X size={14} /> Quitar
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
+              {form.metodoPago === "transferencia" && renderComprobante()}
 
               <div className="field-wrap">
                 <label className="field-label">Notas</label>
-                <textarea className="field-input field-textarea" rows={3} value={form.notas} onChange={e => set("notas", e.target.value)} />
-              </div>
-              <div className="field-wrap" style={{ marginTop: 8 }}>
-                <label className="field-label">Fecha de llegada</label>
-                <input
-                  type="date"
-                  className="field-input"
-                  value={form.fecha_llegada || ""}
-                  max={new Date().toISOString().split('T')[0]}
-                  onChange={e => set("fecha_llegada", e.target.value)}
+                <textarea
+                  className="field-input field-textarea"
+                  rows={2}
+                  placeholder="Observaciones…"
+                  value={form.notas}
+                  disabled={!editable.notas}
+                  onChange={e => set("notas", e.target.value)}
                 />
               </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn-ghost" onClick={onClose}>Cancelar</button>
-              <button className="btn-save" onClick={handleSave} disabled={saving}>
-                {saving ? "Guardando…" : "Guardar Cambios"}
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <StepsBar current={step} />
 
-            <div className="modal-body" style={{ flex: 1, overflowY: "auto", padding: "22px 28px" }}>
-
-              {step === 1 && (
-                <>
-                  <div className="field-wrap">
-                    <label className="field-label">Proveedor <span className="required">*</span></label>
-                    <SearchableSelect
-                      options={proveedores}
-                      value={form.idProveedor}
-                      onChange={e => set("idProveedor", e.target.value)}
-                      getValue={p => p.ID_Proveedor || p.id}
-                      getLabel={p => `${p.Responsable || p.responsable} · ${p.Municipio || p.ciudad}`}
-                      placeholder="— Seleccionar proveedor —"
-                      searchPlaceholder="Buscar proveedor…"
-                      className={`field-select ${errors.idProveedor ? "error" : ""}`}
-                    />
-                    {errors.idProveedor && <span className="field-error">{errors.idProveedor}</span>}
-                  </div>
-
-                  <div className="field-grid-2">
-                    <div className="field-wrap">
-                      <label className="field-label">Fecha de compra <span className="required">*</span></label>
-                      <input
-                        type="date"
-                        max={hoy}
-                        className={`field-input ${errors.fecha ? "error" : ""}`}
-                        value={form.fecha}
-                        onChange={e => set("fecha", e.target.value)}
-                      />
-                      {errors.fecha && <span className="field-error">{errors.fecha}</span>}
-                    </div>
-                    <div className="field-wrap">
-                      <label className="field-label">Estado</label>
-                      <div style={{ display: "flex", alignItems: "center", height: 38 }}>
-                        <EstadoChip estado={compra.estado} />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="field-wrap">
-                    <label className="field-label">Método de pago <span className="required">*</span></label>
-                    <SearchableSelect
-                      options={METODOS_PAGO}
-                      value={form.metodoPago}
-                      onChange={e => { set("metodoPago", e.target.value); setComprobante(null); }}
-                      getValue={m => m.value}
-                      getLabel={m => m.label}
-                      placeholder="— Seleccionar método —"
-                      searchPlaceholder="Método…"
-                      className={`field-select ${errors.metodoPago ? "error" : ""}`}
-                    />
-                    {errors.metodoPago && <span className="field-error">{errors.metodoPago}</span>}
-                  </div>
-
-                  <div className="field-wrap">
-                    <label className="field-label">Notas</label>
-                    <textarea
-                      className="field-input field-textarea"
-                      rows={2}
-                      placeholder="Observaciones…"
-                      value={form.notas}
-                      onChange={e => set("notas", e.target.value)}
-                    />
-                  </div>
-                </>
+              {editable.fechaLlegada && (
+                <div className="field-wrap">
+                  <label className="field-label">Fecha de llegada</label>
+                  <input
+                    type="date"
+                    className="field-input"
+                    value={form.fecha_llegada || ""}
+                    max={hoy}
+                    onChange={e => set("fecha_llegada", e.target.value)}
+                  />
+                </div>
               )}
+            </>
+          )}
 
-              {step === 2 && (
-                <>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#616161" }}>Insumos comprados</p>
-                    {errors.detalles && <span className="field-error">{errors.detalles}</span>}
-                  </div>
+          {/* ── PASO 2 ── */}
+          {step === 2 && (
+            <>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#616161" }}>Insumos comprados</p>
+                {errors.detalles && <span className="field-error">{errors.detalles}</span>}
+              </div>
 
-                  {detalles.map((d, i) => {
-                    const insumoSel = getInsumoById(d.idInsumo) || insumosActivos.find(ins => String(ins.id) === String(d.idInsumo));
+              {detalles.map((d, i) => (
+                <div key={d._key} style={{ border: "1px solid #e8e8e8", borderRadius: 10, padding: "10px 12px", marginBottom: 8, background: "#fafafa" }}>
+                  <DetalleInsumoFields
+                    detalle={d}
+                    index={i}
+                    insumosActivos={insumosActivos}
+                    idsSeleccionados={idsSeleccionados}
+                    errors={errors}
+                    disabled={!editable.lineas}
+                    onInsumoChange={ins => setDetalles(ds => ds.map(det =>
+                      det._key === d._key
+                        ? { ...det, idInsumo: String(ins.id), idUnidad: ins.idUnidad ? String(ins.idUnidad) : "" }
+                        : det
+                    ))}
+                    onField={(field, value) => setDetalle(d._key, field, value)}
+                    onRemove={editable.lineas ? () => removeDetalle(d._key) : undefined}
+                  />
+                </div>
+              ))}
 
-                    if (!d.isExpanded) {
-                      return (
-                        <div
-                          key={d._key}
-                          className="detalle-row detalle-row--collapsed"
-                          onClick={() => toggleExpand(d._key)}
-                        >
-                          <div className="detalle-summary">
-                            <div className="detalle-summary__info">
-                              <span className="detalle-num">{String(i + 1).padStart(2, "0")}</span>
-                              <span className="insumo-icon" style={{ display: "flex", alignItems: "center" }}><Package size={14} /></span>
-                              <div>
-                                <span className="detalle-summary__name">{insumoSel?.nombre || d.nombre || "Insumo"}</span>
-                                <div className="detalle-summary__meta">
-                                  {d.cantidad ? `${d.cantidad} ${insumoSel?.unidad || ""}` : "Sin cantidad"} ·{" "}
-                                  {d.precioUnd ? COP(d.precioUnd) : "—"}
-                                </div>
-                              </div>
-                            </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <div className="detalle-summary__price">
-                                {d.cantidad && d.precioUnd ? COP(Number(d.cantidad) * Number(d.precioUnd)) : "$0"}
-                              </div>
-                              <button
-                                className="detalle-remove-btn"
-                                type="button"
-                                onClick={e => { e.stopPropagation(); removeDetalle(d._key); }}
-                              ><X size={16} /></button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div key={d._key} className="detalle-row">
-                        <span
-                          className="detalle-num"
-                          onClick={() => toggleExpand(d._key)}
-                          style={{ cursor: "pointer", marginTop: 4, flexShrink: 0 }}
-                        >
-                          {String(i + 1).padStart(2, "0")}
-                        </span>
-
-                        <div className="detalle-fields" style={{ flex: 1 }}>
-                          <div className="field-wrap" style={{ gridColumn: "1 / -1" }}>
-                            <SearchableSelect
-                              options={insumosActivos.filter(ins =>
-                                !idsSeleccionados.includes(String(ins.id)) ||
-                                String(ins.id) === String(d.idInsumo)
-                              )}
-                              value={d.idInsumo}
-                              onChange={e => {
-                                const selectedId = e.target.value;
-                                const ins = insumosActivos.find(ins => String(ins.id) === selectedId);
-                                setDetalles(ds => ds.map(det =>
-                                  det._key === d._key
-                                    ? { ...det, idInsumo: selectedId, idUnidad: ins?.idUnidad ? String(ins.idUnidad) : "" }
-                                    : det
-                                ));
-                              }}
-                              getValue={ins => ins.id}
-                              getLabel={ins => ins.nombre}
-                              placeholder="— Seleccionar insumo —"
-                              searchPlaceholder="Buscar insumo…"
-                              className={`field-select ${errors[`ins_${i}`] ? "error" : ""}`}
-                            />
-                            {errors[`ins_${i}`] && <span className="field-error">{errors[`ins_${i}`]}</span>}
-                          </div>
-
-                          <div className="field-wrap" style={{ gridColumn: "span 1" }}>
-                            <label className="field-label">Cantidad</label>
-                            <div style={{ display: "flex", gap: 4 }}>
-                              <input
-                                type="number"
-                                className={`field-input ${errors[`cant_${i}`] ? "error" : ""}`}
-                                placeholder="0"
-                                min="0.001"
-                                max={CANT_MAX}
-                                step={GRUPO_UNIDAD[Number(d.idUnidad)] === "und" ? "1" : "0.001"}
-                                value={d.cantidad}
-                                onChange={e => { if (soloNumero(e.target.value)) setDetalle(d._key, "cantidad", e.target.value); }}
-                                style={{ flex: 1, minWidth: 0 }}
-                              />
-                              {(() => {
-                                const opciones = insumoSel ? unidadesDelGrupo(insumoSel.idUnidad) : [];
-                                if (opciones.length <= 1) {
-                                  return insumoSel?.unidad
-                                    ? <span style={{ display: "flex", alignItems: "center", padding: "0 8px", background: "#f5f5f5", border: "1.5px solid #e8e8e8", borderRadius: 7, fontSize: 11, color: "#555", fontWeight: 700, flexShrink: 0 }}>{insumoSel.unidad}</span>
-                                    : null;
-                                }
-                                return (
-                                  <select
-                                    value={d.idUnidad}
-                                    onChange={e => setDetalle(d._key, "idUnidad", e.target.value)}
-                                    style={{ flexShrink: 0, width: 68, borderRadius: 7, border: "1.5px solid #e0e0e0", background: "#fff", fontSize: 12, fontWeight: 700, color: "#333", cursor: "pointer", padding: "0 4px" }}
-                                  >
-                                    {opciones.map(u => (
-                                      <option key={u.id} value={String(u.id)}>{u.simbolo}</option>
-                                    ))}
-                                  </select>
-                                );
-                              })()}
-                            </div>
-                            {errors[`cant_${i}`] && <span className="field-error" style={{ fontSize: 10 }}>{errors[`cant_${i}`]}</span>}
-                          </div>
-                          <div className="field-wrap" style={{ gridColumn: "span 2" }}>
-                            <label className="field-label">Precio unitario</label>
-                            <input
-                              type="number"
-                              min="0"
-                              className={`field-input ${errors[`precio_${i}`] ? "error" : ""}`}
-                              placeholder="$ 0"
-                              value={d.precioUnd}
-                              onChange={e => { if (soloNumero(e.target.value)) setDetalle(d._key, "precioUnd", e.target.value); }}
-                            />
-                          </div>
-
-                          <div className="field-wrap" style={{ gridColumn: "1 / -1" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                              <label className="field-label">Vencimiento</label>
-                              <div className="venc-toggle">
-                                {["dias", "fecha"].map(t => (
-                                  <button
-                                    key={t}
-                                    type="button"
-                                    className={`venc-toggle-btn ${d.vencimientoTipo === t ? "active" : ""}`}
-                                    onClick={() => setDetalle(d._key, "vencimientoTipo", t)}
-                                  >
-                                    {t.charAt(0).toUpperCase() + t.slice(1)}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                            {d.vencimientoTipo === "dias" ? (
-                              <input
-                                type="number"
-                                min="1"
-                                className="field-input"
-                                value={d.vencimientoValor}
-                                onChange={e => { if (soloNumero(e.target.value)) setDetalle(d._key, "vencimientoValor", e.target.value); }}
-                              />
-                            ) : (
-                              <input
-                                type="date"
-                                min={hoy}
-                                className="field-input"
-                                value={d.fechaVencimiento}
-                                onChange={e => setDetalle(d._key, "fechaVencimiento", e.target.value)}
-                              />
-                            )}
-                          </div>
-                        </div>
-
-                        <button
-                          className="detalle-remove-btn"
-                          type="button"
-                          onClick={() => removeDetalle(d._key)}
-                        ><X size={16} /></button>
-                      </div>
-                    );
-                  })}
-
-                  <button className="btn-add-detalle" type="button" onClick={addDetalle}>
-                    + Agregar insumo
-                  </button>
-
-                  <p className="section-label">Gastos adicionales</p>
-                  {errors.gastos && <span className="field-error" style={{ display: "block", marginBottom: 8 }}>{errors.gastos}</span>}
-                  <div className="gastos-grid gastos-grid--standalone">
-                    <div className="field-wrap">
-                      <label className="field-label">Transporte</label>
-                      <input type="number" min="0" max={MONTO_MAX} step="1" className="field-input" placeholder="$ 0"
-                        value={gastos.transporte} onChange={e => setGasto("transporte", e.target.value)} />
-                    </div>
-                    <div className="field-wrap">
-                      <label className="field-label" style={{ display: "flex", alignItems: "center", gap: 4 }}><Receipt size={14} /> IVA (%)</label>
-                      <div style={{ position: "relative" }}>
-                        <input type="number" min="0" max={PORC_MAX} className="field-input" placeholder="0" style={{ paddingRight: 30 }}
-                          value={gastos.iva} onChange={e => setGasto("iva", e.target.value)} />
-                        <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#9e9e9e", fontWeight: 700 }}>%</span>
-                      </div>
-                      {valorIvaActual > 0 && <span className="field-hint" style={{ color: "#2e7d32", fontWeight: 600 }}>+ {COP(valorIvaActual)}</span>}
-                    </div>
-                    <div className="field-wrap">
-                      <label className="field-label" style={{ display: "flex", alignItems: "center", gap: 4 }}><Tag size={14} /> Descuento (%)</label>
-                      <div style={{ position: "relative" }}>
-                        <input type="number" min="0" max={PORC_MAX} className="field-input gastos-descuento-input" placeholder="0" style={{ paddingRight: 30 }}
-                          value={gastos.descuento} onChange={e => setGasto("descuento", e.target.value)} />
-                        <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#c62828", fontWeight: 700 }}>%</span>
-                      </div>
-                      {valorDescActual > 0 && <span className="field-hint" style={{ color: "#c62828", fontWeight: 600 }}>− {COP(valorDescActual)}</span>}
-                    </div>
-                    <div className="field-wrap">
-                      <label className="field-label">Otros costos</label>
-                      <input type="number" min="0" max={MONTO_MAX} step="1" className="field-input" placeholder="$ 0"
-                        value={gastos.otros} onChange={e => setGasto("otros", e.target.value)} />
-                    </div>
-                  </div>
-                </>
+              {editable.lineas && (
+                <button className="btn-add-detalle" type="button" onClick={addDetalle} style={{ marginTop: 4 }}>
+                  + Agregar insumo
+                </button>
               )}
-            </div>
+            </>
+          )}
 
-            <div style={{ flexShrink: 0, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 28px 20px", borderTop: "1px solid #f5f5f5" }}>
-              <div className="total-bar" style={{ margin: 0 }}>
-                <span className="total-bar__label">Total</span>
-                <span className="total-bar__value" style={{ color: errors.total ? "#c62828" : undefined }}>
-                  {COP(totalActual || 0)}
-                </span>
-                {errors.total && (
-                  <span className="field-error" style={{ display: "block", fontSize: 11, marginTop: 2 }}>
-                    {errors.total}
-                  </span>
+          {/* ── PASO 3 ── */}
+          {step === 3 && (
+            <>
+              <div style={{ marginBottom: 18 }}>
+                <p style={{ margin: "0 0 4px", fontSize: 13, fontWeight: 700, color: "#616161" }}>Gastos adicionales</p>
+                <p style={{ margin: 0, fontSize: 12, color: "#9e9e9e" }}>
+                  {editable.gastos
+                    ? "Ingresa los porcentajes para IVA y Descuento; el sistema calcula el valor automáticamente."
+                    : "Los gastos de esta compra ya no son editables."}
+                </p>
+              </div>
+
+              <div className="gastos-grid gastos-grid--standalone">
+                <div className="field-wrap">
+                  <label className="field-label">Transporte</label>
+                  <input type="text" inputMode="numeric" className={`field-input ${errors.transporte ? "error" : ""}`} placeholder="$ 0"
+                    value={gastos.transporte} disabled={!editable.gastos} onKeyDown={bloquearSignoYPunto} onChange={e => setGasto("transporte", e.target.value)} />
+                  {errors.transporte && <span className="field-error">{errors.transporte}</span>}
+                </div>
+                <div className="field-wrap">
+                  <label className="field-label" style={{ display: "flex", alignItems: "center", gap: 4 }}><Receipt size={14} /> IVA (%)</label>
+                  <div style={{ position: "relative" }}>
+                    <input type="text" inputMode="decimal" className={`field-input ${errors.iva ? "error" : ""}`} placeholder="0" style={{ paddingRight: 30 }}
+                      value={gastos.iva} disabled={!editable.gastos} onKeyDown={bloquearSigno} onChange={e => setGasto("iva", e.target.value)} />
+                    <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#9e9e9e", fontWeight: 700 }}>%</span>
+                  </div>
+                  {errors.iva
+                    ? <span className="field-error">{errors.iva}</span>
+                    : valorIvaActual > 0 && <span className="field-hint" style={{ color: "#2e7d32", fontWeight: 600 }}>+ {COP(valorIvaActual)}</span>}
+                </div>
+                <div className="field-wrap">
+                  <label className="field-label" style={{ display: "flex", alignItems: "center", gap: 4 }}><Tag size={14} /> Descuento del proveedor (%)</label>
+                  <div style={{ position: "relative" }}>
+                    <input type="text" inputMode="decimal" className={`field-input gastos-descuento-input ${errors.descuento ? "error" : ""}`} placeholder="0" style={{ paddingRight: 30 }}
+                      value={gastos.descuento} disabled={!editable.gastos} onKeyDown={bloquearSigno} onChange={e => setGasto("descuento", e.target.value)} />
+                    <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#c62828", fontWeight: 700 }}>%</span>
+                  </div>
+                  {errors.descuento
+                    ? <span className="field-error">{errors.descuento}</span>
+                    : valorDescActual > 0
+                      ? <span className="field-hint" style={{ color: "#c62828", fontWeight: 600 }}>− {COP(valorDescActual)}</span>
+                      : <span className="field-hint">Se descuenta del subtotal de insumos de esta compra (rebaja que concede el proveedor).</span>}
+                </div>
+                <div className="field-wrap">
+                  <label className="field-label">Otros costos</label>
+                  <input type="text" inputMode="numeric" className={`field-input ${errors.otros ? "error" : ""}`} placeholder="$ 0"
+                    value={gastos.otros} disabled={!editable.gastos} onKeyDown={bloquearSignoYPunto} onChange={e => setGasto("otros", e.target.value)} />
+                  {errors.otros && <span className="field-error">{errors.otros}</span>}
+                </div>
+              </div>
+
+              <div className="total-desglose" style={{ marginTop: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
+                  <span style={{ color: "#757575" }}>Subtotal insumos</span>
+                  <span style={{ fontWeight: 600 }}>{COP(subtotalActual)}</span>
+                </div>
+                {gTransporte > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
+                    <span style={{ color: "#757575" }}>+ Transporte</span><span style={{ color: "#2e7d32" }}>{COP(gTransporte)}</span>
+                  </div>
+                )}
+                {valorIvaActual > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
+                    <span style={{ color: "#757575" }}>+ IVA ({gIvaPct}%)</span><span style={{ color: "#2e7d32" }}>{COP(valorIvaActual)}</span>
+                  </div>
+                )}
+                {valorDescActual > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
+                    <span style={{ color: "#757575" }}>− Descuento del proveedor ({gDescPct}%)</span><span style={{ color: "#c62828" }}>{COP(valorDescActual)}</span>
+                  </div>
+                )}
+                {gOtros > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
+                    <span style={{ color: "#757575" }}>+ Otros</span><span style={{ color: "#2e7d32" }}>{COP(gOtros)}</span>
+                  </div>
                 )}
               </div>
-              <div style={{ display: "flex", gap: 10 }}>
-                {step === 2
-                  ? <button className="btn-ghost" onClick={() => setStep(1)}>← Volver</button>
-                  : <button className="btn-ghost" onClick={onClose}>Cancelar</button>
-                }
-                <button
-                  className="btn-save"
-                  onClick={step === 1 ? handleNextStep : handleSave}
-                  disabled={saving}
-                >
-                  {saving ? "Guardando…" : step === 1 ? "Siguiente →" : "Guardar Cambios"}
-                </button>
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ flexShrink: 0, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 28px 20px", borderTop: "1px solid #f5f5f5" }}>
+          <div className="total-bar" style={{ margin: 0 }}>
+            <span className="total-bar__label">Total</span>
+            <span className="total-bar__value" style={{ color: errors.total ? "#c62828" : undefined }}>
+              {COP(totalActual || 0)}
+            </span>
+            {errors.total && (
+              <span className="field-error" style={{ display: "block", fontSize: 11, marginTop: 2 }}>{errors.total}</span>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            {step > 1
+              ? <button className="btn-ghost" onClick={() => setStep(s => s - 1)}>← Volver</button>
+              : <button className="btn-ghost" onClick={onClose}>Cancelar</button>}
+            <button
+              className="btn-save"
+              onClick={step < 3 ? handleNextStep : handleSave}
+              disabled={saving}
+            >
+              {saving ? "Guardando…" : step < 3 ? "Siguiente →" : "Guardar Cambios"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════ VISTA DETALLE ═══════════════ */
+function VerCompra({ compraBase, onClose, getProveedorById, insumosActivos }) {
+  const [compra, setCompra] = useState(compraBase);
+  const [cargando, setCargando] = useState(true);
+  const [viewTab, setViewTab] = useState("resumen");
+
+  useEffect(() => {
+    let vivo = true;
+    getCompra(compraBase.id)
+      .then(full => { if (vivo) setCompra(full); })
+      .catch(() => {})
+      .finally(() => { if (vivo) setCargando(false); });
+    return () => { vivo = false; };
+  }, [compraBase.id]);
+
+  const _prov = getProveedorById(compra.idProveedor);
+  const provNombre = compra.proveedor || _prov?.Responsable || _prov?.responsable || "—";
+  const metodo = METODOS_PAGO.find(m => m.value === compra.metodoPago);
+  const items = compra.items || [];
+
+  const subtotal   = items.reduce((s, d) => s + (Number(d.cantidad) || 0) * (Number(d.precioUnd) || 0), 0);
+  const transporte = compra.transporte || 0;
+  const ivaPct     = compra.ivaPorcentaje || 0;
+  const descPct    = compra.descuentoPorcentaje || 0;
+  const otros      = compra.otros || 0;
+  const valorIva   = subtotal * ivaPct / 100;
+  const valorDesc  = subtotal * descPct / 100;
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card modal-card--compra-det" onClick={e => e.stopPropagation()}>
+
+        <div className="modal-header" style={{ flexShrink: 0, padding: "16px 24px" }}>
+          <div>
+            <p className="modal-header__eyebrow">Compra #{compra.id}</p>
+            <h2 className="modal-header__title">Detalle de Compra</h2>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <EstadoChip estado={compra.estado} />
+            <button type="button" className="modal-close-btn" onClick={onClose}><X size={16} /></button>
+          </div>
+        </div>
+
+        <div className="compra-det-tabs">
+          <button className={`compra-det-tab${viewTab === "resumen" ? " compra-det-tab--active" : ""}`} onClick={() => setViewTab("resumen")}>
+            <ClipboardList size={14} style={{ verticalAlign: "middle", marginRight: 4 }} /> Resumen
+          </button>
+          {compra.stockAplicado && (
+            <button className={`compra-det-tab${viewTab === "lotes" ? " compra-det-tab--active" : ""}`} onClick={() => setViewTab("lotes")}>
+              <Package size={14} style={{ verticalAlign: "middle", marginRight: 4 }} /> Lotes generados
+            </button>
+          )}
+        </div>
+
+        <div className="modal-body" style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
+
+          {viewTab === "resumen" && (
+            <>
+              <p className="section-label" style={{ marginTop: 0 }}>Información general</p>
+              <div className="compra-det-info-grid">
+                <div className="compra-det-info-card compra-det-info-card--prov">
+                  <div className="compra-det-info-card__lbl">Proveedor</div>
+                  <div className="compra-det-info-card__val" style={{ display: "flex", alignItems: "center", gap: 4 }}><Building2 size={14} /> {provNombre}</div>
+                </div>
+                <div className="compra-det-info-card">
+                  <div className="compra-det-info-card__lbl">Fecha de compra</div>
+                  <div className="compra-det-info-card__val" style={{ display: "flex", alignItems: "center", gap: 4 }}><Calendar size={14} /> {fmtFecha(compra.fecha)}</div>
+                </div>
+                <div className="compra-det-info-card">
+                  <div className="compra-det-info-card__lbl">Método de pago</div>
+                  <div className="compra-det-info-card__val" style={{ display: "flex", alignItems: "center", gap: 4 }}>{metodo ? <metodo.Icon size={14} /> : <CreditCard size={14} />} {metodo?.label || compra.metodoPago || "—"}</div>
+                </div>
+                {compra.fecha_llegada && (
+                  <div className="compra-det-info-card">
+                    <div className="compra-det-info-card__lbl">Fecha de completación</div>
+                    <div className="compra-det-info-card__val" style={{ display: "flex", alignItems: "center", gap: 4, color: "#2e7d32" }}><CheckCircle2 size={14} /> {fmtFecha(compra.fecha_llegada)}</div>
+                  </div>
+                )}
+                {compra.fecha_anulada && (
+                  <div className="compra-det-info-card">
+                    <div className="compra-det-info-card__lbl">Fecha de anulación</div>
+                    <div className="compra-det-info-card__val" style={{ display: "flex", alignItems: "center", gap: 4, color: "#c62828" }}><Ban size={14} /> {fmtFecha(compra.fecha_anulada)}</div>
+                  </div>
+                )}
               </div>
-            </div>
-          </>
-        )}
+
+              {/* 3.11 — comprobante si el pago fue transferencia */}
+              {compra.metodoPago === "transferencia" && (
+                <>
+                  <p className="section-label">Comprobante de transferencia</p>
+                  {compra.comprobante
+                    ? <ImageLightbox src={compra.comprobante} alt="Comprobante" label={`Comprobante · Compra #${compra.id}`} thumbStyle={{ maxWidth: 240 }} />
+                    : <p style={{ fontSize: 12, color: "#9e9e9e", margin: 0 }}>No se adjuntó comprobante.</p>}
+                </>
+              )}
+
+              {compra.notas && (
+                <div className="compra-det-notas" style={{ display: "flex", alignItems: "flex-start", gap: 6, marginTop: 16 }}><PenLine size={14} style={{ flexShrink: 0, marginTop: 2 }} /> {compra.notas}</div>
+              )}
+
+              <p className="section-label">Insumos comprados</p>
+              <div className="compra-det-insumos">
+                <div className="compra-det-insumos__header">
+                  <span>Insumo</span><span>Cantidad</span><span>Precio/u</span><span>Subtotal</span><span>Vencimiento</span>
+                </div>
+                {cargando && items.length === 0 ? (
+                  <div className="compra-det-insumos__empty">Cargando insumos…</div>
+                ) : items.length === 0 ? (
+                  <div className="compra-det-insumos__empty">Sin insumos registrados en esta compra</div>
+                ) : (
+                  items.map((d, idx) => {
+                    const ins  = insumosActivos.find(i => i.id === Number(d.idInsumo));
+                    const uni  = d.unidad || ins?.unidad || "";
+                    const dias = diasHasta(d.fechaVencimiento);
+                    return (
+                      <div key={d.idDetalle || d.idInsumo || idx} className="compra-det-insumos__row">
+                        <span className="compra-det-insumos__name">{d.nombre || ins?.nombre || "—"}</span>
+                        <span className="compra-det-insumos__qty">{d.cantidad} {uni}</span>
+                        <span className="compra-det-insumos__pu">{COP(d.precioUnd)}</span>
+                        <span className="compra-det-insumos__sub">{COP((Number(d.cantidad) || 0) * (Number(d.precioUnd) || 0))}</span>
+                        <span className={`compra-det-insumos__venc${dias !== null && dias < 0 ? " venc-danger" : dias !== null && dias <= 7 ? " venc-warn" : ""}`}>
+                          {d.fechaVencimiento ? fmtFecha(d.fechaVencimiento) : "—"}
+                          {dias !== null && dias < 0 && <AlertTriangle size={13} style={{ verticalAlign: "middle" }} />}
+                          {dias !== null && dias >= 0 && dias <= 7 && ` (${dias}d)`}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              <p className="section-label">Desglose de costos</p>
+              <div className="compra-det-costos">
+                <div className="compra-det-costos__row"><span>Subtotal insumos</span><span>{COP(subtotal)}</span></div>
+                {transporte > 0 && <div className="compra-det-costos__row"><span>Transporte</span><span>{COP(transporte)}</span></div>}
+                {valorIva > 0 && (
+                  <div className="compra-det-costos__row">
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Receipt size={13} /> IVA ({ivaPct}%)</span><span>{COP(valorIva)}</span>
+                  </div>
+                )}
+                {valorDesc > 0 && (
+                  <div className="compra-det-costos__row compra-det-costos__row--desc">
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Tag size={13} /> Descuento del proveedor ({descPct}%) — se descuenta del subtotal</span><span>−{COP(valorDesc)}</span>
+                  </div>
+                )}
+                {otros > 0 && <div className="compra-det-costos__row"><span>Otros costos</span><span>{COP(otros)}</span></div>}
+                <div className="compra-det-costos__total"><span>Total final</span><span>{COP(compra.total)}</span></div>
+              </div>
+            </>
+          )}
+
+          {viewTab === "lotes" && (
+            <>
+              <p className="section-label" style={{ marginTop: 0 }}>Lotes generados</p>
+              <div className="compra-det-lotes-info" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <CheckCircle2 size={13} /> Compra completada el {fmtFecha(compra.fecha_llegada || compra.fecha)}. Stock aplicado al inventario.
+              </div>
+              {cargando && items.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 0", color: "#9e9e9e", fontSize: 13 }}>Cargando lotes…</div>
+              ) : (
+                items.map((d, idx) => <LotesInsumoGrupo key={d.idInsumo || idx} item={d} insumosActivos={insumosActivos} />)
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="modal-footer">
+          <button className="btn-ghost" onClick={onClose}>Cerrar</button>
+        </div>
       </div>
     </div>
   );

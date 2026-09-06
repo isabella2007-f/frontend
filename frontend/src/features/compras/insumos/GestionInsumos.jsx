@@ -11,6 +11,7 @@ import { getInsumos, crearInsumo, editarInsumo, eliminarInsumo, toggleEstadoInsu
 import { getCategorias } from "../../../services/categoriasInsumosService.js";
 import "./GestionInsumos.css";
 import DateRangeFilter from "../../../shared/components/DateRangeFilter";
+import FilasRelleno from "../../../shared/components/FilasRelleno";
 import { getRecordDate } from "../../../utils/dateUtils";
 
 const ITEMS_PER_PAGE = 5;
@@ -308,6 +309,11 @@ export default function GestionInsumos() {
   };
 
   const handleEdit = async (payload) => {
+    if (payload?.sinCambios) {
+      showToast("No se hicieron cambios");
+      setModal(null);
+      return;
+    }
     try {
       await editarInsumo(modal.ins.id, payload);
       showToast("Cambios guardados");
@@ -458,7 +464,7 @@ export default function GestionInsumos() {
 
         <div className="card">
           <div className="tbl-wrapper">
-            <table className="tbl">
+            <table className="tbl tbl--fixed-rows" style={{ "--tbl-row-h": "68px" }}>
               <thead>
                 <tr>
                   <th>Nº</th>
@@ -528,6 +534,9 @@ export default function GestionInsumos() {
                     </tr>
                   );
                 })}
+                {!loading && (
+                  <FilasRelleno current={paginated.length} perPage={ITEMS_PER_PAGE} colSpan={8} />
+                )}
               </tbody>
             </table>
           </div>

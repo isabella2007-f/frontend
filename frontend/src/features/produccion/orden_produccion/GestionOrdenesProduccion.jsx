@@ -3,6 +3,7 @@ import { Search, X, AlertTriangle, Package, ClipboardList, Check, Eye, PenLine, 
 import { useLocation, useNavigate } from "react-router-dom";
 import { fmtFecha } from "../../../utils/dateUtils.js";
 import DateRangeFilter from "../../../shared/components/DateRangeFilter";
+import FilasRelleno from "../../../shared/components/FilasRelleno";
 import {
   getOrdenes, crearOrden, editarOrden, anularOrden, cambiarEstadoOrden,
 } from "../../../services/ordenesProduccionService.js";
@@ -48,8 +49,16 @@ const VALID_TRANSITIONS = {
 const transicionesPermitidas = (orden) =>
   (VALID_TRANSITIONS[orden?.estado] || []).filter(e => e !== "Cancelada");
 
-// La orden solo es editable mientras está Pendiente (validado también en backend).
-const esEditable = (orden) => orden?.estado === "Pendiente";
+// Estados del pedido (Venta) en los que su producción ya está habilitada:
+// Confirmado (4), En producción (13), Fecha propuesta (16). Mientras el pedido
+// no llegue a alguno de estos, su orden no se puede avanzar a mano.
+const ESTADOS_VENTA_PRODUCIENDO = [4, 13, 16];
+const produccionBloqueadaPorPedido = (orden) =>
+  !!orden?.idVenta && !ESTADOS_VENTA_PRODUCIENDO.includes(orden?.ventaEstado);
+
+// La orden solo es editable mientras está Pendiente Y no depende de un pedido
+// (una orden generada por un pedido se gestiona desde el pedido; validado en backend).
+const esEditable = (orden) => orden?.estado === "Pendiente" && !orden?.idVenta;
 
 const fmt = (n) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n ?? 0);
@@ -229,6 +238,22 @@ function ModalDetallesOrden({ orden, onClose }) {
             <div style={{ background: "#fff3e0", borderRadius: 10, padding: "8px 12px", fontSize: 12, color: "#e65100", display: "flex", gap: 8, alignItems: "flex-start" }}>
               <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 1 }} />
               <span>Algunos insumos no tienen precio de compra registrado o tienen unidades incompatibles. El costo puede estar incompleto — revisa el detalle de insumos.</span>
+            </div>
+          )}
+
+          {orden.idVenta && (
+            <div style={{ background: "#e3f2fd", border: "1px solid #90caf9", borderRadius: 10, padding: "10px 12px", display: "flex", alignItems: "center", gap: 10 }}>
+              <Lock size={16} style={{ flexShrink: 0, color: "#1565c0" }} />
+              <div style={{ flex: 1, fontSize: 12, color: "#1565c0" }}>
+                Generada por el pedido <strong>#{orden.idVenta}</strong>
+                {orden.ventaEstadoLabel ? <> · pedido «{orden.ventaEstadoLabel}»</> : null}. Su estado lo controla el pedido.
+              </div>
+              <button
+                onClick={() => { onClose(); navigate(`/admin/pedidos?search=${orden.idVenta}`); }}
+                style={{ background: "#1976d2", color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0 }}
+              >
+                Ver pedido
+              </button>
             </div>
           )}
 
@@ -436,8 +461,10 @@ const ESTADO_COLORS = {
   "Cancelada":  { bg: "#ffebee", color: "#c62828", border: "#ef9a9a" },
 };
 
-// Factores a unidad base: lb=500g (convención de mercado colombiano)
-const FACTOR_CONV = { g:1, kg:1000, lb:500, ml:1, l:1000, unidad:1, uds:1, und:1, u:1, unidades:1 };
+// Factores a unidad base: lb=500g (convención de mercado colombiano). Debe
+// cubrir las mismas unidades que _FACTOR del backend para que el chequeo previo
+// de stock coincida con lo que hará el servidor.
+const FACTOR_CONV = { mg:0.001, g:1, kg:1000, lb:500, t:1000000, ml:1, l:1000, unidad:1, uds:1, und:1, u:1, unidades:1 };
 
 function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
   const navigate = useNavigate();
@@ -519,6 +546,7 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
   if (!orden) return null;
 
   const transicionesValidas = transicionesPermitidas(orden);
+  const bloqueadaPorPedido  = produccionBloqueadaPorPedido(orden);
 
   const handleConfirm = () => {
     const loteData = {};
@@ -545,16 +573,29 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
             <>
               <p className="section-label" style={{ marginTop: 0 }}>Orden #{orden.id} — selecciona el nuevo estado</p>
               {orden.idVenta && (
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "#e3f2fd", border: "1px solid #90caf9", borderRadius: 10, padding: "10px 12px", marginBottom: 10, fontSize: 12, color: "#1565c0" }}>
-                  <Lock size={13} style={{ flexShrink: 0, marginTop: 1 }} />
-                  <span>Esta orden depende del pedido #{orden.idVenta}. Para cancelarla, cancela el pedido.</span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, background: bloqueadaPorPedido ? "#fff8e1" : "#e3f2fd", border: `1px solid ${bloqueadaPorPedido ? "#ffe082" : "#90caf9"}`, borderRadius: 10, padding: "10px 12px", marginBottom: 10, fontSize: 12, color: bloqueadaPorPedido ? "#8a6d00" : "#1565c0" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                    <Lock size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+                    <span>
+                      {bloqueadaPorPedido
+                        ? <>Esta orden pertenece al pedido <strong>#{orden.idVenta}</strong>{orden.ventaEstadoLabel ? <>, que está «{orden.ventaEstadoLabel}»</> : null}. Podrás iniciar o completar su producción cuando el pedido esté <strong>confirmado o en producción</strong>. Para cancelarla, cancela el pedido.</>
+                        : <>Esta orden pertenece al pedido <strong>#{orden.idVenta}</strong>. Su producción se gestiona aquí, pero <strong>no se cancela</strong> desde esta pantalla: para cancelarla, cancela el pedido (la orden se cancela en cadena).</>}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { onClose(); navigate(`/admin/pedidos?search=${orden.idVenta}`); }}
+                    style={{ alignSelf: "flex-start", background: bloqueadaPorPedido ? "#f9a825" : "#1976d2", color: "#fff", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                  >
+                    Ir al pedido #{orden.idVenta}
+                  </button>
                 </div>
               )}
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {ESTADOS_ORDEN.map(est => {
                   const c = ESTADO_COLORS[est] || {};
                   const isCurrent = est === orden.estado;
-                  const isValid   = transicionesValidas.includes(est);
+                  const isValid   = transicionesValidas.includes(est) && !bloqueadaPorPedido;
                   const isDisabled = isCurrent || !isValid;
                   return (
                     <button
@@ -698,11 +739,21 @@ function ModalErrorEstado({ mensaje, orden, onClose }) {
   const esFichaTecnica      = /ficha t[eé]cnica/i.test(mensaje);
   const esStockInsuficiente = /stock insuficiente/i.test(mensaje);
   const esTimeout           = /procesándose|procesandose|recarga/i.test(mensaje);
+  const esPedido            = /pedido #?\d+/i.test(mensaje) &&
+    /(lo controla el pedido|pertenece al pedido|cancela el pedido|confirma el pedido|depende del pedido)/i.test(mensaje);
+  const esTransicion        = /no puede pasar a|estado final|no admite (más|mas) cambios/i.test(mensaje);
+
+  const mPedido    = mensaje.match(/pedido #?(\d+)/i);
+  const numPedido  = mPedido ? mPedido[1] : (orden?.idVenta || null);
 
   const titulo = esStockInsuficiente
     ? "Stock insuficiente"
     : esFichaTecnica
     ? "Ficha técnica requerida"
+    : esPedido
+    ? "Esta orden depende de un pedido"
+    : esTransicion
+    ? "Cambio de estado no disponible"
     : esTimeout
     ? "La operación tardó demasiado"
     : "No se pudo cambiar el estado";
@@ -712,6 +763,7 @@ function ModalErrorEstado({ mensaje, orden, onClose }) {
     navigate("/admin/products", { state: { openFicha: orden?.idProducto } });
   };
   const irACompras = () => { onClose(); navigate("/admin/compras"); };
+  const irAlPedido = () => { onClose(); navigate(`/admin/pedidos?search=${numPedido}`); };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -784,6 +836,35 @@ function ModalErrorEstado({ mensaje, orden, onClose }) {
                 }}
               >
                 Ir a Compras
+              </button>
+            </div>
+          )}
+          {esPedido && numPedido && (
+            <div style={{
+              background: "#e3f2fd", border: "1px solid #90caf9",
+              borderRadius: 10, padding: "12px 16px",
+              display: "flex", alignItems: "center", gap: 10,
+              textAlign: "left", marginBottom: 8,
+            }}>
+              <Lock size={20} style={{ flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#1565c0", marginBottom: 2 }}>
+                  Pedido #{numPedido}
+                </div>
+                <div style={{ fontSize: 11, color: "#1976d2" }}>
+                  El estado de esta orden lo gobierna el pedido. Gestiónalo desde Gestión de Pedidos.
+                </div>
+              </div>
+              <button
+                onClick={irAlPedido}
+                style={{
+                  background: "#1976d2", color: "#fff", border: "none",
+                  borderRadius: 8, padding: "7px 14px",
+                  fontSize: 12, fontWeight: 700, cursor: "pointer",
+                  whiteSpace: "nowrap", flexShrink: 0,
+                }}
+              >
+                Ir al pedido #{numPedido}
               </button>
             </div>
           )}
@@ -942,6 +1023,16 @@ function ModalFormOrden({ orden, productos, onClose, onSave }) {
         e.fechaInicio = "La fecha de inicio no puede ser después de la entrega";
     }
     if (Object.keys(e).length) { setErrors(e); return; }
+
+    // 3.2 — al editar sin cambios no se dispara ninguna escritura.
+    if (orden?.id) {
+      const sinCambios =
+        Number(form.idProducto)     === Number(orden.idProducto) &&
+        cantNum                     === Number(orden.cantidad) &&
+        (form.fechaInicio  || "")   === (orden.fechaInicio  || "") &&
+        (form.fechaEntrega || "")   === (orden.fechaEntrega || "");
+      if (sinCambios) { onSave({ sinCambios: true }); return; }
+    }
 
     setSaving(true);
     const payload = {
@@ -1132,6 +1223,17 @@ export default function GestionOrdenesProduccion() {
     }
   };
 
+  // Recarga solo las órdenes (tras cambiar estado o anular): el catálogo de
+  // productos no cambia por esas acciones, no hace falta volver a pedirlo.
+  const recargarOrdenes = async () => {
+    try {
+      const data = await getOrdenes();
+      setOrdenes([...(data || [])].sort((a, b) => b.id - a.id));
+    } catch (e) {
+      showToast(e.message || "Error al recargar órdenes", "error");
+    }
+  };
+
   useEffect(() => { cargarDatos(); }, []);
 
   useEffect(() => {
@@ -1169,13 +1271,20 @@ export default function GestionOrdenesProduccion() {
 
   useEffect(() => setPage(1), [search, filterEstado, filterDesde, filterHasta]);
 
-  const handleSaveOrder = async () => {
+  const handleSaveOrder = async (info) => {
+    // 3.2 — al guardar "editar orden" sin cambios no se hizo ninguna petición.
+    if (info?.sinCambios) {
+      showToast("No se hicieron cambios");
+      setModal(null);
+      return;
+    }
     await cargarDatos();
     showToast(modal?.orden ? "Orden actualizada" : "Orden creada");
     setModal(null);
   };
 
   const handleCambiarEstado = async (idOrden, nuevoEstado, loteData = {}) => {
+    if (actionSaving) return;
     const estadoNum = ESTADO_TO_NUM[nuevoEstado];
     const ordenActual = ordenes.find(o => o.id === idOrden);
     setActionSaving(true);
@@ -1186,7 +1295,7 @@ export default function GestionOrdenesProduccion() {
 
       showToast(`Estado cambiado a "${nuevoEstado}"`);
       setModal(null);
-      await cargarDatos();
+      await recargarOrdenes();
     } catch (e) {
       const isApiError = typeof e.statusCode === "number";
       const errorMsg = isApiError
@@ -1199,14 +1308,18 @@ export default function GestionOrdenesProduccion() {
   };
 
   const handleAnular = async (idOrden) => {
+    if (actionSaving) return;
+    setActionSaving(true);
     try {
       await anularOrden(idOrden);
       showToast("Orden anulada", "warn");
-      await cargarDatos();
+      await recargarOrdenes();
     } catch (e) {
       showToast(e.message || e.detail || "Error al anular la orden", "error");
+    } finally {
+      setActionSaving(false);
+      setModal(null);
     }
-    setModal(null);
   };
 
   return (
@@ -1279,7 +1392,7 @@ export default function GestionOrdenesProduccion() {
 
         <div className="card">
           <div className="tbl-wrapper">
-            <table className="tbl">
+            <table className="tbl tbl--fixed-rows" style={{ "--tbl-row-h": "72px" }}>
               <thead>
                 <tr>
                   <th style={{ width: 44 }}>Nº</th>
@@ -1317,6 +1430,11 @@ export default function GestionOrdenesProduccion() {
                         {orden.nombreProducto || "—"}
                       </div>
                       <div style={{ fontSize: 10, color: "#9e9e9e" }}>#{orden.id}</div>
+                      {orden.idVenta && (
+                        <span className="orden-pedido-tag" data-tooltip="Su estado lo controla el pedido">
+                          <Lock size={9} style={{ verticalAlign: "-1px" }} /> Ligada al pedido #{orden.idVenta}
+                        </span>
+                      )}
                     </td>
                     <td style={{ fontSize: 14, fontWeight: 700, color: "#2e7d32" }}>{orden.cantidad}</td>
                     <td>
@@ -1334,12 +1452,15 @@ export default function GestionOrdenesProduccion() {
                           const editable       = esEditable(orden);
                           const ligadaAPedido  = !!orden.idVenta;
                           const anulable       = !ligadaAPedido && ["Pendiente", "En proceso"].includes(orden.estado);
+                          const editTooltip    = ligadaAPedido
+                            ? `Depende del pedido #${orden.idVenta} — se edita desde el pedido`
+                            : editable ? "Editar" : "Solo se editan las órdenes pendientes";
                           return (
                             <>
                               <button className="act-btn act-btn--view" data-tooltip="Ver detalles" onClick={() => setModal({ type: "detalles", orden })}><Eye size={15} /></button>
                               <button
                                 className="act-btn act-btn--edit"
-                                data-tooltip={editable ? "Editar" : "Solo se editan las órdenes pendientes"}
+                                data-tooltip={editTooltip}
                                 onClick={() => editable && setModal({ type: "form", orden })}
                                 disabled={!editable}
                                 style={{ opacity: editable ? 1 : 0.35, cursor: editable ? "pointer" : "default" }}
@@ -1359,6 +1480,9 @@ export default function GestionOrdenesProduccion() {
                     </td>
                   </tr>
                 ))}
+                {!loading && (
+                  <FilasRelleno current={paged.length} perPage={PER_PAGE} colSpan={7} />
+                )}
               </tbody>
             </table>
           </div>

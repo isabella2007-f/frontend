@@ -228,6 +228,7 @@ class Compra(Base):
     Estado               = Column(Integer, ForeignKey("Estados.ID_Estados"))
     Metodo_Pago          = Column(String(20))
     Notas                = Column(Text, nullable=True)
+    Comprobante          = Column(String(500), nullable=True)  # URL Cloudinary del comprobante (pago por transferencia)
     Costo_Transporte     = Column(Numeric(30, 2), nullable=True)
     IVA_Porcentaje       = Column(Numeric(5, 2), nullable=True)
     Descuento_Porcentaje = Column(Numeric(5, 2), nullable=True)

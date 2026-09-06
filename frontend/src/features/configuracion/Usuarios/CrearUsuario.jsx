@@ -6,6 +6,7 @@ import { GB, getRolStyle, EMPTY_FORM, TIPO_DOC, validatePassword, validateCedula
 import { Ic } from "./usuariosIcons.jsx";
 import { crearEmpleado, crearCliente, editarUsuario } from "../../../services/usuariosService.js";
 import { getUser } from "../../../services/authService.js";
+import { usePrivilegio } from "../../../context/PrivilegiosContext.jsx";
 import SearchableSelect from "../../../shared/components/SearchableSelect.jsx";
 import "./Usuarios.css";
 
@@ -220,13 +221,18 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
   const isEdit = !!user;
   const rolesDisponibles = roles.filter(r => r.estado);
 
+  // Solo con este permiso (o admin / super admin) se puede elegir el rol al
+  // CREAR. Al EDITAR nunca se muestra selector (el rol se cambia con la acción
+  // rápida del listado). Sin permiso, el usuario nuevo nace Cliente.
+  const puedeElegirRol = usePrivilegio("Usuarios_cambiar_rol");
+
   const [form, setForm] = useState(() => {
     if (isEdit) {
       const { contrasena: _c, confirmar: _cf, ...rest } = user;
       const rol = rest.rol || (rest.tipo !== "empleado" ? "Cliente" : "");
       return { ...rest, rol, contrasena: "", confirmar: "" };
     }
-    return { ...EMPTY_FORM };
+    return { ...EMPTY_FORM, rol: puedeElegirRol ? "" : "Cliente" };
   });
 
   const [errors,      setErrors]      = useState({});
@@ -320,7 +326,7 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
     }
 
     if (s === 3) {
-      if (!form.rol) e.rol = "Seleccione un rol";
+      if (!isEdit && puedeElegirRol && !form.rol) e.rol = "Seleccione un rol";
       const editandoCliente = isEdit && user?.tipo !== "empleado";
       if (!editandoCliente) {
         if (isEdit) {
@@ -349,7 +355,6 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
   const handleSave = async () => {
     const e = validateStep(3);
     if (Object.keys(e).length) { setErrors(e); return; }
-    setSaving(true);
 
     const rolObj   = rolesDisponibles.find(r => r.nombre === form.rol);
     const esCliente = form.rol === "Cliente";
@@ -376,6 +381,31 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
       if (form.direccion?.trim()) payload.Direccion      = form.direccion.trim();
     }
 
+    // Al editar NUNCA se envía ID_Rol: el rol se cambia solo con la acción
+    // rápida del listado (endpoint dedicado). Al crear, solo si se pudo elegir.
+    if (!isEdit && puedeElegirRol && rolObj) payload.ID_Rol = rolObj.id;
+    if (form.contrasena)                     payload.Contrasena = form.contrasena;
+
+    // "No se hicieron cambios": si al editar no cambió ningún campo, ni foto, ni
+    // contraseña, no se dispara ninguna petición de escritura.
+    if (isEdit) {
+      const orig = {
+        Nombre: user.nombre, Apellidos: user.apellidos, Correo: user.correo,
+        Tipo_Documento: user.tipoDocumento, Cedula: user.cedula, Telefono: user.telefono,
+        Departamento: user.departamento, Municipio: user.municipio, Direccion: user.direccion,
+      };
+      const norm = v => String(v ?? "").trim();
+      const cambioCampos = Object.keys(payload).some(k =>
+        !["Foto", "Contrasena"].includes(k) && norm(payload[k]) !== norm(orig[k])
+      );
+      if (!cambioCampos && !fotoFile && !form.contrasena) {
+        onSave?.({ sinCambios: true });
+        return;
+      }
+    }
+
+    setSaving(true);
+
     if (fotoFile) {
       try {
         payload.Foto = await subirImagenCloudinary(fotoFile);
@@ -387,8 +417,6 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
     } else if (form.foto && !form.foto.startsWith("data:")) {
       payload.Foto = form.foto; // URL existente de Cloudinary
     }
-    if (rolObj)           payload.ID_Rol     = rolObj.id;
-    if (form.contrasena)  payload.Contrasena = form.contrasena;
 
     try {
       if (isEdit) {
@@ -550,40 +578,64 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
                 );
               })()}
 
-              <div className="field-wrap">
-                <label className="field-label">Rol <span className="required">*</span></label>
-                <SearchableSelect
-                  className={`field-select${errors.rol ? " error" : ""}`}
-                  options={rolesDisponibles}
-                  value={form.rol}
-                  onChange={e => set("rol", e.target.value)}
-                  getValue={r => r.nombre}
-                  getLabel={r => `${r.icono && !r.iconoPreview ? r.icono + " " : ""}${r.nombre}`}
-                  placeholder="Seleccione un rol…"
-                  searchPlaceholder="Buscar rol…"
-                />
-                {errors.rol && <span className="field-error">{errors.rol}</span>}
+              {isEdit ? (
+                <div className="field-wrap">
+                  <label className="field-label">Rol</label>
+                  <div className="field-input field-input--disabled" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <RolBadge rol={form.rol} roles={roles} />
+                    <span>{form.rol || "—"}</span>
+                  </div>
+                  <span className="field-hint" style={{ fontSize: 11, color: "#64748b", marginTop: 4, display: "block" }}>
+                    El rol se cambia desde la acción "Cambiar rol" del listado de usuarios.
+                  </span>
+                </div>
+              ) : !puedeElegirRol ? (
+                <div className="field-wrap">
+                  <label className="field-label">Rol</label>
+                  <div className="field-input field-input--disabled" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <RolBadge rol="Cliente" roles={roles} />
+                    <span>Cliente</span>
+                  </div>
+                  <span className="field-hint" style={{ fontSize: 11, color: "#64748b", marginTop: 4, display: "block" }}>
+                    Este usuario se creará con el rol Cliente.
+                  </span>
+                </div>
+              ) : (
+                <div className="field-wrap">
+                  <label className="field-label">Rol <span className="required">*</span></label>
+                  <SearchableSelect
+                    className={`field-select${errors.rol ? " error" : ""}`}
+                    options={rolesDisponibles}
+                    value={form.rol}
+                    onChange={e => set("rol", e.target.value)}
+                    getValue={r => r.nombre}
+                    getLabel={r => `${r.icono && !r.iconoPreview ? r.icono + " " : ""}${r.nombre}`}
+                    placeholder="Seleccione un rol…"
+                    searchPlaceholder="Buscar rol…"
+                  />
+                  {errors.rol && <span className="field-error">{errors.rol}</span>}
 
-                {form.rol && (() => {
-                  const rolObj = rolesDisponibles.find(r => r.nombre === form.rol);
-                  const style  = getRolStyle(form.rol);
-                  if (!rolObj) return null;
-                  return (
-                    <div style={{
-                      marginTop: 8, display: "inline-flex", alignItems: "center", gap: 8,
-                      padding: "5px 12px", borderRadius: 20,
-                      background: style.bg, border: `1px solid ${style.border}`, color: style.color,
-                      fontSize: 12, fontWeight: 700,
-                    }}>
-                      {rolObj.iconoPreview
-                        ? <img src={rolObj.iconoPreview} alt={rolObj.nombre}
-                            style={{ width: 16, height: 16, borderRadius: "50%", objectFit: "cover" }} />
-                        : <span>{rolObj.icono}</span>}
-                      {rolObj.nombre}
-                    </div>
-                  );
-                })()}
-              </div>
+                  {form.rol && (() => {
+                    const rolObj = rolesDisponibles.find(r => r.nombre === form.rol);
+                    const style  = getRolStyle(form.rol);
+                    if (!rolObj) return null;
+                    return (
+                      <div style={{
+                        marginTop: 8, display: "inline-flex", alignItems: "center", gap: 8,
+                        padding: "5px 12px", borderRadius: 20,
+                        background: style.bg, border: `1px solid ${style.border}`, color: style.color,
+                        fontSize: 12, fontWeight: 700,
+                      }}>
+                        {rolObj.iconoPreview
+                          ? <img src={rolObj.iconoPreview} alt={rolObj.nombre}
+                              style={{ width: 16, height: 16, borderRadius: "50%", objectFit: "cover" }} />
+                          : <span>{rolObj.icono}</span>}
+                        {rolObj.nombre}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
 
               {errors._api && (
                 <p className="field-error" style={{ textAlign: "center", marginTop: 8 }}>{errors._api}</p>

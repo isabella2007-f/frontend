@@ -27,10 +27,10 @@ const EMPTY = {
   periodoActual: { disponible: true, parcial: false, mensaje: null },
   comparacion:   { disponible: false, parcial: false, mensaje: null },
   kpis: {
-    ventas:   { raw: 0, valor: "$0", delta: null, positive: null },
-    pedidos:  { raw: 0, valor: "0",  delta: null, positive: null },
-    clientes: { raw: 0, valor: "0",  delta: null, positive: null },
-    ticket:   { raw: 0, valor: "$0", delta: null, positive: null },
+    ventas:   { raw: 0, valor: "$0", delta: null, positive: null, deltaPct: null, deltaSinBase: false },
+    pedidos:  { raw: 0, valor: "0",  delta: null, positive: null, deltaPct: null, deltaSinBase: false },
+    clientes: { raw: 0, valor: "0",  delta: null, positive: null, deltaPct: null, deltaSinBase: false },
+    ticket:   { raw: 0, valor: "$0", delta: null, positive: null, deltaPct: null, deltaSinBase: false },
   },
   flujo: [], ventasTiempo: [], productosTop: [], detalle: null,
 };
@@ -50,8 +50,20 @@ function CustomTooltip({ active, payload, label, prefix = "" }) {
   );
 }
 
+/* ── Porcentaje de cambio de la tarjeta de Resumen general ──
+   La tarjeta capa a ±999% para no desbordar; el valor real (sin cap) va en el
+   tooltip. Formato: número plano, máx. 2 decimales, sin ceros forzados. */
+const TOPE_PCT = 999;
+
+const fmtPctResumen = (pct, { cap = false } = {}) => {
+  const signo = pct < 0 ? "-" : "+";
+  const abs = Math.abs(pct);
+  if (cap && abs > TOPE_PCT) return `${signo}${TOPE_PCT}%`;
+  return `${signo}${Math.round(abs * 100) / 100}%`;
+};
+
 /* ── KPI Card ───────────────────────────────────────────── */
-function KpiCard({ icon, label, valor, delta, positive, color, comparar }) {
+function KpiCard({ icon, label, valor, deltaPct, deltaSinBase, positive, color, comparar }) {
   return (
     <div className="kpi-card">
       <div className="kpi-icon" style={{ background: color + "20", color }}>{icon}</div>
@@ -59,9 +71,20 @@ function KpiCard({ icon, label, valor, delta, positive, color, comparar }) {
         <p className="kpi-label">{label}</p>
         <p className="kpi-valor">{valor}</p>
       </div>
-      {comparar && delta && (
-        <span className={"kpi-delta" + (positive ? " kpi-delta--up" : " kpi-delta--down")}>
-          {positive ? "↑" : "↓"} {delta}
+      {comparar && deltaSinBase && (
+        <span
+          className="kpi-delta kpi-delta--none"
+          data-tooltip="Sin periodo anterior con qué comparar: el cambio porcentual no se puede calcular."
+        >
+          N/A
+        </span>
+      )}
+      {comparar && !deltaSinBase && deltaPct !== null && (
+        <span
+          className={"kpi-delta" + (positive ? " kpi-delta--up" : " kpi-delta--down")}
+          data-tooltip={`Cambio real: ${fmtPctResumen(deltaPct)}`}
+        >
+          {positive ? "↑" : "↓"} {fmtPctResumen(deltaPct, { cap: true })}
         </span>
       )}
     </div>
@@ -131,7 +154,10 @@ export default function Dashboard() {
   }, [periodo, cargar]);
 
   const aplicarRango = () => {
-    if (desde && hasta) cargar("custom", desde, hasta);
+    if (!desde || !hasta) return;
+    // Rango invertido: no se bloquea, se ordenan las fechas y se consulta igual.
+    const [d1, d2] = desde <= hasta ? [desde, hasta] : [hasta, desde];
+    cargar("custom", d1, d2);
   };
 
   const detalle = datos.detalle || detalleExtra;
@@ -293,10 +319,10 @@ export default function Dashboard() {
           </div>
           <div className="chart-card__body">
             <div className="kpi-grid">
-              <KpiCard icon={<Banknote size={20} />} label="Total ventas"    valor={kpis.ventas.valor}   delta={kpis.ventas.delta}   positive={kpis.ventas.positive}   comparar={comparar} color="#2e7d32" />
-              <KpiCard icon={<Package size={20} />}  label="Pedidos"         valor={kpis.pedidos.valor}  delta={kpis.pedidos.delta}  positive={kpis.pedidos.positive}  comparar={comparar} color="#fb8c00" />
-              <KpiCard icon={<User size={20} />}     label="Clientes nuevos" valor={kpis.clientes.valor} delta={kpis.clientes.delta} positive={kpis.clientes.positive} comparar={comparar} color="#5c6bc0" />
-              <KpiCard icon={<Tag size={20} />}      label="Ticket promedio" valor={kpis.ticket.valor}   delta={kpis.ticket.delta}   positive={kpis.ticket.positive}   comparar={comparar} color="#26c6da" />
+              <KpiCard icon={<Banknote size={20} />} label="Total ventas"    valor={kpis.ventas.valor}   deltaPct={kpis.ventas.deltaPct}   deltaSinBase={kpis.ventas.deltaSinBase}   positive={kpis.ventas.positive}   comparar={comparar} color="#2e7d32" />
+              <KpiCard icon={<Package size={20} />}  label="Pedidos"         valor={kpis.pedidos.valor}  deltaPct={kpis.pedidos.deltaPct}  deltaSinBase={kpis.pedidos.deltaSinBase}  positive={kpis.pedidos.positive}  comparar={comparar} color="#fb8c00" />
+              <KpiCard icon={<User size={20} />}     label="Clientes nuevos" valor={kpis.clientes.valor} deltaPct={kpis.clientes.deltaPct} deltaSinBase={kpis.clientes.deltaSinBase} positive={kpis.clientes.positive} comparar={comparar} color="#5c6bc0" />
+              <KpiCard icon={<Tag size={20} />}      label="Ticket promedio" valor={kpis.ticket.valor}   deltaPct={kpis.ticket.deltaPct}   deltaSinBase={kpis.ticket.deltaSinBase}   positive={kpis.ticket.positive}   comparar={comparar} color="#26c6da" />
             </div>
           </div>
         </div>

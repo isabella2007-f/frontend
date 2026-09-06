@@ -295,7 +295,27 @@ function ModalEditarCliente({ cliente, onClose, onSave }) {
   const [step, setStep]         = useState(1);
   const fotoRef = useRef();
 
-  useEffect(() => { if (cliente) setForm({ ...cliente, contrasena: "", confirmar: "" }); }, [cliente]);
+  // Instantánea de los campos que realmente se persisten, para detectar
+  // "guardar sin cambios".
+  const snapshot = (f) => JSON.stringify({
+    tipoDoc:      f.tipoDoc ?? "",
+    numDoc:       String(f.numDoc ?? "").trim(),
+    nombre:       (f.nombre ?? "").trim(),
+    apellidos:    (f.apellidos ?? "").trim(),
+    correo:       (f.correo ?? "").trim(),
+    telefono:     String(f.telefono ?? "").replace(/\D/g, ""),
+    direccion:    (f.direccion ?? "").trim(),
+    departamento: f.departamento ?? "",
+    municipio:    f.municipio ?? "",
+  });
+  const snapshotInicial = useRef(snapshot(cliente || {}));
+
+  useEffect(() => {
+    if (cliente) {
+      setForm({ ...cliente, contrasena: "", confirmar: "" });
+      snapshotInicial.current = snapshot(cliente);
+    }
+  }, [cliente]);
 
   const set = (k, v) => {
     let val = v;
@@ -383,6 +403,10 @@ function ModalEditarCliente({ cliente, onClose, onSave }) {
   const handleSave = async () => {
     const e = validateStep(3);
     if (Object.keys(e).length) { setErrors(e); return; }
+    if (!form.contrasena && snapshot(form) === snapshotInicial.current) {
+      onSave({ sinCambios: true });
+      return;
+    }
     setSaving(true);
     try {
       const { confirmar, ...data } = form;

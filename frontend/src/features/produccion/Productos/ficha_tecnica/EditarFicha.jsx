@@ -16,6 +16,7 @@ import "./FichasTecnicas.css";
 export default function EditarFicha({ ficha, mode = "edit", onClose, onSave, productoNombre = "", productoFoto = null }) {
   const [categoriasInsumosActivas, setCategoriasInsumosActivas] = useState([]);
   const [insumosPorCategoriaId,    setInsumosPorCategoriaId]    = useState({});
+  const [insumosFlat,              setInsumosFlat]              = useState([]);
   const [insumosError,             setInsumosError]             = useState(null);
 
   useEffect(() => {
@@ -31,18 +32,23 @@ export default function EditarFicha({ ficha, mode = "edit", onClose, onSave, pro
     getInsumos()
       .then(insData => {
         const map = {};
+        const flat = [];
         (insData.insumos || insData.items || []).forEach(i => {
           if (i.Estado !== 0 && i.estado !== false) {
             const catId = String(i.ID_Categoria || i.id_categoria || "");
-            if (!map[catId]) map[catId] = [];
-            map[catId].push({
+            const item = {
               id: i.ID_Insumo || i.id,
               nombre: i.Nombre || i.nombre,
               unidad: i.simbolo_unidad || i.Unidad || i.unidad || "",
-            });
+              idCategoria: catId,
+            };
+            if (!map[catId]) map[catId] = [];
+            map[catId].push(item);
+            flat.push(item);
           }
         });
         setInsumosPorCategoriaId(map);
+        setInsumosFlat(flat);
       })
       .catch(() => setInsumosError("No se pudieron cargar los insumos. Verifica que el rol tiene el permiso 'ver_insumos'."));
   }, [mode]);
@@ -56,7 +62,33 @@ export default function EditarFicha({ ficha, mode = "edit", onClose, onSave, pro
   const fotoRef = useRef();
   const isView  = mode === "view";
 
-  useEffect(() => { if (ficha) setForm({ ...ficha, producto: ficha?.producto || productoNombre || "", fotoPreview: ficha?.fotoPreview || productoFoto || null, insumos: normalizeInsumos(ficha) }); }, [ficha, productoNombre, productoFoto]);
+  // Instantánea al abrir, para detectar "guardar sin cambios".
+  const snapshot = (f) => JSON.stringify({
+    procedimiento:    (f.procedimiento || "").trim(),
+    observaciones:    (f.observaciones || "").trim(),
+    vidaUtilCantidad: String(f.vidaUtilCantidad ?? "").trim(),
+    vidaUtilUnidad:   f.vidaUtilUnidad || "dias",
+    fotoPreview:      f.fotoPreview || null,
+    insumos: (Array.isArray(f.insumos) ? f.insumos : [])
+      .map(i => ({
+        idInsumo:    String(i.idInsumo ?? ""),
+        idCategoria: String(i.idCategoria ?? ""),
+        cantidad:    String(i.cantidad ?? "").trim(),
+        unidad:      i.unidad || "",
+      }))
+      .sort((a, b) => a.idInsumo.localeCompare(b.idInsumo)),
+  });
+  const buildForm = () => ({ ...ficha, producto: ficha?.producto || productoNombre || "", fotoPreview: ficha?.fotoPreview || productoFoto || null, insumos: normalizeInsumos(ficha) });
+  const snapshotInicial = useRef(snapshot(buildForm()));
+
+  useEffect(() => {
+    if (ficha) {
+      const f = buildForm();
+      setForm(f);
+      snapshotInicial.current = snapshot(f);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ficha, productoNombre, productoFoto]);
 
   const set = (k, v) => {
     setForm(p => ({ ...p, [k]: v }));
@@ -83,7 +115,8 @@ export default function EditarFicha({ ficha, mode = "edit", onClose, onSave, pro
   const delInsumo = id => setForm(p => ({ ...p, insumos: getInsumosList(p).filter(i => i.id !== id) }));
 
   const getUnidadOptions = (insumoId, categoriaId) => {
-    const insumo = (insumosPorCategoriaId[String(categoriaId)] || []).find(i => String(i.id) === String(insumoId));
+    const insumo = (insumosPorCategoriaId[String(categoriaId)] || []).find(i => String(i.id) === String(insumoId))
+      || insumosFlat.find(i => String(i.id) === String(insumoId));
     const base = insumo?.unidad ? String(insumo.unidad).toLowerCase() : null;
     if (base) {
       for (const fam of UNITS_FAMILIES) {
@@ -98,12 +131,21 @@ export default function EditarFicha({ ficha, mode = "edit", onClose, onSave, pro
     ...p,
     insumos: getInsumosList(p).map(i => {
       if (i.id !== id) return i;
-      if (k === "idCategoria") return { ...i, idCategoria: v, idInsumo: "", nombre: "", unidad: "" };
+      if (k === "idCategoria") {
+        // Al cambiar de categoría solo se limpia el insumo si ya no pertenece a ella.
+        const perteneceNueva = i.idInsumo &&
+          (insumosPorCategoriaId[String(v)] || []).some(x => String(x.id) === String(i.idInsumo));
+        return perteneceNueva
+          ? { ...i, idCategoria: v }
+          : { ...i, idCategoria: v, idInsumo: "", nombre: "", unidad: "" };
+      }
       if (k === "idInsumo") {
-        const found = (insumosPorCategoriaId[i.idCategoria] || []).find(x => String(x.id) === String(v));
+        // Se puede elegir el insumo primero: la categoría se autocompleta con la suya.
+        const found = insumosFlat.find(x => String(x.id) === String(v));
         return {
           ...i,
           idInsumo: v ? Number(v) : "",
+          idCategoria: found?.idCategoria || i.idCategoria || "",
           nombre: found?.nombre || "",
           unidad: found?.unidad || "",
         };
@@ -121,6 +163,7 @@ export default function EditarFicha({ ficha, mode = "edit", onClose, onSave, pro
   const handleSave = async () => {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); if (e.procedimiento) setTab("procedimiento"); return; }
+    if (snapshot(form) === snapshotInicial.current) { onSave({ sinCambios: true }); return; }
     setSaving(true);
     try {
       await onSave(form);
@@ -242,15 +285,13 @@ export default function EditarFicha({ ficha, mode = "edit", onClose, onSave, pro
                             ? <span className="ficha-cell-text ficha-cell-text--bold">{ins.nombre}</span>
                             : <SearchableSelect
                                 className="ficha-select"
-                                options={insumosPorCategoriaId[String(ins.idCategoria)] || []}
+                                options={ins.idCategoria ? (insumosPorCategoriaId[String(ins.idCategoria)] || []) : insumosFlat}
                                 value={ins.idInsumo}
                                 onChange={e => setInsumo(ins.id, "idInsumo", e.target.value)}
                                 getValue={i => i.id}
                                 getLabel={i => i.nombre}
                                 placeholder="— Insumo —"
                                 searchPlaceholder="Insumo…"
-                                disabled={!ins.idCategoria}
-                                style={{ opacity: ins.idCategoria ? 1 : 0.45 }}
                               />
                           }
                         </td>

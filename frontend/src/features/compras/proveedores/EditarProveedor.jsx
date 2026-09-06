@@ -179,6 +179,18 @@ export default function EditarProveedor({ proveedor, mode = "edit", onClose, onS
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
 
+  // Instantánea del formulario al abrir, para detectar "guardar sin cambios".
+  // `proveedor` es un prop estable durante la vida del modal → const simple.
+  const snapshot = (f) => JSON.stringify({
+    responsable:  (f.responsable  || "").trim(),
+    celular:      (f.celular      || "").replace(/\D/g, ""),
+    correo:       (f.correo       || "").trim(),
+    direccion:    (f.direccion    || "").trim(),
+    departamento: (f.departamento || "").trim(),
+    ciudad:       (f.ciudad       || "").trim(),
+  });
+  const snapshotInicial = snapshot(proveedor || {});
+
   const set = (k, v) => {
     setForm(f => ({ ...f, [k]: v }));
     let err = "";
@@ -206,6 +218,7 @@ export default function EditarProveedor({ proveedor, mode = "edit", onClose, onS
   const handleSave = async () => {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
+    if (snapshot(form) === snapshotInicial) { onSave({ sinCambios: true }); return; }
     setSaving(true);
     try {
       await onSave({

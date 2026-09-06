@@ -1,8 +1,12 @@
-import { useState, useEffect, useRef } from "react";
-import { Search, X, Check, Banknote, Building2, Paperclip, Receipt, Tag } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, Check, Banknote, Building2, Paperclip, Receipt, Tag } from "lucide-react";
 import { getProveedores } from "../../../services/proveedoresService.js";
 import { getInsumos } from "../../../services/insumosService.js";
 import SearchableSelect from "../../../shared/components/SearchableSelect.jsx";
+import ImageLightbox from "../../../shared/components/ImageLightbox.jsx";
+import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
+import DetalleInsumoFields from "./DetalleInsumoFields.jsx";
+import { GRUPO_UNIDAD, CANT_MAX } from "./compraDetalleUtils.js";
 import "./compras.css";
 
 const METODOS_PAGO = [
@@ -13,32 +17,16 @@ const METODOS_PAGO = [
 const COP = (n) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(n);
 
-const UNIDADES = [
-  { id: 1, nombre: "Kilogramo", simbolo: "kg"   },
-  { id: 2, nombre: "Gramo",     simbolo: "g"    },
-  { id: 3, nombre: "Litro",     simbolo: "L"    },
-  { id: 4, nombre: "Mililitro", simbolo: "ml"   },
-  { id: 5, nombre: "Unidad",    simbolo: "uds." },
-  { id: 6, nombre: "Libra",     simbolo: "lb"   },
-];
-
-const GRUPO_UNIDAD = { 1: "masa", 2: "masa", 6: "masa", 3: "vol", 4: "vol", 5: "und" };
-
-// Cantidad máx 10 000 por línea; total entre $0 y $50 000 000 COP
-const CANT_MAX   = 10_000;
+// total entre $0 y $50 000 000 COP
 const TOTAL_MIN  = 0;
 const TOTAL_MAX  = 50_000_000;
-const PORC_MAX   = 100;          // IVA y descuento en %
-const MONTO_MAX  = 9_999_999_999; // transporte / otros: máx. 10 dígitos
+const PORC_MAX   = 100;        // IVA y descuento en % (admiten decimales)
 
-// Rechaza signo negativo, letras y separadores; deja pasar dígitos y un punto decimal
-const soloNumero = (v) => v === "" || /^\d*\.?\d*$/.test(v);
-
-const unidadesDelGrupo = (idUnidadBase) => {
-  const grupo = GRUPO_UNIDAD[Number(idUnidadBase)];
-  if (!grupo) return [];
-  return UNIDADES.filter(u => GRUPO_UNIDAD[u.id] === grupo);
-};
+// Filtros de entrada de los campos de gastos (transporte / otros: entero, máx. 8 dígitos)
+const soloPorcentaje = (v) => v === "" || /^\d{0,3}(\.\d{0,2})?$/.test(v);   // 0–100 con hasta 2 decimales
+const soloEntero     = (v) => v === "" || /^\d{0,8}$/.test(v);              // entero, máx. 8 dígitos
+const bloquearSigno  = (e) => { if (["+", "-", "e", "E"].includes(e.key)) e.preventDefault(); };
+const bloquearSignoYPunto = (e) => { if (["+", "-", "e", "E", ".", ","].includes(e.key)) e.preventDefault(); };
 
 const emptyDetalle = () => ({
   _key:             Date.now() + Math.random(),
@@ -81,117 +69,6 @@ function StepsBar({ current }) {
   );
 }
 
-function InsumoSelect({ value, insumosActivos, idsSeleccionados, onChange, error }) {
-  const [open,  setOpen]  = useState(false);
-  const [query, setQuery] = useState("");
-  const wrapRef  = useRef(null);
-  const inputRef = useRef(null);
-
-  const selected = insumosActivos.find(i => String(i.id) === String(value));
-
-  const filtered = insumosActivos.filter(i =>
-    i.nombre.toLowerCase().includes(query.toLowerCase())
-  );
-
-  useEffect(() => {
-    const handler = e => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
-        setOpen(false);
-        setQuery("");
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const handleOpen = () => {
-    setOpen(o => !o);
-    setQuery("");
-    setTimeout(() => inputRef.current?.focus(), 50);
-  };
-
-  return (
-    <div ref={wrapRef} style={{ position: "relative", flex: 1 }}>
-      <button
-        type="button"
-        onClick={handleOpen}
-        className={`field-select ${error ? "error" : ""}`}
-        style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}
-      >
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: selected ? "#222" : "#9e9e9e", flex: 1 }}>
-          {selected
-            ? `${selected.nombre}${selected.unidad ? ` (${selected.unidad})` : ""}`
-            : "— Seleccionar insumo —"}
-        </span>
-        <span style={{ color: "#9e9e9e", flexShrink: 0 }}>▾</span>
-      </button>
-
-      {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
-          background: "#fff", border: "1.5px solid #d0e8d0", borderRadius: 10,
-          boxShadow: "0 8px 28px rgba(0,0,0,0.13)", zIndex: 200, overflow: "hidden",
-        }}>
-          {/* Buscador */}
-          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 10px", borderBottom: "1px solid #f0f0f0", background: "#fafdf9" }}>
-            <Search size={13} style={{ color: "#9e9e9e", flexShrink: 0 }} />
-            <input
-              ref={inputRef}
-              type="text"
-              placeholder="Buscar insumo…"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              style={{ flex: 1, border: "none", outline: "none", fontSize: 13, background: "transparent", color: "#333", fontFamily: "inherit" }}
-            />
-            {query && (
-              <button type="button" onClick={() => setQuery("")}
-                style={{ border: "none", background: "none", cursor: "pointer", color: "#bdbdbd", padding: 0, lineHeight: 1, display: "flex", alignItems: "center" }}>
-                <X size={14} />
-              </button>
-            )}
-          </div>
-
-          {/* Lista */}
-          <div style={{ maxHeight: 210, overflowY: "auto" }}>
-            {filtered.length === 0 ? (
-              <div style={{ padding: "12px", fontSize: 12, color: "#9e9e9e", textAlign: "center" }}>
-                Sin resultados para "{query}"
-              </div>
-            ) : filtered.map(ins => {
-              const isSelected = String(ins.id) === String(value);
-              const isDisabled = idsSeleccionados.includes(String(ins.id)) && !isSelected;
-              return (
-                <button
-                  key={ins.id}
-                  type="button"
-                  disabled={isDisabled}
-                  onClick={() => { onChange(ins); setOpen(false); setQuery(""); }}
-                  style={{
-                    width: "100%", textAlign: "left", padding: "8px 12px",
-                    border: "none", background: isSelected ? "#e8f5e9" : "transparent",
-                    color: isDisabled ? "#bdbdbd" : isSelected ? "#2e7d32" : "#333",
-                    fontSize: 13, cursor: isDisabled ? "not-allowed" : "pointer",
-                    fontWeight: isSelected ? 700 : 400,
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  <span>{ins.nombre}</span>
-                  {ins.unidad && (
-                    <span style={{ fontSize: 11, color: isDisabled ? "#d0d0d0" : "#9e9e9e", flexShrink: 0, marginLeft: 8 }}>
-                      {ins.unidad}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function CrearCompra({ onClose, onSave }) {
   const [proveedores,  setProveedores]  = useState([]);
   const [insumosActivos, setInsumosActivos] = useState([]);
@@ -218,18 +95,41 @@ export default function CrearCompra({ onClose, onSave }) {
     notas:       "",
   });
 
-  const [comprobante, setComprobante] = useState(null);
+  const [comprobante,        setComprobante]        = useState(null);   // File
+  const [comprobantePreview, setComprobantePreview] = useState(null);   // dataURL
+
+  const onComprobanteFile = (file) => {
+    if (!file) { setComprobante(null); setComprobantePreview(null); return; }
+    setComprobante(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => setComprobantePreview(ev.target.result);
+    reader.readAsDataURL(file);
+  };
 
   const [gastos, setGastos] = useState({
     transporte: "",
-    iva:        "", // se entenderá como porcentaje
-    descuento:  "", // se entenderá como porcentaje
+    iva:        "", // porcentaje (admite decimales)
+    descuento:  "", // porcentaje (admite decimales)
     otros:      "",
   });
 
+  // Validación en vivo de cada campo de gastos.
+  const validarGasto = (k, v) => {
+    const n = Number(v);
+    if (v === "") return "";
+    if (k === "iva")       return (n < 0 || n > PORC_MAX) ? "El IVA debe estar entre 0 y 100%" : "";
+    if (k === "descuento") return (n < 0 || n > PORC_MAX) ? "El descuento debe estar entre 0 y 100%" : "";
+    // transporte / otros: entero en pesos, máx. 8 dígitos
+    if (n < 0) return "No puede ser negativo";
+    if (v.length > 8) return "Máximo 8 dígitos";
+    return "";
+  };
+
   const setGasto = (k, v) => {
-    if (!soloNumero(v)) return;
+    const permitido = (k === "iva" || k === "descuento") ? soloPorcentaje(v) : soloEntero(v);
+    if (!permitido) return;
     setGastos(g => ({ ...g, [k]: v }));
+    setErrors(e => ({ ...e, [k]: validarGasto(k, v) }));
   };
 
   const [detalles, setDetalles] = useState([emptyDetalle()]);
@@ -355,14 +255,10 @@ export default function CrearCompra({ onClose, onSave }) {
 
   const validateTotal = () => {
     const e = {};
-    const iva  = Number(gastos.iva)       || 0;
-    const desc = Number(gastos.descuento) || 0;
-    const tra  = Number(gastos.transporte) || 0;
-    const otr  = Number(gastos.otros)      || 0;
-    if (iva < 0 || iva > PORC_MAX)   e.gastos = "El IVA debe estar entre 0 y 100%";
-    else if (desc < 0 || desc > PORC_MAX) e.gastos = "El descuento debe estar entre 0 y 100%";
-    else if (tra < 0 || otr < 0)     e.gastos = "Los costos no pueden ser negativos";
-    else if (tra > MONTO_MAX || otr > MONTO_MAX) e.gastos = "Transporte y otros costos admiten máximo 10 dígitos";
+    ["iva", "descuento", "transporte", "otros"].forEach(k => {
+      const msg = validarGasto(k, gastos[k]);
+      if (msg) e[k] = msg;
+    });
     if (totalActual < TOTAL_MIN)
       e.total = `El total (${COP(totalActual)}) no puede ser negativo`;
     else if (totalActual > TOTAL_MAX)
@@ -376,7 +272,16 @@ export default function CrearCompra({ onClose, onSave }) {
     if (Object.keys(e).length) { setErrors(e); return; }
     setSaving(true);
     try {
-      await new Promise(r => setTimeout(r, 400));
+      let comprobanteUrl = null;
+      if (comprobante) {
+        try {
+          comprobanteUrl = await subirImagenCloudinary(comprobante);
+        } catch {
+          setErrors(prev => ({ ...prev, comprobante: "No se pudo subir el comprobante. Intenta de nuevo." }));
+          setSaving(false);
+          return;
+        }
+      }
       const detallesLimpios = detalles.map(d => ({
         idInsumo:         Number(d.idInsumo),
         idUnidad:         d.idUnidad ? Number(d.idUnidad) : null,
@@ -390,16 +295,14 @@ export default function CrearCompra({ onClose, onSave }) {
       onSave({
         ...form,
         detalles: detallesLimpios,
-        comprobante:  comprobante || null,
+        comprobante:  comprobanteUrl,
+        // Misma forma que envía EditarCompra: iva/descuento son porcentajes.
         gastos: {
           transporte: Number(gastos.transporte) || 0,
-          iva:        valorIva,
-          descuento:  valorDescuento,
+          iva:        Number(gastos.iva)        || 0,
+          descuento:  Number(gastos.descuento)  || 0,
           otros:      Number(gastos.otros)      || 0,
-          ivaPorcentaje: Number(gastos.iva) || 0,
-          descPorcentaje: Number(gastos.descuento) || 0,
         },
-        totalConGastos: totalActual,
       });
     } catch (err) {
       console.error("Error saving purchase:", err);
@@ -472,7 +375,7 @@ export default function CrearCompra({ onClose, onSave }) {
                   <SearchableSelect
                     options={METODOS_PAGO}
                     value={form.metodoPago}
-                    onChange={e => { set("metodoPago", e.target.value); setComprobante(null); }}
+                    onChange={e => { set("metodoPago", e.target.value); onComprobanteFile(null); }}
                     getValue={m => m.value}
                     getLabel={m => m.label}
                     placeholder="— Seleccionar método —"
@@ -492,7 +395,7 @@ export default function CrearCompra({ onClose, onSave }) {
                         type="file"
                         accept="image/*"
                         style={{ display: "none" }}
-                        onChange={e => setComprobante(e.target.files?.[0] || null)}
+                        onChange={e => onComprobanteFile(e.target.files?.[0] || null)}
                       />
                       <span className="comprobante-upload-icon" style={{ display: "flex", alignItems: "center" }}><Paperclip size={16} /></span>
                       {comprobante
@@ -503,14 +406,21 @@ export default function CrearCompra({ onClose, onSave }) {
                     {comprobante && (
                       <button
                         type="button"
-                        onClick={e => { e.preventDefault(); setComprobante(null); }}
+                        onClick={e => { e.preventDefault(); onComprobanteFile(null); }}
                         style={{ flexShrink: 0, padding: "0 12px", height: 36, borderRadius: 8, border: "1.5px solid #ef5350", background: "#fff", color: "#c62828", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
                       >
                         <X size={14} /> Quitar
                       </button>
                     )}
                   </div>
-                  <span className="field-hint">Opcional — puedes adjuntarlo ahora o más tarde</span>
+                  {comprobantePreview && (
+                    <div style={{ marginTop: 8 }}>
+                      <ImageLightbox src={comprobantePreview} alt="Comprobante" label="Comprobante de transferencia" thumbStyle={{ maxWidth: 220 }} />
+                    </div>
+                  )}
+                  {errors.comprobante
+                    ? <span className="field-error">{errors.comprobante}</span>
+                    : <span className="field-hint">Opcional — puedes adjuntarlo ahora o más tarde</span>}
                 </div>
               )}
 
@@ -535,131 +445,24 @@ export default function CrearCompra({ onClose, onSave }) {
                 {errors.detalles && <span className="field-error">{errors.detalles}</span>}
               </div>
 
-              {detalles.map((d, i) => {
-                const insSelect = insumosActivos.find(ins => String(ins.id) === String(d.idInsumo));
-                return (
+              {detalles.map((d, i) => (
                 <div key={d._key} style={{ border: "1px solid #e8e8e8", borderRadius: 10, padding: "10px 12px", marginBottom: 8, background: "#fafafa" }}>
-
-                  {/* Línea 1: selector + botón eliminar */}
-                  <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "#9e9e9e", flexShrink: 0, minWidth: 20 }}>
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    <InsumoSelect
-                      value={d.idInsumo}
-                      insumosActivos={insumosActivos}
-                      idsSeleccionados={idsSeleccionados}
-                      error={errors[`ins_${i}`]}
-                      onChange={ins => {
-                        setDetalles(ds => ds.map(det =>
-                          det._key === d._key
-                            ? { ...det, idInsumo: String(ins.id), idUnidad: ins.idUnidad ? String(ins.idUnidad) : "" }
-                            : det
-                        ));
-                      }}
-                    />
-                    <button className="detalle-remove-btn" type="button" onClick={() => removeDetalle(d._key)}><X size={16} /></button>
-                  </div>
-                  {errors[`ins_${i}`] && <span className="field-error" style={{ marginBottom: 6, display: "block" }}>{errors[`ins_${i}`]}</span>}
-
-                  {/* Línea 2: cantidad | precio | vencimiento (toggle + valor) */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, paddingLeft: 28 }}>
-
-                    {/* Cantidad + unidad */}
-                    <div>
-                      <label className="field-label" style={{ fontSize: 10 }}>Cantidad</label>
-                      <div style={{ display: "flex", gap: 4 }}>
-                        {(() => {
-                          const grupoActual = GRUPO_UNIDAD[Number(d.idUnidad)];
-                          const soloEntero = grupoActual === "und";
-                          return (
-                            <input
-                              type="number"
-                              className={`field-input ${errors[`cant_${i}`] ? "error" : ""}`}
-                              placeholder="0"
-                              min="0.001"
-                              max={CANT_MAX}
-                              step={soloEntero ? "1" : "0.001"}
-                              value={d.cantidad}
-                              onChange={e => {
-                                const v = e.target.value;
-                                if (soloNumero(v)) setDetalle(d._key, "cantidad", v);
-                              }}
-                              style={{ flex: 1, minWidth: 0 }}
-                            />
-                          );
-                        })()}
-                        {(() => {
-                          const opciones = insSelect ? unidadesDelGrupo(insSelect.idUnidad) : [];
-                          if (opciones.length <= 1) {
-                            return insSelect?.unidad
-                              ? <span style={{ display: "flex", alignItems: "center", padding: "0 8px", background: "#f5f5f5", border: "1.5px solid #e8e8e8", borderRadius: 7, fontSize: 11, color: "#555", fontWeight: 700, flexShrink: 0 }}>{insSelect.unidad}</span>
-                              : null;
-                          }
-                          return (
-                            <select
-                              value={d.idUnidad}
-                              onChange={e => setDetalle(d._key, "idUnidad", e.target.value)}
-                              style={{ flexShrink: 0, width: 68, borderRadius: 7, border: "1.5px solid #e0e0e0", background: "#fff", fontSize: 12, fontWeight: 700, color: "#333", cursor: "pointer", padding: "0 4px" }}
-                            >
-                              {opciones.map(u => (
-                                <option key={u.id} value={String(u.id)}>{u.simbolo}</option>
-                              ))}
-                            </select>
-                          );
-                        })()}
-                      </div>
-                      {errors[`cant_${i}`] && <span className="field-error" style={{ fontSize: 10 }}>{errors[`cant_${i}`]}</span>}
-                    </div>
-
-                    {/* Precio unitario */}
-                    <div>
-                      <label className="field-label" style={{ fontSize: 10 }}>Precio unitario</label>
-                      <input
-                        type="number"
-                        min="0"
-                        className={`field-input ${errors[`precio_${i}`] ? "error" : ""}`}
-                        placeholder="$ 0"
-                        value={d.precioUnd}
-                        onChange={e => {
-                          const v = e.target.value;
-                          if (soloNumero(v)) setDetalle(d._key, "precioUnd", v);
-                        }}
-                      />
-                      {errors[`precio_${i}`] && <span className="field-error" style={{ fontSize: 10 }}>{errors[`precio_${i}`]}</span>}
-                    </div>
-
-                    {/* Vencimiento — toggle + input en una sola línea */}
-                    <div>
-                      <label className="field-label" style={{ fontSize: 10 }}>Vencimiento</label>
-                      <div style={{ display: "flex", gap: 4 }}>
-                        <button type="button"
-                          onClick={() => setDetalle(d._key, "vencimientoTipo", "dias")}
-                          style={{ flexShrink: 0, padding: "0 8px", height: 36, borderRadius: 7, border: `1.5px solid ${d.vencimientoTipo === "dias" ? "#4caf50" : "#e0e0e0"}`, background: d.vencimientoTipo === "dias" ? "#e8f5e9" : "#fff", color: d.vencimientoTipo === "dias" ? "#2e7d32" : "#9e9e9e", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-                          Días
-                        </button>
-                        <button type="button"
-                          onClick={() => setDetalle(d._key, "vencimientoTipo", "fecha")}
-                          style={{ flexShrink: 0, padding: "0 8px", height: 36, borderRadius: 7, border: `1.5px solid ${d.vencimientoTipo === "fecha" ? "#4caf50" : "#e0e0e0"}`, background: d.vencimientoTipo === "fecha" ? "#e8f5e9" : "#fff", color: d.vencimientoTipo === "fecha" ? "#2e7d32" : "#9e9e9e", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-                          Fecha
-                        </button>
-                        {d.vencimientoTipo === "dias" ? (
-                          <input type="number" min="1" className="field-input" style={{ flex: 1 }}
-                            placeholder="30" value={d.vencimientoValor}
-                            onChange={e => { if (soloNumero(e.target.value)) setDetalle(d._key, "vencimientoValor", e.target.value); }} />
-                        ) : (
-                          <input type="date" min={new Date().toISOString().split("T")[0]} className={`field-input ${errors[`venc_${i}`] ? "error" : ""}`} style={{ flex: 1 }}
-                            value={d.fechaVencimiento}
-                            onChange={e => setDetalle(d._key, "fechaVencimiento", e.target.value)} />
-                        )}
-                      </div>
-                      {errors[`venc_${i}`] && <span className="field-error" style={{ fontSize: 10 }}>{errors[`venc_${i}`]}</span>}
-                    </div>
-
-                  </div>
+                  <DetalleInsumoFields
+                    detalle={d}
+                    index={i}
+                    insumosActivos={insumosActivos}
+                    idsSeleccionados={idsSeleccionados}
+                    errors={errors}
+                    onInsumoChange={ins => setDetalles(ds => ds.map(det =>
+                      det._key === d._key
+                        ? { ...det, idInsumo: String(ins.id), idUnidad: ins.idUnidad ? String(ins.idUnidad) : "" }
+                        : det
+                    ))}
+                    onField={(field, value) => setDetalle(d._key, field, value)}
+                    onRemove={() => removeDetalle(d._key)}
+                  />
                 </div>
-              );
-              })}
+              ))}
 
               <button className="btn-add-detalle" type="button" onClick={addDetalle} style={{ marginTop: 4 }}>
                 + Agregar insumo
@@ -679,32 +482,42 @@ export default function CrearCompra({ onClose, onSave }) {
                 </p>
               </div>
 
-              {errors.gastos && <span className="field-error" style={{ display: "block", marginBottom: 8 }}>{errors.gastos}</span>}
-
               <div className="gastos-grid gastos-grid--standalone">
                 <div className="field-wrap">
                   <label className="field-label">Transporte</label>
-                  <input type="number" min="0" max={MONTO_MAX} step="1" className="field-input" placeholder="$ 0" value={gastos.transporte} onChange={e => setGasto("transporte", e.target.value)} />
+                  <input type="text" inputMode="numeric" className={`field-input ${errors.transporte ? "error" : ""}`} placeholder="$ 0"
+                    value={gastos.transporte} onKeyDown={bloquearSignoYPunto} onChange={e => setGasto("transporte", e.target.value)} />
+                  {errors.transporte && <span className="field-error">{errors.transporte}</span>}
                 </div>
                 <div className="field-wrap">
                   <label className="field-label" style={{ display: "flex", alignItems: "center", gap: 4 }}><Receipt size={14} /> IVA (%)</label>
                   <div style={{ position: "relative" }}>
-                    <input type="number" min="0" max={PORC_MAX} className="field-input" placeholder="0" value={gastos.iva} onChange={e => setGasto("iva", e.target.value)} style={{ paddingRight: 30 }} />
+                    <input type="text" inputMode="decimal" className={`field-input ${errors.iva ? "error" : ""}`} placeholder="0"
+                      value={gastos.iva} onKeyDown={bloquearSigno} onChange={e => setGasto("iva", e.target.value)} style={{ paddingRight: 30 }} />
                     <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#9e9e9e", fontWeight: 700 }}>%</span>
                   </div>
-                  {valorIva > 0 && <span className="field-hint" style={{ color: "#2e7d32", fontWeight: 600 }}>+ {COP(valorIva)}</span>}
+                  {errors.iva
+                    ? <span className="field-error">{errors.iva}</span>
+                    : valorIva > 0 && <span className="field-hint" style={{ color: "#2e7d32", fontWeight: 600 }}>+ {COP(valorIva)}</span>}
                 </div>
                 <div className="field-wrap">
-                  <label className="field-label" style={{ display: "flex", alignItems: "center", gap: 4 }}><Tag size={14} /> Descuento (%)</label>
+                  <label className="field-label" style={{ display: "flex", alignItems: "center", gap: 4 }}><Tag size={14} /> Descuento del proveedor (%)</label>
                   <div style={{ position: "relative" }}>
-                    <input type="number" min="0" max={PORC_MAX} className="field-input gastos-descuento-input" placeholder="0" value={gastos.descuento} onChange={e => setGasto("descuento", e.target.value)} style={{ paddingRight: 30 }} />
+                    <input type="text" inputMode="decimal" className={`field-input gastos-descuento-input ${errors.descuento ? "error" : ""}`} placeholder="0"
+                      value={gastos.descuento} onKeyDown={bloquearSigno} onChange={e => setGasto("descuento", e.target.value)} style={{ paddingRight: 30 }} />
                     <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", color: "#c62828", fontWeight: 700 }}>%</span>
                   </div>
-                  {valorDescuento > 0 && <span className="field-hint" style={{ color: "#c62828", fontWeight: 600 }}>− {COP(valorDescuento)}</span>}
+                  {errors.descuento
+                    ? <span className="field-error">{errors.descuento}</span>
+                    : valorDescuento > 0
+                      ? <span className="field-hint" style={{ color: "#c62828", fontWeight: 600 }}>− {COP(valorDescuento)}</span>
+                      : <span className="field-hint">Se descuenta del subtotal de insumos de esta compra (rebaja que concede el proveedor).</span>}
                 </div>
                 <div className="field-wrap">
                   <label className="field-label">Otros costos</label>
-                  <input type="number" min="0" max={MONTO_MAX} step="1" className="field-input" placeholder="$ 0" value={gastos.otros} onChange={e => setGasto("otros", e.target.value)} />
+                  <input type="text" inputMode="numeric" className={`field-input ${errors.otros ? "error" : ""}`} placeholder="$ 0"
+                    value={gastos.otros} onKeyDown={bloquearSignoYPunto} onChange={e => setGasto("otros", e.target.value)} />
+                  {errors.otros && <span className="field-error">{errors.otros}</span>}
                 </div>
               </div>
 

@@ -8,12 +8,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useLocation } from "react-router-dom";
-import { Search, X, AlertTriangle, Package, ClipboardList, Eye, PenLine, Trash2, Truck, Clock, AlertCircle, Scale, Utensils, CornerUpLeft } from "lucide-react";
+import { Search, X, AlertTriangle, Package, ClipboardList, Eye, PenLine, Trash2, Truck, Clock, AlertCircle, Scale, Utensils, CornerUpLeft, ChevronDown } from "lucide-react";
 import { fmtFecha } from "../../../utils/dateUtils.js";
 import { crearFicha, editarFicha } from "../../../services/fichaTecnicaService.js";
 import { Toast } from "./ui.jsx";
 import CrearProducto from "./CrearProducto.jsx";
 import EditarProducto from "./EditarProducto.jsx";
+import FilasRelleno from "../../../shared/components/FilasRelleno";
 import EditarFicha from "./ficha_tecnica/EditarFicha.jsx";
 import CrearFicha from "./ficha_tecnica/CrearFicha.jsx";
 import SalidaModal from "./SalidaModal.jsx";
@@ -305,6 +306,70 @@ function ProductImg({ previews, nombre }) {
 /* ══════════════════════════════════════════════════════════
    LOTES PANEL — Solo lectura
 ══════════════════════════════════════════════════════════ */
+function LoteProductoRow({ l, tipo }) {
+  const [abierto, setAbierto] = useState(false);
+  const fv      = l.fechaVencimiento;
+  const dias    = l.diasParaVencer;
+  const urgente = !l.vencido && dias !== null && dias <= 7;
+  const borderColor = l.vencido ? "#ef9a9a" : urgente ? "#ffe082" : "#c8e6c9";
+  const bg          = l.vencido ? "#fff8f8" : urgente ? "#fffdf0" : "#f9fdf9";
+
+  return (
+    <div className="lote-item" style={{ borderColor, background: bg }}>
+      <div
+        className="lote-item__head"
+        style={{ cursor: "pointer", marginBottom: abierto ? 10 : 0 }}
+        onClick={() => setAbierto(a => !a)}
+      >
+        <span className="lote-item__id" style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <ChevronDown size={13} style={{ transform: abierto ? "rotate(180deg)" : "none", transition: "transform 0.15s", color: "#9e9e9e" }} />
+          {l.numeroLote || `Lote #${l.id}`}
+        </span>
+        <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {l.vencido && (
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#c62828", background: "#ffebee", padding: "2px 8px", borderRadius: 20, border: "1px solid #ef9a9a" }}>Vencido</span>
+          )}
+          {urgente && (
+            <span style={{ fontSize: 11, fontWeight: 700, color: "#e65100", background: "#fff3e0", padding: "2px 8px", borderRadius: 20, border: "1px solid #ffcc80", display: "flex", alignItems: "center", gap: 4 }}>
+              <AlertTriangle size={13} style={{ flexShrink: 0 }} /> Vence en {dias}d
+            </span>
+          )}
+          {fv && <span style={{ fontWeight: 600, fontSize: 12 }}>{l.vencido ? "Venció" : "Vence"}: {fmtFecha(fv)}</span>}
+        </span>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, marginTop: abierto ? 0 : 8, fontSize: 13 }}>
+        <div><strong>Restante:</strong> {l.cantidadRestante} uds.</div>
+        <div><strong>Producido:</strong> {l.cantidadProducida} uds.</div>
+      </div>
+
+      {abierto && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed #d7e8d7", display: "flex", flexDirection: "column", gap: 6, fontSize: 12.5, color: "#424242" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 6 }}>
+            <div><strong>Consumido (usado / vendido):</strong> {l.consumido} uds.</div>
+            {tipo === "historial"
+              ? <div style={{ color: "#c62828" }}><strong>Vencido sin usar:</strong> {l.vencidoSinUsar} uds.</div>
+              : <div><strong>Disponible hoy:</strong> {l.cantidadRestante} uds.</div>}
+            {l.fechaProduccion && <div><strong>Producción:</strong> {fmtFecha(l.fechaProduccion)}</div>}
+            {fv && <div><strong>Vencimiento:</strong> {fmtFecha(fv)}</div>}
+          </div>
+
+          <div style={{ marginTop: 4 }}>
+            <strong>Orden de producción que lo generó:</strong>{" "}
+            {l.orden
+              ? <>#{l.orden.id}{l.orden.fecha ? ` · ${fmtFecha(l.orden.fecha)}` : ""}{l.orden.cantidad != null ? ` · ${l.orden.cantidad} uds. producidas` : ""}{l.orden.idVenta ? ` · pedido #${l.orden.idVenta}` : " · producción manual"}</>
+              : <span style={{ color: "#9e9e9e" }}>no registrada</span>}
+          </div>
+
+          <p style={{ margin: "2px 0 0", fontSize: 11, color: "#9e9e9e" }}>
+            El desglose venta por venta no se registra a nivel de lote; se muestra el total consumido.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LotesProductoPanel({ idProducto, tipo = "lotes" }) {
   const [lotes,   setLotes]   = useState([]);
   const [loading, setLoading] = useState(true);
@@ -341,37 +406,7 @@ function LotesProductoPanel({ idProducto, tipo = "lotes" }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      {mostrar.map(l => {
-        const fv    = l.fecha_vencimiento;
-        const dias  = l.dias_para_vencer;
-        const urgente = !l.vencido && dias !== null && dias <= 7;
-        const borderColor = l.vencido ? "#ef9a9a" : urgente ? "#ffe082" : "#c8e6c9";
-        const bg = l.vencido ? "#fff8f8" : urgente ? "#fffdf0" : "#f9fdf9";
-        return (
-          <div key={l.id} className="lote-item" style={{ borderColor, background: bg }}>
-            <div className="lote-item__head">
-              <span className="lote-item__id">{l.numero_lote || `Lote #${l.id}`}</span>
-              <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                {l.vencido && (
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#c62828", background: "#ffebee", padding: "2px 8px", borderRadius: 20, border: "1px solid #ef9a9a" }}>
-                    Vencido
-                  </span>
-                )}
-                {urgente && (
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#e65100", background: "#fff3e0", padding: "2px 8px", borderRadius: 20, border: "1px solid #ffcc80", display: "flex", alignItems: "center", gap: 4 }}>
-                    <AlertTriangle size={13} style={{ flexShrink: 0 }} /> Vence en {dias}d
-                  </span>
-                )}
-                {fv && <span style={{ fontWeight: 600, fontSize: 12 }}>Vence: {fv}</span>}
-              </span>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 8, fontSize: 13 }}>
-              <div><strong>Cantidad:</strong> {l.cantidad} uds.</div>
-              {l.fecha_produccion && <div><strong>Producción:</strong> {l.fecha_produccion}</div>}
-            </div>
-          </div>
-        );
-      })}
+      {mostrar.map(l => <LoteProductoRow key={l.id} l={l} tipo={tipo} />)}
     </div>
   );
 }
@@ -912,7 +947,12 @@ export default function GestionProductos() {
     setModal(null);
   };
 
-  const handleEdit = async () => {
+  const handleEdit = async (info) => {
+    if (info?.sinCambios) {
+      showToast("No se hicieron cambios");
+      setModal(null);
+      return;
+    }
     await cargarDatos();
     showToast("Cambios guardados");
     setModal(null);
@@ -971,6 +1011,11 @@ export default function GestionProductos() {
   };
 
   const handleSaveFicha = async (ficha) => {
+    if (ficha?.sinCambios) {
+      showToast("No se hicieron cambios");
+      setModal(null);
+      return;
+    }
     try {
       if (modal.product.ficha?.id) {
         await editarFicha(modal.product.id, ficha);
@@ -1125,7 +1170,7 @@ export default function GestionProductos() {
             </div>
           ) : (
             <div className="tbl-wrapper">
-              <table className="tbl">
+              <table className="tbl tbl--fixed-rows" style={{ "--tbl-row-h": "72px" }}>
                 <thead>
                     <tr>
                     <th>Nº</th>
@@ -1232,6 +1277,7 @@ export default function GestionProductos() {
                       );
                     })
                   )}
+                  <FilasRelleno current={paginated.length} perPage={ITEMS_PER_PAGE} colSpan={9} />
                 </tbody>
               </table>
             </div>

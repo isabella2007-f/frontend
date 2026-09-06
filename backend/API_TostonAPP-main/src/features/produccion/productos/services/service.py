@@ -1,3 +1,4 @@
+import re
 from sqlalchemy import case
 from sqlalchemy.orm import Session, selectinload
 from fastapi import HTTPException
@@ -5,7 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import func
-from src.shared.services.models import Producto, CategoriaProducto, ProductoImagen, FichaTecnica, FichaTecnicaInsumo, Insumo, OrdenProduccion, VentaXProducto, DevolucionDetalle, LoteProducto, Venta, UnidadMedida
+from src.shared.services.models import Producto, CategoriaProducto, ProductoImagen, FichaTecnica, FichaTecnicaInsumo, Insumo, OrdenProduccion, VentaXProducto, DevolucionDetalle, LoteProducto, Venta, UnidadMedida, Salida
 from .schemas import ProductoCreate, ProductoUpdate, FichaTecnicaInput
 
 
@@ -309,7 +310,16 @@ def obtener_producto(db: Session, id_producto: int) -> dict:
 
 
 def obtener_lotes_producto(db: Session, id_producto: int) -> dict:
-    """Retorna todos los lotes de producción de un producto, separando activos y vencidos."""
+    """Retorna todos los lotes de producción de un producto.
+
+    Cada lote se enriquece (3.16 / 3.17 — Opción A, sin libro de movimientos):
+    - `orden_produccion`: la orden que lo creó (nº, fecha, cantidad, costo, pedido).
+    - `cantidad_producida`: unidades con que nació el lote (= Cantidad de la orden).
+    - `cantidad_restante`: unidades que quedan hoy.
+    - `consumido`: producida − restante − vencido_sin_usar (vendido / usado en salidas).
+    - `vencido_sin_usar`: cuánto se dio de baja al vencer el lote (salida de vencimiento).
+    No se puede desglosar venta por venta: ese dato no se registra por lote.
+    """
     hoy = datetime.utcnow()
     lotes = (
         db.query(LoteProducto)
@@ -320,21 +330,69 @@ def obtener_lotes_producto(db: Session, id_producto: int) -> dict:
         )
         .all()
     )
+    if not lotes:
+        return {"lotes": [], "total": 0}
+
+    orden_ids = list({l.ID_Orden_Produccion for l in lotes if l.ID_Orden_Produccion})
+    ordenes = {
+        o.ID_Orden_Produccion: o
+        for o in db.query(OrdenProduccion).filter(OrdenProduccion.ID_Orden_Produccion.in_(orden_ids)).all()
+    } if orden_ids else {}
+
+    # Salidas por vencimiento de este producto → cuánto se venció sin usar, por lote.
+    venc_por_lote: dict = {}
+    for s in (
+        db.query(Salida)
+        .filter(Salida.ID_Producto == id_producto, Salida.Tipo == "vencimiento", Salida.Estado == 1)
+        .all()
+    ):
+        m = re.match(r"Lote #(\d+)\b", s.Motivo or "")
+        if m:
+            venc_por_lote[int(m.group(1))] = venc_por_lote.get(int(m.group(1)), 0) + float(s.Cantidad or 0)
+
     resultado = []
     for l in lotes:
         fv = l.Fecha_Vencimiento
         fp = l.Fecha_Produccion
         vencido = bool(fv and fv < hoy)
         dias = (fv - hoy).days if fv else None
+        orden = ordenes.get(l.ID_Orden_Produccion)
+
+        restante  = float(l.Cantidad or 0)
+        producida = float(orden.Cantidad) if (orden and orden.Cantidad is not None) else restante
+        vencido_sin_usar = venc_por_lote.get(l.ID_Lote_Producto)
+        if vencido_sin_usar is None:
+            # Lote vencido que el job de bajas aún no procesó: lo que queda es lo que se venció.
+            vencido_sin_usar = restante if vencido else 0.0
+        consumido = producida - restante - vencido_sin_usar
+        if consumido < 0:
+            consumido = 0.0
+
+        orden_fecha = None
+        if orden:
+            f = orden.Fecha_Creacion or orden.Fecha_inicio
+            orden_fecha = f.strftime("%Y-%m-%d") if f else None
+
         resultado.append({
-            "id":               l.ID_Lote_Producto,
-            "numero_lote":      l.Numero_Lote,
-            "cantidad":         l.Cantidad,
-            "fecha_produccion": fp.strftime("%Y-%m-%d") if fp else None,
-            "fecha_vencimiento": fv.strftime("%Y-%m-%d") if fv else None,
-            "vencido":          vencido,
-            "dias_para_vencer": dias,
-            "estado":           l.Estado,
+            "id":                 l.ID_Lote_Producto,
+            "numero_lote":        l.Numero_Lote,
+            "cantidad":           l.Cantidad,
+            "cantidad_producida": producida,
+            "cantidad_restante":  restante,
+            "consumido":          consumido,
+            "vencido_sin_usar":   vencido_sin_usar,
+            "fecha_produccion":   fp.strftime("%Y-%m-%d") if fp else None,
+            "fecha_vencimiento":  fv.strftime("%Y-%m-%d") if fv else None,
+            "vencido":            vencido,
+            "dias_para_vencer":   dias,
+            "estado":             l.Estado,
+            "orden_produccion": {
+                "id":       orden.ID_Orden_Produccion,
+                "fecha":    orden_fecha,
+                "cantidad": orden.Cantidad,
+                "costo":    float(orden.Costo) if orden.Costo is not None else None,
+                "id_venta": orden.ID_Venta,
+            } if orden else None,
         })
     return {"lotes": resultado, "total": len(resultado)}
 

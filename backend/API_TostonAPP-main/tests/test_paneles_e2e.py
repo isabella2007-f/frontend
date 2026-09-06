@@ -425,6 +425,8 @@ class PanelProduccionTests(PanelBase):
 
     def test_iniciarla_descuenta_los_insumos_de_la_receta(self):
         pedido = self.pedido_con_faltante()
+        # La orden de un pedido solo se gestiona a mano con el pedido confirmado.
+        self.afirmar_ok(self.patch(f"/pedidos/{pedido['ID_Venta']}/confirmar", self.admin))
         id_orden = self.orden(pedido["ID_Venta"]).ID_Orden_Produccion
 
         self.afirmar_ok(self.patch(
@@ -440,9 +442,11 @@ class PanelProduccionTests(PanelBase):
     def test_completarla_repone_el_producto_y_crea_su_lote(self):
         pedido = self.pedido_con_faltante()
         id_venta = pedido["ID_Venta"]
-        self.hornear(id_venta)
+        self.hornear(id_venta)   # confirma el pedido y luego produce
 
-        self.assertEqual(self.stock(ID_TORTA), STOCK_TORTA + (6 - STOCK_TORTA))
+        # Al confirmar (recoger en tienda) se reservan las 2 de vitrina; al
+        # completar la orden entran las 4 horneadas → quedan esas 4.
+        self.assertEqual(self.stock(ID_TORTA), 6 - STOCK_TORTA)
         lote = self.lote_producto()
         self.assertIsNotNone(lote)
         self.assertEqual(lote.Cantidad, 6 - STOCK_TORTA)
@@ -468,6 +472,7 @@ class PanelProduccionTests(PanelBase):
 
     def test_sin_insumos_la_orden_no_arranca_y_no_toca_nada(self):
         pedido = self.pedido_con_faltante()
+        self.afirmar_ok(self.patch(f"/pedidos/{pedido['ID_Venta']}/confirmar", self.admin))
         id_orden = self.orden(pedido["ID_Venta"]).ID_Orden_Produccion
         from src.shared.services.models import Insumo
         insumo = self.db.query(Insumo).filter(Insumo.ID_Insumo == ID_HARINA).first()
@@ -487,6 +492,7 @@ class PanelProduccionTests(PanelBase):
         """3.12 — desde el panel de producción no se cancela la orden de un
         pedido: se cancela cancelando el pedido."""
         pedido = self.pedido_con_faltante()
+        self.afirmar_ok(self.patch(f"/pedidos/{pedido['ID_Venta']}/confirmar", self.admin))
         id_orden = self.orden(pedido["ID_Venta"]).ID_Orden_Produccion
         self.afirmar_ok(self.patch(
             f"/ordenes-produccion/{id_orden}/estado", self.admin,

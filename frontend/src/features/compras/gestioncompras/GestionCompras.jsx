@@ -4,8 +4,10 @@ import { getCompras, crearCompra as apiCrearCompra, editarCompra, completarCompr
 import { getProveedores } from "../../../services/proveedoresService.js";
 import CrearCompra from "./CrearCompra.jsx";
 import EditarCompra, { AnularCompraModal } from "./EditarCompra.jsx";
-import { fmtFecha, getRecordDate } from "../../../utils/dateUtils";
+import { fmtFecha } from "../../../utils/dateUtils";
 import DateRangeFilter from "../../../shared/components/DateRangeFilter";
+import FilasRelleno from "../../../shared/components/FilasRelleno";
+import { usePrivilegio } from "../../../context/PrivilegiosContext";
 import "./compras.css";
 
 const ITEMS_PER_PAGE = 5;
@@ -109,6 +111,11 @@ function ModalRegistrarLlegada({ compra, onClose, onConfirm }) {
 
 /* ── Página principal ─────────────────────────────────────── */
 export default function GestionCompras() {
+  const puedeCrear         = usePrivilegio("Compras_crear");
+  const puedeEditar        = usePrivilegio("Compras_editar");
+  const puedeCambiarEstado = usePrivilegio("Compras_cambiar_estado");
+  const puedeAnular        = usePrivilegio("Compras_anular");
+
   const [compras,      setCompras]      = useState([]);
   const [proveedores,  setProveedores]  = useState([]);
   const [loading,      setLoading]      = useState(true);
@@ -178,7 +185,8 @@ export default function GestionCompras() {
 
   /* ── Filtrado ──
      El backend ya resuelve búsqueda, proveedor y rango de fechas (ver cargarCompras).
-     Aquí solo se aplica el estado y una segunda pasada de texto/fecha por si acaso. */
+     Aquí solo queda el estado (client-only) y una pasada rápida de texto para dar
+     feedback inmediato mientras el debounce del refetch corre. */
   const filtered = compras.filter(c => {
     const q = search.toLowerCase();
     const matchQ = !q || (
@@ -188,19 +196,7 @@ export default function GestionCompras() {
       (c.notas       || "").toLowerCase().includes(q)
     );
     const matchEstado = filterEstado === "todos" || c.estado === filterEstado;
-    const matchProv   = filterProv   === "todos" || String(c.idProveedor) === String(filterProv);
-    // Fecha range — comparación por string YYYY-MM-DD (sin desfase de zona horaria)
-    let matchFecha = true;
-    if (rangoDesde || rangoHasta) {
-      const val = getRecordDate(c);
-      if (!val) matchFecha = false;
-      else {
-        const d = String(val).split('T')[0];
-        if (rangoDesde && d < rangoDesde) matchFecha = false;
-        if (rangoHasta && d > rangoHasta) matchFecha = false;
-      }
-    }
-    return matchQ && matchEstado && matchProv && matchFecha;
+    return matchQ && matchEstado;
   });
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
@@ -224,6 +220,12 @@ export default function GestionCompras() {
   };
 
   const handleEdit = async (form) => {
+    // 3.18 — el formulario avisa cuando no se modificó nada: no se hace PUT.
+    if (form?.sinCambios) {
+      showToast("No se hicieron cambios");
+      setModal(null);
+      return;
+    }
     try {
       await editarCompra(form.id, form);
       await cargarCompras();
@@ -373,15 +375,17 @@ export default function GestionCompras() {
             </button>
           )}
 
-          <button className="btn-agregar" onClick={() => setModal({ mode: "new" })} data-tooltip="Registrar nueva compra">
-            Nueva compra <span style={{ fontSize: 18 }}>+</span>
-          </button>
+          {puedeCrear && (
+            <button className="btn-agregar" onClick={() => setModal({ mode: "new" })} data-tooltip="Registrar nueva compra">
+              Nueva compra <span style={{ fontSize: 18 }}>+</span>
+            </button>
+          )}
         </div>
 
         {/* TABLA */}
         <div className="card">
           <div className="tbl-wrapper">
-            <table className="tbl">
+            <table className="tbl tbl--fixed-rows" style={{ "--tbl-row-h": "68px" }}>
               <thead>
                 <tr>
                   <th style={{ width: 72 }}>ID</th>
@@ -479,14 +483,14 @@ export default function GestionCompras() {
                             onClick={() => setModal({ mode: "view", compra: c })}
                           ><Eye size={15} /></button>
 
-                          {c.estado === "pendiente" && (
+                          {c.estado === "pendiente" && puedeCambiarEstado && (
                             <button
                               className="act-btn act-btn--success"
                               data-tooltip="Registrar llegada de mercancía"
                               onClick={() => handleCompletarRapido(c.id)}
                             ><CheckCircle2 size={15} /></button>
                           )}
-                          {c.estado !== "anulada" && (
+                          {c.estado !== "anulada" && puedeEditar && (
                             <button
                               className="act-btn act-btn--edit"
                               data-tooltip="Editar compra"
@@ -494,7 +498,7 @@ export default function GestionCompras() {
                             ><PenLine size={15} /></button>
                           )}
 
-                          {c.estado !== "anulada" && (
+                          {c.estado !== "anulada" && puedeAnular && (
                             <button
                               className="act-btn act-btn--delete"
                               data-tooltip="Anular compra"
@@ -507,6 +511,9 @@ export default function GestionCompras() {
                     </tr>
                   );
                 })}
+                {!loading && (
+                  <FilasRelleno current={paginated.length} perPage={ITEMS_PER_PAGE} colSpan={7} />
+                )}
               </tbody>
             </table>
           </div>

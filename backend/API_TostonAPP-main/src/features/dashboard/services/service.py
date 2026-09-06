@@ -189,7 +189,9 @@ def _fetch_ventas_completadas(db: Session, desde: datetime, hasta: datetime, exc
         Venta.Fecha_Venta <= hasta,
         Venta.Estado.in_(ESTADOS_COMPLETADO),
     )
-    return [(vid, fv, tot) for vid, fv, tot in q.all() if vid not in excluidas]
+    if excluidas:
+        q = q.filter(~Venta.ID_Venta.in_(excluidas))
+    return q.all()
 
 
 def _sum_count(rows, lo: datetime, hi: datetime) -> tuple[Decimal, int]:
@@ -210,24 +212,38 @@ def _contar_clientes_nuevos(db: Session, lo: datetime, hi: datetime) -> int:
     ).count()
 
 
-def _variacion(actual, anterior) -> tuple[float, bool]:
-    if not anterior or anterior == 0:
-        # Sin base real: si hay algo ahora es +100%, si no 0%.
-        return (100.0, True) if actual else (0.0, True)
+def _variacion(actual, anterior) -> tuple[float | None, bool | None, bool]:
+    """Devuelve (variacion_pct, subiendo, sin_base).
+
+    Si el periodo anterior es 0 el cambio porcentual es indefinido (no hay base
+    con qué dividir): `variacion_pct=None`, `sin_base=True`. `subiendo` solo marca
+    color/dirección: True si ahora hay valor (subió desde nada), None si sigue en 0.
+    """
+    if not anterior or float(anterior) == 0:
+        return (None, True, True) if actual else (None, None, True)
     pct = ((float(actual) - float(anterior)) / float(anterior)) * 100
-    return round(pct, 1), pct >= 0
+    return round(pct, 2), pct >= 0, False
 
 
 def _tarjeta(actual, anterior, comparar: bool) -> dict:
     if not comparar:
-        return {"valor": actual, "variacion_pct": None, "subiendo": None}
-    pct, sube = _variacion(actual, anterior)
-    return {"valor": actual, "variacion_pct": pct, "subiendo": sube}
+        return {"valor": actual, "variacion_pct": None, "subiendo": None, "sin_base": False}
+    pct, sube, sin_base = _variacion(actual, anterior)
+    return {"valor": actual, "variacion_pct": pct, "subiendo": sube, "sin_base": sin_base}
 
 
 # ─────────────────────────────────────────────────────────────
 # Gráficas
 # ─────────────────────────────────────────────────────────────
+
+def _indice_bucket(buckets: list[dict], momento: datetime) -> int:
+    """Índice del bucket que contiene `momento`, o -1. Los buckets son contiguos
+    y están ordenados, así que basta con recorrerlos una vez."""
+    for i, b in enumerate(buckets):
+        if b["start"] <= momento <= b["end"]:
+            return i
+    return -1
+
 
 def _flujo_ventas(db: Session, inicio: datetime, fin: datetime, buckets: list[dict]) -> list[dict]:
     filas = db.query(Venta.Fecha_pedido, Venta.Estado).filter(
@@ -236,27 +252,40 @@ def _flujo_ventas(db: Session, inicio: datetime, fin: datetime, buckets: list[di
         Venta.Estado.in_(ESTADOS_FLUJO),
     ).all()
 
-    out = []
-    for b in buckets:
-        seg = {k: 0 for k in ESTADO_KEY.values()}
-        for fp, est in filas:
-            if fp is not None and b["start"] <= fp <= b["end"] and est in ESTADO_KEY:
-                seg[ESTADO_KEY[est]] += 1
-        out.append({"etiqueta": b["label"], **seg})
-    return out
+    segs = [{k: 0 for k in ESTADO_KEY.values()} for _ in buckets]
+    for fp, est in filas:
+        if fp is None or est not in ESTADO_KEY:
+            continue
+        i = _indice_bucket(buckets, fp)
+        if i >= 0:
+            segs[i][ESTADO_KEY[est]] += 1
+    return [{"etiqueta": b["label"], **segs[i]} for i, b in enumerate(buckets)]
 
 
 def _ventas_tiempo(rows, buckets: list[dict], dur: timedelta,
                    earliest: datetime | None, comparar: bool) -> list[dict]:
+    actual = [Decimal(0)] * len(buckets)
+    anterior = [Decimal(0)] * len(buckets)
+    for _vid, fv, tot in rows:
+        if fv is None:
+            continue
+        monto = Decimal(str(tot or 0))
+        i = _indice_bucket(buckets, fv)
+        if i >= 0:
+            actual[i] += monto
+        elif comparar:
+            j = _indice_bucket(buckets, fv + dur)   # ¿cae en la ventana "anterior" de algún bucket?
+            if j >= 0:
+                anterior[j] += monto
+
     out = []
-    for b in buckets:
-        actual, _ = _sum_count(rows, b["start"], b["end"])
-        anterior = None
-        if comparar:
-            a_lo, a_hi = b["start"] - dur, b["end"] - dur
-            if earliest is None or a_hi >= earliest:
-                anterior, _ = _sum_count(rows, a_lo, a_hi)
-        out.append({"etiqueta": b["label"], "actual": actual, "anterior": anterior})
+    for i, b in enumerate(buckets):
+        ant = None
+        if comparar and (earliest is None or b["start"] - dur >= earliest):
+            # Solo se compara si la ventana anterior completa está dentro del historial;
+            # si arranca antes del primer dato, ese punto sería parcial y engañoso.
+            ant = anterior[i]
+        out.append({"etiqueta": b["label"], "actual": actual[i], "anterior": ant})
     return out
 
 
@@ -307,11 +336,20 @@ def _productos_top(db: Session, inicio: datetime, fin: datetime,
     ]
 
 
+def _recortar_top(productos: list[dict], n: int) -> list[dict]:
+    """Top-N del ranking ya ordenado, con el porcentaje recalculado sobre el
+    subconjunto (para que las tajadas de la torta sumen 100%)."""
+    top = productos[:n]
+    total = sum(p["cantidad"] for p in top) or 1
+    return [{**p, "porcentaje": round((p["cantidad"] / total) * 100, 1)} for p in top]
+
+
 # ─────────────────────────────────────────────────────────────
 # Detalle a nivel de fila
 # ─────────────────────────────────────────────────────────────
 
-def _detalle(db: Session, inicio: datetime, fin: datetime, excluidas: set[int]) -> dict:
+def _detalle(db: Session, inicio: datetime, fin: datetime, excluidas: set[int],
+             productos: list[dict] | None = None) -> dict:
     ventas = db.query(Venta).filter(
         Venta.Fecha_pedido >= inicio,
         Venta.Fecha_pedido <= fin,
@@ -372,13 +410,13 @@ def _detalle(db: Session, inicio: datetime, fin: datetime, excluidas: set[int]) 
     clientes_nuevos = [
         {
             "nombre": f"{c.Nombre or ''} {c.Apellidos or ''}".strip() or "—",
-            "correo": c.Correo or "—",
             "fecha": c.Fecha_creacion,
         }
         for c in clientes
     ]
 
-    productos = _productos_top(db, inicio, fin, excluidas, limite=None)
+    if productos is None:
+        productos = _productos_top(db, inicio, fin, excluidas, limite=None)
 
     return {
         "ventas": ventas_detalle,
@@ -498,6 +536,16 @@ def obtener_dashboard(db: Session, periodo: str = "hoy",
 
     incluir_detalle = gran in ("hora", "dia", "semana")
 
+    # En rangos cortos el detalle ya trae el ranking completo de productos; se
+    # reutiliza para el top-5 en vez de repetir la agregación.
+    if incluir_detalle:
+        productos_full = _productos_top(db, inicio, fin, excluidas, limite=None)
+        productos_top = _recortar_top(productos_full, 5)
+        detalle = _detalle(db, inicio, fin, excluidas, productos_full)
+    else:
+        productos_top = _productos_top(db, inicio, fin, excluidas, limite=5)
+        detalle = None
+
     return {
         "periodo": periodo,
         "granularidad": gran,
@@ -509,8 +557,8 @@ def obtener_dashboard(db: Session, periodo: str = "hoy",
         "resumen": resumen,
         "flujo_ventas": _flujo_ventas(db, inicio, fin, buckets),
         "ventas_tiempo": _ventas_tiempo(rows, buckets, dur, earliest, comparar),
-        "productos_top": _productos_top(db, inicio, fin, excluidas, limite=5),
-        "detalle": _detalle(db, inicio, fin, excluidas) if incluir_detalle else None,
+        "productos_top": productos_top,
+        "detalle": detalle,
     }
 
 

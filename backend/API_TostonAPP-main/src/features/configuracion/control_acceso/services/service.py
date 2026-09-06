@@ -5,7 +5,7 @@ from src.shared.services.models import Permiso, RolXPermiso, Rol
 from src.features.configuracion.roles.services.service import (
     normalizar_y_validar_permisos,
 )
-from src.features.configuracion.roles.services.schemas import ROLES_PROTEGIDOS
+from src.features.configuracion.roles.services.schemas import ROLES_ESTATICOS
 
 
 def obtener_permisos(db: Session, busqueda: str = None) -> dict:
@@ -84,10 +84,10 @@ def asignar_permisos_rol(db: Session, id_rol: int, permisos: list[str], actual: 
     if not rol:
         raise HTTPException(status_code=404, detail="Rol no encontrado")
 
-    if id_rol in ROLES_PROTEGIDOS:
+    if id_rol in ROLES_ESTATICOS:
         raise HTTPException(
             status_code=403,
-            detail="El rol Admin está protegido: tiene todos los permisos por defecto",
+            detail="Este rol es estático: sus permisos no se pueden modificar",
         )
 
     ids_final = normalizar_y_validar_permisos(db, actual, permisos)
