@@ -171,6 +171,57 @@ class GraficasTests(unittest.TestCase):
         self.assertIsNone(out[0]["anterior"])
 
 
+class DetalleContratoTests(unittest.TestCase):
+    """`_detalle` corre contra una BD real (SQLite en memoria) para fijar que
+    la clave `productos` del detalle es SIEMPRE el ranking de productos y no,
+    por un choque de nombres de variable, las líneas del último pedido."""
+
+    def setUp(self):
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from src.shared.services.models import (
+            Base, Venta, VentaXProducto, Producto, Usuario,
+        )
+        eng = create_engine("sqlite://")
+        Base.metadata.create_all(eng)
+        self.db = sessionmaker(bind=eng)()
+        f = datetime(2026, 3, 3, 10)
+        self.db.add(Producto(ID_Producto=1, nombre="Toston", Precio_venta=1000))
+        self.db.add(Producto(ID_Producto=2, nombre="Patacon", Precio_venta=2000))
+        for vid, pid, cant in [(1, 1, 3), (2, 2, 5)]:
+            self.db.add(Venta(ID_Venta=vid, ID_Usuario=None, Total=cant * 1000,
+                              Estado=8, Fecha_Venta=f, Fecha_pedido=f))
+            self.db.add(VentaXProducto(ID_Venta=vid, ID_Producto=pid, Cantidad=cant))
+        self.db.commit()
+        self.ini = datetime(2026, 3, 1)
+        self.fin = datetime(2026, 3, 4, 23, 59, 59)
+
+    def _asserta_ranking(self, productos):
+        self.assertTrue(productos)
+        for p in productos:
+            # forma de ProductoDetalle, no de LineaVentaDetalle
+            self.assertIn("ID_Producto", p)
+            self.assertIn("ingresos", p)
+            self.assertIn("porcentaje", p)
+
+    def test_productos_es_ranking_sin_argumento(self):
+        d = svc._detalle(self.db, self.ini, self.fin, set())
+        self._asserta_ranking(d["productos"])
+
+    def test_productos_es_ranking_con_argumento(self):
+        full = svc._productos_top(self.db, self.ini, self.fin, set(), limite=None)
+        d = svc._detalle(self.db, self.ini, self.fin, set(), full)
+        self._asserta_ranking(d["productos"])
+        self.assertEqual(d["productos"], full)
+
+    def test_dashboard_completo_valida_contra_el_schema(self):
+        from src.features.dashboard.services.schemas import DashboardResponse
+        DashboardResponse.model_validate(
+            svc.obtener_dashboard(self.db, "custom",
+                                  datetime(2026, 3, 1), datetime(2026, 3, 4))
+        )
+
+
 class DisponibilidadTests(unittest.TestCase):
     def test_sin_historial_en_absoluto(self):
         db = FakeDB(None)

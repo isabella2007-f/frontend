@@ -84,13 +84,22 @@ import "./shared/index.css";
     }, 160);
   }
 
+  /* e.target puede no ser un Element (nodo de texto, document) o ser un
+     SVGElement sin .closest en algunos navegadores; se busca desde el
+     ancestro Element más cercano. */
+  const contenedorTooltip = (target) => {
+    let n = target;
+    while (n && n.nodeType !== 1) n = n.parentNode;
+    return n && typeof n.closest === "function" ? n.closest("[data-tooltip]") : null;
+  };
+
   document.addEventListener("mouseenter", e => {
-    const el = e.target.closest("[data-tooltip]");
+    const el = contenedorTooltip(e.target);
     if (el) show(el);
   }, true);
 
   document.addEventListener("mouseleave", e => {
-    if (e.target.closest("[data-tooltip]")) hide();
+    if (contenedorTooltip(e.target)) hide();
   }, true);
 
   /* ocultar al hacer scroll o cambiar tamaño de ventana */

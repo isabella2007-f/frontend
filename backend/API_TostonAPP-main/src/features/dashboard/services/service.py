@@ -381,10 +381,10 @@ def _detalle(db: Session, inicio: datetime, fin: datetime, excluidas: set[int],
     for v in ventas:
         u = user_map.get(v.ID_Usuario)
         cliente = f"{u.Nombre or ''} {u.Apellidos or ''}".strip() if u else "—"
-        productos = []
+        lineas_venta = []
         for l in lineas_por_venta.get(v.ID_Venta, []):
             p = prod_map.get(l.ID_Producto)
-            productos.append({
+            lineas_venta.append({
                 "nombre": p.nombre if p else f"Producto {l.ID_Producto}",
                 "cantidad": int(l.Cantidad or 0),
                 "precio_unitario": Decimal(str(p.Precio_venta or 0)) if p else Decimal(0),
@@ -399,7 +399,7 @@ def _detalle(db: Session, inicio: datetime, fin: datetime, excluidas: set[int],
             "estado_id": v.Estado,
             "total": Decimal(str(v.Total or 0)),
             "tiene_devolucion": v.ID_Venta in excluidas,
-            "productos": productos,
+            "productos": lineas_venta,
         })
 
     clientes = db.query(Usuario).filter(
