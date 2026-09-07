@@ -268,7 +268,7 @@ export default function Sidebar({ isOpen, onToggle }) {
             </div>
             <div className="footer-info">
               <div className="user-name">{user?.nombre}</div>
-              <div className="user-role">{user?.tipo}</div>
+              <div className="user-role">{user?.rol}</div>
             </div>
             <button className="logout-btn-sidebar" onClick={handleLogout} title="Cerrar sesión">
               <LogOut size={16} />
