@@ -291,8 +291,10 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
     }
 
     // El mixto lleva una transferencia de verdad: también pide el comprobante.
+    // Excepción: si el saldo a favor cubre el 100% del total no hay nada que
+    // transferir, aunque el método elegido sea "Transferencia".
     const llevaTransferencia = paymentMethod === 'digital' || esMixto;
-    if (llevaTransferencia && !requiereAnticipo && !comprobante) {
+    if (llevaTransferencia && !requiereAnticipo && totalFinal > 0 && !comprobante) {
       setComprobanteError('Adjunta el comprobante de la transferencia.');
       return;
     }
@@ -659,7 +661,14 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
               </div>
             )}
 
-            {(paymentMethod === 'digital' || esMixto) && (
+            {(paymentMethod === 'digital' || esMixto) && totalFinal === 0 && (
+              <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3 py-2.5">
+                <CheckCircle2 size={14} className="text-green-600 shrink-0" />
+                <p className="text-xs font-bold text-green-800">Tu saldo a favor cubre el total — no necesitas realizar ningún pago ni adjuntar comprobante.</p>
+              </div>
+            )}
+
+            {(paymentMethod === 'digital' || esMixto) && totalFinal > 0 && (
               <div className="space-y-2">
                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-3">
                   <div className="space-y-1">
