@@ -665,6 +665,10 @@ def _migrar_catalogo_permisos(engine):
     ]
     # 3. Endpoints que pedían un permiso de otro módulo → grant del propio.
     proxies = [
+        # "cambiar_estado_usuarios" es nuevo: los roles que ya podían editar
+        # usuarios conservan la capacidad de activar/desactivar (antes iba
+        # dentro de editar_usuarios).
+        ("editar_usuarios", "cambiar_estado_usuarios"),
         ("ver_productos",    "ver_ordenes"),
         ("crear_productos",  "crear_ordenes"),
         ("editar_productos", "editar_ordenes"),

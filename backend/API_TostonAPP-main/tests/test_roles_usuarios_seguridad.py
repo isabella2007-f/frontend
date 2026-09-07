@@ -50,7 +50,8 @@ class RolesUsuariosSeguridad(PanelBase):
         self.db.flush()
 
         _grant(self.db, ROL_GESTOR, "ver_usuarios", "crear_usuarios",
-               "editar_usuarios", "eliminar_usuarios", "cambiar_rol_usuarios")
+               "editar_usuarios", "eliminar_usuarios", "cambiar_estado_usuarios",
+               "cambiar_rol_usuarios")
         _grant(self.db, ROL_RECEPCION, "ver_usuarios", "crear_usuarios", "editar_usuarios")
 
         for uid, correo, rol in (
@@ -191,6 +192,21 @@ class RolesUsuariosSeguridad(PanelBase):
         # Reactivar el rol NO reactiva a los usuarios.
         self.assertEqual(self.db.get(Usuario, 70).Estado, 2)
         self.assertEqual(self.db.get(Usuario, 71).Estado, 2)
+
+    # ── cambiar_estado_usuarios: permiso propio, separado de editar ────
+    def test_cambiar_estado_usuarios_es_permiso_propio(self):
+        # Recepción tiene editar_usuarios pero NO cambiar_estado_usuarios.
+        r = self.client.patch(f"{API}/usuarios/{ID_OBJETIVO}/estado", json={"Estado": 2}, headers=self.recepcion)
+        self.assertEqual(r.status_code, 403, r.text)
+        # El gestor sí lo tiene y puede activar/desactivar a un empleado corriente.
+        r = self.client.patch(f"{API}/usuarios/{ID_OBJETIVO}/estado", json={"Estado": 2}, headers=self.gestor)
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(self.db.get(Usuario, ID_OBJETIVO).Estado, 2)
+
+    def test_catalogo_incluye_cambiar_estado_usuarios(self):
+        self.assertIsNotNone(
+            self.db.query(Permiso).filter(Permiso.Permiso == "cambiar_estado_usuarios").first()
+        )
 
     # ── Editar ignora ID_Rol ──────────────────────────────────────────
     def test_editar_usuario_ignora_id_rol_en_el_payload(self):

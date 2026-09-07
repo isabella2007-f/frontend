@@ -51,7 +51,7 @@ const GRUPOS_MODULOS = [
     modulos: [
       { key: "Dashboard",       label: "Dashboard",       Icon: BarChart2,     acciones: ["ver"] },
       { key: "Roles",           label: "Roles",           Icon: Shield,        acciones: STD },
-      { key: "Usuarios",        label: "Usuarios",        Icon: Users,         acciones: ["ver", "crear", "editar", "eliminar", "cambiar_rol"] },
+      { key: "Usuarios",        label: "Usuarios",        Icon: Users,         acciones: [...STD, "cambiar_rol"] },
       { key: "GestionSalidas",  label: "Gestión Salidas", Icon: Upload,        acciones: ["ver", "crear", "editar", "eliminar"] },
     ],
   },

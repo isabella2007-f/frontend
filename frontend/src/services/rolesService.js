@@ -19,6 +19,7 @@ const CLAVE_A_PERMISO = {
   "Usuarios_crear":                  "crear_usuarios",
   "Usuarios_editar":                 "editar_usuarios",
   "Usuarios_eliminar":               "eliminar_usuarios",
+  "Usuarios_cambiar_estado":         "cambiar_estado_usuarios",
   "Usuarios_cambiar_rol":            "cambiar_rol_usuarios",
   "GestionSalidas_ver":              "ver_salidas",
   "GestionSalidas_crear":            "crear_salidas",
