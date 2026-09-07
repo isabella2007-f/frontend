@@ -602,10 +602,54 @@ def migrate_db():
                 )
             """))
             conn.commit()
-            # Garantizar que exista la fila singleton (ID=1)
-            conn.execute(text(
-                "INSERT IGNORE INTO Configuracion_Landing (ID) VALUES (1)"
-            ))
+            # Garantizar que exista la fila singleton (ID=1) con defaults
+            conn.execute(text("""
+                INSERT INTO Configuracion_Landing (
+                    ID, hero_badge, hero_title, hero_description,
+                    history_title, history_description,
+                    cta_title, cta_description,
+                    contact_phone1, contact_phone2,
+                    contact_address_line, contact_city,
+                    contact_instagram_url, contact_instagram_handle,
+                    horario_lunes_viernes, horario_sabado
+                ) VALUES (
+                    1,
+                    'SABOR NATURAL 100%',
+                    'El poder del Plátano',
+                    'Descubre tostones, chips y delicias artesanales que redefinen el sabor de nuestra tierra. Crujientes, frescos y recolectados con amor.',
+                    'Desde el campo hasta tu mesa',
+                    'En Tostón App celebramos la tierra. Cada plátano es seleccionado para garantizar una experiencia épica y natural.',
+                    'Únete a la Revolución',
+                    'Estamos transformando la forma en que el mundo ve al plátano.',
+                    '321 754 3305', '313 789 9946',
+                    'Carrera 38A No. 80-12', 'Barranquilla, Colombia',
+                    'https://www.instagram.com/tostonesbroms?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==',
+                    '@tostonesbroms',
+                    '8:00 am – 8:00 pm', '8:00 am – 8:00 pm'
+                )
+                ON DUPLICATE KEY UPDATE ID = ID
+            """))
+            conn.commit()
+            # Rellenar campos NULL con defaults (para filas ya existentes)
+            conn.execute(text("""
+                UPDATE Configuracion_Landing SET
+                    hero_badge               = COALESCE(hero_badge,               'SABOR NATURAL 100%'),
+                    hero_title               = COALESCE(hero_title,               'El poder del Plátano'),
+                    hero_description         = COALESCE(hero_description,         'Descubre tostones, chips y delicias artesanales que redefinen el sabor de nuestra tierra. Crujientes, frescos y recolectados con amor.'),
+                    history_title            = COALESCE(history_title,            'Desde el campo hasta tu mesa'),
+                    history_description      = COALESCE(history_description,      'En Tostón App celebramos la tierra. Cada plátano es seleccionado para garantizar una experiencia épica y natural.'),
+                    cta_title                = COALESCE(cta_title,                'Únete a la Revolución'),
+                    cta_description          = COALESCE(cta_description,          'Estamos transformando la forma en que el mundo ve al plátano.'),
+                    contact_phone1           = COALESCE(contact_phone1,           '321 754 3305'),
+                    contact_phone2           = COALESCE(contact_phone2,           '313 789 9946'),
+                    contact_address_line     = COALESCE(contact_address_line,     'Carrera 38A No. 80-12'),
+                    contact_city             = COALESCE(contact_city,             'Barranquilla, Colombia'),
+                    contact_instagram_url    = COALESCE(contact_instagram_url,    'https://www.instagram.com/tostonesbroms?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw=='),
+                    contact_instagram_handle = COALESCE(contact_instagram_handle, '@tostonesbroms'),
+                    horario_lunes_viernes    = COALESCE(horario_lunes_viernes,    '8:00 am – 8:00 pm'),
+                    horario_sabado           = COALESCE(horario_sabado,           '8:00 am – 8:00 pm')
+                WHERE ID = 1
+            """))
             conn.commit()
             _log.info("migración Configuracion_Landing: lista")
         except Exception as exc:
