@@ -217,7 +217,10 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
   );
 
   /* ── Estado para "Dividir entrega" (admin inicia la división) ── */
-  const _sinGrupos    = pedido.sobre_stock && (!pedido.grupos_envio || pedido.grupos_envio.length === 0) && !!pedido.fecha_propuesta;
+  // fecha_propuesta existe apenas el admin PROPONE la fecha (estado 16).
+  // La división solo se permite cuando el cliente ya ACEPTÓ (Confirmado/En producción/Listo).
+  const ESTADOS_FECHA_ACEPTADA = ["Confirmado", "Listo", "En producción"];
+  const _sinGrupos    = pedido.sobre_stock && (!pedido.grupos_envio || pedido.grupos_envio.length === 0) && !!pedido.fecha_propuesta && ESTADOS_FECHA_ACEPTADA.includes(pedido.estado);
   const eligioJunto   = _sinGrupos && pedido.envio_completo_domingo === true;
   const sinDecision   = _sinGrupos && pedido.envio_completo_domingo !== true;
   const mostrarDividir = _sinGrupos;

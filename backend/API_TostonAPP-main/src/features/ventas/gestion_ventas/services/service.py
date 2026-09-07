@@ -2731,24 +2731,39 @@ def cancelar_grupo_pendiente(
     ).all():
         _cambiar_estado_orden(db, orden.ID_Orden_Produccion, 5, commit=False)
 
-    # Calcular reembolso proporcional del anticipo
+    # Calcular reembolso proporcional del anticipo.
+    # Proporción = valor_bruto_grupo / valor_bruto_total (misma base para ambos,
+    # sin descuentos ni domicilio, para que la suma de todos los reembolsos = anticipo).
+    # IMPORTANTE: usa GrupoEnvioItem.Cantidad (cant. real del grupo), NO VentaXProducto.Cantidad
+    # (que es el total del pedido y causaba reembolso del 100% en cada grupo).
     anticipo = Decimal(str(getattr(venta, "Anticipo_Monto", None) or 0))
     if anticipo > 0 and getattr(venta, "Anticipo_Registrado", 0):
-        total_venta = Decimal(str(venta.Total or 0))
-        if total_venta > 0:
-            # Valor del grupo B = suma (precio × cantidad) de sus productos
-            items_b = db.query(VentaXProducto).filter(
-                VentaXProducto.ID_Venta == id_venta,
-                VentaXProducto.ID_Producto.in_(prod_ids_b),
-            ).all()
-            prod_map = {p.ID_Producto: p for p in db.query(Producto).filter(
-                Producto.ID_Producto.in_(prod_ids_b)
-            ).all()}
-            valor_b = sum(
-                (prod_map[i.ID_Producto].Precio_venta or Decimal("0")) * Decimal(str(i.Cantidad or 0))
-                for i in items_b if i.ID_Producto in prod_map
+        prod_map_grupo = {p.ID_Producto: p for p in db.query(Producto).filter(
+            Producto.ID_Producto.in_(prod_ids_b)
+        ).all()}
+        valor_grupo = sum(
+            (prod_map_grupo[item.ID_Producto].Precio_venta or Decimal("0"))
+            * Decimal(str(item.Cantidad or 0))
+            for item in grupo.items if item.ID_Producto in prod_map_grupo
+        )
+        todos_items = db.query(VentaXProducto).filter(
+            VentaXProducto.ID_Venta == id_venta
+        ).all()
+        todos_prod_ids = {i.ID_Producto for i in todos_items}
+        todos_prod_map = {p.ID_Producto: p for p in db.query(Producto).filter(
+            Producto.ID_Producto.in_(todos_prod_ids)
+        ).all()}
+        total_bruto = sum(
+            (todos_prod_map[i.ID_Producto].Precio_venta or Decimal("0"))
+            * Decimal(str(i.Cantidad or 0))
+            for i in todos_items if i.ID_Producto in todos_prod_map
+        )
+        if total_bruto > 0 and valor_grupo > 0:
+            reembolso = (anticipo * (valor_grupo / total_bruto)).quantize(
+                Decimal("1"), rounding=ROUND_CEILING
             )
-            reembolso = (anticipo * (valor_b / total_venta)).quantize(Decimal("1"), rounding=ROUND_CEILING)
+            # Guardrail: nunca devolver más del anticipo total (por redondeo extremo)
+            reembolso = min(reembolso, anticipo)
             if reembolso > 0:
                 _abonar_credito(db, venta.ID_Usuario, reembolso, id_venta)
 
