@@ -200,7 +200,6 @@ def migrate_db():
                           len(faltan), [f.split()[2] for f in faltan])
             except Exception as exc:
                 _log.error("migración pago_final FALLÓ — %s", exc, exc_info=True)
-                raise
 
     # ── Necesita_Produccion: flag guardado al crear la venta (stock snapshot) ───
     # Evita que el cálculo dinámico de requiere_fecha_propuesta sea incorrecto
@@ -221,7 +220,6 @@ def migrate_db():
                 _log.info("migración necesita_produccion: columna creada")
             except Exception as exc:
                 _log.error("migración necesita_produccion FALLÓ — %s", exc, exc_info=True)
-                raise
         else:
             _log.info("migración necesita_produccion: ya existe, sin cambios")
 
@@ -369,7 +367,6 @@ def migrate_db():
                 conn.commit()
             except Exception as exc:
                 _log.error("migración estados 16-19 FALLÓ — %s", exc, exc_info=True)
-                raise
 
     # ── Columna intentos_rechazo en Ventas ────────────────────────────────────
     with engine.connect() as conn:
@@ -390,7 +387,6 @@ def migrate_db():
                 _log.debug("migración intentos_rechazo: columna ya existe, sin cambios")
         except Exception as exc:
             _log.error("migración intentos_rechazo FALLÓ — %s", exc, exc_info=True)
-            raise
 
     # ── Columna Descartada en Notificaciones ──────────────────────────────────
     with engine.connect() as conn:
@@ -412,7 +408,6 @@ def migrate_db():
                 _log.debug("migración Descartada: columna ya existe, sin cambios")
         except Exception as exc:
             _log.error("migración Descartada FALLÓ — %s", exc, exc_info=True)
-            raise
 
     # ── Tabla de historial de fechas propuestas ───────────────────────────────
     with engine.connect() as conn:
@@ -434,7 +429,6 @@ def migrate_db():
             _log.info("migración Historial_Fechas_Propuestas: tabla creada o ya existia")
         except Exception as exc:
             _log.error("migración Historial_Fechas_Propuestas FALLÓ — %s", exc, exc_info=True)
-            raise
 
     # ── Columna Envio_Completo_Domingo en Ventas ─────────────────────────────
     with engine.connect() as conn:
@@ -455,7 +449,6 @@ def migrate_db():
                 _log.debug("migración Envio_Completo_Domingo: ya existe, sin cambios")
         except Exception as exc:
             _log.error("migración Envio_Completo_Domingo FALLÓ — %s", exc, exc_info=True)
-            raise
 
     # ── Tablas de grupos de envío ─────────────────────────────────────────────
     with engine.connect() as conn:
@@ -484,7 +477,6 @@ def migrate_db():
                 conn.commit()
             except Exception as exc:
                 _log.error("migración grupos_envio FALLÓ — %s", exc, exc_info=True)
-                raise
         _log.info("migración Grupos_Envio / Grupo_Envio_Item: tablas listas")
 
     # ── Columna Cantidad en Grupo_Envio_Item (soporte para cantidades parciales) ─
@@ -517,7 +509,6 @@ def migrate_db():
                 _log.info("migración: columna ID_Grupo añadida a Domicilios")
             except Exception as exc:
                 _log.error("migración Domicilios.ID_Grupo FALLÓ — %s", exc, exc_info=True)
-                raise
         else:
             _log.info("migración Domicilios.ID_Grupo: ya existe")
 
