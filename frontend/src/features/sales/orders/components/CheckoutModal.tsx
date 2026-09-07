@@ -5,6 +5,7 @@ import { getUser } from '../../../../services/authService';
 import { getMiCredito } from '../../../../services/pedidosService';
 import { apiFetch } from '../../../../utils/api';
 import { getCobertura } from '../../../../services/ubicacionesService';
+import SelectorBarrioEntrega from '../../../../shared/components/SelectorBarrioEntrega';
 import FormularioDireccion from '../../../../shared/components/FormularioDireccion';
 import { desdeTexto, lineaVia } from '../../../../utils/direccionEntrega';
 // La regla del anticipo vive en un solo lugar, espejo del servidor.
@@ -230,6 +231,14 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   // La entrega necesita: una dirección exacta (texto) y un barrio con cobertura.
   // El barrio determina el precio del domicilio (SelectorBarrioEntrega ya
   // consultó la cobertura contra el backend).
+  /// Deja puesto el barrio del perfil, con su tarifa.
+  const aplicarBarrioDelPerfil = (id: number | null) => {
+    if (!id) { setIdBarrio(null); setCoberturaBarrio(null); return; }
+    getCobertura(id)
+      .then((cob: any) => { setIdBarrio(id); setCoberturaBarrio(cob); })
+      .catch(() => { setIdBarrio(null); setCoberturaBarrio(null); });
+  };
+
   const barrioDisponible = !!coberturaBarrio?.disponible;
   /// Solo se puede usar la guardada si hay una.
   const conRegistrada = usarRegistrada && !!registrada?.direccion;
@@ -239,8 +248,10 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
     : lineaVia(otraVia);
   const faltaDireccion =
     !address ? 'Escribe la dirección exacta (calle, número, complemento)'
-    : !idBarrio             ? 'Tu barrio no está en tus datos. Agrégalo en "Mis datos" para pedir a domicilio.'
-    : !barrioDisponible     ? 'Tu barrio no tiene cobertura de domicilio: cámbialo en "Mis datos" o recoge en tienda'
+    : !idBarrio             ? (conRegistrada
+        ? 'Tu barrio no está en tus datos. Agrégalo en "Mis datos" para pedir a domicilio.'
+        : 'Elige el barrio de esta entrega')
+    : !barrioDisponible     ? 'Ese barrio no tiene cobertura de domicilio: elige otro o recoge en tienda'
     : null;
   const direccionValida = faltaDireccion === null;
   const direccionError  = direccionTocada ? faltaDireccion : null;
@@ -517,7 +528,18 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                         <button
                           key={String(op.id)}
                           type="button"
-                          onClick={() => { setUsarRegistrada(op.id); setDireccionTocada(true); }}
+                          onClick={() => {
+                            setUsarRegistrada(op.id);
+                            setDireccionTocada(true);
+                            // Cada dirección tiene su barrio: el de siempre
+                            // vuelve solo, y para otra se elige abajo.
+                            if (op.id) {
+                              aplicarBarrioDelPerfil(registrada?.ID_Barrio || null);
+                            } else {
+                              setIdBarrio(null);
+                              setCoberturaBarrio(null);
+                            }
+                          }}
                           className={`text-left rounded-2xl border px-3 py-2.5 transition ${
                             activa
                               ? 'border-green-600 bg-green-50'
@@ -562,34 +584,25 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                   />
                 )}
 
-                {/* El barrio sale de sus datos: acá se muestra para que sepa
-                    a dónde va y cuánto cuesta, no para elegirlo otra vez. */}
-                {coberturaBarrio ? (
-                  <div className="flex items-start gap-2 bg-green-50 border border-green-100 rounded-2xl px-3 py-2.5">
-                    <MapPin size={14} className="text-green-700 mt-0.5 shrink-0" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[9px] font-black text-green-700 uppercase tracking-widest mb-0.5">
-                        Barrio de entrega
-                      </p>
-                      <p className="text-xs font-black text-gray-800">
-                        {coberturaBarrio.barrio}
-                        {coberturaBarrio.ciudad ? ` · ${coberturaBarrio.ciudad}` : ''}
-                      </p>
-                      <p className="text-[11px] font-semibold text-gray-500 mt-0.5">
-                        {barrioDisponible
-                          ? `Domicilio ${COP(coberturaBarrio.final ?? 0)}`
-                          : (coberturaBarrio.motivo || 'Sin cobertura de domicilio')}
-                        {' · '}
-                        <span className="text-gray-400">se cambia en Mis datos</span>
-                      </p>
-                    </div>
-                  </div>
-                ) : (
+                {/* Con la dirección de siempre no hay nada que elegir: su
+                    barrio ya está en sus datos y el costo sale en el total.
+                    Con otra dirección sí, y vale solo para este pedido. */}
+                {!conRegistrada && (
+                  <SelectorBarrioEntrega
+                    compacto
+                    onChange={(id: number | null, cob: any) => {
+                      setIdBarrio(id);
+                      setCoberturaBarrio(cob);
+                      setDireccionTocada(true);
+                    }}
+                  />
+                )}
+                {conRegistrada && !coberturaBarrio && (
                   <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-2xl px-3 py-2.5">
                     <AlertTriangle size={14} className="text-amber-600 mt-0.5 shrink-0" />
                     <p className="text-[11px] font-bold text-amber-700 leading-relaxed">
                       Todavía no tienes barrio en tus datos. Agrégalo en
-                      «Mis datos» para poder pedir a domicilio.
+                      «Mis datos» o elige otra dirección para este pedido.
                     </p>
                   </div>
                 )}

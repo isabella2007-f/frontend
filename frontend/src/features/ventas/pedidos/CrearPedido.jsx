@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { X, Check, AlertCircle, AlertTriangle, CheckCircle2, Package, Bike, Store, Banknote, Building2, CreditCard, Calendar, PenLine, ClipboardList, Phone, Mail, User, MapPin, ShoppingCart, Truck, Paperclip, Camera, Search, Gift } from "lucide-react";
 import SearchableSelect from "../../../shared/components/SearchableSelect.jsx";
 import { getCobertura } from "../../../services/ubicacionesService";
+import SelectorBarrioEntrega from "../../../shared/components/SelectorBarrioEntrega";
 import FormularioDireccion from "../../../shared/components/FormularioDireccion";
 import { desdeTexto, lineaVia } from "../../../utils/direccionEntrega";
 import { getUsuarios } from "../../../services/usuariosService.js";
@@ -367,8 +368,10 @@ export default function CrearPedido({ onClose, onSave }) {
   /// Qué le falta a la dirección, o null si está lista.
   const faltaEnLaDireccion = () => {
     if (!direccionEntrega) return "Escribe la dirección exacta";
-    if (!form.id_barrio) return "Este cliente no tiene barrio en sus datos: debe agregarlo para pedir a domicilio";
-    if (!barrioDisponible) return "El barrio de este cliente no tiene cobertura de domicilio";
+    if (!form.id_barrio) return conRegistrada
+      ? "Este cliente no tiene barrio en sus datos: agrégalo en su perfil o elige otra dirección"
+      : "Elige el barrio de esta entrega";
+    if (!barrioDisponible) return "Ese barrio no tiene cobertura de domicilio";
     return null;
   };
 
@@ -869,8 +872,20 @@ export default function CrearPedido({ onClose, onSave }) {
                             key={String(op.id)}
                             type="button"
                             onClick={() => {
-                              setForm(f => ({ ...f, usar_direccion_registrada: op.id }));
+                              // Cada dirección tiene su barrio: el del cliente
+                              // vuelve solo, y para otra se elige abajo.
+                              setForm(f => ({
+                                ...f,
+                                usar_direccion_registrada: op.id,
+                                id_barrio: op.id ? (clienteSeleccionado?.idBarrio || null) : null,
+                                cobertura_barrio: null,
+                              }));
                               setErrors(p => ({ ...p, direccion_entrega: "" }));
+                              if (op.id && clienteSeleccionado?.idBarrio) {
+                                getCobertura(clienteSeleccionado.idBarrio)
+                                  .then(cob => setForm(f => ({ ...f, cobertura_barrio: cob })))
+                                  .catch(() => {});
+                              }
                             }}
                             style={{
                               textAlign: "left", padding: "10px 12px", borderRadius: 10,
@@ -927,38 +942,18 @@ export default function CrearPedido({ onClose, onSave }) {
                       />
                     </div>
                   )}
-                  {/* El barrio sale de los datos del cliente: acá se muestra
-                      para saber a dónde va y cuánto cuesta, no para elegirlo. */}
-                  {form.cobertura_barrio ? (
-                    <div style={{
-                      display: "flex", gap: 8, alignItems: "flex-start",
-                      background: barrioDisponible ? "#f1f8e9" : "#fff8e1",
-                      border: `1px solid ${barrioDisponible ? "#c5e1a5" : "#ffe082"}`,
-                      borderRadius: 10, padding: "10px 12px",
-                    }}>
-                      <MapPin size={14} style={{
-                        flexShrink: 0, marginTop: 2,
-                        color: barrioDisponible ? "#2e7d32" : "#b26a00",
-                      }} />
-                      <div style={{ minWidth: 0 }}>
-                        <span style={{
-                          display: "block", fontSize: 10, fontWeight: 800,
-                          letterSpacing: ".06em", textTransform: "uppercase",
-                          color: barrioDisponible ? "#2e7d32" : "#b26a00",
-                        }}>Barrio de entrega</span>
-                        <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#222" }}>
-                          {form.cobertura_barrio.barrio}
-                          {form.cobertura_barrio.ciudad ? ` · ${form.cobertura_barrio.ciudad}` : ""}
-                        </span>
-                        <span style={{ display: "block", fontSize: 11, color: "#757575", marginTop: 1 }}>
-                          {barrioDisponible
-                            ? `Domicilio ${fmt(form.cobertura_barrio.final ?? 0)}`
-                            : (form.cobertura_barrio.motivo || "Sin cobertura de domicilio")}
-                          {" · se cambia en los datos del cliente"}
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
+                  {/* Con la dirección del cliente no hay nada que elegir: su
+                      barrio ya está en sus datos y el costo sale en el total.
+                      Con otra dirección sí, y vale solo para este pedido. */}
+                  {!conRegistrada && (
+                    <SelectorBarrioEntrega
+                      onChange={(id, cob) => {
+                        setForm(f => ({ ...f, id_barrio: id, cobertura_barrio: cob }));
+                        setErrors(p => ({ ...p, direccion_entrega: "" }));
+                      }}
+                    />
+                  )}
+                  {conRegistrada && !form.cobertura_barrio && (
                     <div style={{
                       display: "flex", gap: 8, alignItems: "flex-start",
                       background: "#fff8e1", border: "1px solid #ffe082",
@@ -966,8 +961,8 @@ export default function CrearPedido({ onClose, onSave }) {
                     }}>
                       <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 2, color: "#b26a00" }} />
                       <span style={{ fontSize: 12, color: "#b26a00", fontWeight: 600, lineHeight: 1.45 }}>
-                        Este cliente no tiene barrio en sus datos. Sin barrio no
-                        hay tarifa de domicilio: hay que agregarlo en su perfil.
+                        Este cliente no tiene barrio en sus datos. Agrégalo en su
+                        perfil, o elige otra dirección para este pedido.
                       </span>
                     </div>
                   )}

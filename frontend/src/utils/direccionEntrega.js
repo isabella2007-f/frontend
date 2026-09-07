@@ -162,7 +162,17 @@ const tipoDesdeTexto = (texto) => {
  */
 export const desdeTexto = (
   texto,
-  { departamento = 'Antioquia', municipio = '', barrio = '', indicaciones = '' } = {},
+  {
+    departamento = 'Antioquia', municipio = '', barrio = '', indicaciones = '',
+    /**
+     * El formulario no tiene campo de barrio (lo elige Ubicaciones aparte).
+     *
+     * Lo que viene después de la vía va entonces al complemento, que sí se ve
+     * y sí se guarda. Sin esto quedaba en un campo invisible y se perdía al
+     * guardar de nuevo.
+     */
+    sinBarrio = false,
+  } = {},
 ) => {
   const base = { ...direccionVacia(), departamento, municipio, barrio, indicaciones };
   const t = (texto || '').trim();
@@ -180,8 +190,11 @@ export const desdeTexto = (
   const resto = t.slice(m[0].length).replace(/^\s*,\s*/, '').trim();
   return {
     ...base,
-    // Si no venía un barrio aparte, lo que sigue a la vía suele serlo.
-    barrio: barrio || resto,
+    // Si no venía un barrio aparte, lo que sigue a la vía suele serlo. Cuando
+    // el barrio se elige por fuera, ese resto es complemento: dejarlo en un
+    // campo que no se ve equivale a borrarlo en el próximo guardado.
+    barrio: sinBarrio ? barrio : (barrio || resto),
+    complemento: sinBarrio ? resto : '',
     tipoVia: tipo,
     numero: (m[2] || '').trim(),
     numeral: (m[3] || '').replace(/\s/g, '').trim(),

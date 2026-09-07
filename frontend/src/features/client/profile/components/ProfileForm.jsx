@@ -84,7 +84,7 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
 
   /// La vía en campos separados. Lo guardado es una línea de texto —así es la
   /// columna— y se parsea al abrir para poder mostrarla por partes.
-  const [via, setVia] = useState(() => desdeTexto(''));
+  const [via, setVia] = useState(() => desdeTexto('', { sinBarrio: true }));
 
   /// Cambia la vía y deja la línea armada en el formulario, que es lo que
   /// viaja al servidor.
@@ -109,7 +109,13 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
           tipo_documento: data.Tipo_Documento || '',
         };
         setForm(f);
-        setVia(desdeTexto(data.Direccion || ''));
+        // `sinBarrio`: acá no hay campo de barrio —lo elige Ubicaciones— así
+        // que lo que venga después de la vía es complemento y tiene que
+        // quedar a la vista, o se pierde en el próximo guardado.
+        setVia(desdeTexto(data.Direccion || '', {
+          sinBarrio: true,
+          indicaciones: data.Indicaciones || '',
+        }));
         setIdBarrioActual(data.ID_Barrio || null);
         setBarrioInfo(data.Barrio || null);
         snapshotInicial.current = JSON.stringify({ f, b: data.ID_Barrio || null });
@@ -217,6 +223,9 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
       Direccion:    form.direccion.trim() || null,
       Municipio:    form.municipio.trim() || null,
       Departamento: form.departamento.trim() || null,
+      // El campo estaba en pantalla y no viajaba: lo que el cliente escribía
+      // para que lo encuentren se perdía en cada guardado.
+      Indicaciones: (via.indicaciones || '').trim() || null,
     };
     // ID_Barrio (dato guía): solo se manda si el cliente eligió uno nuevo.
     // 0 = quitar el barrio guardado.
@@ -423,21 +432,16 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
             guardarlo aquí no la habilita.</span>
         </div>
 
-        {/* La vía por partes. Escrita a mano, cada quien inventaba su
-            formato —"cll 45 32 10", "Calle45#32-10"— y quien reparte tenía que
-            adivinar. El barrio no está acá: lo elige el selector de abajo,
-            contra el módulo Ubicaciones. */}
-        <FormularioDireccion valor={via} onCambio={cambiarVia} soloVia />
         {/* Municipio y departamento salen del barrio: son los mismos datos
             y escribirlos aparte permitía que no coincidieran. */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <Field label="Municipio">
             <input type="text" value={form.municipio || '—'} readOnly
-              style={disabledStyle} title="Sale del barrio que elijas abajo" />
+              style={disabledStyle} title="Sale del barrio que elijas arriba" />
           </Field>
           <Field label="Departamento">
             <input type="text" value={form.departamento || '—'} readOnly
-              style={disabledStyle} title="Sale del barrio que elijas abajo" />
+              style={disabledStyle} title="Sale del barrio que elijas arriba" />
           </Field>
         </div>
 
@@ -466,6 +470,11 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
             }}
           />
         </Field>
+
+        {/* La vía, después de saber en qué barrio. Escrita a mano cada
+            quien inventaba su formato —"cll 45 32 10", "Calle45#32-10"— y
+            quien reparte tenía que adivinar. */}
+        <FormularioDireccion valor={via} onCambio={cambiarVia} soloVia />
       </div>
 
       {/* Cambio de contraseña */}
