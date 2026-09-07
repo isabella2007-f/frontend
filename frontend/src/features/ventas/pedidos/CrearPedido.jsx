@@ -289,6 +289,8 @@ function StepsBar({ current }) {
    ═══════════════════════════════════════════════════════════ */
 export default function CrearPedido({ onClose, onSave }) {
   const [clientes,  setClientes]  = useState([]);
+  /// Mientras se pregunta la cobertura del barrio del cliente.
+  const [cargandoCobertura, setCargandoCobertura] = useState(false);
   const [productos, setProductos] = useState([]);
   const [form, setForm]     = useState({ ...EMPTY_FORM });
   const [errors, setErrors] = useState({});
@@ -371,6 +373,9 @@ export default function CrearPedido({ onClose, onSave }) {
     if (!form.id_barrio) return conRegistrada
       ? "Este cliente no tiene barrio en sus datos: agrégalo en su perfil o elige otra dirección"
       : "Elige el barrio de esta entrega";
+    if (!form.cobertura_barrio) return cargandoCobertura
+      ? "Espera: se está consultando el costo del domicilio"
+      : "No pudimos consultar el costo del domicilio a ese barrio";
     if (!barrioDisponible) return "Ese barrio no tiene cobertura de domicilio";
     return null;
   };
@@ -703,11 +708,13 @@ export default function CrearPedido({ onClose, onSave }) {
                       cobertura_barrio: null,
                     }));
                     if (cli.idBarrio) {
+                      setCargandoCobertura(true);
                       getCobertura(cli.idBarrio)
                         .then(cob => setForm(f => (
                           String(f.idCliente) === String(cli.id)
                             ? { ...f, cobertura_barrio: cob } : f)))
-                        .catch(() => {});
+                        .catch(() => {})
+                        .finally(() => setCargandoCobertura(false));
                     }
                     setUsarCredito(false);
                     setCreditoMonto("");
@@ -882,9 +889,11 @@ export default function CrearPedido({ onClose, onSave }) {
                               }));
                               setErrors(p => ({ ...p, direccion_entrega: "" }));
                               if (op.id && clienteSeleccionado?.idBarrio) {
+                                setCargandoCobertura(true);
                                 getCobertura(clienteSeleccionado.idBarrio)
                                   .then(cob => setForm(f => ({ ...f, cobertura_barrio: cob })))
-                                  .catch(() => {});
+                                  .catch(() => {})
+                                  .finally(() => setCargandoCobertura(false));
                               }
                             }}
                             style={{
@@ -947,12 +956,18 @@ export default function CrearPedido({ onClose, onSave }) {
                       Con otra dirección sí, y vale solo para este pedido. */}
                   {!conRegistrada && (
                     <SelectorBarrioEntrega
+                      // El departamento no se pregunta: no se manda un
+                      // domicilio a otro departamento.
+                      sinDepartamento
                       onChange={(id, cob) => {
                         setForm(f => ({ ...f, id_barrio: id, cobertura_barrio: cob }));
                         setErrors(p => ({ ...p, direccion_entrega: "" }));
                       }}
                     />
                   )}
+                  {/* Tres cosas distintas: que no tenga barrio, que se esté
+                      consultando, y que la consulta haya fallado. Decir siempre
+                      "no tiene barrio" mandaba a arreglar lo que no estaba mal. */}
                   {conRegistrada && !form.cobertura_barrio && (
                     <div style={{
                       display: "flex", gap: 8, alignItems: "flex-start",
@@ -961,8 +976,11 @@ export default function CrearPedido({ onClose, onSave }) {
                     }}>
                       <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 2, color: "#b26a00" }} />
                       <span style={{ fontSize: 12, color: "#b26a00", fontWeight: 600, lineHeight: 1.45 }}>
-                        Este cliente no tiene barrio en sus datos. Agrégalo en su
-                        perfil, o elige otra dirección para este pedido.
+                        {!form.id_barrio
+                          ? "Este cliente no tiene barrio en sus datos. Agrégalo en su perfil, o elige otra dirección para este pedido."
+                          : cargandoCobertura
+                            ? "Consultando el costo del domicilio a su barrio…"
+                            : "No pudimos consultar el costo del domicilio a su barrio. Intenta de nuevo o elige otra dirección."}
                       </span>
                     </div>
                   )}

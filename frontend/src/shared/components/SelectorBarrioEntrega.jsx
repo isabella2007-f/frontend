@@ -28,8 +28,18 @@ export default function SelectorBarrioEntrega({
   prefillIdBarrio = null,
   onChange,
   compacto = false,
-  /** false = solo los 3 selectores, sin el recuadro de precio/cobertura (perfil). */
+  /** false = solo los selectores, sin el recuadro de precio/cobertura (perfil). */
   mostrarCobertura = true,
+  /**
+   * Esconde el paso del departamento y lo resuelve solo.
+   *
+   * Para elegir a dónde va UN pedido: no se manda un domicilio a otro
+   * departamento, así que preguntarlo es un paso de más. Se usa
+   * `idDepartamentoPreferido` si viene; si no, el único que haya, o el primero.
+   */
+  sinDepartamento = false,
+  /** Departamento con el que arrancar cuando `sinDepartamento` está puesto. */
+  idDepartamentoPreferido = null,
 }) {
   const [departamentos, setDepartamentos] = useState([]);
   const [ciudades, setCiudades] = useState([]);
@@ -71,6 +81,16 @@ export default function SelectorBarrioEntrega({
       .catch(() => {});
   }, [prefillIdBarrio, departamentos, onChange]);
 
+  // Sin paso de departamento: se elige uno apenas llega la lista.
+  useEffect(() => {
+    if (!sinDepartamento || idDepto || departamentos.length === 0) return;
+    const preferido = idDepartamentoPreferido
+      ? departamentos.find((d) => String(d.ID_Departamento) === String(idDepartamentoPreferido))
+      : null;
+    const elegido = preferido || departamentos[0];
+    if (elegido) setIdDepto(String(elegido.ID_Departamento));
+  }, [sinDepartamento, idDepartamentoPreferido, departamentos, idDepto]);
+
   useEffect(() => {
     if (!idDepto) { setCiudades([]); return; }
     getCiudadesCheckout(Number(idDepto)).then(setCiudades).catch(() => setCiudades([]));
@@ -105,12 +125,14 @@ export default function SelectorBarrioEntrega({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <SearchableSelect
-        options={departamentos} value={idDepto}
-        onChange={(e) => { setIdDepto(e.target.value); setIdCiudad(""); setIdBarrio(""); }}
-        getValue={(d) => d.ID_Departamento} getLabel={(d) => d.Nombre}
-        placeholder="Departamento" className={cls}
-      />
+      {!sinDepartamento && (
+        <SearchableSelect
+          options={departamentos} value={idDepto}
+          onChange={(e) => { setIdDepto(e.target.value); setIdCiudad(""); setIdBarrio(""); }}
+          getValue={(d) => d.ID_Departamento} getLabel={(d) => d.Nombre}
+          placeholder="Departamento" className={cls}
+        />
+      )}
       <SearchableSelect
         options={ciudades} value={idCiudad}
         onChange={(e) => { setIdCiudad(e.target.value); setIdBarrio(""); }}

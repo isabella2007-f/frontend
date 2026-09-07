@@ -118,7 +118,11 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
         }));
         setIdBarrioActual(data.ID_Barrio || null);
         setBarrioInfo(data.Barrio || null);
-        snapshotInicial.current = JSON.stringify({ f, b: data.ID_Barrio || null });
+        // Las indicaciones viven en `via`, no en `form`: sin ellas acá, quien
+        // entraba solo a corregirlas recibía "sin cambios" y no se guardaba.
+        snapshotInicial.current = JSON.stringify({
+          f, b: data.ID_Barrio || null, i: data.Indicaciones || '',
+        });
       })
       .catch(() => {
         // Fallback a datos del prop si la API falla
@@ -132,7 +136,7 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
           tipo_documento: user.tipo_documento || user.Tipo_Documento || '',
         };
         setForm(f);
-        snapshotInicial.current = JSON.stringify({ f, b: null });
+        snapshotInicial.current = JSON.stringify({ f, b: null, i: '' });
       })
       .finally(() => setLoadingPerfil(false));
   }, []);
@@ -213,7 +217,11 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
     // Sin cambios: mismos datos y sin contraseña nueva.
     const cambioPass = showPassSection && passForm.nueva;
     if (!cambioPass && snapshotInicial.current !== null
-        && JSON.stringify({ f: form, b: idBarrio ?? idBarrioActual }) === snapshotInicial.current) {
+        && JSON.stringify({
+          f: form,
+          b: idBarrio ?? idBarrioActual,
+          i: (via.indicaciones || '').trim(),
+        }) === snapshotInicial.current) {
       onSave({ sinCambios: true });
       return;
     }
@@ -225,7 +233,10 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
       Departamento: form.departamento.trim() || null,
       // El campo estaba en pantalla y no viajaba: lo que el cliente escribía
       // para que lo encuentren se perdía en cada guardado.
-      Indicaciones: (via.indicaciones || '').trim() || null,
+      //
+      // Vacío va como cadena vacía y no como null: el servidor descarta los
+      // null (exclude_none), así que con null borrar el texto no borraba nada.
+      Indicaciones: (via.indicaciones || '').trim(),
     };
     // ID_Barrio (dato guía): solo se manda si el cliente eligió uno nuevo.
     // 0 = quitar el barrio guardado.

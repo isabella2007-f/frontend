@@ -111,6 +111,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   /// Barrio de entrega elegido + su cobertura ({ disponible, base, final, ... }).
   const [idBarrio,           setIdBarrio]           = useState<number | null>(null);
   const [coberturaBarrio,    setCoberturaBarrio]    = useState<any>(null);
+  /// Mientras se pregunta la cobertura del barrio guardado.
+  const [cargandoBarrio,     setCargandoBarrio]     = useState(false);
   const [date,               setDate]               = useState('');
   const [time,               setTime]               = useState('');
   const [observaciones,      setObservaciones]      = useState('');
@@ -163,9 +165,11 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
         // El barrio ya no se pregunta: es el de sus datos, y de ahí sale la
         // tarifa. Preguntarlo en cada pedido era pedir dos veces lo mismo.
         if (perfil?.ID_Barrio) {
+          setCargandoBarrio(true);
           getCobertura(perfil.ID_Barrio)
             .then((cob: any) => { setIdBarrio(perfil.ID_Barrio); setCoberturaBarrio(cob); })
-            .catch(() => { setIdBarrio(null); setCoberturaBarrio(null); });
+            .catch(() => { setIdBarrio(null); setCoberturaBarrio(null); })
+            .finally(() => setCargandoBarrio(false));
         } else {
           setIdBarrio(null);
           setCoberturaBarrio(null);
@@ -233,10 +237,12 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   // consultó la cobertura contra el backend).
   /// Deja puesto el barrio del perfil, con su tarifa.
   const aplicarBarrioDelPerfil = (id: number | null) => {
-    if (!id) { setIdBarrio(null); setCoberturaBarrio(null); return; }
+    if (!id) { setIdBarrio(null); setCoberturaBarrio(null); setCargandoBarrio(false); return; }
+    setCargandoBarrio(true);
     getCobertura(id)
       .then((cob: any) => { setIdBarrio(id); setCoberturaBarrio(cob); })
-      .catch(() => { setIdBarrio(null); setCoberturaBarrio(null); });
+      .catch(() => { setIdBarrio(null); setCoberturaBarrio(null); })
+      .finally(() => setCargandoBarrio(false));
   };
 
   const barrioDisponible = !!coberturaBarrio?.disponible;
@@ -590,6 +596,9 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                 {!conRegistrada && (
                   <SelectorBarrioEntrega
                     compacto
+                    // El departamento no se pregunta: no se manda un domicilio
+                    // a otro departamento.
+                    sinDepartamento
                     onChange={(id: number | null, cob: any) => {
                       setIdBarrio(id);
                       setCoberturaBarrio(cob);
@@ -597,12 +606,18 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                     }}
                   />
                 )}
+                {/* Tres cosas distintas: que no tenga barrio, que se esté
+                    consultando, y que la consulta haya fallado. Decir siempre
+                    "no tienes barrio" mandaba a arreglar lo que no estaba mal. */}
                 {conRegistrada && !coberturaBarrio && (
                   <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-2xl px-3 py-2.5">
                     <AlertTriangle size={14} className="text-amber-600 mt-0.5 shrink-0" />
                     <p className="text-[11px] font-bold text-amber-700 leading-relaxed">
-                      Todavía no tienes barrio en tus datos. Agrégalo en
-                      «Mis datos» o elige otra dirección para este pedido.
+                      {!registrada?.ID_Barrio
+                        ? 'Todavía no tienes barrio en tus datos. Agrégalo en «Mis datos» o elige otra dirección para este pedido.'
+                        : cargandoBarrio
+                          ? 'Consultando el costo del domicilio a tu barrio…'
+                          : 'No pudimos consultar el costo del domicilio a tu barrio. Intenta de nuevo o elige otra dirección.'}
                     </p>
                   </div>
                 )}
