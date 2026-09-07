@@ -96,6 +96,15 @@ class PedidoUpdate(BaseModel):
     Comprobante_Pago:     Optional[str]   = None
 
 
+# ── Edición del pedido por el propio cliente ──
+class PedidoClienteEdit(BaseModel):
+    Metodo_Pago:       Optional[str]  = None
+    quiere_domicilio:  Optional[bool] = None
+    ID_Barrio:         Optional[int]  = None
+    Direccion_Entrega: Optional[str]  = None
+    Notas:             Optional[str]  = None
+
+
 # ── Respuesta paginada ──
 class PedidoListResponse(BaseModel):
     total:      int

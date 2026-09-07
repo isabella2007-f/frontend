@@ -193,6 +193,12 @@ export const getMisVentas = async ({ pagina = 1, porPagina = 100 } = {}) => {
 export const cancelarMiPedido = async (id) =>
   apiFetch(`/pedidos/${id}/cancelar-mi-pedido`, { method: "PATCH" });
 
+export const editarMiPedido = async (id, datos) =>
+  apiFetch(`/pedidos/${id}/editar-mi-pedido`, {
+    method: "PATCH",
+    body: JSON.stringify(datos),
+  });
+
 export const proponerFechaProduccion = async (id, fecha) =>
   apiFetch(`/ventas/${id}/proponer-fecha`, {
     method: "PATCH",

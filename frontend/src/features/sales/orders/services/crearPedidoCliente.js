@@ -87,9 +87,11 @@ export async function crearPedidoCliente({
 
   // El anticipo cuenta como registrado si el crédito lo cubre, si el cliente
   // confirmó haberlo pagado en efectivo, o si adjuntó el comprobante.
+  // El anticipo en efectivo lo registra el empleado/admin desde su panel;
+  // el cliente no puede auto-confirmarlo para no depender de su reporte.
   const anticipoRegistrado = !!(anticipoData?.requiere && (
     anticipoData.creditoCubreAnticipo ? true
-      : anticipoData.metodo === 'efectivo' ? anticipoData.efectivo
+      : anticipoData.metodo === 'efectivo' ? false
       : !!anticipoComprobanteUrl
   ));
 

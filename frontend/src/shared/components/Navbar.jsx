@@ -97,6 +97,7 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
       setIsCheckoutOpen(false);
       updateCartCount();
       showNavToast('¡Pedido creado exitosamente!');
+      navigate('/cliente/pedidos');
     } catch (err) {
       showNavToast(err.message || 'Error al registrar el pedido', 'error');
     }

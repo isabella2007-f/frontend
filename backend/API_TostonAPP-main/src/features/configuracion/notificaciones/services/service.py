@@ -283,8 +283,15 @@ def obtener_notificaciones_cliente(db: Session, id_usuario: int) -> dict:
                 mensaje = f"Fecha propuesta: {fecha_fmt}. Acéptala o recházala desde tus pedidos."
             else:
                 mensaje = mensaje_base or ""
+            # Para estado 16 (fecha propuesta) el id_ref incluye la fecha para
+            # que cada propuesta distinta genere una notificación nueva, aunque
+            # el estado siga siendo 16 (re-propuesta tras rechazo del cliente).
+            fecha_key = (
+                f"_{v.Fecha_entrega_esperada.date().isoformat()}"
+                if v.Estado == 16 and v.Fecha_entrega_esperada else ""
+            )
             notifs.append({
-                "id_ref":         f"venta_{v.ID_Venta}_{v.Estado}",
+                "id_ref":         f"venta_{v.ID_Venta}_{v.Estado}{fecha_key}",
                 "tipo":           tipo,
                 "titulo":         f"{titulo} — Pedido #{v.ID_Venta}",
                 "mensaje":        mensaje,

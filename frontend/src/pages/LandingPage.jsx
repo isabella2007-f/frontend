@@ -270,7 +270,7 @@ const LandingPage = ({ hideNavbar = false }) => {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [orderDetails, setOrderDetails] = useState(null);
-  const [orderDone,   setOrderDone]   = useState(false);
+
   const [errorToast,  setErrorToast]  = useState('');
   const [confirmPending, setConfirmPending] = useState(null);
   const [stockLimitMsg,  setStockLimitMsg]  = useState('');
@@ -458,7 +458,6 @@ const LandingPage = ({ hideNavbar = false }) => {
 
     clearCart();
     setCheckoutOpen(false);
-    setOrderDone(true);
     cargarProductos(); // actualizar stock tras confirmar pedido
 
     agregarNotificacion({
@@ -467,7 +466,7 @@ const LandingPage = ({ hideNavbar = false }) => {
       mensaje: `Hemos recibido tu orden ${res?.Numero_Pedido || res?.numero_pedido || res?.ID_Venta || ""} correctamente.`,
     });
 
-    setTimeout(() => setOrderDone(false), 4000);
+    navigate('/cliente/pedidos');
   };
 
   const getCat = (id) => categoriasMap[id] || { nombre: 'Sin categoría', descripcion: '', icon: '🍌' };
@@ -507,14 +506,6 @@ const LandingPage = ({ hideNavbar = false }) => {
         }
         .pdm-animate { animation: pdm-in 0.35s cubic-bezier(0.16,1,0.3,1) both; }
       `}</style>
-
-      {/* ── Toast de éxito ── */}
-      {orderDone && (
-        <div className="fixed top-6 left-1/2 z-[10000] flex items-center gap-3 px-6 py-4 bg-[#1b5e20] text-white rounded-2xl shadow-2xl animate-slide-down-toast">
-          <CheckCircle2 className="w-5 h-5 text-[#81c784]" />
-          <span className="font-black">¡Pedido registrado con éxito! 🎉</span>
-        </div>
-      )}
 
       {/* ── Toast de error ── */}
       {errorToast && (

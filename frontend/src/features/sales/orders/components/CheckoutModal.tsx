@@ -292,7 +292,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
 
     if (requiereAnticipo && !creditoCubreAnticipo) {
       if (!anticipoMetodo) { setAnticipoError('Selecciona el método de pago del anticipo'); return; }
-      if (anticipoMetodo === 'efectivo' && !anticipoEfectivo) { setAnticipoError('Debes confirmar que el anticipo fue entregado en efectivo'); return; }
+
       if (anticipoMetodo === 'digital' && !anticipoComprobante) { setAnticipoError('Debes adjuntar el comprobante del anticipo'); return; }
     }
 
@@ -776,14 +776,12 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                   </div>
 
                   {anticipoMetodo === 'efectivo' && (
-                    <label className="flex items-center gap-2.5 cursor-pointer bg-white rounded-xl px-3 py-2.5 border-2 border-dashed border-yellow-300 select-none">
-                      <input type="checkbox" checked={anticipoEfectivo}
-                        onChange={e => { setAnticipoEfectivo(e.target.checked); setAnticipoError(''); }}
-                        className="w-4 h-4 rounded accent-yellow-600" />
-                      <span className="text-xs font-bold text-gray-700">
-                        Confirmo que entregué <strong>{COP(montoAnticipo)}</strong> en efectivo al vendedor
-                      </span>
-                    </label>
+                    <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                      <Banknote size={14} className="text-amber-600 shrink-0" />
+                      <p className="text-xs font-bold text-amber-800">
+                        Paga <strong>{COP(montoAnticipo)}</strong> en efectivo al empleado. Él lo registrará desde su panel.
+                      </p>
+                    </div>
                   )}
 
                   {anticipoMetodo === 'digital' && (

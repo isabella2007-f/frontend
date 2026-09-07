@@ -10,6 +10,7 @@ from src.shared.services.models import (
 )
 from src.features.ventas.gestion_ventas.services.service import (
     _formato_venta, _now, cambiar_estado as _gv_cambiar_estado,
+    _abonar_credito,
 )
 from src.features.ventas.ubicaciones.services.service import resolver_domicilio
 from src.features.ventas.domicilios.services.estados import EstadoDomicilio
@@ -277,24 +278,124 @@ def cancelar_pedido(db: Session, id_venta: int, actual: dict = None) -> dict:
             detail="Pedido no encontrado o ya fue procesado"
         )
 
+    _ESTADOS_CANCELABLES_CLIENTE = frozenset({
+        EstadoPedido.PENDIENTE,
+        EstadoPedido.FECHA_PROPUESTA,
+        EstadoPedido.FECHA_RECHAZADA,
+        EstadoPedido.ESCALADO_A_ADMIN,
+    })
+
     if actual and actual.get("tipo") == "cliente":
         id_usuario = actual["registro"].ID_Usuario
         if pedido.ID_Usuario != id_usuario:
             raise HTTPException(status_code=403, detail="No puedes cancelar pedidos de otros clientes")
-        # Una vez aceptado, el pedido ya movió cosas: se reservó stock y se
-        # abrió la producción. El cliente podía cancelar hasta un pedido ya
-        # horneado, con los insumos gastados. A partir de ahí la cancelación
-        # la decide la panadería, que sí puede desde Gestión de pedidos.
-        if pedido.Estado != EstadoPedido.PENDIENTE:
+        if pedido.Estado not in _ESTADOS_CANCELABLES_CLIENTE:
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    "Este pedido ya fue aceptado y está en preparación, así que "
-                    "no se puede cancelar desde aquí. Escribínos y lo revisamos."
+                    "Este pedido ya está en producción y no puede cancelarse desde aquí. "
+                    "Escríbenos y lo revisamos."
                 ),
             )
 
     return _gv_cambiar_estado(db, id_venta, EstadoPedido.CANCELADO)
+
+
+_ESTADOS_PAGO_BLOQUEADO_EDICION = {"efectivo_recibido", "pagado_completo", "no_recibido"}
+
+_ESTADOS_FINALES = frozenset({EstadoPedido.CANCELADO, EstadoPedido.ENTREGADO})
+
+
+def editar_mi_pedido(db: Session, id_venta: int, datos: dict, actual: dict) -> dict:
+    """
+    El cliente puede cambiar Metodo_Pago y/o tipo de entrega en cualquier estado activo.
+    Bloqueado si: pedido en estado final, pago ya cobrado, o ya tiene grupos de envío.
+    Cambio Recogida→Domicilio: suma el costo del domicilio al Total y crea el registro.
+    Cambio Domicilio→Recogida: verifica que no haya repartidor asignado, resta el costo
+    del domicilio del Total, devuelve crédito si el anticipo supera el nuevo total.
+    """
+    from decimal import Decimal
+
+    pedido = db.query(Venta).filter(
+        Venta.ID_Venta == id_venta,
+    ).first()
+    if not pedido:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+
+    if actual.get("tipo") == "cliente":
+        if pedido.ID_Usuario != actual["registro"].ID_Usuario:
+            raise HTTPException(status_code=403, detail="No puedes editar pedidos de otros clientes")
+
+    if pedido.Estado in _ESTADOS_FINALES:
+        raise HTTPException(status_code=400, detail="Este pedido ya fue completado y no puede editarse")
+
+    estado_pago = (getattr(pedido, "Estado_Pago", None) or "pendiente").strip()
+    if estado_pago in _ESTADOS_PAGO_BLOQUEADO_EDICION:
+        raise HTTPException(
+            status_code=400,
+            detail="El pago de este pedido ya fue registrado. Contacta un empleado para realizar cambios.",
+        )
+
+    grupos = db.query(GrupoEnvio).filter(GrupoEnvio.ID_Venta == id_venta).all()
+    if grupos:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Este pedido ya fue dividido en grupos de envío. "
+                "El tipo de entrega se maneja por grupo desde el panel."
+            ),
+        )
+
+    if datos.get("Metodo_Pago"):
+        pedido.Metodo_Pago = datos["Metodo_Pago"].strip()
+
+    quiere_domicilio = datos.get("quiere_domicilio")  # True | False | None
+    domicilio = db.query(Domicilio).filter(Domicilio.ID_Venta == id_venta).first()
+    tenia_domicilio = domicilio is not None
+
+    if quiere_domicilio is True and not tenia_domicilio:
+        id_barrio = datos.get("ID_Barrio")
+        if not id_barrio:
+            raise HTTPException(status_code=400, detail="Selecciona el barrio de entrega para el domicilio")
+        snap = resolver_domicilio(db, int(id_barrio))
+        costo = Decimal(snap["final"])
+        nuevo_domicilio = Domicilio(
+            ID_Venta              = id_venta,
+            Estado                = int(EstadoDomicilio.PENDIENTE),
+            Fecha_asignacion      = _now(),
+            ID_Barrio             = snap["id_barrio"],
+            Municipio_entrega     = snap["ciudad"],
+            Departamento_entrega  = snap["departamento"],
+            Precio_Domicilio_Base  = snap["base"],
+            Precio_Domicilio_Final = snap["final"],
+            Desglose_Ofertas       = snap["desglose"],
+            Direccion_entrega      = datos.get("Direccion_Entrega") or "",
+            Observaciones          = datos.get("Notas"),
+        )
+        db.add(nuevo_domicilio)
+        pedido.Total = (pedido.Total or Decimal(0)) + costo
+
+    elif quiere_domicilio is False and tenia_domicilio:
+        if domicilio.ID_Empleado is not None:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Ya se asignó un repartidor para este pedido. "
+                    "Contacta a un empleado para cambiar el tipo de entrega."
+                ),
+            )
+        costo_dom = Decimal(domicilio.Precio_Domicilio_Final or 0)
+        nuevo_total = max(Decimal(0), (pedido.Total or Decimal(0)) - costo_dom)
+        anticipo = Decimal(pedido.Anticipo_Monto or 0)
+        if anticipo > nuevo_total > 0:
+            exceso = anticipo - nuevo_total
+            _abonar_credito(db, pedido.ID_Usuario, exceso, id_venta)
+        domicilio.Estado = int(EstadoDomicilio.CANCELADO)
+        pedido.Total = nuevo_total
+
+    db.commit()
+    db.refresh(pedido)
+    return _formato_venta(pedido, db)
 
 
 _ESTADOS_PAGO_YA_COBRADO = {"efectivo_recibido", "pagado_completo", "anticipo_pagado"}

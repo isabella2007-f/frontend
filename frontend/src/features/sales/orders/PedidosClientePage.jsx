@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useRef, useCallback } from 'react';
-import { getMisVentas, cancelarMiPedido, aceptarFechaProduccion, rechazarFechaProduccion, guardarEnvioCompletoDomingo, getItemsListos, crearGruposEnvio } from '../../../services/pedidosService';
+import { getMisVentas, cancelarMiPedido, editarMiPedido, aceptarFechaProduccion, rechazarFechaProduccion, guardarEnvioCompletoDomingo, getItemsListos, crearGruposEnvio } from '../../../services/pedidosService';
 import { crearDevolucion } from '../../../services/devolucionesService';
 import { fmtFecha } from '../../../utils/dateUtils.js';
 import { getCurrentUser } from '../../client/profile/services/profileService.js';
@@ -399,6 +399,14 @@ const PedidosClientePage = () => {
   const [creandoGrupos,        setCreandoGrupos]        = useState(false);
   const [gruposError,          setGruposError]          = useState('');
   const [itemsListosError,     setItemsListosError]     = useState(null);
+  const [editModal,            setEditModal]            = useState(null);
+  const [editMetodoPago,       setEditMetodoPago]       = useState('');
+  const [editQuiereDomicilio,  setEditQuiereDomicilio]  = useState(null);
+  const [editIdBarrio,         setEditIdBarrio]         = useState(null);
+  const [editDireccion,        setEditDireccion]        = useState('');
+  const [editNotas,            setEditNotas]            = useState('');
+  const [editGuardando,        setEditGuardando]        = useState(false);
+  const [editError,            setEditError]            = useState('');
 
   // Ref para acceder al pedido seleccionado dentro del interval sin recrear el callback
   const selectedPedidoRef = useRef(null);
@@ -524,6 +532,53 @@ const PedidosClientePage = () => {
       setCancelError(err.message || 'No se pudo cancelar el pedido. Intenta de nuevo.');
     } finally {
       setCancelando(false);
+    }
+  };
+
+  const ESTADOS_CANCELABLES = ['Pendiente', 'Fecha propuesta', 'Fecha rechazada', 'Escalado a admin'];
+
+  const abrirEditModal = (pedido) => {
+    setEditMetodoPago(pedido.metodo_pago || pedido.Metodo_Pago || '');
+    setEditQuiereDomicilio(null);
+    setEditIdBarrio(null);
+    setEditDireccion('');
+    setEditNotas('');
+    setEditError('');
+    setEditModal(pedido);
+  };
+
+  const handleEditarPedido = async () => {
+    setEditGuardando(true);
+    setEditError('');
+    try {
+      const datos = {};
+      if (editMetodoPago && editMetodoPago !== (editModal.metodo_pago || editModal.Metodo_Pago || '')) {
+        datos.Metodo_Pago = editMetodoPago;
+      }
+      if (editQuiereDomicilio !== null) {
+        datos.quiere_domicilio = editQuiereDomicilio;
+        if (editQuiereDomicilio) {
+          if (!editIdBarrio) {
+            setEditError('Selecciona el barrio de entrega para el domicilio');
+            setEditGuardando(false);
+            return;
+          }
+          datos.ID_Barrio = editIdBarrio;
+          if (editDireccion) datos.Direccion_Entrega = editDireccion;
+          if (editNotas) datos.Notas = editNotas;
+        }
+      }
+      if (!Object.keys(datos).length) {
+        setEditModal(null);
+        return;
+      }
+      await editarMiPedido(editModal.id, datos);
+      setEditModal(null);
+      fetchPedidos();
+    } catch (err) {
+      setEditError(err.message || 'No se pudo guardar. Intenta de nuevo.');
+    } finally {
+      setEditGuardando(false);
     }
   };
 
@@ -697,10 +752,29 @@ const PedidosClientePage = () => {
                         </span>
                       </div>
                     </div>
-                    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl ${config.badge} border border-white shadow-sm`}>
-                      <StatusIcon size={12} strokeWidth={3} />
-                      <span className="text-[9px] font-black uppercase tracking-widest leading-none">{config.label}</span>
-                    </div>
+                    {pedido.grupos_envio && pedido.grupos_envio.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
+                        {pedido.grupos_envio.map((g, i) => {
+                          const gLabel = g.estado === 'entregado' ? 'Entregado' : g.estado === 'enviado' ? 'En camino' : 'Pendiente';
+                          const gCls   = g.estado === 'entregado'
+                            ? 'bg-green-100 text-green-800 border-green-200'
+                            : g.estado === 'enviado'
+                            ? 'bg-blue-100 text-blue-800 border-blue-200'
+                            : 'bg-amber-100 text-amber-800 border-amber-200';
+                          return (
+                            <div key={g.id_grupo} className={`flex items-center gap-1 px-2 py-1 rounded-lg ${gCls} border shadow-sm`}>
+                              <span className="text-[10px]">{i === 0 ? '📦' : '🕐'}</span>
+                              <span className="text-[9px] font-black uppercase tracking-widest leading-none">{gLabel}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl ${config.badge} border border-white shadow-sm`}>
+                        <StatusIcon size={12} strokeWidth={3} />
+                        <span className="text-[9px] font-black uppercase tracking-widest leading-none">{config.label}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Card Body */}
@@ -1432,13 +1506,22 @@ const PedidosClientePage = () => {
                   >
                     <FileText size={14} /> Descargar factura
                   </button>
-                  {selectedPedido.estado === 'Pendiente' && (
+                  {ESTADOS_CANCELABLES.includes(selectedPedido.estado) && (
                     <button
                       className="btn-cancel"
                       style={{ background: '#fff5f5', color: '#dc2626', border: '1.5px solid #fca5a5', display: 'flex', alignItems: 'center', gap: 6 }}
                       onClick={() => setConfirmCancel(true)}
                     >
                       <Ban size={14} /> Cancelar pedido
+                    </button>
+                  )}
+                  {!['Cancelado', 'Entregado'].includes(selectedPedido.estado) && (
+                    <button
+                      className="btn-cancel"
+                      style={{ background: '#f0f4ff', color: '#3730a3', border: '1.5px solid #a5b4fc', display: 'flex', alignItems: 'center', gap: 6 }}
+                      onClick={() => abrirEditModal(selectedPedido)}
+                    >
+                      <PenLine size={14} /> Editar pedido
                     </button>
                   )}
                   {puedeDevolver(selectedPedido) && (
@@ -1450,6 +1533,135 @@ const PedidosClientePage = () => {
           </div>
         </div>
       )}
+      {/* ── Modal editar pedido ── */}
+      {editModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 18, width: '100%', maxWidth: 440, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
+            {/* Header */}
+            <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <p style={{ fontWeight: 800, fontSize: 15, color: '#212121', margin: 0 }}>Editar pedido #{editModal.numero}</p>
+              <button onClick={() => setEditModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9e9e9e' }}><X size={18} /></button>
+            </div>
+
+            {/* Body */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '18px 22px' }}>
+              {/* Método de pago */}
+              <div style={{ marginBottom: 18 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: '#616161', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Método de pago</label>
+                <select
+                  value={editMetodoPago}
+                  onChange={e => setEditMetodoPago(e.target.value)}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e0e0e0', fontSize: 13, fontFamily: 'inherit', outline: 'none', background: '#fff' }}
+                >
+                  <option value="Efectivo">Efectivo</option>
+                  <option value="Transferencia">Transferencia</option>
+                  <option value="Mixto">Mixto (efectivo + transferencia)</option>
+                </select>
+              </div>
+
+              {/* Tipo de entrega */}
+              {!(editModal.grupos_envio && editModal.grupos_envio.length > 0) ? (
+                <div style={{ marginBottom: 18 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#616161', display: 'block', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>Tipo de entrega</label>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                    {[
+                      { value: false, label: 'Recoger en tienda', icon: '🏪' },
+                      { value: true,  label: 'Domicilio',         icon: '🛵' },
+                    ].map(opt => (
+                      <button
+                        key={String(opt.value)}
+                        onClick={() => setEditQuiereDomicilio(prev => prev === opt.value ? null : opt.value)}
+                        style={{
+                          flex: 1, padding: '10px 8px', borderRadius: 10, border: '1.5px solid',
+                          borderColor: editQuiereDomicilio === opt.value ? '#6366f1' : '#e0e0e0',
+                          background: editQuiereDomicilio === opt.value ? '#eef2ff' : '#fff',
+                          color: editQuiereDomicilio === opt.value ? '#4338ca' : '#616161',
+                          fontWeight: 700, fontSize: 12, cursor: 'pointer',
+                        }}
+                      >
+                        {opt.icon} {opt.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {editQuiereDomicilio === true && !editModal.tiene_domicilio && (
+                    <div style={{ marginTop: 4 }}>
+                      <SelectorBarrioEntrega
+                        onChange={(id, cob) => setEditIdBarrio(cob?.disponible ? id : null)}
+                        mostrarCobertura
+                        compacto
+                      />
+                      <input
+                        type="text"
+                        placeholder="Dirección de entrega (vía, apto, referencia…)"
+                        value={editDireccion}
+                        onChange={e => setEditDireccion(e.target.value)}
+                        style={{ width: '100%', marginTop: 8, padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e0e0e0', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Nota para el repartidor (opcional)"
+                        value={editNotas}
+                        onChange={e => setEditNotas(e.target.value)}
+                        style={{ width: '100%', marginTop: 6, padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e0e0e0', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                      />
+                      {editIdBarrio && (
+                        <p style={{ fontSize: 11, color: '#2e7d32', background: '#f1f8e9', borderRadius: 8, padding: '6px 10px', marginTop: 6, margin: 0 }}>
+                          Se sumará el costo del domicilio al total del pedido.
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {editQuiereDomicilio === true && editModal.tiene_domicilio && (
+                    <p style={{ fontSize: 12, color: '#616161', background: '#f5f5f5', borderRadius: 8, padding: '8px 12px', margin: 0 }}>
+                      Tu pedido ya tiene domicilio. Si quieres cambiar el barrio o la dirección, contacta a un empleado.
+                    </p>
+                  )}
+
+                  {editQuiereDomicilio === false && editModal.tiene_domicilio && (
+                    <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#f57f17', fontWeight: 600, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                      <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+                      El costo del domicilio se restará del total. Si pagaste anticipo superior al nuevo total, el exceso se acreditará a tu cuenta.
+                    </div>
+                  )}
+
+                  {editQuiereDomicilio === false && !editModal.tiene_domicilio && (
+                    <p style={{ fontSize: 12, color: '#616161', background: '#f5f5f5', borderRadius: 8, padding: '8px 12px', margin: 0 }}>
+                      Tu pedido ya es de recogida en tienda.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div style={{ background: '#f5f5f5', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#757575', marginBottom: 18 }}>
+                  El tipo de entrega no puede cambiarse porque el pedido ya fue dividido en grupos de envío.
+                </div>
+              )}
+
+              {editError && (
+                <div style={{ background: '#ffebee', border: '1px solid #ffcdd2', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#c62828', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <AlertTriangle size={13} /> {editError}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{ flexShrink: 0, padding: '14px 22px', borderTop: '1px solid #f0f0f0', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setEditModal(null)} style={{ padding: '10px 20px', borderRadius: 10, border: '1px solid #e0e0e0', background: '#fff', color: '#616161', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button
+                onClick={handleEditarPedido}
+                disabled={editGuardando}
+                style={{ padding: '10px 22px', borderRadius: 10, border: 'none', background: editGuardando ? '#a5b4fc' : '#4f46e5', color: '#fff', fontSize: 13, fontWeight: 700, cursor: editGuardando ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                {editGuardando ? 'Guardando…' : <><Check size={14} /> Guardar cambios</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Modal solicitar devolución ── */}
       {devModal && (
         <SolicitarDevolucionModal

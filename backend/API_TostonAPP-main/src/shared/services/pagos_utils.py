@@ -63,6 +63,12 @@ def cobro_efectivo_pendiente(venta) -> bool:
     """¿Queda plata por recibir en mano en este pedido?"""
     if not es_pago_efectivo(venta.Metodo_Pago):
         return False
+    # Si el crédito del cliente cubre todo el total, no hay efectivo pendiente
+    # sin importar el Metodo_Pago original registrado.
+    descuento = float(getattr(venta, "Descuento", 0) or 0)
+    total     = float(getattr(venta, "Total",    0) or 0)
+    if total > 0 and descuento >= total:
+        return False
     if _estado_pago(venta) in COBRO_RESUELTO:
         return False
     # En un mixto el efectivo tiene su propio registro: el admin puede cobrarlo

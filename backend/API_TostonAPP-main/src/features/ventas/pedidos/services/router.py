@@ -6,10 +6,10 @@ from src.shared.services.database import get_db
 from src.features.auth.services.dependencies import (
     requiere_permiso, permiso_o_cliente, obtener_usuario_actual,
 )
-from .schemas import PedidoResponse, PedidoListResponse, PedidoUpdate, RegistroCobro
+from .schemas import PedidoResponse, PedidoListResponse, PedidoUpdate, RegistroCobro, PedidoClienteEdit
 from .service import (
     obtener_pedidos, obtener_pedido, confirmar_pedido, cancelar_pedido,
-    editar_pedido, aprobar_comprobante, rechazar_comprobante, registrar_cobro_pedido,
+    editar_pedido, editar_mi_pedido, aprobar_comprobante, rechazar_comprobante, registrar_cobro_pedido,
 )
 from src.features.ventas.gestion_ventas.services.schemas import (
     RechazoComprobante, VentaCreate, VentaResponse,
@@ -98,8 +98,19 @@ def cancelar_mi_pedido(
     db:       Session = Depends(get_db),
     actual:   dict    = Depends(obtener_usuario_actual),
 ):
-    """El cliente cancela su propio pedido pendiente."""
+    """El cliente cancela su propio pedido (permitido hasta que entre a producción)."""
     return cancelar_pedido(db, id_venta, actual)
+
+
+@router.patch("/{id_venta}/editar-mi-pedido", response_model=PedidoResponse)
+def editar_mi_pedido_endpoint(
+    id_venta: int,
+    datos:    PedidoClienteEdit,
+    db:       Session = Depends(get_db),
+    actual:   dict    = Depends(obtener_usuario_actual),
+):
+    """El cliente cambia el método de pago y/o el tipo de entrega de su pedido."""
+    return editar_mi_pedido(db, id_venta, datos.model_dump(exclude_none=True), actual)
 
 
 @router.patch("/{id_venta}/aprobar-comprobante", response_model=PedidoResponse)
