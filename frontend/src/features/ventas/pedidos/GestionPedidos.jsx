@@ -210,9 +210,12 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
   ].filter((c, i, todos) => c.url && todos.findIndex(o => o.url === c.url) === i);
   const esMixto         = esPagoMixto(pedido.metodo_pago);
   const esTransferencia = esPagoTransferencia(pedido.metodo_pago);
+  // Total $0 con método transferencia → el crédito cubrió todo; no hay nada
+  // que transferir ni comprobante que pedir.
+  const pagoTotalConCredito = esTransferencia && Number(pedido.total || 0) === 0;
   const epInicial = pedido.estado_pago;
   const [tab, setTab] = useState(
-    esTransferencia || epInicial === "pendiente_validacion" || epInicial === "comprobante_rechazado"
+    (esTransferencia && !pagoTotalConCredito) || epInicial === "pendiente_validacion" || epInicial === "comprobante_rechazado"
       ? "pago"
       : "resumen"
   );
@@ -1084,7 +1087,12 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
                         pagó sale arriba, en el estado del pago. */}
 
                     {/* ── Transferencia: datos bancarios + comprobante ── */}
-                    {esTransferencia ? (
+                    {pagoTotalConCredito ? (
+                      <div className="info-box info-box--success">
+                        <span className="info-box__icon"><CheckCircle2 size={16} /></span>
+                        <span className="info-box__text">El saldo a favor del cliente cubrió el total del pedido. No se requiere comprobante de transferencia.</span>
+                      </div>
+                    ) : esTransferencia ? (
                       <>
                         <p className="section-label" style={{ marginTop: 4 }}>Datos para realizar la transferencia</p>
                         <div className="cuenta-card">
@@ -1940,6 +1948,7 @@ function AccionesCell({ ped, saving, onVer, onEditar, onConfirmar, onMarcarListo
   const _terminalState      = ["Entregado","Cancelado"].includes(ped.estado);
   const _pagoRegistrado     = ["efectivo_recibido","pagado_completo","anticipo_pagado"].includes(ped.estado_pago);
   const canSubirComprobante = esTransferencia && !_terminalState &&
+    Number(ped.total || 0) > 0 &&
     (!ped.comprobante || ped.estado_pago === "comprobante_rechazado");
   const _faltaEfectivoMixto = esPagoMixto(ped.metodo_pago) && ped.estado_pago === "anticipo_pagado";
   const canRegistrarCobro   = esEfectivo && !_terminalState && (!_pagoRegistrado || _faltaEfectivoMixto);
@@ -2192,8 +2201,8 @@ export default function GestionPedidos() {
     }
     const esTransferencia = esPagoTransferencia(ped.metodo_pago);
     const estadoPago = ped.estado_pago || "pendiente";
-    // Transferencia sin comprobante adjunto
-    if (esTransferencia && !ped.comprobante) {
+    // Transferencia sin comprobante adjunto (no aplica cuando el crédito cubrió el total)
+    if (esTransferencia && Number(ped.total || 0) > 0 && !ped.comprobante) {
       setModal({ type: "errorEstado", mensaje: "No se puede entregar: el pedido no tiene comprobante de pago adjunto. Adjunta el comprobante antes de marcar como entregado." });
       return;
     }
