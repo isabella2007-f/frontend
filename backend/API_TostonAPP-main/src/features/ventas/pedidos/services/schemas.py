@@ -98,11 +98,15 @@ class PedidoUpdate(BaseModel):
 
 # ── Edición del pedido por el propio cliente ──
 class PedidoClienteEdit(BaseModel):
-    Metodo_Pago:       Optional[str]  = None
-    quiere_domicilio:  Optional[bool] = None
-    ID_Barrio:         Optional[int]  = None
-    Direccion_Entrega: Optional[str]  = None
-    Notas:             Optional[str]  = None
+    Metodo_Pago:       Optional[str]   = None
+    quiere_domicilio:  Optional[bool]  = None
+    ID_Barrio:         Optional[int]   = None
+    Direccion_Entrega: Optional[str]   = None
+    Notas:             Optional[str]   = None
+    # URL Cloudinary del comprobante; obligatorio al cambiar a Transferencia o Mixto
+    Comprobante_Pago:  Optional[str]   = None
+    # Para Mixto: cuánto paga en efectivo; el resto se carga a transferencia
+    Monto_Efectivo:    Optional[float] = None
 
 
 # ── Respuesta paginada ──

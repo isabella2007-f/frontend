@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useRef, useCallback } from 'react';
 import { getMisVentas, cancelarMiPedido, editarMiPedido, aceptarFechaProduccion, rechazarFechaProduccion, guardarEnvioCompletoDomingo, getItemsListos, crearGruposEnvio } from '../../../services/pedidosService';
+import { subirImagenCloudinary } from '../../../utils/cloudinary.js';
 import { crearDevolucion } from '../../../services/devolucionesService';
 import { fmtFecha } from '../../../utils/dateUtils.js';
 import { getCurrentUser } from '../../client/profile/services/profileService.js';
@@ -11,8 +12,16 @@ import {
   XCircle, ShoppingBag, RefreshCw, ChefHat, Inbox, Store,
   Gift, Check, X, FileText, Ban, CreditCard, Building2,
   Banknote, ClipboardList, CornerUpLeft, AlertCircle, PenLine,
+  Upload, Paperclip,
 } from 'lucide-react';
 import '../../../styles/Client.css';
+
+const CUENTA_TRANSFERENCIA = {
+  banco:   "Bancolombia",
+  titular: "TostonApp S.A.S",
+  tipo:    "Ahorros",
+  numero:  import.meta.env.VITE_CUENTA_TRANSFERENCIA ?? "54213570938",
+};
 
 /* ── Stepper de seguimiento ───────────────────────────── */
 const PASOS_DOMICILIO = [
@@ -407,6 +416,11 @@ const PedidosClientePage = () => {
   const [editNotas,            setEditNotas]            = useState('');
   const [editGuardando,        setEditGuardando]        = useState(false);
   const [editError,            setEditError]            = useState('');
+  // Comprobante para Transferencia / Mixto
+  const [editComprobante,      setEditComprobante]      = useState(null);   // File | null
+  const [editComprobantePreview, setEditComprobantePreview] = useState(null); // URL | dataURL | null
+  // Monto en efectivo para Mixto
+  const [editMontoEfectivo,    setEditMontoEfectivo]    = useState('');
 
   // Ref para acceder al pedido seleccionado dentro del interval sin recrear el callback
   const selectedPedidoRef = useRef(null);
@@ -538,23 +552,71 @@ const PedidosClientePage = () => {
   const ESTADOS_CANCELABLES = ['Pendiente', 'Fecha propuesta', 'Fecha rechazada', 'Escalado a admin'];
 
   const abrirEditModal = (pedido) => {
-    setEditMetodoPago(pedido.metodo_pago || pedido.Metodo_Pago || '');
+    const metodo = pedido.metodo_pago || pedido.Metodo_Pago || '';
+    const lleva = metodo === 'Transferencia' || metodo === 'Mixto';
+    setEditMetodoPago(metodo);
     setEditQuiereDomicilio(null);
     setEditIdBarrio(null);
     setEditDireccion('');
     setEditNotas('');
     setEditError('');
+    setEditComprobante(null);
+    // Pre-poblar el preview si ya tienen comprobante con ese método
+    setEditComprobantePreview(lleva ? (pedido.comprobante || null) : null);
+    setEditMontoEfectivo(pedido.monto_efectivo != null ? String(pedido.monto_efectivo) : '');
     setEditModal(pedido);
   };
 
   const handleEditarPedido = async () => {
     setEditGuardando(true);
     setEditError('');
+
+    const metodoPagoActual = editModal.metodo_pago || editModal.Metodo_Pago || '';
+    const cambioMetodo = editMetodoPago !== metodoPagoActual;
+    const requiereComprobante = editMetodoPago === 'Transferencia' || editMetodoPago === 'Mixto';
+
+    // Validar comprobante cuando se cambia a un método con transferencia
+    if (cambioMetodo && requiereComprobante && !editComprobantePreview) {
+      setEditError('Adjunta el comprobante de la transferencia antes de guardar.');
+      setEditGuardando(false);
+      return;
+    }
+
+    // Validar monto efectivo para Mixto
+    if (editMetodoPago === 'Mixto') {
+      const ef = Number(editMontoEfectivo) || 0;
+      const totalPedido = Number(editModal.total) || 0;
+      if (ef <= 0 || ef >= totalPedido) {
+        setEditError(`El monto en efectivo debe ser mayor a $0 y menor al total (${COP(totalPedido)}).`);
+        setEditGuardando(false);
+        return;
+      }
+    }
+
     try {
       const datos = {};
-      if (editMetodoPago && editMetodoPago !== (editModal.metodo_pago || editModal.Metodo_Pago || '')) {
-        datos.Metodo_Pago = editMetodoPago;
+
+      if (cambioMetodo) datos.Metodo_Pago = editMetodoPago;
+
+      // Subir comprobante a Cloudinary si es un archivo nuevo
+      if (editComprobante instanceof File) {
+        try {
+          datos.Comprobante_Pago = await subirImagenCloudinary(editComprobante);
+        } catch {
+          setEditError('Error al subir el comprobante. Inténtalo de nuevo.');
+          setEditGuardando(false);
+          return;
+        }
+      } else if (requiereComprobante && editComprobantePreview && cambioMetodo) {
+        // URL existente que venía pre-poblada al abrir el modal
+        datos.Comprobante_Pago = editComprobantePreview;
       }
+
+      // Montos para Mixto
+      if (editMetodoPago === 'Mixto') {
+        datos.Monto_Efectivo = Number(editMontoEfectivo) || 0;
+      }
+
       if (editQuiereDomicilio !== null) {
         datos.quiere_domicilio = editQuiereDomicilio;
         if (editQuiereDomicilio) {
@@ -568,10 +630,12 @@ const PedidosClientePage = () => {
           if (editNotas) datos.Notas = editNotas;
         }
       }
+
       if (!Object.keys(datos).length) {
         setEditModal(null);
         return;
       }
+
       await editarMiPedido(editModal.id, datos);
       setEditModal(null);
       fetchPedidos();
@@ -1535,7 +1599,7 @@ const PedidosClientePage = () => {
       )}
       {/* ── Modal editar pedido ── */}
       {editModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ background: '#fff', borderRadius: 18, width: '100%', maxWidth: 440, boxShadow: '0 8px 40px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' }}>
             {/* Header */}
             <div style={{ padding: '18px 22px 14px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1550,14 +1614,119 @@ const PedidosClientePage = () => {
                 <label style={{ fontSize: 11, fontWeight: 700, color: '#616161', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Método de pago</label>
                 <select
                   value={editMetodoPago}
-                  onChange={e => setEditMetodoPago(e.target.value)}
+                  onChange={e => {
+                    const m = e.target.value;
+                    setEditMetodoPago(m);
+                    // Limpiar comprobante si cambian a Efectivo
+                    if (m === 'Efectivo') {
+                      setEditComprobante(null);
+                      setEditComprobantePreview(null);
+                    }
+                    setEditError('');
+                  }}
                   style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e0e0e0', fontSize: 13, fontFamily: 'inherit', outline: 'none', background: '#fff' }}
                 >
                   <option value="Efectivo">Efectivo</option>
-                  <option value="Transferencia">Transferencia</option>
-                  <option value="Mixto">Mixto (efectivo + transferencia)</option>
+                  <option value="Transferencia">Transferencia bancaria</option>
+                  {/* Mixto solo disponible si el pedido no requiere anticipo */}
+                  {!editModal?.requiere_anticipo && (
+                    <option value="Mixto">Mixto (efectivo + transferencia)</option>
+                  )}
                 </select>
               </div>
+
+              {/* ── Datos bancarios + comprobante (Transferencia o Mixto) ── */}
+              {(editMetodoPago === 'Transferencia' || editMetodoPago === 'Mixto') && (
+                <div style={{ marginBottom: 18 }}>
+                  {/* Datos de la cuenta */}
+                  <div style={{ background: '#e3f2fd', border: '1px solid #90caf9', borderRadius: 12, padding: '12px 14px', marginBottom: 12 }}>
+                    <p style={{ fontSize: 10, fontWeight: 800, color: '#1565c0', letterSpacing: 1, textTransform: 'uppercase', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <Building2 size={12} /> Datos para la transferencia
+                    </p>
+                    {[
+                      { label: 'Banco',          value: CUENTA_TRANSFERENCIA.banco },
+                      { label: 'Titular',        value: CUENTA_TRANSFERENCIA.titular },
+                      { label: 'Tipo de cuenta', value: CUENTA_TRANSFERENCIA.tipo },
+                      { label: 'Número',         value: CUENTA_TRANSFERENCIA.numero },
+                    ].map(({ label, value }) => (
+                      <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0', borderBottom: '1px solid #bbdefb' }}>
+                        <span style={{ fontSize: 11, color: '#1565c0', fontWeight: 600 }}>{label}</span>
+                        <span style={{ fontSize: 12, color: '#0d47a1', fontWeight: 800 }}>{value}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Monto en efectivo para Mixto */}
+                  {editMetodoPago === 'Mixto' && (
+                    <div style={{ marginBottom: 12 }}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: '#616161', display: 'block', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        ¿Cuánto pagas en efectivo? <span style={{ color: '#c62828' }}>*</span>
+                      </label>
+                      <div style={{ fontSize: 10, color: '#9e9e9e', marginBottom: 6, lineHeight: 1.4 }}>
+                        Total del pedido: <strong>{COP(Number(editModal?.total) || 0)}</strong>. El resto va por transferencia.
+                      </div>
+                      <input
+                        type="number"
+                        min={1}
+                        max={Number(editModal?.total) - 1}
+                        value={editMontoEfectivo}
+                        onChange={e => setEditMontoEfectivo(e.target.value)}
+                        placeholder="Ej: 5000"
+                        style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: '1.5px solid #e0e0e0', fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                      />
+                      {editMontoEfectivo && Number(editMontoEfectivo) > 0 && Number(editMontoEfectivo) < Number(editModal?.total) && (
+                        <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                          <div style={{ flex: 1, background: '#e8f5e9', borderRadius: 8, padding: '6px 10px', textAlign: 'center' }}>
+                            <div style={{ fontSize: 9, fontWeight: 700, color: '#2e7d32', textTransform: 'uppercase' }}>Efectivo</div>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: '#1b5e20' }}>{COP(Number(editMontoEfectivo))}</div>
+                          </div>
+                          <div style={{ flex: 1, background: '#e3f2fd', borderRadius: 8, padding: '6px 10px', textAlign: 'center' }}>
+                            <div style={{ fontSize: 9, fontWeight: 700, color: '#1565c0', textTransform: 'uppercase' }}>Transferencia</div>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: '#0d47a1' }}>{COP(Math.max(0, Number(editModal?.total) - Number(editMontoEfectivo)))}</div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Comprobante de transferencia */}
+                  <label style={{ fontSize: 11, fontWeight: 700, color: '#616161', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Comprobante de {editMetodoPago === 'Mixto' ? 'la transferencia' : 'pago'} <span style={{ color: '#c62828' }}>*</span>
+                  </label>
+                  {editComprobantePreview ? (
+                    <div style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', background: '#000', marginBottom: 6 }}>
+                      <img
+                        src={editComprobantePreview}
+                        alt="Comprobante"
+                        style={{ width: '100%', maxHeight: 160, objectFit: 'contain', display: 'block' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => { setEditComprobante(null); setEditComprobantePreview(null); }}
+                        style={{ position: 'absolute', top: 6, right: 6, background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: 26, height: 26, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      ><X size={12} /></button>
+                    </div>
+                  ) : (
+                    <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 80, borderRadius: 10, border: '2px dashed #90caf9', background: '#f3f8ff', cursor: 'pointer', gap: 4 }}>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        hidden
+                        onChange={e => {
+                          const f = e.target.files[0];
+                          if (!f) return;
+                          const r = new FileReader();
+                          r.onload = ev => { setEditComprobante(f); setEditComprobantePreview(ev.target.result); };
+                          r.readAsDataURL(f);
+                        }}
+                      />
+                      <Upload size={20} style={{ color: '#1565c0' }} />
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#1565c0' }}>Subir comprobante</span>
+                      <span style={{ fontSize: 10, color: '#9e9e9e' }}>JPG, PNG o WEBP</span>
+                    </label>
+                  )}
+                </div>
+              )}
 
               {/* Tipo de entrega */}
               {!(editModal.grupos_envio && editModal.grupos_envio.length > 0) ? (

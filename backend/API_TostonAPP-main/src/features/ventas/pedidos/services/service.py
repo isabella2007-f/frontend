@@ -347,7 +347,43 @@ def editar_mi_pedido(db: Session, id_venta: int, datos: dict, actual: dict) -> d
         )
 
     if datos.get("Metodo_Pago"):
-        pedido.Metodo_Pago = datos["Metodo_Pago"].strip()
+        nuevo_metodo = datos["Metodo_Pago"].strip()
+        # Mixto no puede usarse cuando el pedido exige anticipo del 50%
+        if "mixto" in nuevo_metodo.lower() and pedido.Requiere_Anticipo:
+            raise HTTPException(
+                status_code=400,
+                detail="El método mixto no está disponible para pedidos que requieren anticipo del 50%.",
+            )
+        pedido.Metodo_Pago = nuevo_metodo
+
+    # Guardar comprobante si se subió uno nuevo
+    comprobante_nuevo = datos.get("Comprobante_Pago")
+    if comprobante_nuevo:
+        pedido.Comprobante_Pago = comprobante_nuevo
+
+    # Actualizar Estado_Pago y montos según el método de pago resultante
+    if datos.get("Metodo_Pago"):
+        metodo_resultante = (pedido.Metodo_Pago or "").strip()
+        estado_pago_actual = (getattr(pedido, "Estado_Pago", None) or "pendiente").strip()
+        if _lleva_transferencia(metodo_resultante):
+            if comprobante_nuevo or pedido.Comprobante_Pago:
+                pedido.Estado_Pago = "pendiente_validacion"
+            else:
+                pedido.Estado_Pago = "pendiente"
+        else:
+            # Cambio a Efectivo puro: resetear estado y limpiar montos mixto
+            if estado_pago_actual not in _ESTADOS_PAGO_BLOQUEADO_EDICION:
+                pedido.Estado_Pago = "pendiente"
+            pedido.Monto_Efectivo = None
+            pedido.Monto_Transferencia = None
+
+    # Repartir montos cuando el método es Mixto
+    if _es_mixto(pedido.Metodo_Pago) and datos.get("Monto_Efectivo") is not None:
+        total_actual = pedido.Total or Decimal(0)
+        monto_ef = Decimal(str(datos["Monto_Efectivo"] or 0))
+        efectivo = max(Decimal("0"), min(monto_ef, total_actual))
+        pedido.Monto_Efectivo = efectivo
+        pedido.Monto_Transferencia = total_actual - efectivo
 
     quiere_domicilio = datos.get("quiere_domicilio")  # True | False | None
     domicilio = db.query(Domicilio).filter(Domicilio.ID_Venta == id_venta).first()
