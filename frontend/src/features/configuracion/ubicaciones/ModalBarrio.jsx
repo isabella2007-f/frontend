@@ -100,7 +100,10 @@ export default function ModalBarrio({ barrio, onGuardado, onCerrar }) {
     <div className="ub-overlay" onClick={onCerrar}>
       <div className="ub-modal" onClick={(e) => e.stopPropagation()}>
         <div className="ub-modal__head">
-          <h2>{editando ? "Editar barrio" : "Crear barrio"}</h2>
+          <div>
+            <p className="ub-modal__eyebrow">Ubicaciones</p>
+            <h2>{editando ? "Editar barrio" : "Crear barrio"}</h2>
+          </div>
           <button className="ub-modal__x" onClick={onCerrar}><X size={18} /></button>
         </div>
 

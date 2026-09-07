@@ -16,6 +16,20 @@ const fmt = (n) =>
   new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n || 0);
 
 const PER_PAGE = 10;
+const PER_PAGE_DEP = 8;   // departamentos por página en la vista de árbol
+const PER_PAGE_CIU = 8;   // ciudades por página dentro de un departamento
+
+/** Pager compacto reutilizable (‹ Página X de Y ›). */
+function Pager({ pagina, totalPags, onPagina, className = "ub-pager", extra }) {
+  if (totalPags <= 1) return null;
+  return (
+    <div className={className}>
+      <button disabled={pagina <= 1} onClick={() => onPagina(pagina - 1)}>‹</button>
+      <span>Página {pagina} de {totalPags}{extra ? ` · ${extra}` : ""}</span>
+      <button disabled={pagina >= totalPags} onClick={() => onPagina(pagina + 1)}>›</button>
+    </div>
+  );
+}
 
 function Toggle({ on, disabled, onClick, title }) {
   return (
@@ -128,6 +142,8 @@ export default function PestanaUbicaciones() {
   const [ciudadesPorDep, setCiudadesPorDep] = useState({});
   const [expandidoDep, setExpandidoDep] = useState({});
   const [expandidoCiu, setExpandidoCiu] = useState({});
+  const [pagDep, setPagDep] = useState(1);          // página del nivel departamentos
+  const [pagCiu, setPagCiu] = useState({});         // { [idDepartamento]: página }
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Búsqueda / filtros → resultados planos
@@ -228,6 +244,12 @@ export default function PestanaUbicaciones() {
 
   const totalPagPlanos = Math.max(1, Math.ceil(planos.total / PER_PAGE));
 
+  const depTotalPags = Math.max(1, Math.ceil(departamentos.length / PER_PAGE_DEP));
+  const pagDepSafe = Math.min(pagDep, depTotalPags);
+  const depSlice = departamentos.slice(
+    (pagDepSafe - 1) * PER_PAGE_DEP, pagDepSafe * PER_PAGE_DEP,
+  );
+
   return (
     <div>
       {aviso && (
@@ -298,9 +320,13 @@ export default function PestanaUbicaciones() {
       ) : (
         <div className="ub-tree">
           {departamentos.length === 0 && <div className="ub-loading">Cargando…</div>}
-          {departamentos.map((dep) => {
+          {depSlice.map((dep) => {
             const abierto = expandidoDep[dep.ID_Departamento];
             const ciudades = ciudadesPorDep[dep.ID_Departamento] || [];
+            const ciuPag = Math.min(pagCiu[dep.ID_Departamento] || 1,
+              Math.max(1, Math.ceil(ciudades.length / PER_PAGE_CIU)));
+            const ciuTotalPags = Math.max(1, Math.ceil(ciudades.length / PER_PAGE_CIU));
+            const ciuSlice = ciudades.slice((ciuPag - 1) * PER_PAGE_CIU, ciuPag * PER_PAGE_CIU);
             return (
               <div className="ub-node" key={dep.ID_Departamento}>
                 <div className="ub-node__row ub-node__row--depto" onClick={() => toggleDep(dep)}>
@@ -336,7 +362,7 @@ export default function PestanaUbicaciones() {
                 {abierto && (
                   <div className="ub-node__children">
                     {ciudades.length === 0 && <div className="ub-loading">Cargando ciudades…</div>}
-                    {ciudades.map((ciu) => {
+                    {ciuSlice.map((ciu) => {
                       const ciuAbierto = expandidoCiu[ciu.ID_Ciudad];
                       return (
                         <div className="ub-node" key={ciu.ID_Ciudad}>
@@ -382,12 +408,28 @@ export default function PestanaUbicaciones() {
                         </div>
                       );
                     })}
+                    <Pager
+                      className="ub-pager ub-pager--nested"
+                      pagina={ciuPag}
+                      totalPags={ciuTotalPags}
+                      extra={`${ciudades.length} ciudades`}
+                      onPagina={(p) => setPagCiu((s) => ({ ...s, [dep.ID_Departamento]: p }))}
+                    />
                   </div>
                 )}
               </div>
             );
           })}
         </div>
+      )}
+
+      {!modoBusqueda && (
+        <Pager
+          pagina={pagDepSafe}
+          totalPags={depTotalPags}
+          extra={`${departamentos.length} departamentos`}
+          onPagina={setPagDep}
+        />
       )}
 
       {modoBusqueda && totalPagPlanos > 1 && (

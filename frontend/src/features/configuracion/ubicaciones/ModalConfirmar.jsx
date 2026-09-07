@@ -19,7 +19,10 @@ export default function ModalConfirmar({
     <div className="ub-overlay" onClick={onCancelar}>
       <div className="ub-modal" style={{ width: "min(440px, 96vw)" }} onClick={(e) => e.stopPropagation()}>
         <div className="ub-modal__head">
-          <h2>{titulo}</h2>
+          <div>
+            <p className="ub-modal__eyebrow">{peligro ? "Acción sensible" : "Confirmar"}</p>
+            <h2>{titulo}</h2>
+          </div>
           <button className="ub-modal__x" onClick={onCancelar}><X size={18} /></button>
         </div>
         <div className="ub-modal__body">

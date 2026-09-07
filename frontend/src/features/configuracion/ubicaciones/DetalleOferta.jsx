@@ -13,7 +13,10 @@ export default function DetalleOferta({ oferta, onCerrar }) {
     <div className="ub-overlay" onClick={onCerrar}>
       <div className="ub-modal" onClick={(e) => e.stopPropagation()}>
         <div className="ub-modal__head">
-          <h2>{o.nombre}</h2>
+          <div>
+            <p className="ub-modal__eyebrow">Detalle de la oferta</p>
+            <h2>{o.nombre}</h2>
+          </div>
           <button className="ub-modal__x" onClick={onCerrar}><X size={18} /></button>
         </div>
         <div className="ub-modal__body">

@@ -1,15 +1,28 @@
 /* Módulo Ubicaciones — jerarquía Departamento → Ciudad → Barrio + ofertas de
    domicilio. Estética alineada con el resto del panel (verde #2e7d32). */
 
-.ub-wrap { padding: 20px 24px 60px; }
+.ub-wrap {
+  padding: 20px 24px 60px;
+  background: var(--green-50);
+  min-height: 100%;
+}
 
-.ub-head { margin-bottom: 18px; }
+.ub-head { margin-bottom: 20px; }
 .ub-head__desc {
-  margin: 8px 0 0; font-size: 13px; color: #757575; max-width: 640px; line-height: 1.45;
+  margin: 12px 0 0;
+  max-width: 620px;
+  padding: 10px 0 10px 14px;
+  border-left: 3px solid #a5d6a7;
+  font-size: 13px;
+  color: #55685a;
+  line-height: 1.6;
 }
 
 /* ── Tabs ── */
-.ub-tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid #eee; }
+.ub-tabs {
+  display: flex; gap: 4px; margin-bottom: 16px;
+  border-bottom: 1px solid var(--green-100);
+}
 .ub-tab {
   padding: 9px 18px; border: none; background: transparent;
   font-family: inherit; font-size: 13px; font-weight: 700; color: #9e9e9e;
@@ -27,40 +40,51 @@
   position: relative; flex: 1 1 240px; min-width: 200px;
 }
 .ub-search input {
-  width: 100%; box-sizing: border-box; padding: 9px 12px 9px 34px;
-  border: 1.5px solid #e0e0e0; border-radius: 9px; font-size: 13px;
-  font-family: inherit; outline: none;
+  width: 100%; box-sizing: border-box; padding: 10px 12px 10px 34px;
+  border: 1.5px solid #e5e7eb; border-radius: 10px; font-size: 13px;
+  font-family: inherit; outline: none; background: #fff;
+  transition: border-color .18s, box-shadow .18s;
 }
-.ub-search input:focus { border-color: #4caf50; }
+.ub-search input:focus { border-color: #4caf50; box-shadow: 0 0 0 3px rgba(46, 125, 50, .1); }
 .ub-search__icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: #9e9e9e; }
 .ub-select {
-  padding: 9px 12px; border: 1.5px solid #e0e0e0; border-radius: 9px;
+  padding: 10px 12px; border: 1.5px solid #e5e7eb; border-radius: 10px;
   font-size: 13px; font-family: inherit; background: #fff; cursor: pointer; outline: none;
+  transition: border-color .18s, box-shadow .18s;
 }
-.ub-select:focus { border-color: #4caf50; }
+.ub-select:focus { border-color: #4caf50; box-shadow: 0 0 0 3px rgba(46, 125, 50, .1); }
 
 .ub-btn {
-  padding: 9px 16px; border-radius: 9px; border: none; cursor: pointer;
+  padding: 10px 18px; border-radius: 10px; border: none; cursor: pointer;
   font-family: inherit; font-size: 13px; font-weight: 700;
-  display: inline-flex; align-items: center; gap: 6px; transition: all .15s;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: background .2s, box-shadow .2s, transform .2s, border-color .2s;
 }
 .ub-btn--primary { background: #2e7d32; color: #fff; }
-.ub-btn--primary:hover { background: #1b5e20; }
-.ub-btn--ghost { background: #f5f5f5; color: #555; border: 1px solid #e0e0e0; }
-.ub-btn--ghost:hover { background: #eee; }
+.ub-btn--primary:hover:not(:disabled) {
+  background: #388e3c; transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(46, 125, 50, .35);
+}
+.ub-btn--ghost { background: #fff; color: #374151; border: 1.5px solid #e5e7eb; }
+.ub-btn--ghost:hover:not(:disabled) { background: #f5f5f5; color: #1f2937; }
 .ub-btn--danger { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+.ub-btn--danger:hover:not(:disabled) { background: #ffdbde; }
 .ub-btn:disabled { opacity: .5; cursor: not-allowed; }
 
 /* ── Árbol / lista anidada con acordeón ── */
-.ub-tree { border: 1px solid #eee; border-radius: 12px; overflow: hidden; background: #fff; }
-.ub-node { border-bottom: 1px solid #f0f0f0; }
+.ub-tree {
+  border: 1px solid var(--green-100); border-radius: 14px; overflow: hidden;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 10px 28px rgba(16, 24, 40, .05);
+}
+.ub-node { border-bottom: 1px solid #eef2ee; }
 .ub-node:last-child { border-bottom: none; }
 .ub-node__row {
   display: flex; align-items: center; gap: 8px; padding: 10px 14px;
   cursor: pointer; user-select: none;
 }
 .ub-node__row:hover { background: #fafafa; }
-.ub-node__row--depto { background: #f7faf7; font-weight: 700; }
+.ub-node__row--depto { background: #eef6ee; font-weight: 700; }
 .ub-node__row--ciudad { padding-left: 34px; }
 .ub-node__row--barrio { padding-left: 54px; cursor: default; }
 .ub-node__row--barrio:hover { background: #fff; }
@@ -110,54 +134,82 @@
 /* ── Paginación ── */
 .ub-pager { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 16px; }
 .ub-pager button {
-  padding: 6px 12px; border: 1px solid #e0e0e0; border-radius: 8px; background: #fff;
-  cursor: pointer; font-family: inherit; font-size: 12px;
+  padding: 7px 13px; border: 1.5px solid #e5e7eb; border-radius: 9px; background: #fff;
+  cursor: pointer; font-family: inherit; font-size: 12px; font-weight: 700; color: #374151;
+  transition: border-color .15s, background .15s;
 }
+.ub-pager button:hover:not(:disabled) { border-color: #a5d6a7; background: #f1f8f1; }
 .ub-pager button:disabled { opacity: .4; cursor: not-allowed; }
-.ub-pager span { font-size: 12px; color: #757575; }
+.ub-pager span { font-size: 12px; color: #55685a; font-weight: 600; }
+.ub-pager--nested { justify-content: flex-start; margin: 8px 0 6px 54px; }
 
 /* ── Tabla de ofertas ── */
 .ub-tbl { width: 100%; border-collapse: collapse; font-size: 13px; background: #fff; }
 .ub-tbl th {
-  text-align: left; padding: 10px 12px; background: #f7faf7; font-size: 11px;
-  text-transform: uppercase; letter-spacing: .04em; color: #546e7a; font-weight: 700;
+  text-align: left; padding: 11px 12px; background: #eef6ee; font-size: 11px;
+  text-transform: uppercase; letter-spacing: .05em; color: #40614a; font-weight: 800;
 }
-.ub-tbl td { padding: 10px 12px; border-top: 1px solid #f0f0f0; vertical-align: middle; }
-.ub-tbl tr:hover td { background: #fafafa; }
-.ub-tbl__scroll { overflow-x: auto; border: 1px solid #eee; border-radius: 12px; }
+.ub-tbl td { padding: 10px 12px; border-top: 1px solid #eef2ee; vertical-align: middle; }
+.ub-tbl tr:hover td { background: #f7faf7; }
+.ub-tbl__scroll {
+  overflow-x: auto; border: 1px solid var(--green-100); border-radius: 14px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 10px 28px rgba(16, 24, 40, .05);
+}
 
-/* ── Modales ── */
+/* ── Modales — misma estética que el resto del panel (.modal-box) ── */
 .ub-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 30000;
+  position: fixed; inset: 0; background: rgba(10, 25, 15, .55); z-index: 30000;
   display: flex; align-items: center; justify-content: center; padding: 16px;
+  backdrop-filter: blur(3px);
 }
 .ub-modal {
-  background: #fff; border-radius: 14px; width: min(560px, 96vw);
+  background: #fff; border-radius: 24px; width: min(560px, 96vw);
   max-height: 92vh; overflow: hidden; display: flex; flex-direction: column;
-  box-shadow: 0 8px 40px rgba(0,0,0,.22);
+  border: 1px solid var(--green-100);
+  box-shadow: 0 32px 64px rgba(10, 45, 26, .18), 0 16px 32px rgba(0, 0, 0, .08);
 }
 .ub-modal__head {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 20px; border-bottom: 1px solid #f0f0f0;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: 20px 24px;
+  background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%);
+  color: #fff;
 }
-.ub-modal__head h2 { margin: 0; font-size: 16px; font-weight: 800; color: #1a1a1a; }
-.ub-modal__body { padding: 18px 20px; overflow-y: auto; }
+.ub-modal__eyebrow {
+  margin: 0 0 4px; font-size: 10.5px; font-weight: 800; letter-spacing: .18em;
+  text-transform: uppercase; color: rgba(255, 255, 255, .82);
+}
+.ub-modal__head h2 {
+  margin: 0; font-size: 19px; font-weight: 900; color: #fff; letter-spacing: -.02em;
+  line-height: 1.15;
+}
+.ub-modal__body {
+  padding: 20px 24px; overflow-y: auto;
+  background: linear-gradient(180deg, #fff 0%, #f7faf7 100%);
+}
 .ub-modal__foot {
   display: flex; justify-content: flex-end; gap: 10px;
-  padding: 14px 20px; border-top: 1px solid #f0f0f0;
+  padding: 14px 24px; border-top: 1px solid var(--green-100); background: #f9fbf9;
 }
 .ub-modal__x { background: none; border: none; cursor: pointer; color: #9e9e9e; display: flex; }
+.ub-modal__head .ub-modal__x {
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  border: 1.5px solid rgba(255, 255, 255, .4); background: rgba(255, 255, 255, .12);
+  color: #fff; align-items: center; justify-content: center;
+  transition: background .2s, transform .2s;
+}
+.ub-modal__head .ub-modal__x:hover { background: rgba(255, 255, 255, .24); transform: rotate(90deg); }
 
-.ub-field { margin-bottom: 14px; }
+.ub-field { margin-bottom: 16px; }
 .ub-field > label {
-  display: block; font-size: 11px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .04em; color: #757575; margin-bottom: 6px;
+  display: block; font-size: 11px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .06em; color: #4b5563; margin-bottom: 7px;
 }
 .ub-input {
-  width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1.5px solid #e0e0e0;
-  border-radius: 9px; font-size: 13px; font-family: inherit; outline: none;
+  width: 100%; box-sizing: border-box; padding: 11px 15px; border: 1.5px solid #e5e7eb;
+  border-radius: 10px; font-size: 14px; font-family: inherit; outline: none;
+  transition: border-color .18s, box-shadow .18s;
 }
-.ub-input:focus { border-color: #4caf50; }
+.ub-input:focus { border-color: #4caf50; box-shadow: 0 0 0 3px rgba(46, 125, 50, .1); }
 .ub-input:disabled { background: #f5f5f5; color: #9e9e9e; }
 .ub-input--error { border-color: #ef5350; }
 .ub-error { margin: 5px 0 0; font-size: 11px; color: #c62828; }
@@ -196,6 +248,12 @@
 .ub-empty { text-align: center; padding: 40px 20px; color: #bdbdbd; font-size: 13px; }
 .ub-loading { text-align: center; padding: 30px; color: #9e9e9e; font-size: 13px; }
 
-.ub-detail-block { margin-bottom: 12px; }
-.ub-detail-block h4 { margin: 0 0 6px; font-size: 12px; color: #757575; text-transform: uppercase; letter-spacing: .04em; }
-.ub-detail-block p { margin: 2px 0; font-size: 13px; color: #1a1a1a; }
+.ub-detail-block {
+  margin-bottom: 10px; padding: 12px 14px;
+  background: #fff; border: 1px solid var(--green-100); border-radius: 12px;
+}
+.ub-detail-block h4 {
+  margin: 0 0 6px; font-size: 10.5px; font-weight: 800; color: #2e7d32;
+  text-transform: uppercase; letter-spacing: .06em;
+}
+.ub-detail-block p { margin: 3px 0; font-size: 13.5px; color: #1f2937; line-height: 1.5; }

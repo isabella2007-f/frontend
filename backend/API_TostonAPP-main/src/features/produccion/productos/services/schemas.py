@@ -120,6 +120,9 @@ class ProductoResponse(BaseModel):
     Descripcion_Corta:   Optional[str]     = None
     Descripcion_Larga:   Optional[str]     = None
     Requiere_Produccion: Optional[int]     = 0
+    Fecha_Creacion:      Optional[datetime] = None
+    proximo_vencimiento: Optional[str]      = None
+    dias_para_vencer:    Optional[int]      = None
     imagenes:            list[ImagenResponse] = []
     ficha_tecnica:     Optional[FichaTecnicaResumida] = None
 

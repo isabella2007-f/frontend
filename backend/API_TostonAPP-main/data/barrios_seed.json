@@ -1,5 +1,5 @@
 {
-  "_fuente": "Barrios del Valle de Aburrá (área de cobertura de domicilio). Espeja frontend/src/utils/barrios.js. No es un censo: los barrios que falten se crean desde el módulo Ubicaciones. Todos se siembran con Es_Base=1, Estado=1, Precio=5000.",
+  "_fuente": "Barrios del Valle de Aburrá (área de cobertura de domicilio). Espeja frontend/src/utils/barrios.js. No es un censo: los barrios que falten se crean desde el módulo Ubicaciones. Todos se siembran con Es_Base=1, Estado=1, Precio=5000. Cargar/actualizar con: python seed_ubicaciones.py (idempotente, nunca pisa precio ni estado ya editados).",
   "Medellín": [
     "Santo Domingo Savio", "Popular", "Granizal", "Moscú", "Villa Guadalupe",
     "San Pablo", "Aldea Pablo VI", "Santa Cruz", "La Isla", "La Frontera",
@@ -33,61 +33,81 @@
     "Cristo Rey", "Campo Amor", "Santa Fe", "Tenche", "La Colina", "Trinidad",
     "Belén", "Belén Rosales", "La Mota", "La Palma", "Los Alpes", "Fátima",
     "Granada", "San Bernardo", "Las Playas", "Loma de los Bernal",
-    "Altavista", "Nueva Villa de Aburrá", "El Rincón", "La Hondonada"
+    "Altavista", "Nueva Villa de Aburrá", "El Rincón", "La Hondonada",
+    "San Antonio de Prado", "San Cristóbal", "Santa Elena",
+    "San Sebastián de Palmitas", "Barrio Colombia", "Ciudad del Río",
+    "San Lucas", "Los Naranjos", "Trece de Noviembre", "El Corazón",
+    "Olaya Herrera", "Santa Margarita", "El Diamante", "La Gloria",
+    "Las Independencias", "Villa Liliam", "La Iguaná", "El Salvador",
+    "El Pinal", "Ocho de Marzo", "Juan Pablo II"
   ],
   "Bello": [
     "Niquía", "París", "Cabañas", "La Cumbre", "Zamora", "Santa Ana",
     "Playa Rica", "Rosalpi", "Bellavista", "La Madera", "Prado", "Suárez",
     "Pérez", "Fontidueño", "El Trébol", "Acevedo", "Machado", "Mirador",
     "Las Vegas", "Los Alpes", "Manchester", "San Martín", "Salento",
-    "Congolo", "La Milagrosa", "Amazonía", "Central"
+    "Congolo", "La Milagrosa", "Amazonía", "Central",
+    "La Gabriela", "El Cairo", "Santa Rita", "Buenos Aires", "La Primavera",
+    "Hato Viejo", "El Mirador", "Espíritu Santo", "Altos de Niquía"
   ],
   "Itagüí": [
     "Santa María", "San Pío X", "La Independencia", "Simón Bolívar",
     "San Francisco", "El Rosario", "Playa Rica", "Las Acacias", "Villa Paula",
     "Calatrava", "San Gabriel", "Ditaires", "Asturias", "Yarumito",
     "Balcones de Sevilla", "La Gloria", "Samaria", "Los Naranjos", "Fátima",
-    "Centro", "Santa Ana", "El Palmar"
+    "Centro", "Santa Ana", "El Palmar",
+    "El Progreso", "Los Gómez", "El Tablazo", "Santa Catalina", "San José",
+    "Terranova", "Malta", "La María"
   ],
   "Envigado": [
     "El Dorado", "La Magnolia", "Las Vegas", "Zúñiga", "Jardines", "La Paz",
     "El Salado", "Alcalá", "San Marcos", "Bosques de Zúñiga", "Otraparte",
     "Uribe Ángel", "Milán Vallejuelos", "El Chinguí", "Mesa", "Las Antillas",
     "Loma del Barro", "Primavera", "Centro", "La Inmaculada", "Pontevedra",
-    "San Rafael"
+    "San Rafael",
+    "El Portal", "El Trianón", "El Esmeraldal", "Loma de las Brujas",
+    "Las Flores", "La Mina", "Villagrande", "Alto de Misael", "La Sebastiana"
   ],
   "Sabaneta": [
     "Aves María", "Betania", "Calle del Banco", "Restrepo Naranjo",
     "San Joaquín", "Playas de María", "Holanda", "Prados de Sabaneta",
     "Villas del Carmen", "La Doctora", "Las Casitas", "María Auxiliadora",
-    "Paso Ancho", "Vegas de San José", "Centro", "San Rafael"
+    "Paso Ancho", "Vegas de San José", "Centro", "San Rafael",
+    "Santa Ana", "Promisión", "Cañaveralejo", "Pan de Azúcar", "Los Alcázares",
+    "San José"
   ],
   "La Estrella": [
     "Ancón", "Bellavista", "Camilo Torres", "Chile", "El Dorado", "Escobar",
     "La Chinca", "La Inmaculada", "La Tablaza", "Monterrey", "Primavera",
     "San Agustín", "San Andrés", "San Isidro", "Centro", "Sagrada Familia",
-    "Tablacita"
+    "Tablacita",
+    "Pueblo Viejo", "La Ferrería", "Caruquia", "Peñas Blancas", "Tarapacá",
+    "La Bermejala"
   ],
   "Caldas": [
     "Centro", "La Docena", "Andalucía", "Bellavista", "El Cano",
     "Felipe Echavarría", "La Chuscala", "La Corrala", "La Inmaculada",
     "La Planta", "Mandalay", "Olivares", "Primavera", "Río Medellín",
-    "Cristo Rey", "Fundadores", "Los Cerezos"
+    "Cristo Rey", "Fundadores", "Los Cerezos",
+    "La Rivera", "La Playita", "Centenario", "Salinas"
   ],
   "Copacabana": [
     "Centro", "El Recreo", "Fátima", "La Azulita", "La Misericordia",
     "Las Vegas", "Machado", "María", "Pedregal", "San Juan", "Villanueva",
-    "Zarzal", "El Pedregal", "Tobón Quintero", "Ancón"
+    "Zarzal", "El Pedregal", "Tobón Quintero", "Ancón",
+    "El Convento", "La Asunción", "San Francisco"
   ],
   "Girardota": [
     "Centro", "El Barro", "El Palmar", "Juan Cooca", "La Estrella",
     "La Meseta", "Llano de Ovejas", "Manga", "Mercedes Ábrego",
     "Nuestra Señora del Rosario", "Portachuelo", "San Andrés", "San Diego",
-    "Loma de los Ochoa"
+    "Loma de los Ochoa",
+    "El Cano", "El Paraíso"
   ],
   "Barbosa": [
     "Centro", "El Carmen", "El Hatillo", "Buga", "La Ceiba", "La Playita",
     "Popayán", "San Antonio", "Santa Gertrudis", "Vertical", "Yarumito",
-    "Platanito", "Isaza"
+    "Platanito", "Isaza",
+    "El Progreso", "Hoyo Rico"
   ]
 }

@@ -103,7 +103,10 @@ export default function ModalOferta({ oferta, onGuardado, onCerrar }) {
     <div className="ub-overlay" onClick={onCerrar}>
       <div className="ub-modal" style={{ width: "min(640px, 96vw)" }} onClick={(e) => e.stopPropagation()}>
         <div className="ub-modal__head">
-          <h2>{editando ? "Editar oferta / recargo" : "Nueva oferta / recargo"}</h2>
+          <div>
+            <p className="ub-modal__eyebrow">Ofertas y recargos</p>
+            <h2>{editando ? "Editar oferta / recargo" : "Nueva oferta / recargo"}</h2>
+          </div>
           <button className="ub-modal__x" onClick={onCerrar}><X size={18} /></button>
         </div>
 
