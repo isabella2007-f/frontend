@@ -936,7 +936,7 @@ const PedidosClientePage = () => {
               )}
 
               {/* ── Entrega anticipada (cuando eligió recibir antes lo disponible) ── */}
-              {selectedPedido.envio_completo_domingo === false && (!selectedPedido.grupos_envio || selectedPedido.grupos_envio.length === 0) && (
+              {selectedPedido.envio_completo_domingo === false && selectedPedido.fecha_propuesta && (!selectedPedido.grupos_envio || selectedPedido.grupos_envio.length === 0) && (
                 <div style={{ background: '#e3f2fd', border: '1.5px solid #90caf9', borderRadius: 14, padding: '14px 16px' }}>
                   <p style={{ fontSize: 10, fontWeight: 800, color: '#1565c0', letterSpacing: 1, textTransform: 'uppercase', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 5 }}>
                     <Truck size={12} /> Entrega anticipada
@@ -1002,7 +1002,7 @@ const PedidosClientePage = () => {
                         </p>
                         <select
                           value={tipoEntregaA}
-                          onChange={e => { setTipoEntregaA(e.target.value); if (!direccionA) { setDireccionA(selectedPedido.direccion_entrega || ''); setMunicipioA(selectedPedido.municipio || ''); setDeptoA(selectedPedido.departamento || ''); } }}
+                          onChange={e => { setTipoEntregaA(e.target.value); if (!direccionA) { setDireccionA(selectedPedido.direccion_entrega || ''); setMunicipioA(selectedPedido.municipio_entrega || ''); setDeptoA(selectedPedido.departamento_entrega || ''); } }}
                           style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 13, boxSizing: 'border-box', marginBottom: 8, background: '#fff' }}>
                           <option value="">Sin especificar</option>
                           <option value="domicilio">Domicilio</option>
@@ -1021,7 +1021,7 @@ const PedidosClientePage = () => {
                             <p style={{ fontSize: 10, fontWeight: 700, color: '#1565c0', margin: '0 0 4px' }}>Tipo de entrega (productos en producción)</p>
                             <select
                               value={tipoEntregaB}
-                              onChange={e => { setTipoEntregaB(e.target.value); if (!direccionB) { setDireccionB(selectedPedido.direccion_entrega || ''); setMunicipioB(selectedPedido.municipio || ''); setDeptoB(selectedPedido.departamento || ''); } }}
+                              onChange={e => { setTipoEntregaB(e.target.value); if (!direccionB) { setDireccionB(selectedPedido.direccion_entrega || ''); setMunicipioB(selectedPedido.municipio_entrega || ''); setDeptoB(selectedPedido.departamento_entrega || ''); } }}
                               style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 13, boxSizing: 'border-box', marginBottom: 8, background: '#fff' }}>
                               <option value="">Sin especificar</option>
                               <option value="domicilio">Domicilio</option>
@@ -1217,11 +1217,12 @@ const PedidosClientePage = () => {
                         ? Number(selectedPedido.anticipo_monto ?? selectedPedido.anticipo_requerido ?? 0)
                         : 0;
                     const saldo = Math.max(0, Number(selectedPedido.total || 0) - montoPagado);
-                    const esPagoCompleto = selectedPedido.pago_final_registrado;
+                    const esPagoCompleto  = selectedPedido.pago_final_registrado;
+                    const esPagoVerde     = esPagoCompleto || !!selectedPedido.anticipo_registrado;
                     return (
-                      <div style={{ background: esPagoCompleto ? '#e8f5e9' : '#fff8e1', border: `1.5px solid ${esPagoCompleto ? '#a5d6a7' : '#ffe082'}`, borderRadius: 10, padding: '10px 12px' }}>
-                        <p style={{ fontSize: 10, fontWeight: 800, color: esPagoCompleto ? '#2e7d32' : '#e65100', letterSpacing: 1, textTransform: 'uppercase', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 5 }}>
-                          {esPagoCompleto ? <><Check size={11} /> Pago completo</> : selectedPedido.anticipo_registrado ? <><AlertTriangle size={11} /> Anticipo pagado</> : <><AlertTriangle size={11} /> Anticipo pendiente</>}
+                      <div style={{ background: esPagoVerde ? '#e8f5e9' : '#fff8e1', border: `1.5px solid ${esPagoVerde ? '#a5d6a7' : '#ffe082'}`, borderRadius: 10, padding: '10px 12px' }}>
+                        <p style={{ fontSize: 10, fontWeight: 800, color: esPagoVerde ? '#2e7d32' : '#e65100', letterSpacing: 1, textTransform: 'uppercase', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                          {esPagoCompleto ? <><Check size={11} /> Pago completo</> : selectedPedido.anticipo_registrado ? <><Check size={11} /> Anticipo pagado</> : <><AlertTriangle size={11} /> Anticipo pendiente</>}
                         </p>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                           <span style={{ fontSize: 12, fontWeight: 600, color: '#5d4037' }}>Abonado:</span>
@@ -1249,7 +1250,11 @@ const PedidosClientePage = () => {
                   )}
 
                   {/* Comprobante */}
-                  {(() => { const mp = (selectedPedido.metodo_pago || '').toLowerCase(); return mp.includes('transfer') || mp === 'digital' || !!selectedPedido.comprobante; })() && (
+                  {(() => {
+                    const mp = (selectedPedido.metodo_pago || '').toLowerCase();
+                    const esTransferencia = mp.includes('transfer') || mp === 'digital';
+                    return esTransferencia || !!selectedPedido.comprobante;
+                  })() && (
                     <div>
                       <p style={{ fontSize: 9, fontWeight: 700, color: '#9e9e9e', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>Comprobante de pago</p>
                       {selectedPedido.comprobante ? (
@@ -1263,7 +1268,7 @@ const PedidosClientePage = () => {
                             Abrir en nueva pestaña ↗
                           </a>
                         </div>
-                      ) : (
+                      ) : !selectedPedido.pago_final_registrado && (
                         <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 10, padding: '8px 12px', fontSize: 12, color: '#f57f17', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                           <AlertTriangle size={13} /> Aún no se ha adjuntado comprobante de pago
                         </div>

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Eye, Save, RotateCcw, CheckCircle2, Info } from "lucide-react";
 import {
   getLandingConfig,
@@ -45,16 +45,23 @@ const FIELDS = [
   },
 ];
 
-export default function EditarLanding() {
-  const [form,    setForm]    = useState(() => getLandingConfig());
-  const [saved,   setSaved]   = useState(false);
-  const [sinCambios, setSinCambios] = useState(false);
-  const [confirm, setConfirm] = useState(false);
+const snapshot = (f) => JSON.stringify(f);
 
-  // Instantánea de la config al abrir / tras cada guardado, para detectar
-  // "guardar sin cambios".
-  const snapshot = (f) => JSON.stringify(f);
-  const snapshotGuardado = useRef(snapshot(form));
+export default function EditarLanding() {
+  const [form,       setForm]       = useState({ ...LANDING_DEFAULTS });
+  const [saved,      setSaved]      = useState(false);
+  const [sinCambios, setSinCambios] = useState(false);
+  const [confirm,    setConfirm]    = useState(false);
+  const [loading,    setLoading]    = useState(true);
+  const snapshotGuardado = useRef(snapshot({ ...LANDING_DEFAULTS }));
+
+  useEffect(() => {
+    getLandingConfig().then(config => {
+      setForm(config);
+      snapshotGuardado.current = snapshot(config);
+      setLoading(false);
+    });
+  }, []);
 
   const handleChange = (key, value) => {
     setForm(prev => ({ ...prev, [key]: value }));
@@ -62,21 +69,21 @@ export default function EditarLanding() {
     setSinCambios(false);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (snapshot(form) === snapshotGuardado.current) {
       setSinCambios(true);
       setTimeout(() => setSinCambios(false), 3000);
       return;
     }
-    saveLandingConfig(form);
+    await saveLandingConfig(form);
     snapshotGuardado.current = snapshot(form);
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
     if (!confirm) { setConfirm(true); return; }
-    const defaults = resetLandingConfig();
+    const defaults = await resetLandingConfig();
     setForm(defaults);
     snapshotGuardado.current = snapshot(defaults);
     setConfirm(false);
@@ -182,8 +189,9 @@ export default function EditarLanding() {
       <div className="sticky bottom-0 bg-white/80 backdrop-blur-md border-t border-[#e8f5e9] -mx-6 px-6 py-4 flex justify-end">
         <button
           onClick={handleSave}
+          disabled={loading}
           data-tooltip="Guardar todos los cambios en la landing page"
-          className="flex items-center gap-2 px-8 py-3 bg-[#1b5e20] text-white font-black rounded-2xl hover:bg-[#0d3300] transition-all shadow-lg active:scale-95"
+          className="flex items-center gap-2 px-8 py-3 bg-[#1b5e20] text-white font-black rounded-2xl hover:bg-[#0d3300] transition-all shadow-lg active:scale-95 disabled:opacity-50"
         >
           <Save className="w-4 h-4" />
           Guardar cambios

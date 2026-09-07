@@ -15,7 +15,7 @@ from src.shared.services.models import (
 from src.shared.services.notificaciones_utils import notificar, notificar_stock_producto
 from src.features.ventas.gestion_ventas.services.service import (
     _actualizar_estado_producto, _descontar_fefo_producto, _descontar_stock_venta,
-    _faltantes_sin_cubrir,
+    _faltantes_sin_cubrir, _items_listos_venta,
     cambiar_estado as _cambiar_estado_venta,
 )
 from src.shared.services.observaciones_utils import observaciones_limpias
@@ -649,36 +649,42 @@ def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observacio
 
     es_domicilio_grupo = bool(dom.ID_Grupo)
 
-    # Validación de producción: aplica a todos, pero para domicilios de grupo
-    # solo se cuentan las OPs de los productos de ESE grupo, no de toda la venta.
+    # Validación de producción: aplica a todos.
+    # Para domicilios de grupo se compara la cantidad lista de cada producto
+    # (via _items_listos_venta, que descuenta correctamente el stock vs. preorden)
+    # contra la cantidad del grupo — así un producto que aparece en los dos grupos
+    # (parte en stock, parte en producción) no bloquea el grupo que ya tiene su
+    # porción lista.
     if nuevo_estado in (EstadoDomicilio.EN_CAMINO, EstadoDomicilio.ENTREGADO) and dom.ID_Venta:
         if es_domicilio_grupo:
-            ids_grupo = [
-                i.ID_Producto for i in
-                db.query(GrupoEnvioItem).filter(GrupoEnvioItem.ID_Grupo == dom.ID_Grupo).all()
-            ]
-            ordenes_abiertas = (
-                db.query(OrdenProduccion).filter(
-                    OrdenProduccion.ID_Venta == dom.ID_Venta,
-                    OrdenProduccion.ID_Producto.in_(ids_grupo),
-                    OrdenProduccion.Estado.notin_([11, 5]),
-                ).count()
-                if ids_grupo else 0
-            )
+            items_grupo = db.query(GrupoEnvioItem).filter(GrupoEnvioItem.ID_Grupo == dom.ID_Grupo).all()
+            if items_grupo:
+                listos = _items_listos_venta(db, dom.ID_Venta)
+                faltantes_grupo = [
+                    i for i in items_grupo
+                    if listos.get(i.ID_Producto, 0) < i.Cantidad
+                ]
+                if faltantes_grupo:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            "La producción de este grupo aún no está completada. "
+                            "Completá la orden de producción antes de despacharlo."
+                        ),
+                    )
         else:
             ordenes_abiertas = db.query(OrdenProduccion).filter(
                 OrdenProduccion.ID_Venta == dom.ID_Venta,
                 OrdenProduccion.Estado.notin_([11, 5]),
             ).count()
-        if ordenes_abiertas > 0:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    "La producción de este pedido aún no está completada. "
-                    "Completá la orden de producción antes de despacharlo."
-                ),
-            )
-        if not es_domicilio_grupo:
+            if ordenes_abiertas > 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "La producción de este pedido aún no está completada. "
+                        "Completá la orden de producción antes de despacharlo."
+                    ),
+                )
             faltantes = _faltantes_sin_cubrir(db, dom.ID_Venta, True)
             if faltantes:
                 raise HTTPException(

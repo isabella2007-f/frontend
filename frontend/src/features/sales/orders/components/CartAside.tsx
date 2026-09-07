@@ -335,8 +335,8 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
                         </div>
                       </div>
                     </div>
-                    <button onClick={() => removeFromCart(item.id)} aria-label={`Quitar ${item.nombre}`} className="absolute top-2 right-2 p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all">
-                      <X size={14} strokeWidth={3} />
+                    <button onClick={() => removeFromCart(item.id)} aria-label={`Quitar ${item.nombre}`} className="absolute top-2 right-2 p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all">
+                      <X size={20} strokeWidth={2.5} />
                     </button>
                   </div>
                 ))}

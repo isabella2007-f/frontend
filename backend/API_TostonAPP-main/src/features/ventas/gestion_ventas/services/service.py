@@ -477,7 +477,7 @@ def _formato_venta(venta: Venta, db: Session, *, dxv_map=None) -> dict:
             None if getattr(venta, "Envio_Completo_Domingo", None) is None
             else bool(venta.Envio_Completo_Domingo)
         ),
-        "grupos_envio": [_formato_grupo(g) for g in venta.grupos_envio] if venta.grupos_envio else [],
+        "grupos_envio": [_formato_grupo(g, db) for g in venta.grupos_envio] if venta.grupos_envio else [],
     }
 
 
@@ -1643,12 +1643,13 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
         if credito_devuelto > 0:
             _abonar_credito(db, venta.ID_Usuario, credito_devuelto, id_venta)
 
-        # El anticipo NO se devuelve solo. Qué pasa con la plata que el cliente
-        # ya entregó —si se le abona, si se le guarda para el próximo pedido, si
-        # se le transfiere de vuelta— lo acuerdan el cliente y el administrador;
-        # el sistema no toma esa decisión por ellos. Lo único que vuelve
-        # automáticamente es el saldo a favor que el propio cliente puso en el
-        # pedido, que es plata suya que nunca llegó a gastarse.
+        # Devolver el anticipo registrado como saldo a favor (igual que en
+        # resolver_escalado_cancelar y cancelar_grupo_pendiente). La devolución
+        # en efectivo/transferencia la gestiona el admin fuera del sistema; el
+        # crédito queda como trazabilidad y puede usarse en el próximo pedido.
+        _anticipo = Decimal(str(getattr(venta, "Anticipo_Monto", None) or 0))
+        if getattr(venta, "Anticipo_Registrado", 0) and _anticipo > 0:
+            _abonar_credito(db, venta.ID_Usuario, _anticipo, id_venta)
 
     if venta.Estado == EstadoPedido.PENDIENTE:
         descartar_notificacion(db, "pedido_nuevo", id_venta)
@@ -2302,14 +2303,24 @@ def _items_listos_venta(db: Session, id_venta: int) -> dict[int, int]:
     return resultado
 
 
-def _formato_grupo(grupo: GrupoEnvio) -> dict:
+def _formato_grupo(grupo: GrupoEnvio, db: Session | None = None) -> dict:
+    dom = None
+    if db is not None:
+        dom = db.query(Domicilio).filter(
+            Domicilio.ID_Grupo == grupo.ID_Grupo,
+            Domicilio.Estado.notin_([5]),
+        ).first()
     return {
-        "id_grupo":    grupo.ID_Grupo,
-        "tipo":        grupo.Tipo,
-        "fecha":       grupo.Fecha_Entrega,
-        "tipo_entrega":grupo.Tipo_Entrega,
-        "estado":      grupo.Estado,
-        "productos":   [{"id_producto": i.ID_Producto, "cantidad": i.Cantidad} for i in grupo.items],
+        "id_grupo":           grupo.ID_Grupo,
+        "tipo":               grupo.Tipo,
+        "fecha":              grupo.Fecha_Entrega,
+        "tipo_entrega":       grupo.Tipo_Entrega,
+        "estado":             grupo.Estado,
+        "productos":          [{"id_producto": i.ID_Producto, "cantidad": i.Cantidad} for i in grupo.items],
+        "direccion_entrega":  dom.Direccion_entrega    if dom else None,
+        "municipio_entrega":  dom.Municipio_entrega    if dom else None,
+        "departamento_entrega": dom.Departamento_entrega if dom else None,
+        "domicilio_con_repartidor": bool(dom and dom.ID_Empleado) if dom else False,
     }
 
 
@@ -2417,6 +2428,12 @@ def crear_grupos_envio(
 
     if db.query(GrupoEnvio).filter(GrupoEnvio.ID_Venta == id_venta).count() > 0:
         raise HTTPException(status_code=400, detail="Este pedido ya tiene grupos de envío creados")
+
+    if not venta.Fecha_entrega_esperada:
+        raise HTTPException(
+            status_code=400,
+            detail="Debe acordarse una fecha de entrega antes de poder dividir el pedido",
+        )
 
     todos_items = db.query(VentaXProducto).filter(VentaXProducto.ID_Venta == id_venta).all()
     listos = _items_listos_venta(db, id_venta)  # {id_producto: cantidad_lista}
@@ -2581,14 +2598,13 @@ def actualizar_estado_grupo(
     # Los grupos domicilio llegan por cambiar_estado() en domicilios, que ya valida allí.
     if nuevo_estado == "entregado" and grupo.Tipo_Entrega == "tienda":
         items_grupo_e = db.query(GrupoEnvioItem).filter(GrupoEnvioItem.ID_Grupo == id_grupo).all()
-        ids_grupo_e = [i.ID_Producto for i in items_grupo_e]
-        if ids_grupo_e:
-            ops_abiertas = db.query(OrdenProduccion).filter(
-                OrdenProduccion.ID_Venta == id_venta,
-                OrdenProduccion.ID_Producto.in_(ids_grupo_e),
-                OrdenProduccion.Estado.notin_([11, 5]),
-            ).count()
-            if ops_abiertas > 0:
+        if items_grupo_e:
+            listos_e = _items_listos_venta(db, id_venta)
+            faltantes_e = [
+                i for i in items_grupo_e
+                if listos_e.get(i.ID_Producto, 0) < i.Cantidad
+            ]
+            if faltantes_e:
                 raise HTTPException(
                     status_code=400,
                     detail=(
@@ -2676,10 +2692,14 @@ def cancelar_grupo_pendiente(
     id_grupo: int,
     actual: dict,
 ) -> dict:
-    """Admin cancela el Grupo B (programado) cuando el Grupo A ya fue entregado.
+    """Admin cancela cualquiera de los grupos de envío de un pedido dividido.
 
     Devuelve al cliente el anticipo proporcional al valor del grupo cancelado:
-      reembolso = anticipo_pagado × (valor_grupo_B / valor_total_del_pedido)
+      reembolso = anticipo_pagado × (valor_grupo / valor_total_del_pedido)
+
+    Si tras la cancelación todos los grupos quedan en estado terminal
+    (cancelado o entregado), la venta pasa a CANCELADO. Si al menos uno fue
+    entregado, queda PARCIALMENTE_ENTREGADO.
     """
     if actual["tipo"] not in ("admin", "empleado"):
         raise HTTPException(status_code=403, detail="Solo disponible para administradores")
@@ -2691,23 +2711,13 @@ def cancelar_grupo_pendiente(
     grupo = db.query(GrupoEnvio).filter(
         GrupoEnvio.ID_Grupo == id_grupo,
         GrupoEnvio.ID_Venta == id_venta,
-        GrupoEnvio.Tipo == "programado",
     ).first()
     if not grupo:
-        raise HTTPException(status_code=404, detail="Grupo programado no encontrado")
+        raise HTTPException(status_code=404, detail="Grupo de envío no encontrado")
     if grupo.Estado == "entregado":
         raise HTTPException(status_code=400, detail="No se puede cancelar un grupo ya entregado")
-
-    # Verificar que el otro grupo (anticipado) ya fue entregado
-    grupo_a = db.query(GrupoEnvio).filter(
-        GrupoEnvio.ID_Venta == id_venta,
-        GrupoEnvio.Tipo == "anticipado",
-    ).first()
-    if not grupo_a or grupo_a.Estado != "entregado":
-        raise HTTPException(
-            status_code=400,
-            detail="Solo se puede cancelar el Grupo B cuando el Grupo A ya fue entregado",
-        )
+    if grupo.Estado == "cancelado":
+        raise HTTPException(status_code=400, detail="El grupo ya está cancelado")
 
     # Cancelar OPs de los productos en este grupo que aún no completaron
     prod_ids_b = {i.ID_Producto for i in grupo.items}
@@ -2752,7 +2762,20 @@ def cancelar_grupo_pendiente(
         dom_grupo.Estado = 5  # Cancelado
 
     grupo.Estado = "cancelado"
-    venta.Estado = EstadoPedido.PARCIALMENTE_ENTREGADO
+
+    # Determinar nuevo estado de la venta según estados finales de todos los grupos.
+    todos_grupos = db.query(GrupoEnvio).filter(GrupoEnvio.ID_Venta == id_venta).all()
+    estados_grupos = {g.Estado if g.ID_Grupo != id_grupo else "cancelado" for g in todos_grupos}
+    TERMINALES = {"entregado", "cancelado"}
+    if estados_grupos <= TERMINALES:
+        # Todos en estado terminal
+        if "entregado" in estados_grupos:
+            venta.Estado = EstadoPedido.PARCIALMENTE_ENTREGADO
+        else:
+            venta.Estado = EstadoPedido.CANCELADO
+    else:
+        venta.Estado = EstadoPedido.PARCIALMENTE_ENTREGADO
+
     db.commit()
     db.refresh(venta)
     return _formato_venta(venta, db)
@@ -2761,21 +2784,111 @@ def cancelar_grupo_pendiente(
 def guardar_envio_completo_domingo(
     db: Session, id_venta: int, valor: bool, actual: dict
 ) -> dict:
-    """Registra la respuesta del cliente a '¿Todo el pedido junto el domingo?'.
+    """Registra la respuesta a '¿Todo el pedido junto el domingo?'.
 
-    Solo el propio cliente puede responder. No bloquea ningún estado: se puede
-    actualizar en cualquier momento mientras el pedido existe.
+    Puede ser el propio cliente o un admin/empleado (quien registra la
+    decisión en nombre del cliente desde el panel de gestión).
+    No bloquea ningún estado: se puede actualizar en cualquier momento.
     """
-    if actual["tipo"] != "cliente":
-        raise HTTPException(status_code=403, detail="Solo disponible para clientes")
+    es_admin = actual["tipo"] in ("admin", "empleado")
+    if actual["tipo"] not in ("cliente", "admin", "empleado"):
+        raise HTTPException(status_code=403, detail="Acción no permitida")
 
     venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
-    if venta.ID_Usuario != actual["registro"].ID_Usuario:
+    if not es_admin and venta.ID_Usuario != actual["registro"].ID_Usuario:
         raise HTTPException(status_code=403, detail="No puedes modificar pedidos de otros clientes")
 
     venta.Envio_Completo_Domingo = 1 if valor else 0
+    db.commit()
+    db.refresh(venta)
+    return _formato_venta(venta, db)
+
+
+def editar_grupo(
+    db: Session,
+    id_venta: int,
+    id_grupo: int,
+    nueva_fecha,
+    nuevo_tipo_entrega: str | None,
+    nueva_dir: str | None,
+    nuevo_municipio: str | None,
+    nuevo_depto: str | None,
+    actual: dict,
+) -> dict:
+    """Admin edita fecha y/o tipo de entrega de un grupo pendiente.
+
+    Bloqueado si el domicilio asociado ya tiene repartidor asignado (ID_Empleado
+    no nulo), porque cambiar la dirección en ese punto afectaría una entrega
+    ya en camino.
+    """
+    if actual["tipo"] not in ("admin", "empleado"):
+        raise HTTPException(status_code=403, detail="Solo disponible para administradores")
+
+    venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
+    if not venta:
+        raise HTTPException(status_code=404, detail="Venta no encontrada")
+
+    grupo = db.query(GrupoEnvio).filter(
+        GrupoEnvio.ID_Grupo == id_grupo,
+        GrupoEnvio.ID_Venta == id_venta,
+    ).first()
+    if not grupo:
+        raise HTTPException(status_code=404, detail="Grupo de envío no encontrado")
+    if grupo.Estado != "pendiente":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Solo se puede editar un grupo en estado 'pendiente' (estado actual: '{grupo.Estado}')",
+        )
+
+    # Verificar que el domicilio asociado no tenga repartidor asignado.
+    dom_grupo = db.query(Domicilio).filter(
+        Domicilio.ID_Venta == id_venta,
+        Domicilio.ID_Grupo == id_grupo,
+        Domicilio.Estado.notin_([8, 5]),
+    ).first()
+    if dom_grupo and dom_grupo.ID_Empleado:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede editar el grupo: el domicilio ya tiene un repartidor asignado",
+        )
+
+    tipo_anterior = grupo.Tipo_Entrega
+
+    if nueva_fecha is not None:
+        grupo.Fecha_Entrega = nueva_fecha
+
+    if nuevo_tipo_entrega is not None and nuevo_tipo_entrega != tipo_anterior:
+        grupo.Tipo_Entrega = nuevo_tipo_entrega
+        if nuevo_tipo_entrega == "domicilio" and not dom_grupo:
+            dir_res, mun_res, dep_res = _resolver_direccion_grupo(
+                db, venta,
+                nueva_dir, nuevo_municipio, nuevo_depto,
+            )
+            db.add(Domicilio(
+                ID_Venta             = id_venta,
+                ID_Grupo             = id_grupo,
+                Direccion_entrega    = dir_res,
+                Municipio_entrega    = mun_res,
+                Departamento_entrega = dep_res,
+                Fecha_asignacion     = _now(),
+                Fecha_entrega        = nueva_fecha or grupo.Fecha_Entrega,
+                Estado               = 3,  # Pendiente
+            ))
+        elif nuevo_tipo_entrega == "tienda" and dom_grupo:
+            dom_grupo.Estado = 5  # Cancelado
+
+    if nuevo_tipo_entrega in (None, "domicilio") and dom_grupo and tipo_anterior == "domicilio":
+        if nueva_dir:
+            dom_grupo.Direccion_entrega = nueva_dir
+        if nuevo_municipio:
+            dom_grupo.Municipio_entrega = nuevo_municipio
+        if nuevo_depto:
+            dom_grupo.Departamento_entrega = nuevo_depto
+        if nueva_fecha:
+            dom_grupo.Fecha_entrega = nueva_fecha
+
     db.commit()
     db.refresh(venta)
     return _formato_venta(venta, db)

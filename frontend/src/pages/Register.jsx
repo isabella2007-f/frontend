@@ -120,8 +120,11 @@ const Register = () => {
         }
       }
       if (k === 'Numero_documento') {
+        const tipo  = (k === 'Numero_documento' ? newForm : form).Tipo_documento;
+        const minD  = tipo === 'NIT' ? 9 : tipo === 'CE' ? 6 : 8;
+        const maxD  = tipo === 'NIT' ? 11 : tipo === 'CE' ? 15 : 11;
         if (!val.trim()) n.Numero_documento = 'El número de documento es obligatorio';
-        else if (val.length < 8 || val.length > 11) n.Numero_documento = 'Debe tener entre 8 y 11 dígitos';
+        else if (val.length < minD || val.length > maxD) n.Numero_documento = `Debe tener entre ${minD} y ${maxD} dígitos`;
         else delete n.Numero_documento;
       }
       if (k === 'Correo') {
@@ -186,8 +189,10 @@ const Register = () => {
       if (!form.Nombre.trim())    e.Nombre    = 'El nombre es obligatorio';
       if (!form.Apellidos.trim()) e.Apellidos = 'Los apellidos son obligatorios';
     }
+    const _minD = form.Tipo_documento === 'NIT' ? 9 : form.Tipo_documento === 'CE' ? 6 : 8;
+    const _maxD = form.Tipo_documento === 'NIT' ? 11 : form.Tipo_documento === 'CE' ? 15 : 11;
     if (!form.Numero_documento.trim()) e.Numero_documento = 'El número de documento es obligatorio';
-    else if (form.Numero_documento.length < 8 || form.Numero_documento.length > 11) e.Numero_documento = 'Debe tener entre 8 y 11 dígitos';
+    else if (form.Numero_documento.length < _minD || form.Numero_documento.length > _maxD) e.Numero_documento = `Debe tener entre ${_minD} y ${_maxD} dígitos`;
     if (!form.Correo.trim())           e.Correo           = 'El correo es obligatorio';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.Correo)) e.Correo = 'Formato de correo inválido';
     if (!form.Contrasena) {
@@ -338,7 +343,7 @@ const Register = () => {
                     value={form.Numero_documento}
                     onChange={set('Numero_documento')}
                     inputMode="numeric"
-                    maxLength={11}
+                    maxLength={form.Tipo_documento === 'CE' ? 15 : form.Tipo_documento === 'NIT' ? 11 : 11}
                   />
                 </div>
               </div>

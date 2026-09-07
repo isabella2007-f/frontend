@@ -11,6 +11,7 @@ from .schemas import (
     FechaEntregaInput, PagoFinalCreate, EnvioCompletoDomingoInput,
     RechazarFechaInput, AcuerdoManualInput,
     CrearGruposEnvioInput, ActualizarEstadoGrupoInput, ActualizarTipoEntregaGrupoInput,
+    EditarGrupoInput,
 )
 from .service import (
     obtener_ventas, obtener_venta, obtener_mi_venta, crear_venta, cambiar_estado,
@@ -20,6 +21,7 @@ from .service import (
     resolver_escalado_acuerdo_manual, resolver_escalado_cancelar,
     obtener_items_listos, crear_grupos_envio,
     actualizar_estado_grupo, actualizar_tipo_entrega_grupo, cancelar_grupo_pendiente,
+    editar_grupo,
 )
 
 router = APIRouter(prefix="/ventas", tags=["Gestión de Ventas"])
@@ -275,6 +277,24 @@ def cancelar_grupo_pendiente_endpoint(
     db:       Session = Depends(get_db),
     actual:   dict    = Depends(requiere_permiso("editar_pedidos")),
 ):
-    """Admin cancela el Grupo B (programado) cuando el Grupo A ya fue entregado.
+    """Admin cancela cualquier grupo de un pedido dividido.
     Devuelve al cliente el anticipo proporcional al valor del grupo cancelado."""
     return cancelar_grupo_pendiente(db, id_venta, id_grupo, actual)
+
+
+@router.put("/{id_venta}/grupos/{id_grupo}", response_model=VentaResponse)
+def editar_grupo_endpoint(
+    id_venta: int,
+    id_grupo: int,
+    datos:    EditarGrupoInput,
+    db:       Session = Depends(get_db),
+    actual:   dict    = Depends(requiere_permiso("editar_pedidos")),
+):
+    """Admin edita fecha y/o tipo de entrega de un grupo en estado 'pendiente'.
+    Bloqueado si el domicilio ya tiene repartidor asignado."""
+    return editar_grupo(
+        db, id_venta, id_grupo,
+        datos.fecha_entrega, datos.tipo_entrega,
+        datos.direccion_entrega, datos.municipio_entrega, datos.departamento_entrega,
+        actual,
+    )

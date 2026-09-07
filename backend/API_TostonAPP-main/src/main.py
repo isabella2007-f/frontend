@@ -14,6 +14,7 @@ from src.features.configuracion.roles.services.router              import router
 from src.features.configuracion.notificaciones.services.router     import router as notificaciones_router
 from src.features.configuracion.salidas.services.router            import router as salidas_router
 from src.features.configuracion.control_acceso.services.router     import router as control_acceso_router
+from src.features.configuracion.landing.services.router            import router as landing_router
 
 # ── Compras ──
 from src.features.compras.insumos.services.router           import router as insumos_router
@@ -578,84 +579,73 @@ def migrate_db():
         except Exception:
             pass
 
-    # ── Módulo Ubicaciones (Departamento → Ciudad → Barrio + ofertas) ────────
-    # El precio del domicilio pasa a salir de Barrios.Precio + ofertas y se
-    # congela como snapshot en Domicilios. Reemplaza COSTO_DOMICILIO = 5000.
-    # Los datos quemados (departamentos/ciudades/barrios) NO se siembran acá:
-    # se ejecuta `python seed_ubicaciones.py` una vez tras el deploy (1.100+
-    # municipios en cada cold-start sería lento y frágil).
+    # ── Configuración de Landing Page ─────────────────────────────────────────
     with engine.connect() as conn:
-        # Permisos.Permiso VARCHAR(25) → VARCHAR(60): 'cambiar_estado_ubicaciones'
-        # tiene 26 caracteres y no cabía. Idempotente (MODIFY no falla si ya es 60).
         try:
-            conn.execute(text("ALTER TABLE Permisos MODIFY COLUMN Permiso VARCHAR(60)"))
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS Configuracion_Landing (
+                    ID                       INT AUTO_INCREMENT PRIMARY KEY,
+                    hero_badge               VARCHAR(200)  NULL,
+                    hero_title               VARCHAR(200)  NULL,
+                    hero_description         TEXT          NULL,
+                    history_title            VARCHAR(200)  NULL,
+                    history_description      TEXT          NULL,
+                    cta_title                VARCHAR(200)  NULL,
+                    cta_description          TEXT          NULL,
+                    contact_phone1           VARCHAR(50)   NULL,
+                    contact_phone2           VARCHAR(50)   NULL,
+                    contact_address_line     VARCHAR(200)  NULL,
+                    contact_city             VARCHAR(200)  NULL,
+                    contact_instagram_url    VARCHAR(500)  NULL,
+                    contact_instagram_handle VARCHAR(100)  NULL,
+                    horario_lunes_viernes    VARCHAR(100)  NULL,
+                    horario_sabado           VARCHAR(100)  NULL
+                )
+            """))
             conn.commit()
+            # Garantizar que exista la fila singleton (ID=1)
+            conn.execute(text(
+                "INSERT IGNORE INTO Configuracion_Landing (ID) VALUES (1)"
+            ))
+            conn.commit()
+            _log.info("migración Configuracion_Landing: lista")
         except Exception as exc:
-            _log.debug("migrate skip Permisos.Permiso: %.80s", exc)
+            _log.debug("migración Configuracion_Landing skip: %.80s", exc)
 
-        for stmt in [
-            """CREATE TABLE IF NOT EXISTS Departamentos (
-                ID_Departamento INT AUTO_INCREMENT PRIMARY KEY,
-                Nombre          VARCHAR(80) NOT NULL,
-                Estado          INT NOT NULL DEFAULT 1,
-                UNIQUE KEY uq_departamento_nombre (Nombre),
-                FOREIGN KEY (Estado) REFERENCES Estados(ID_Estados)
-            )""",
-            """CREATE TABLE IF NOT EXISTS Ciudades (
-                ID_Ciudad       INT AUTO_INCREMENT PRIMARY KEY,
-                ID_Departamento INT NOT NULL,
-                Nombre          VARCHAR(120) NOT NULL,
-                Estado          INT NOT NULL DEFAULT 1,
-                UNIQUE KEY uq_ciudad_depto_nombre (ID_Departamento, Nombre),
-                FOREIGN KEY (ID_Departamento) REFERENCES Departamentos(ID_Departamento),
-                FOREIGN KEY (Estado) REFERENCES Estados(ID_Estados)
-            )""",
-            """CREATE TABLE IF NOT EXISTS Barrios (
-                ID_Barrio  INT AUTO_INCREMENT PRIMARY KEY,
-                ID_Ciudad  INT NOT NULL,
-                Nombre     VARCHAR(35) NOT NULL,
-                Precio     INT NOT NULL DEFAULT 0,
-                Es_Base    TINYINT(1) NOT NULL DEFAULT 0,
-                Estado     INT NOT NULL DEFAULT 1,
-                UNIQUE KEY uq_barrio_ciudad_nombre (ID_Ciudad, Nombre),
-                KEY idx_barrio_ciudad (ID_Ciudad),
-                FOREIGN KEY (ID_Ciudad) REFERENCES Ciudades(ID_Ciudad),
-                FOREIGN KEY (Estado) REFERENCES Estados(ID_Estados)
-            )""",
-            """CREATE TABLE IF NOT EXISTS Ofertas_Domicilio (
-                ID_Oferta      INT AUTO_INCREMENT PRIMARY KEY,
-                Nombre         VARCHAR(80) NOT NULL,
-                Tipo           VARCHAR(10) NOT NULL DEFAULT 'descuento',
-                Monto_Pesos    INT NULL,
-                Porcentaje     INT NULL,
-                Dias_Semana    VARCHAR(20) NULL,
-                Dias_Mes       VARCHAR(120) NULL,
-                Estado         INT NOT NULL DEFAULT 1,
-                Fecha_Creacion DATETIME NULL,
-                FOREIGN KEY (Estado) REFERENCES Estados(ID_Estados)
-            )""",
-            """CREATE TABLE IF NOT EXISTS Oferta_x_Barrio (
-                ID_Oferta INT NOT NULL,
-                ID_Barrio INT NOT NULL,
-                PRIMARY KEY (ID_Oferta, ID_Barrio),
-                KEY idx_oxb_barrio (ID_Barrio),
-                FOREIGN KEY (ID_Oferta) REFERENCES Ofertas_Domicilio(ID_Oferta) ON DELETE CASCADE,
-                FOREIGN KEY (ID_Barrio) REFERENCES Barrios(ID_Barrio)
-            )""",
-            "ALTER TABLE Usuarios ADD COLUMN ID_Barrio INT NULL",
-            "ALTER TABLE Usuarios ADD CONSTRAINT fk_usuarios_barrio FOREIGN KEY (ID_Barrio) REFERENCES Barrios(ID_Barrio)",
-            "ALTER TABLE Domicilios ADD COLUMN ID_Barrio INT NULL",
-            "ALTER TABLE Domicilios ADD COLUMN Precio_Domicilio_Base INT NULL",
-            "ALTER TABLE Domicilios ADD COLUMN Precio_Domicilio_Final INT NULL",
-            "ALTER TABLE Domicilios ADD COLUMN Desglose_Ofertas JSON NULL",
-            "ALTER TABLE Domicilios ADD CONSTRAINT fk_domicilios_barrio FOREIGN KEY (ID_Barrio) REFERENCES Barrios(ID_Barrio)",
-        ]:
-            try:
-                conn.execute(text(stmt))
-                conn.commit()
-            except Exception as exc:
-                _log.debug("migrate skip (ya existe): %.80s", exc)
-        _log.info("migración Ubicaciones: tablas y columnas listas")
+    # ── Vida_Util_Unidad: columna que acompaña a Dias_Vida_Util ─────────────────
+    with engine.connect() as conn:
+        try:
+            conn.execute(text(
+                "ALTER TABLE Ficha_Tecnica ADD COLUMN Vida_Util_Unidad VARCHAR(10) NULL"
+            ))
+            conn.commit()
+            _log.info("migración Vida_Util_Unidad: columna creada")
+        except Exception:
+            pass  # ya existe
+
+    # ── Backfill Fecha_Vencimiento en lotes ya creados ──────────────────────────
+    # Los lotes creados antes de que se configurara Dias_Vida_Util tienen
+    # Fecha_Vencimiento = NULL. Ahora que la ficha tiene el dato, se calcula
+    # desde Fecha_Produccion del lote con la unidad de la ficha.
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("""
+                UPDATE Lote_Producto lp
+                JOIN Orden_Produccion op ON op.ID_Orden_Produccion = lp.ID_Orden_Produccion
+                JOIN Ficha_Tecnica ft    ON ft.ID_Ficha             = op.ID_Ficha
+                SET lp.Fecha_Vencimiento = CASE
+                    WHEN ft.Vida_Util_Unidad = 'meses'   THEN DATE_ADD(lp.Fecha_Produccion, INTERVAL ft.Dias_Vida_Util MONTH)
+                    WHEN ft.Vida_Util_Unidad = 'semanas' THEN DATE_ADD(lp.Fecha_Produccion, INTERVAL ft.Dias_Vida_Util WEEK)
+                    ELSE                                       DATE_ADD(lp.Fecha_Produccion, INTERVAL ft.Dias_Vida_Util DAY)
+                END
+                WHERE lp.Fecha_Vencimiento IS NULL
+                  AND ft.Dias_Vida_Util  IS NOT NULL
+                  AND lp.Fecha_Produccion IS NOT NULL
+            """))
+            conn.commit()
+            _log.info("migración backfill Fecha_Vencimiento lotes: ok")
+        except Exception as exc:
+            _log.debug("migración backfill Fecha_Vencimiento skip: %.80s", exc)
 
 
 def _migrar_catalogo_permisos(engine):
@@ -786,6 +776,7 @@ app.include_router(roles_router,           prefix=PREFIX)
 app.include_router(notificaciones_router,  prefix=PREFIX)
 app.include_router(salidas_router,         prefix=PREFIX)
 app.include_router(control_acceso_router,  prefix=PREFIX)
+app.include_router(landing_router,         prefix=PREFIX)
 
 app.include_router(insumos_router,         prefix=PREFIX)
 app.include_router(cat_insumos_router,     prefix=PREFIX)

@@ -21,7 +21,7 @@ import {
   sanitizeCart,
   clearCart
 } from '../features/sales/orders/services/cartService';
-import { getLandingConfig } from '../services/landingConfigService';
+import { getLandingConfig, LANDING_DEFAULTS } from '../services/landingConfigService';
 
 /* ═══════════════════════════════════════════
    PRODUCT DETAIL MODAL
@@ -256,7 +256,7 @@ const PRODUCTS_PER_PAGE = 6;
 const LandingPage = ({ hideNavbar = false }) => {
   const navigate = useNavigate();
   const { agregarNotificacion } = useNotificaciones();
-  const [content, setContent] = useState(() => getLandingConfig());
+  const [content, setContent] = useState({ ...LANDING_DEFAULTS });
   const [activeTab, setActiveTab] = useState('Todos');
   const [productsPage, setProductsPage] = useState(1);
   const productsSectionRef = useRef(null);
@@ -287,13 +287,9 @@ const LandingPage = ({ hideNavbar = false }) => {
     return () => window.removeEventListener('cart-updated', syncCartInfo);
   }, [syncCartInfo]);
 
-  // Recarga el contenido si el admin lo edita en otra pestaña
+  // Carga la configuración de la landing desde el backend
   useEffect(() => {
-    const onStorage = (e) => {
-      if (e.key === 'toston_landing_config') setContent(getLandingConfig());
-    };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    getLandingConfig().then(setContent);
   }, []);
 
   const cargarProductos = useCallback(async () => {

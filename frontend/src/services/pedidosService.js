@@ -82,6 +82,10 @@ const adaptPedido = (p) => {
       fecha:       g.fecha,
       tipo_entrega: g.tipo_entrega,
       estado:      g.estado,        // 'pendiente' | 'enviado' | 'entregado' | 'cancelado'
+      direccion_entrega:    g.direccion_entrega    || null,
+      municipio_entrega:    g.municipio_entrega    || null,
+      departamento_entrega: g.departamento_entrega || null,
+      domicilio_con_repartidor: !!g.domicilio_con_repartidor,
       // productos: [{id_producto, cantidad}] — un producto puede aparecer en dos
       // grupos con cantidades distintas si está parcialmente cubierto por stock
       productos:   (g.productos || []).map(pr =>
@@ -262,6 +266,14 @@ export const actualizarTipoEntregaGrupo = async (idVenta, idGrupo, tipoEntrega) 
 
 export const cancelarGrupoPendiente = async (idVenta, idGrupo) => {
   const data = await apiFetch(`/ventas/${idVenta}/grupos/${idGrupo}`, { method: "DELETE" });
+  return adaptPedido(data);
+};
+
+export const editarGrupo = async (idVenta, idGrupo, datos) => {
+  const data = await apiFetch(`/ventas/${idVenta}/grupos/${idGrupo}`, {
+    method: "PUT",
+    body: JSON.stringify(datos),
+  });
   return adaptPedido(data);
 };
 

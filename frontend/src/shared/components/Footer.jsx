@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { Leaf, Phone, MapPin, Clock3, ExternalLink, Instagram, ShoppingBag, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { getLandingConfig } from "../../services/landingConfigService";
+import { getLandingConfig, LANDING_DEFAULTS } from "../../services/landingConfigService";
 
 const FALLBACK_COORDS = { lat: 11.016, lon: -74.825 };
 
@@ -83,8 +83,12 @@ function MapaEncuentranos({ address }) {
 ═══════════════════════════════ */
 function Footer({ onExplorar }) {
   const navigate = useNavigate();
-  const cfg     = useMemo(() => getLandingConfig(), []);
-  const h       = new Date().getHours();
+  const [cfg, setCfg] = useState({ ...LANDING_DEFAULTS });
+  const h             = new Date().getHours();
+
+  useEffect(() => {
+    getLandingConfig().then(setCfg);
+  }, []);
   const dia     = new Date().getDay();
   const abierto = dia !== 0 && h >= 8 && h < 20;
 

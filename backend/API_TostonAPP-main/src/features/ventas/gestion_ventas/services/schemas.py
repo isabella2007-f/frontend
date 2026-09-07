@@ -219,3 +219,12 @@ class ActualizarEstadoGrupoInput(BaseModel):
 # ── Actualizar tipo de entrega de un grupo ──
 class ActualizarTipoEntregaGrupoInput(BaseModel):
     tipo_entrega: str
+
+
+# ── Editar grupo pendiente (fecha, tipo de entrega y/o dirección) ──
+class EditarGrupoInput(BaseModel):
+    fecha_entrega:        Optional[datetime] = None
+    tipo_entrega:         Optional[str]      = None   # 'domicilio' | 'tienda'
+    direccion_entrega:    Optional[str]      = None
+    municipio_entrega:    Optional[str]      = None
+    departamento_entrega: Optional[str]      = None

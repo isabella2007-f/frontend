@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { fmtFecha, getRecordDate } from "../../../utils/dateUtils.js";
 import DateRangeFilter from "../../../shared/components/DateRangeFilter";
 import { descargarFacturaPedido } from "../../../utils/facturaGenerator.js";
-import { getPedidos, getPedido, getHistorialPedidos, confirmarPedido, cancelarPedido, crearPedido, editarPedido, cambiarEstadoVenta, proponerFechaProduccion, registrarPagoFinal, aprobarComprobante, rechazarComprobante, registrarCobroPedido, resolverEscaladoAcuerdo, resolverEscaladoCancelar, getItemsListos, crearGruposEnvio, actualizarEstadoGrupo, cancelarGrupoPendiente } from "../../../services/pedidosService.js";
+import { getPedidos, getPedido, getHistorialPedidos, confirmarPedido, cancelarPedido, crearPedido, editarPedido, cambiarEstadoVenta, proponerFechaProduccion, registrarPagoFinal, aprobarComprobante, rechazarComprobante, registrarCobroPedido, resolverEscaladoAcuerdo, resolverEscaladoCancelar, getItemsListos, crearGruposEnvio, actualizarEstadoGrupo, cancelarGrupoPendiente, guardarEnvioCompletoDomingo, editarGrupo } from "../../../services/pedidosService.js";
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
 import { asignarRepartidor } from "../../../services/domiciliosService.js";
 import { registrarSalida } from "../../../services/salidasService.js";
@@ -217,12 +217,15 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
   );
 
   /* ── Estado para "Dividir entrega" (admin inicia la división) ── */
-  const _sinGrupos    = pedido.sobre_stock && (!pedido.grupos_envio || pedido.grupos_envio.length === 0);
+  const _sinGrupos    = pedido.sobre_stock && (!pedido.grupos_envio || pedido.grupos_envio.length === 0) && !!pedido.fecha_propuesta;
   const eligioJunto   = _sinGrupos && pedido.envio_completo_domingo === true;
   const sinDecision   = _sinGrupos && pedido.envio_completo_domingo !== true;
   const mostrarDividir = _sinGrupos;
   const [mostrarFormForzado, setMostrarFormForzado] = useState(false);
-  const mostrarFormDivision = sinDecision || mostrarFormForzado;
+  const [decisionAdmin, setDecisionAdmin] = useState(null); // null | "dividir" | "junto"
+  const [guardandoJunto, setGuardandoJunto] = useState(false);
+  const [errorJunto, setErrorJunto] = useState('');
+  const mostrarFormDivision = (sinDecision && decisionAdmin === "dividir") || mostrarFormForzado;
   const [adminItems,      setAdminItems]      = useState(null);
   const [loadingAdminItems, setLoadingAdminItems] = useState(false);
   const [adminItemsError, setAdminItemsError] = useState(null);
@@ -230,17 +233,27 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
   const [adminTipoA,      setAdminTipoA]      = useState('');
   const [adminTipoB,      setAdminTipoB]      = useState('');
   const [adminDireccionA, setAdminDireccionA] = useState(pedido.direccion_entrega || '');
-  const [adminMunicipioA, setAdminMunicipioA] = useState(pedido.municipio || '');
-  const [adminDeptoA,     setAdminDeptoA]     = useState(pedido.departamento || '');
+  const [adminMunicipioA, setAdminMunicipioA] = useState(pedido.municipio_entrega || '');
+  const [adminDeptoA,     setAdminDeptoA]     = useState(pedido.departamento_entrega || '');
   const [adminDireccionB, setAdminDireccionB] = useState(pedido.direccion_entrega || '');
-  const [adminMunicipioB, setAdminMunicipioB] = useState(pedido.municipio || '');
-  const [adminDeptoB,     setAdminDeptoB]     = useState(pedido.departamento || '');
+  const [adminMunicipioB, setAdminMunicipioB] = useState(pedido.municipio_entrega || '');
+  const [adminDeptoB,     setAdminDeptoB]     = useState(pedido.departamento_entrega || '');
   const [creandoAdmin,    setCreandoAdmin]    = useState(false);
   const [errorAdmin,      setErrorAdmin]      = useState('');
 
   /* ── Estado para avanzar/cancelar grupos ── */
   const [savingGrupo, setSavingGrupo] = useState(false);
   const [errorGrupo,  setErrorGrupo]  = useState('');
+
+  /* ── Estado para editar grupo pendiente ── */
+  const [editandoGrupo, setEditandoGrupo] = useState(null); // id_grupo | null
+  const [editFecha,     setEditFecha]     = useState('');
+  const [editTipo,      setEditTipo]      = useState('');
+  const [editDir,       setEditDir]       = useState('');
+  const [editMunicipio, setEditMunicipio] = useState('');
+  const [editDepto,     setEditDepto]     = useState('');
+  const [savingEdit,    setSavingEdit]    = useState(false);
+  const [errorEdit,     setErrorEdit]     = useState('');
 
   /* Fetch items-listos cuando se va a mostrar el formulario de división */
   useEffect(() => {
@@ -306,6 +319,37 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
       setErrorGrupo(e.message || 'No se pudo cancelar el grupo.');
     } finally {
       setSavingGrupo(false);
+    }
+  };
+
+  const abrirEditarGrupo = (g) => {
+    setEditandoGrupo(g.id_grupo);
+    setEditFecha(g.fecha ? g.fecha.slice(0, 10) : '');
+    setEditTipo(g.tipo_entrega || '');
+    setEditDir(g.direccion_entrega || '');
+    setEditMunicipio(g.municipio_entrega || '');
+    setEditDepto(g.departamento_entrega || '');
+    setErrorEdit('');
+  };
+
+  const handleGuardarEditGrupo = async () => {
+    setSavingEdit(true);
+    setErrorEdit('');
+    try {
+      const actualizado = await editarGrupo(pedido.id, editandoGrupo, {
+        fecha_entrega:        editFecha || undefined,
+        tipo_entrega:         editTipo  || undefined,
+        direccion_entrega:    editDir   || undefined,
+        municipio_entrega:    editMunicipio || undefined,
+        departamento_entrega: editDepto || undefined,
+      });
+      setPedido(actualizado);
+      onUpdatePedido?.(actualizado);
+      setEditandoGrupo(null);
+    } catch (e) {
+      setErrorEdit(e.message || 'No se pudo guardar los cambios.');
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -473,6 +517,44 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
                     <Truck size={12} /> Dividir entrega
                   </p>
 
+                  {/* Sin decisión tomada: mostrar opciones "Dividir / Todo junto" */}
+                  {sinDecision && decisionAdmin === null && (
+                    <div>
+                      <p style={{ fontSize: 13, color: "#1565c0", margin: "0 0 10px", lineHeight: 1.5 }}>
+                        El cliente aún no eligió cómo recibir su pedido. ¿Cómo se va a entregar?
+                      </p>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <button
+                          onClick={() => setDecisionAdmin("dividir")}
+                          style={{ padding: "7px 16px", borderRadius: 8, border: "1.5px solid #90caf9", background: "#e3f2fd", color: "#1565c0", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
+                        >
+                          Dividir entrega
+                        </button>
+                        <button
+                          disabled={guardandoJunto}
+                          onClick={async () => {
+                            setGuardandoJunto(true);
+                            setErrorJunto('');
+                            try {
+                              const actualizado = await guardarEnvioCompletoDomingo(pedido.id, true);
+                              setPedido(actualizado);
+                              onUpdatePedido?.(actualizado);
+                              setDecisionAdmin("junto");
+                            } catch (e) {
+                              setErrorJunto(e.message || "Error al guardar la decisión");
+                            } finally {
+                              setGuardandoJunto(false);
+                            }
+                          }}
+                          style={{ padding: "7px 16px", borderRadius: 8, border: "1.5px solid #90caf9", background: "#fff", color: "#1565c0", fontWeight: 700, fontSize: 12, cursor: guardandoJunto ? "not-allowed" : "pointer" }}
+                        >
+                          {guardandoJunto ? "Guardando..." : "Todo junto"}
+                        </button>
+                      </div>
+                      {errorJunto && <p style={{ fontSize: 11, color: "#c62828", margin: "6px 0 0" }}>{errorJunto}</p>}
+                    </div>
+                  )}
+
                   {/* Cliente ya eligió "todo junto" y el admin no forzó el formulario */}
                   {eligioJunto && !mostrarFormForzado && (
                     <div>
@@ -489,7 +571,7 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
                     </div>
                   )}
 
-                  {/* Formulario: sin decisión tomada, o admin forzó división */}
+                  {/* Formulario: admin eligió "dividir" o forzó la división */}
                   {mostrarFormDivision && (
                   <>
                   {loadingAdminItems && <p style={{ fontSize: 12, color: "#5c6bc0", margin: 0 }}>Verificando disponibilidad...</p>}
@@ -652,10 +734,10 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
                   cancelado:  { label: "Cancelado",  bg: "#ffebee", color: "#c62828", border: "#ef9a9a" },
                 };
                 const cfg = ESTADO_GRUPO[g.estado] || ESTADO_GRUPO.pendiente;
-                const grupoAnticipado = pedido.grupos_envio.find(x => x.tipo === "anticipado");
                 const puedeAvanzar = (g.estado === "pendiente" || g.estado === "enviado") && g.tipo_entrega !== "domicilio";
                 const siguienteEstado = g.estado === "pendiente" ? "enviado" : g.estado === "enviado" ? "entregado" : null;
-                const puedeCancel = g.tipo === "programado" && g.estado !== "entregado" && g.estado !== "cancelado" && grupoAnticipado?.estado === "entregado";
+                const puedeCancel = g.estado !== "entregado" && g.estado !== "cancelado";
+                const puedeEditar = g.estado === "pendiente";
                 return (
                   <div key={g.id_grupo} style={{ background: "#fff", border: `1.5px solid ${cfg.border}`, borderRadius: 14, padding: "14px 16px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -686,6 +768,61 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
                         ))}
                       </div>
                     )}
+                    {/* Formulario inline de edición de grupo */}
+                    {editandoGrupo === g.id_grupo && (
+                      <div style={{ background: "#f3e5f5", borderRadius: 10, padding: "10px 12px", marginBottom: 10 }}>
+                        <p style={{ fontSize: 10, fontWeight: 800, color: "#6a1b9a", letterSpacing: 1, textTransform: "uppercase", margin: "0 0 8px" }}>Editar grupo</p>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          <div>
+                            <label style={{ fontSize: 10, fontWeight: 700, color: "#4a148c" }}>Fecha de entrega</label>
+                            <input type="date" value={editFecha} onChange={e => setEditFecha(e.target.value)}
+                              style={{ width: "100%", padding: "5px 8px", borderRadius: 6, border: "1.5px solid #ce93d8", fontSize: 12, boxSizing: "border-box", marginTop: 2 }} />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: 10, fontWeight: 700, color: "#4a148c" }}>Tipo de entrega</label>
+                            <select value={editTipo} onChange={e => setEditTipo(e.target.value)}
+                              style={{ width: "100%", padding: "5px 8px", borderRadius: 6, border: "1.5px solid #ce93d8", fontSize: 12, boxSizing: "border-box", marginTop: 2, background: "#fff" }}>
+                              <option value="">Sin cambiar</option>
+                              <option value="domicilio">Domicilio</option>
+                              <option value="tienda">Retiro en tienda</option>
+                            </select>
+                          </div>
+                          {(editTipo === "domicilio" || (!editTipo && g.tipo_entrega === "domicilio")) && (
+                            <>
+                              <div>
+                                <label style={{ fontSize: 10, fontWeight: 700, color: "#4a148c" }}>Dirección</label>
+                                <input value={editDir} onChange={e => setEditDir(e.target.value)}
+                                  style={{ width: "100%", padding: "5px 8px", borderRadius: 6, border: "1.5px solid #ce93d8", fontSize: 12, boxSizing: "border-box", marginTop: 2 }} />
+                              </div>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                                <div>
+                                  <label style={{ fontSize: 10, fontWeight: 700, color: "#4a148c" }}>Municipio</label>
+                                  <input value={editMunicipio} onChange={e => setEditMunicipio(e.target.value)}
+                                    style={{ width: "100%", padding: "5px 8px", borderRadius: 6, border: "1.5px solid #ce93d8", fontSize: 12, boxSizing: "border-box", marginTop: 2 }} />
+                                </div>
+                                <div>
+                                  <label style={{ fontSize: 10, fontWeight: 700, color: "#4a148c" }}>Departamento</label>
+                                  <input value={editDepto} onChange={e => setEditDepto(e.target.value)}
+                                    style={{ width: "100%", padding: "5px 8px", borderRadius: 6, border: "1.5px solid #ce93d8", fontSize: 12, boxSizing: "border-box", marginTop: 2 }} />
+                                </div>
+                              </div>
+                            </>
+                          )}
+                          {errorEdit && <p style={{ fontSize: 11, color: "#c62828", margin: 0 }}>{errorEdit}</p>}
+                          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                            <button onClick={handleGuardarEditGrupo} disabled={savingEdit}
+                              style={{ flex: 1, padding: "7px 0", borderRadius: 7, border: "none", background: savingEdit ? "#b0bec5" : "#6a1b9a", color: "#fff", fontWeight: 800, fontSize: 12, cursor: savingEdit ? "not-allowed" : "pointer" }}>
+                              {savingEdit ? "Guardando..." : "Guardar cambios"}
+                            </button>
+                            <button onClick={() => setEditandoGrupo(null)} disabled={savingEdit}
+                              style={{ padding: "7px 14px", borderRadius: 7, border: "1.5px solid #ce93d8", background: "#fff", color: "#6a1b9a", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                              Cancelar
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                       {puedeAvanzar && (
                         <button
@@ -693,6 +830,13 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
                           onClick={() => handleAvanzarGrupo(g.id_grupo, siguienteEstado)}
                           style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: "none", background: savingGrupo ? "#b0bec5" : "#2e7d32", color: "#fff", fontWeight: 800, fontSize: 12, cursor: savingGrupo ? "not-allowed" : "pointer" }}>
                           {savingGrupo ? "Guardando..." : siguienteEstado === "enviado" ? "Marcar como enviado" : "Marcar como entregado"}
+                        </button>
+                      )}
+                      {puedeEditar && editandoGrupo !== g.id_grupo && (
+                        <button
+                          onClick={() => abrirEditarGrupo(g)}
+                          style={{ padding: "8px 14px", borderRadius: 8, border: "1.5px solid #ce93d8", background: "#fff", color: "#6a1b9a", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                          <Pencil size={11} style={{ marginRight: 4, verticalAlign: "middle" }} />Editar
                         </button>
                       )}
                       {puedeCancel && (
@@ -930,10 +1074,12 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
                             ))}
                           </div>
                         </div>
-                        <div className="info-box info-box--warn" style={{ marginTop: 0 }}>
-                          <span className="info-box__icon"><Info size={16} /></span>
-                          <span className="info-box__text">Recuerda adjuntar el comprobante de pago al confirmar el pedido.</span>
-                        </div>
+                        {comprobantes.length === 0 && (
+                          <div className="info-box info-box--warn" style={{ marginTop: 0 }}>
+                            <span className="info-box__icon"><Info size={16} /></span>
+                            <span className="info-box__text">Recuerda adjuntar el comprobante de pago al confirmar el pedido.</span>
+                          </div>
+                        )}
                         {comprobantes.map(c => (
                           <ComprobanteAdjunto key={c.url} url={c.url} titulo={c.titulo} />
                         ))}

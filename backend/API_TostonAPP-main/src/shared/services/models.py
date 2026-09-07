@@ -641,6 +641,30 @@ class MovimientoCredito(Base):
 
 
 # ─────────────────────────────────────────
+# CONFIGURACIÓN DE LANDING PAGE
+# ─────────────────────────────────────────
+
+class ConfiguracionLanding(Base):
+    __tablename__ = "Configuracion_Landing"
+
+    ID                       = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    hero_badge               = Column(String(200),  nullable=True)
+    hero_title               = Column(String(200),  nullable=True)
+    hero_description         = Column(Text,          nullable=True)
+    history_title            = Column(String(200),  nullable=True)
+    history_description      = Column(Text,          nullable=True)
+    cta_title                = Column(String(200),  nullable=True)
+    cta_description          = Column(Text,          nullable=True)
+    contact_phone1           = Column(String(50),   nullable=True)
+    contact_phone2           = Column(String(50),   nullable=True)
+    contact_address_line     = Column(String(200),  nullable=True)
+    contact_city             = Column(String(200),  nullable=True)
+    contact_instagram_url    = Column(String(500),  nullable=True)
+    contact_instagram_handle = Column(String(100),  nullable=True)
+    horario_lunes_viernes    = Column(String(100),  nullable=True)
+    horario_sabado           = Column(String(100),  nullable=True)
+
+# ─────────────────────────────────────────
 # SALIDAS (daños, vencimientos, ajustes)
 # ─────────────────────────────────────────
 
