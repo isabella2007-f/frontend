@@ -1602,12 +1602,13 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
         if credito_devuelto > 0:
             _abonar_credito(db, venta.ID_Usuario, credito_devuelto, id_venta)
 
-        # El anticipo NO se devuelve solo. Qué pasa con la plata que el cliente
-        # ya entregó —si se le abona, si se le guarda para el próximo pedido, si
-        # se le transfiere de vuelta— lo acuerdan el cliente y el administrador;
-        # el sistema no toma esa decisión por ellos. Lo único que vuelve
-        # automáticamente es el saldo a favor que el propio cliente puso en el
-        # pedido, que es plata suya que nunca llegó a gastarse.
+        # Devolver el anticipo registrado como saldo a favor (igual que en
+        # resolver_escalado_cancelar y cancelar_grupo_pendiente). La devolución
+        # en efectivo/transferencia la gestiona el admin fuera del sistema; el
+        # crédito queda como trazabilidad y puede usarse en el próximo pedido.
+        _anticipo = Decimal(str(getattr(venta, "Anticipo_Monto", None) or 0))
+        if getattr(venta, "Anticipo_Registrado", 0) and _anticipo > 0:
+            _abonar_credito(db, venta.ID_Usuario, _anticipo, id_venta)
 
     if venta.Estado == EstadoPedido.PENDIENTE:
         descartar_notificacion(db, "pedido_nuevo", id_venta)

@@ -230,11 +230,11 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
   const [adminTipoA,      setAdminTipoA]      = useState('');
   const [adminTipoB,      setAdminTipoB]      = useState('');
   const [adminDireccionA, setAdminDireccionA] = useState(pedido.direccion_entrega || '');
-  const [adminMunicipioA, setAdminMunicipioA] = useState(pedido.municipio || '');
-  const [adminDeptoA,     setAdminDeptoA]     = useState(pedido.departamento || '');
+  const [adminMunicipioA, setAdminMunicipioA] = useState(pedido.municipio_entrega || '');
+  const [adminDeptoA,     setAdminDeptoA]     = useState(pedido.departamento_entrega || '');
   const [adminDireccionB, setAdminDireccionB] = useState(pedido.direccion_entrega || '');
-  const [adminMunicipioB, setAdminMunicipioB] = useState(pedido.municipio || '');
-  const [adminDeptoB,     setAdminDeptoB]     = useState(pedido.departamento || '');
+  const [adminMunicipioB, setAdminMunicipioB] = useState(pedido.municipio_entrega || '');
+  const [adminDeptoB,     setAdminDeptoB]     = useState(pedido.departamento_entrega || '');
   const [creandoAdmin,    setCreandoAdmin]    = useState(false);
   const [errorAdmin,      setErrorAdmin]      = useState('');
 
