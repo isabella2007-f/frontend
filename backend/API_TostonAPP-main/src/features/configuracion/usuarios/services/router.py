@@ -70,7 +70,7 @@ def toggle_estado(
     id_persona: int,
     datos:      PersonaEstado,
     db:         Session = Depends(get_db),
-    actual:     dict    = Depends(requiere_permiso("editar_usuarios"))
+    actual:     dict    = Depends(requiere_permiso("cambiar_estado_usuarios"))
 ):
     return cambiar_estado(db, id_persona, datos.Estado, actual)
 

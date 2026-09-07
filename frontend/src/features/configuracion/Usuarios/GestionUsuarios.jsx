@@ -47,7 +47,8 @@ function SkeletonRows() {
 }
 
 export default function GestionUsuarios() {
-  const puedeCambiarRol = usePrivilegio("Usuarios_cambiar_rol");
+  const puedeCambiarRol    = usePrivilegio("Usuarios_cambiar_rol");
+  const puedeCambiarEstado = usePrivilegio("Usuarios_cambiar_estado");
   const { isAdmin }     = usePrivilegios();
   const sesion          = getUser();
   const soySuperAdmin   = !!sesion && String(sesion.id) === "1";
@@ -85,7 +86,7 @@ export default function GestionUsuarios() {
     return {
       puedeEditar:     gestionable,
       puedeEliminar:   gestionable && !esFilaPropia && !esSuperAdminFila,
-      puedeToggle:     gestionable && !esFilaPropia && !esSuperAdminFila,
+      puedeToggle:     puedeCambiarEstado && gestionable && !esFilaPropia && !esSuperAdminFila,
       puedeCambiarRol: puedeCambiarRol && gestionable && !esFilaPropia && !esSuperAdminFila,
     };
   };

@@ -33,6 +33,7 @@ PERMISOS: list[tuple[str, str, str, str]] = [
     ("crear_usuarios",            "Crear nuevos usuarios",                               "Usuarios",           "crear"),
     ("editar_usuarios",           "Editar información de usuarios",                       "Usuarios",           "editar"),
     ("eliminar_usuarios",         "Eliminar usuarios",                                   "Usuarios",           "eliminar"),
+    ("cambiar_estado_usuarios",   "Activar o desactivar usuarios",                       "Usuarios",           "cambiar_estado"),
     ("cambiar_rol_usuarios",      "Cambiar el rol de otros usuarios",                    "Usuarios",           "cambiar_rol"),
 
     # ── Salidas ──
