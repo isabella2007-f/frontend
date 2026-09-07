@@ -1,9 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import FormularioDireccion from '../../../../shared/components/FormularioDireccion';
-import {
-  aPerfil, desdeTexto, direccionVacia, queFalta,
-} from '../../../../utils/direccionEntrega';
-import { Mail, Phone, MapPin, Camera, Save, X, CreditCard, Lock, Eye, EyeOff, KeyRound, Clock, User, AlertTriangle } from 'lucide-react';
+import SelectorBarrioEntrega from '../../../../shared/components/SelectorBarrioEntrega';
+import { Mail, Phone, MapPin, Camera, Save, X, CreditCard, Lock, Eye, EyeOff, KeyRound, Clock, User, AlertTriangle, Info } from 'lucide-react';
 import { apiFetch } from '../../../../utils/api';
 import { soloDigitos } from '../../../../utils/inputFilters';
 import { subirImagenCloudinary } from '../../../../utils/cloudinary.js';
@@ -62,8 +59,12 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
   const [passForm,        setPassForm]        = useState({ nueva: '', confirmar: '', showNueva: false, showConf: false });
   const [uploadingFoto,   setUploadingFoto]   = useState(false);
 
-  /// La dirección del perfil, campo por campo. Antes era un renglón libre.
-  const [direccion, setDireccion] = useState(direccionVacia());
+  /// Barrio de referencia (módulo Ubicaciones). Solo dato guía: no condiciona
+  /// el domicilio. `id_barrio_actual` es el guardado; `id_barrio` el elegido
+  /// ahora (null = sin cambio).
+  const [idBarrio, setIdBarrio] = useState(null);
+  const [idBarrioActual, setIdBarrioActual] = useState(null);
+  const [barrioInfo, setBarrioInfo] = useState(null);
 
   const [form, setForm] = useState({
     telefono:      '',
@@ -95,16 +96,9 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
           tipo_documento: data.Tipo_Documento || '',
         };
         setForm(f);
-        // Lo guardado es texto libre de antes: se intenta separar en sus
-        // partes para no hacerle reescribir todo al cliente.
-        const dir = desdeTexto(data.Direccion, {
-          departamento: data.Departamento || 'Antioquia',
-          municipio:    data.Municipio    || '',
-          barrio:       data.Barrio       || '',
-          indicaciones: data.Indicaciones || '',
-        });
-        setDireccion(dir);
-        snapshotInicial.current = JSON.stringify({ f, dir });
+        setIdBarrioActual(data.ID_Barrio || null);
+        setBarrioInfo(data.Barrio || null);
+        snapshotInicial.current = JSON.stringify({ f, b: data.ID_Barrio || null });
       })
       .catch(() => {
         // Fallback a datos del prop si la API falla
@@ -118,12 +112,7 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
           tipo_documento: user.tipo_documento || user.Tipo_Documento || '',
         };
         setForm(f);
-        const dir = desdeTexto(user.direccion || user.Direccion, {
-          departamento: user.departamento || user.Departamento || 'Antioquia',
-          municipio:    user.municipio    || user.Municipio    || '',
-        });
-        setDireccion(dir);
-        snapshotInicial.current = JSON.stringify({ f, dir });
+        snapshotInicial.current = JSON.stringify({ f, b: null });
       })
       .finally(() => setLoadingPerfil(false));
   }, []);
@@ -178,17 +167,8 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
     if (form.telefono.trim() && form.telefono.replace(/\D/g, '').length !== 10)
       e.telefono = 'El teléfono debe tener 10 dígitos';
 
-    // La dirección es opcional en el perfil —se puede guardar solo el
-    // teléfono—, pero si se empezó a llenar tiene que quedar completa: media
-    // dirección no sirve para entregar nada.
-    const empezoDireccion = !!(
-      direccion.municipio || direccion.barrio.trim() ||
-      direccion.tipoVia || direccion.numero.trim() || direccion.numeral.trim()
-    );
-    if (empezoDireccion) {
-      const falta = queFalta(direccion);
-      if (falta) e.direccion = falta;
-    }
+    // Dirección, municipio, departamento y barrio del perfil son todos
+    // OPCIONALES y solo dato guía: no se validan como una dirección de entrega.
 
     if (!cedulaYaEstablecida && form.cedula.trim() && !form.tipo_documento)
       e.tipo_documento = 'Selecciona el tipo de documento';
@@ -213,23 +193,22 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
     // Sin cambios: mismos datos y sin contraseña nueva.
     const cambioPass = showPassSection && passForm.nueva;
     if (!cambioPass && snapshotInicial.current !== null
-        && JSON.stringify({ f: form, dir: direccion }) === snapshotInicial.current) {
+        && JSON.stringify({ f: form, b: idBarrio ?? idBarrioActual }) === snapshotInicial.current) {
       onSave({ sinCambios: true });
       return;
     }
 
-    // La dirección viaja partida: la vía en Direccion —que en el servidor son
-    // 50 caracteres— y el barrio, el complemento y las indicaciones en
-    // Indicaciones, que es texto largo y es lo que lee quien entrega.
-    // `Barrio` todavía no existe como columna; se manda igual porque el
-    // esquema descarta lo que no conoce y el día que exista empieza a llegar.
-    const partes = aPerfil(direccion);
     const payload = {
-      Telefono: form.telefono || null,
-      ...(queFalta(direccion) === null
-        ? partes
-        : { Direccion: null, Municipio: direccion.municipio || null }),
+      Telefono:     form.telefono || null,
+      Direccion:    form.direccion.trim() || null,
+      Municipio:    form.municipio.trim() || null,
+      Departamento: form.departamento.trim() || null,
     };
+    // ID_Barrio (dato guía): solo se manda si el cliente eligió uno nuevo.
+    // 0 = quitar el barrio guardado.
+    if (idBarrio !== null && idBarrio !== idBarrioActual) {
+      payload.ID_Barrio = idBarrio || 0;
+    }
 
     // La foto NO va acá: `PerfilUpdate` no la declara y el esquema la
     // descarta en silencio. Tiene su propio endpoint.
@@ -387,33 +366,64 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
           placeholder="300 123 4567" style={inputBase} onFocus={focusOn} onBlur={focusOff} />
       </Field>
 
-      {/* Dirección de entrega, campo por campo. Era un renglón de texto libre
-          donde cada quien escribía como podía, y el barrio —de lo que va a
-          depender el costo del domicilio— quedaba enterrado en la frase. */}
-      <div style={{
-        borderTop: '1px solid #eef2f0', paddingTop: 16, marginBottom: 4,
-      }}>
+      {/* Ubicación de referencia. Todo opcional y solo dato guía: no condiciona
+          el domicilio, que se elige y confirma en cada pedido. */}
+      <div style={{ borderTop: '1px solid #eef2f0', paddingTop: 16, marginBottom: 4 }}>
         <p style={{
           margin: '0 0 12px', fontSize: 11, fontWeight: 800,
           letterSpacing: '.05em', textTransform: 'uppercase',
           color: 'var(--gray-500)', fontFamily: 'var(--font-body)',
           display: 'flex', alignItems: 'center', gap: 6,
         }}>
-          <MapPin size={11} /> ¿Dónde quieres recibir tus pedidos?
+          <MapPin size={11} /> Ubicación de referencia
         </p>
-        <FormularioDireccion
-          valor={direccion}
-          onCambio={(d) => {
-            setDireccion(d);
-            setErrors(p => { const n = { ...p }; delete n.direccion; return n; });
-          }}
-        />
-        {errors.direccion && (
-          <p style={{
-            margin: '-8px 0 16px', fontSize: 11,
-            color: 'var(--accent-red)', fontFamily: 'var(--font-body)',
-          }}>{errors.direccion}</p>
-        )}
+
+        <div style={{
+          display: 'flex', gap: 10, alignItems: 'flex-start',
+          background: '#e3f2fd', border: '1px solid #bbdefb',
+          borderRadius: 10, padding: '10px 12px', marginBottom: 14,
+          fontSize: 12, color: '#0d47a1',
+        }}>
+          <Info size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+          <span>Tu ubicación aquí es solo una referencia: nos ayuda a autocompletar
+            tus datos, pero no fija nada. Cuando hagas un pedido eliges y confirmas
+            la dirección de entrega, y el costo del domicilio se calcula en ese
+            momento según el barrio. Si tu barrio no tiene cobertura de domicilio,
+            guardarlo aquí no la habilita.</span>
+        </div>
+
+        <Field label="Dirección">
+          <input type="text" value={form.direccion} onChange={set('direccion')}
+            maxLength={50} placeholder="Calle 45 # 32-10, Apto 201"
+            style={inputBase} onFocus={focusOn} onBlur={focusOff} />
+        </Field>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <Field label="Municipio">
+            <input type="text" value={form.municipio} onChange={set('municipio')}
+              maxLength={25} placeholder="Medellín"
+              style={inputBase} onFocus={focusOn} onBlur={focusOff} />
+          </Field>
+          <Field label="Departamento">
+            <input type="text" value={form.departamento} onChange={set('departamento')}
+              maxLength={60} placeholder="Antioquia"
+              style={inputBase} onFocus={focusOn} onBlur={focusOff} />
+          </Field>
+        </div>
+
+        <Field label="Barrio (opcional)">
+          {barrioInfo && idBarrio === null && (
+            <p style={{ margin: '0 0 6px', fontSize: 12, color: 'var(--gray-500)' }}>
+              Guardado: <strong>{barrioInfo.nombre}</strong>
+              {barrioInfo.ciudad ? ` · ${barrioInfo.ciudad}` : ''}
+              {barrioInfo.disponible === false ? ' · sin cobertura de domicilio' : ''}
+            </p>
+          )}
+          <SelectorBarrioEntrega
+            mostrarCobertura={false}
+            prefillIdBarrio={idBarrioActual}
+            onChange={(id) => setIdBarrio(id && id !== idBarrioActual ? id : (id === null ? 0 : null))}
+          />
+        </Field>
       </div>
 
       {/* Cambio de contraseña */}

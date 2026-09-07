@@ -57,7 +57,10 @@ from src.features.ventas.gestion_ventas.services.service import (
 )
 from src.features.ventas.pedidos.services.estados import EstadoPedido
 from src.shared.services.models import (
+    Barrio,
     Base,
+    Ciudad,
+    Departamento,
     Domicilio,
     FichaTecnica,
     FichaTecnicaInsumo,
@@ -76,6 +79,7 @@ PRECIO = Decimal("10000")
 ID_CLIENTE = 1
 ID_TORTA = 1
 ID_HARINA = 1
+ID_BARRIO = 1
 
 STOCK_TORTA = 2       # hay 2 en vitrina
 PEDIDAS = 6           # el cliente pide 6 → faltan 4, y son $60.000
@@ -106,6 +110,12 @@ class FlujoProduccionE2EBase(unittest.TestCase):
         self.engine.dispose()
 
     def _sembrar(self):
+        self.db.add(Departamento(ID_Departamento=1, Nombre="Antioquia", Estado=1))
+        self.db.add(Ciudad(ID_Ciudad=1, ID_Departamento=1, Nombre="Medellín", Estado=1))
+        self.db.add(Barrio(
+            ID_Barrio=ID_BARRIO, ID_Ciudad=1, Nombre="Centro",
+            Precio=5000, Es_Base=True, Estado=1,
+        ))
         self.db.add(Usuario(
             ID_Usuario=ID_CLIENTE, Nombre="Cliente", Apellidos="De Prueba",
             Correo="cliente@prueba.test", Telefono="3001234567",
@@ -163,8 +173,7 @@ class FlujoProduccionE2EBase(unittest.TestCase):
     def domicilio(self, **kwargs):
         base = dict(
             Direccion_entrega="Calle 10 #20-30",
-            Municipio_entrega="Medellín",
-            Departamento_entrega="Antioquia",
+            ID_Barrio=ID_BARRIO,
         )
         base.update(kwargs)
         return DomicilioVentaInput(**base)

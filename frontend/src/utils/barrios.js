@@ -1,4 +1,11 @@
 /**
+ * @deprecated En la WEB ya no se usa: el punto de entrega elige el barrio contra
+ * el módulo Ubicaciones (`/api/ubicaciones/checkout/*`, ver
+ * `shared/components/SelectorBarrioEntrega.jsx`). Este archivo queda SOLO porque
+ * lo espeja la app Flutter (`lib/config/barrios_config.dart`); eliminarlo cuando
+ * se sincronice la app. Ver "Sincronización pendiente con la app Flutter" en el
+ * CLAUDE.md raíz.
+ *
  * Los barrios de cada municipio donde se entrega.
  *
  * Espeja `lib/config/barrios_config.dart` de la app. El costo del domicilio

@@ -146,12 +146,14 @@ const ProfileView = ({ user, totalPedidos, onEdit }) => {
         <InfoBlock icon={MapPin}   label="Dirección"    value={user.direccion}    span={2} />
         <InfoBlock icon={Building2} label="Municipio"   value={user.municipio} />
         <InfoBlock icon={Map}       label="Departamento" value={user.departamento} />
-        {/* El barrio, el complemento y cómo reconocer la casa viven acá: es lo
-            que lee quien entrega, y hasta ahora no se mostraba en ninguna
-            parte, así que no había forma de revisar si quedó bien. */}
+        {/* Barrio de referencia (módulo Ubicaciones). Dato guía: no condiciona
+            el domicilio, que se elige en cada pedido. */}
+        <InfoBlock icon={Info} label="Barrio (referencia)" span={2}
+          value={user.barrio
+            ? `${user.barrio.nombre}${user.barrio.ciudad ? ` · ${user.barrio.ciudad}` : ''}${user.barrio.disponible === false ? ' (sin cobertura de domicilio)' : ''}`
+            : null} />
         {user.indicaciones && (
-          <InfoBlock icon={Info} label="Barrio e indicaciones"
-            value={user.indicaciones} span={2} />
+          <InfoBlock icon={Info} label="Indicaciones" value={user.indicaciones} span={2} />
         )}
       </div>
 

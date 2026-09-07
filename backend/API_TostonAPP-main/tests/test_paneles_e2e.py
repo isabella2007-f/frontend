@@ -1190,8 +1190,7 @@ class EditarPedidoTests(PanelBase):
         self.afirmar_ok(self.put(f"/pedidos/{id_venta}", self.admin, {
             "Domicilio": True,
             "Direccion_Entrega": "Cra 50 #1-2",
-            "Municipio_entrega": "Envigado",
-            "Departamento_entrega": "Antioquia",
+            "ID_Barrio": ID_BARRIO,
         }))
         self.assertEqual(
             Decimal(str(self.venta(id_venta).Total)), Decimal("20000") + COSTO_DOMICILIO
@@ -1208,8 +1207,7 @@ class EditarPedidoTests(PanelBase):
         self.afirmar_ok(self.put(f"/pedidos/{id_venta}", self.admin, {
             "Domicilio": True,
             "Direccion_Entrega": "Cra 50 #1-2",
-            "Municipio_entrega": "Envigado",
-            "Departamento_entrega": "Antioquia",
+            "ID_Barrio": ID_BARRIO,
         }))
         self.assertEqual(self.domicilio(id_venta).Estado, DOM_PENDIENTE)
 
@@ -1229,8 +1227,7 @@ class EditarPedidoTests(PanelBase):
         cuerpo = {
             "Domicilio": True,
             "Direccion_Entrega": "Cra 50 #1-2",
-            "Municipio_entrega": "Envigado",
-            "Departamento_entrega": "Antioquia",
+            "ID_Barrio": ID_BARRIO,
         }
         self.afirmar_ok(self.put(f"/pedidos/{id_venta}", self.admin, cuerpo))
         self.afirmar_ok(self.put(f"/pedidos/{id_venta}", self.admin, cuerpo))

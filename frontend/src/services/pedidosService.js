@@ -33,6 +33,12 @@ const adaptPedido = (p) => {
     direccion_entrega: p.direccion_entrega    || "",
     municipio:         p.municipio_entrega    || "",
     departamento:      p.departamento_entrega || "",
+    // Precio del domicilio: snapshot congelado (barrio + ofertas del día).
+    id_barrio:              p.ID_Barrio ?? null,
+    barrio_entrega:         p.barrio_entrega || "",
+    precio_domicilio_base:  p.precio_domicilio_base ?? null,
+    precio_domicilio_final: p.precio_domicilio_final ?? null,
+    desglose_domicilio:     p.desglose_domicilio ?? null,
     subtotal:         p.subtotal_bruto    || p.Subtotal         || p.subtotal || 0,
     descuento:        p.credito_aplicado  || p.Descuento        || p.descuento || 0,
     total:            p.Total             || p.total            || 0,

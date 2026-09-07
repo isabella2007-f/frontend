@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 from src.shared.services.models import (
     Domicilio, Venta, Usuario, Estado, Producto, ProductoImagen,
     VentaXProducto, Rol, MensajeChat, OrdenProduccion, GrupoEnvio, GrupoEnvioItem,
+    Barrio,
 )
 from src.shared.services.notificaciones_utils import notificar, notificar_stock_producto
 from src.features.ventas.gestion_ventas.services.service import (
@@ -112,6 +113,12 @@ def _formato_domicilio(dom: Domicilio, db: Session) -> dict:
         "Direccion_entrega":    dom.Direccion_entrega,
         "Municipio_entrega":    dom.Municipio_entrega,
         "Departamento_entrega": dom.Departamento_entrega,
+        # Snapshot del precio del domicilio (barrio + ofertas del día), congelado.
+        "ID_Barrio":              dom.ID_Barrio,
+        "barrio_entrega":         dom.barrio.Nombre if dom.barrio else None,
+        "precio_domicilio_base":  dom.Precio_Domicilio_Base,
+        "precio_domicilio_final": dom.Precio_Domicilio_Final,
+        "desglose_domicilio":     dom.Desglose_Ofertas,
         "total":                total,
         "metodo_pago":          metodo_pago,
         "monto_efectivo":       monto_efectivo,
@@ -330,6 +337,12 @@ def obtener_domicilios(
             if img.ID_Producto not in imagenes_map:
                 imagenes_map[img.ID_Producto] = img.imagen
 
+    # Batch 6: nombre del barrio del snapshot (solo el nombre; el precio ya está
+    # congelado en cada Domicilio).
+    barrio_ids = list({d.ID_Barrio for d in domicilios if d.ID_Barrio})
+    barrios_map = {b.ID_Barrio: b.Nombre for b in
+                   db.query(Barrio).filter(Barrio.ID_Barrio.in_(barrio_ids)).all()} if barrio_ids else {}
+
     def _build_domicilio(dom: Domicilio) -> dict:
         venta      = ventas_map.get(dom.ID_Venta)
         cliente    = usuarios_map.get(venta.ID_Usuario) if venta else None
@@ -377,6 +390,11 @@ def obtener_domicilios(
             "Direccion_entrega":    dom.Direccion_entrega,
             "Municipio_entrega":    dom.Municipio_entrega,
             "Departamento_entrega": dom.Departamento_entrega,
+            "ID_Barrio":              dom.ID_Barrio,
+            "barrio_entrega":         barrios_map.get(dom.ID_Barrio),
+            "precio_domicilio_base":  dom.Precio_Domicilio_Base,
+            "precio_domicilio_final": dom.Precio_Domicilio_Final,
+            "desglose_domicilio":     dom.Desglose_Ofertas,
             "total":                total_v,
             "metodo_pago":          metodo,
             "monto_efectivo":       monto_efec,

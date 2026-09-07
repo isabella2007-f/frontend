@@ -3,6 +3,11 @@ import FormularioDireccion from './FormularioDireccion';
 import { direccionVacia, desdeTexto } from '../../utils/direccionEntrega';
 
 /**
+ * @deprecated Ya no se usa en la web. El punto de entrega ahora se elige con
+ * `SelectorBarrioEntrega` (Departamento → Ciudad → Barrio contra el módulo
+ * Ubicaciones). Este componente y `FormularioDireccion` quedan solo para
+ * paridad con la app Flutter; eliminar al sincronizarla (ver CLAUDE.md raíz).
+ *
  * A dónde se lleva el pedido: la dirección de siempre, u otra.
  *
  * La dirección guardada se muestra **como es y no se puede editar**. Antes se

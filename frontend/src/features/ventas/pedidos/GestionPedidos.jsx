@@ -2320,13 +2320,13 @@ export default function GestionPedidos() {
         domicilio: formData.domicilio
           ? {
               Direccion_entrega:    formData.direccion_entrega || "",
-              Municipio_entrega:    formData.municipio         || "",
-              Departamento_entrega: formData.departamento      || "",
-              // Todavía no es columna en el servidor: se manda para cuando
-              // exista y el costo del domicilio dependa de él.
-              Barrio_entrega:       formData.barrio_entrega    || null,
-              // El barrio, el complemento y las indicaciones van con las notas:
-              // es todo lo que lee quien entrega.
+              // El barrio determina el precio del domicilio; el backend resuelve
+              // ciudad, departamento y precio a partir de él.
+              ID_Barrio:            formData.id_barrio ? Number(formData.id_barrio) : null,
+              Municipio_entrega:    formData.municipio         || null,
+              Departamento_entrega: formData.departamento      || null,
+              // El complemento y las indicaciones van con las notas: es todo lo
+              // que lee quien entrega.
               Observaciones: [formData.observaciones_entrega, formData.notas]
                 .filter(Boolean).join(". ") || null,
             }
@@ -2359,8 +2359,9 @@ export default function GestionPedidos() {
         Metodo_Pago:          (formData.metodo_pago || "").split(" ")[0] || null,
         Domicilio:            formData.domicilio,
         Direccion_Entrega:    formData.direccion_entrega    || null,
-        Municipio_entrega:    formData.municipio            || null,
-        Departamento_entrega: formData.departamento         || null,
+        // Al cambiar el barrio se recalcula el precio del domicilio y el Total;
+        // municipio/departamento los deriva el backend del barrio.
+        ID_Barrio:            formData.id_barrio ? Number(formData.id_barrio) : null,
         Subtotal:             formData.subtotal,
         Descuento:            formData.descuento,
         Total:                formData.total,
@@ -2507,8 +2508,8 @@ export default function GestionPedidos() {
         </div>
 
         <div className="card">
-          <div className="tbl-wrapper">
-            <table className="tbl tbl--fixed-rows" style={{ "--tbl-row-h": "82px" }}>
+          <div className="tbl-wrapper tbl-wrapper--fixed" style={{ "--tbl-row-h": "104px", "--tbl-rows": 5 }}>
+            <table className="tbl tbl--fixed-rows">
               <thead>
                 <tr>
                   <th style={{ width: 44 }}>Nº</th>

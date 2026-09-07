@@ -32,6 +32,7 @@ from src.features.ventas.pedidos.services.router        import router as pedidos
 from src.features.ventas.gestion_ventas.services.router import router as ventas_router
 from src.features.ventas.devoluciones.services.router   import router as devoluciones_router
 from src.features.ventas.domicilios.services.router     import router as domicilios_router
+from src.features.ventas.ubicaciones.services.router    import router as ubicaciones_router
 
 # ── Dashboard ──
 from src.features.dashboard.services.router import router as dashboard_router
@@ -577,6 +578,85 @@ def migrate_db():
         except Exception:
             pass
 
+    # ── Módulo Ubicaciones (Departamento → Ciudad → Barrio + ofertas) ────────
+    # El precio del domicilio pasa a salir de Barrios.Precio + ofertas y se
+    # congela como snapshot en Domicilios. Reemplaza COSTO_DOMICILIO = 5000.
+    # Los datos quemados (departamentos/ciudades/barrios) NO se siembran acá:
+    # se ejecuta `python seed_ubicaciones.py` una vez tras el deploy (1.100+
+    # municipios en cada cold-start sería lento y frágil).
+    with engine.connect() as conn:
+        # Permisos.Permiso VARCHAR(25) → VARCHAR(60): 'cambiar_estado_ubicaciones'
+        # tiene 26 caracteres y no cabía. Idempotente (MODIFY no falla si ya es 60).
+        try:
+            conn.execute(text("ALTER TABLE Permisos MODIFY COLUMN Permiso VARCHAR(60)"))
+            conn.commit()
+        except Exception as exc:
+            _log.debug("migrate skip Permisos.Permiso: %.80s", exc)
+
+        for stmt in [
+            """CREATE TABLE IF NOT EXISTS Departamentos (
+                ID_Departamento INT AUTO_INCREMENT PRIMARY KEY,
+                Nombre          VARCHAR(80) NOT NULL,
+                Estado          INT NOT NULL DEFAULT 1,
+                UNIQUE KEY uq_departamento_nombre (Nombre),
+                FOREIGN KEY (Estado) REFERENCES Estados(ID_Estados)
+            )""",
+            """CREATE TABLE IF NOT EXISTS Ciudades (
+                ID_Ciudad       INT AUTO_INCREMENT PRIMARY KEY,
+                ID_Departamento INT NOT NULL,
+                Nombre          VARCHAR(120) NOT NULL,
+                Estado          INT NOT NULL DEFAULT 1,
+                UNIQUE KEY uq_ciudad_depto_nombre (ID_Departamento, Nombre),
+                FOREIGN KEY (ID_Departamento) REFERENCES Departamentos(ID_Departamento),
+                FOREIGN KEY (Estado) REFERENCES Estados(ID_Estados)
+            )""",
+            """CREATE TABLE IF NOT EXISTS Barrios (
+                ID_Barrio  INT AUTO_INCREMENT PRIMARY KEY,
+                ID_Ciudad  INT NOT NULL,
+                Nombre     VARCHAR(35) NOT NULL,
+                Precio     INT NOT NULL DEFAULT 0,
+                Es_Base    TINYINT(1) NOT NULL DEFAULT 0,
+                Estado     INT NOT NULL DEFAULT 1,
+                UNIQUE KEY uq_barrio_ciudad_nombre (ID_Ciudad, Nombre),
+                KEY idx_barrio_ciudad (ID_Ciudad),
+                FOREIGN KEY (ID_Ciudad) REFERENCES Ciudades(ID_Ciudad),
+                FOREIGN KEY (Estado) REFERENCES Estados(ID_Estados)
+            )""",
+            """CREATE TABLE IF NOT EXISTS Ofertas_Domicilio (
+                ID_Oferta      INT AUTO_INCREMENT PRIMARY KEY,
+                Nombre         VARCHAR(80) NOT NULL,
+                Tipo           VARCHAR(10) NOT NULL DEFAULT 'descuento',
+                Monto_Pesos    INT NULL,
+                Porcentaje     INT NULL,
+                Dias_Semana    VARCHAR(20) NULL,
+                Dias_Mes       VARCHAR(120) NULL,
+                Estado         INT NOT NULL DEFAULT 1,
+                Fecha_Creacion DATETIME NULL,
+                FOREIGN KEY (Estado) REFERENCES Estados(ID_Estados)
+            )""",
+            """CREATE TABLE IF NOT EXISTS Oferta_x_Barrio (
+                ID_Oferta INT NOT NULL,
+                ID_Barrio INT NOT NULL,
+                PRIMARY KEY (ID_Oferta, ID_Barrio),
+                KEY idx_oxb_barrio (ID_Barrio),
+                FOREIGN KEY (ID_Oferta) REFERENCES Ofertas_Domicilio(ID_Oferta) ON DELETE CASCADE,
+                FOREIGN KEY (ID_Barrio) REFERENCES Barrios(ID_Barrio)
+            )""",
+            "ALTER TABLE Usuarios ADD COLUMN ID_Barrio INT NULL",
+            "ALTER TABLE Usuarios ADD CONSTRAINT fk_usuarios_barrio FOREIGN KEY (ID_Barrio) REFERENCES Barrios(ID_Barrio)",
+            "ALTER TABLE Domicilios ADD COLUMN ID_Barrio INT NULL",
+            "ALTER TABLE Domicilios ADD COLUMN Precio_Domicilio_Base INT NULL",
+            "ALTER TABLE Domicilios ADD COLUMN Precio_Domicilio_Final INT NULL",
+            "ALTER TABLE Domicilios ADD COLUMN Desglose_Ofertas JSON NULL",
+            "ALTER TABLE Domicilios ADD CONSTRAINT fk_domicilios_barrio FOREIGN KEY (ID_Barrio) REFERENCES Barrios(ID_Barrio)",
+        ]:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception as exc:
+                _log.debug("migrate skip (ya existe): %.80s", exc)
+        _log.info("migración Ubicaciones: tablas y columnas listas")
+
 
 def _migrar_catalogo_permisos(engine):
     """Migración idempotente del catálogo de permisos (ver `migrate_db`)."""
@@ -719,6 +799,7 @@ app.include_router(pedidos_router,       prefix=PREFIX)
 app.include_router(ventas_router,        prefix=PREFIX)
 app.include_router(devoluciones_router,  prefix=PREFIX)
 app.include_router(domicilios_router,    prefix=PREFIX)
+app.include_router(ubicaciones_router,   prefix=PREFIX)
 app.include_router(dashboard_router,      prefix=PREFIX)
 app.include_router(liquidaciones_router,  prefix=PREFIX)
 

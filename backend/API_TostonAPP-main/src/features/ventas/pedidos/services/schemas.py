@@ -29,6 +29,12 @@ class PedidoResponse(BaseModel):
     direccion_entrega:            Optional[str]     = None
     municipio_entrega:            Optional[str]     = None
     departamento_entrega:         Optional[str]     = None
+    # Precio del domicilio: snapshot congelado (barrio + ofertas del día)
+    ID_Barrio:                    Optional[int]     = None
+    barrio_entrega:               Optional[str]     = None
+    precio_domicilio_base:        Optional[int]     = None
+    precio_domicilio_final:       Optional[int]     = None
+    desglose_domicilio:           Optional[dict]    = None
     comprobante_pago:             Optional[str]     = None
     nombre_domiciliario:          Optional[str]     = None
     ordenes_produccion_pendientes: int              = 0
@@ -79,8 +85,10 @@ class PedidoUpdate(BaseModel):
     Metodo_Pago:          Optional[str]   = None
     Domicilio:            Optional[bool]  = None
     Direccion_Entrega:    Optional[str]   = None
-    Municipio_entrega:    Optional[str]   = None
-    Departamento_entrega: Optional[str]   = None
+    # Barrio de entrega. Al cambiarlo se RECALCULA el precio del domicilio y se
+    # ajusta el Total (edición explícita; ver zona de peligro del snapshot).
+    # Municipio/Departamento se derivan del barrio, no se aceptan del request.
+    ID_Barrio:            Optional[int]   = None
     Subtotal:             Optional[float] = None
     Descuento:            Optional[float] = None
     Total:                Optional[float] = None

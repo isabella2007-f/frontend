@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Numeric, Boolean, Text
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Numeric, Boolean, Text, JSON
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -34,7 +34,9 @@ class Permiso(Base):
     __tablename__ = "Permisos"
 
     ID_Permiso  = Column(Integer, primary_key=True, index=True)
-    Permiso     = Column(String(25))
+    # Ampliado de 25 a 60: `cambiar_estado_ubicaciones` (26 chars) no cabía.
+    # Migración en src/main.py: ALTER TABLE Permisos MODIFY COLUMN Permiso VARCHAR(60).
+    Permiso     = Column(String(60))
     Descripcion = Column(Text)
 
     roles = relationship("RolXPermiso", back_populates="permiso")
@@ -83,8 +85,13 @@ class Usuario(Base):
     #                                           ADD COLUMN Bloqueado_Hasta DATETIME NULL;
     Intentos_Login = Column(Integer, default=0, nullable=True)
     Bloqueado_Hasta = Column(DateTime, nullable=True)
+    # Barrio de referencia del cliente (módulo Ubicaciones). Es SOLO dato guía:
+    # no condiciona el domicilio, que se elige y confirma en el checkout.
+    # Migración: ALTER TABLE Usuarios ADD COLUMN ID_Barrio INT NULL;
+    ID_Barrio      = Column(Integer, ForeignKey("Barrios.ID_Barrio"), nullable=True)
 
     rol          = relationship("Rol", foreign_keys=[ID_Rol])
+    barrio       = relationship("Barrio", foreign_keys=[ID_Barrio])
     ventas       = relationship("Venta", back_populates="usuario")
     devoluciones = relationship("Devolucion", back_populates="usuario")
 
@@ -537,9 +544,21 @@ class Domicilio(Base):
 
     ID_Grupo = Column(Integer, ForeignKey("Grupos_Envio.ID_Grupo"), nullable=True)
 
+    # ── Snapshot del precio del domicilio (módulo Ubicaciones) ──────────────
+    # Se congela al CREAR el domicilio y no se recalcula nunca, aunque después
+    # cambie el precio del barrio o una oferta. Reemplaza la antigua constante
+    # COSTO_DOMICILIO = Decimal("5000"). Desglose_Ofertas guarda el JSON
+    # congelado {base, pesos_total, ofertas:[{id,nombre,tipo,valor,efecto}],
+    # final, techo_aplicado?}. Migración: ver src/main.py.
+    ID_Barrio              = Column(Integer, ForeignKey("Barrios.ID_Barrio"), nullable=True)
+    Precio_Domicilio_Base  = Column(Integer, nullable=True)
+    Precio_Domicilio_Final = Column(Integer, nullable=True)
+    Desglose_Ofertas       = Column(JSON, nullable=True)
+
     venta    = relationship("Venta", back_populates="domicilios")
     empleado = relationship("Usuario", foreign_keys=[ID_Empleado])
     grupo    = relationship("GrupoEnvio", foreign_keys=[ID_Grupo])
+    barrio   = relationship("Barrio", foreign_keys=[ID_Barrio])
 
 
 class Devolucion(Base):
@@ -770,6 +789,85 @@ class DescuentoXVenta(Base):
 
     descuento = relationship("Descuento", back_populates="ventas")
     venta     = relationship("Venta", foreign_keys=[ID_Venta])
+
+
+# ─────────────────────────────────────────
+# UBICACIONES — Departamento → Ciudad → Barrio + ofertas de domicilio
+# ─────────────────────────────────────────
+# El precio del domicilio de un pedido sale de Barrios.Precio ajustado por las
+# ofertas activas del barrio ese día, y se CONGELA como snapshot en Domicilios
+# al confirmar el pedido. Reemplaza la constante COSTO_DOMICILIO = 5000.
+#
+# Estado en cascada: cada nodo tiene su Estado propio; el "estado efectivo"
+# (disponible para domicilio) = Estado propio activo Y todos los ancestros
+# activos. Desactivar un padre NO toca el Estado propio de los hijos.
+
+class Departamento(Base):
+    __tablename__ = "Departamentos"
+
+    ID_Departamento = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    Nombre          = Column(String(80), nullable=False)
+    Estado          = Column(Integer, ForeignKey("Estados.ID_Estados"), nullable=False, default=1)
+
+    ciudades = relationship("Ciudad", back_populates="departamento")
+
+
+class Ciudad(Base):
+    __tablename__ = "Ciudades"
+
+    ID_Ciudad       = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    ID_Departamento = Column(Integer, ForeignKey("Departamentos.ID_Departamento"), nullable=False)
+    Nombre          = Column(String(120), nullable=False)
+    Estado          = Column(Integer, ForeignKey("Estados.ID_Estados"), nullable=False, default=1)
+
+    departamento = relationship("Departamento", back_populates="ciudades")
+    barrios      = relationship("Barrio", back_populates="ciudad")
+
+
+class Barrio(Base):
+    __tablename__ = "Barrios"
+
+    ID_Barrio = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    ID_Ciudad = Column(Integer, ForeignKey("Ciudades.ID_Ciudad"), nullable=False)
+    Nombre    = Column(String(35), nullable=False)
+    Precio    = Column(Integer, nullable=False, default=0)     # entero COP, >= 0, <= 9_999_999
+    # 1 = sembrado (quemado): inmutable salvo Precio y Estado, no se puede eliminar.
+    # 0 = creado desde el módulo: nombre y precio editables, eliminable si no lo referencia nada.
+    Es_Base   = Column(Boolean, nullable=False, default=False)
+    Estado    = Column(Integer, ForeignKey("Estados.ID_Estados"), nullable=False, default=1)
+
+    ciudad  = relationship("Ciudad", back_populates="barrios")
+    ofertas = relationship("OfertaXBarrio", back_populates="barrio")
+
+
+class OfertaDomicilio(Base):
+    __tablename__ = "Ofertas_Domicilio"
+
+    ID_Oferta      = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    Nombre         = Column(String(80), nullable=False)
+    # 'descuento' baja el precio del domicilio; 'recargo' lo sube. Monto_Pesos y
+    # Porcentaje se guardan SIEMPRE >= 0: el Tipo decide el signo al calcular.
+    Tipo           = Column(String(10), nullable=False, default="descuento")
+    Monto_Pesos    = Column(Integer, nullable=True)   # >= 0, <= 9_999_999; NULL = no aplica
+    Porcentaje     = Column(Integer, nullable=True)   # 0..100; NULL = no aplica
+    # CSV de enteros. Dias_Semana: ISO (Lunes=1 … Domingo=7). Dias_Mes: 1..31.
+    # Si hay ambos, la oferta aplica cuando coincide CUALQUIERA (OR).
+    Dias_Semana    = Column(String(20), nullable=True)
+    Dias_Mes       = Column(String(120), nullable=True)
+    Estado         = Column(Integer, ForeignKey("Estados.ID_Estados"), nullable=False, default=1)
+    Fecha_Creacion = Column(DateTime, nullable=True)
+
+    barrios = relationship("OfertaXBarrio", back_populates="oferta", cascade="all, delete-orphan")
+
+
+class OfertaXBarrio(Base):
+    __tablename__ = "Oferta_x_Barrio"
+
+    ID_Oferta = Column(Integer, ForeignKey("Ofertas_Domicilio.ID_Oferta"), primary_key=True)
+    ID_Barrio = Column(Integer, ForeignKey("Barrios.ID_Barrio"), primary_key=True)
+
+    oferta = relationship("OfertaDomicilio", back_populates="barrios")
+    barrio = relationship("Barrio", back_populates="ofertas")
 
 
 # ─────────────────────────────────────────

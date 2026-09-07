@@ -114,6 +114,9 @@ class PerfilUpdate(BaseModel):
     Municipio:      Optional[str] = None
     Departamento:   Optional[str] = None
     Indicaciones:   Optional[str] = None
+    # Barrio de referencia (módulo Ubicaciones). SOLO dato guía: no condiciona
+    # el domicilio. Enviar 0 para quitarlo (null se ignora por exclude_none).
+    ID_Barrio:      Optional[int] = None
     Cedula:         Optional[str] = None   # Solo se acepta si aún no está establecida
     Tipo_Documento: Optional[str] = None   # Solo se acepta si aún no está establecida
 

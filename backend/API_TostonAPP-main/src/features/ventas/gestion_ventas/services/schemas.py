@@ -13,8 +13,12 @@ class ProductoVentaInput(BaseModel):
 # ── Domicilio opcional al crear venta ──
 class DomicilioVentaInput(BaseModel):
     Direccion_entrega:    str
-    Municipio_entrega:    str
-    Departamento_entrega: str
+    # Barrio de entrega: determina el precio del domicilio. Obligatorio cuando
+    # hay domicilio (el backend lo valida en crear_venta). Municipio y
+    # departamento se DERIVAN del barrio; el texto que llegue es solo respaldo.
+    ID_Barrio:            Optional[int]      = None
+    Municipio_entrega:    Optional[str]      = None
+    Departamento_entrega: Optional[str]      = None
     Observaciones:        Optional[str]      = None
     Fecha_entrega:        Optional[datetime] = None
     ID_Empleado:          Optional[int]      = None  # repartidor
@@ -112,6 +116,12 @@ class VentaResponse(BaseModel):
     direccion_entrega:        Optional[str]      = None
     municipio_entrega:        Optional[str]      = None
     departamento_entrega:     Optional[str]      = None
+    # Precio del domicilio: snapshot congelado (barrio + ofertas del día).
+    ID_Barrio:                Optional[int]      = None
+    barrio_entrega:           Optional[str]      = None
+    precio_domicilio_base:    Optional[int]      = None
+    precio_domicilio_final:   Optional[int]      = None
+    desglose_domicilio:       Optional[dict]     = None
     observaciones_domicilio:  Optional[str]      = None
     nombre_domiciliario:      Optional[str]      = None
     comprobante_pago:         Optional[str]      = None

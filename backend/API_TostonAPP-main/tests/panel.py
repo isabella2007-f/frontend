@@ -44,8 +44,11 @@ from sqlalchemy.pool import StaticPool
 from src.main import app
 from src.shared.services.database import get_db
 from src.shared.services.models import (
+    Barrio,
     Base,
+    Ciudad,
     CreditoCliente,
+    Departamento,
     Domicilio,
     Estado,
     FichaTecnica,
@@ -77,6 +80,9 @@ ID_CLIENTE = 2
 ID_REPARTIDOR = 3
 ID_OTRO_CLIENTE = 4
 ID_OTRO_REPARTIDOR = 5
+
+# Barrio de entrega sembrado (precio base 5000 = antiguo COSTO_DOMICILIO).
+ID_BARRIO = 1
 
 # ── Qué se vende ──────────────────────────────────────────────────────────
 PRECIO = Decimal("10000")
@@ -191,6 +197,14 @@ class PanelBase(unittest.TestCase):
     def _sembrar(self):
         for id_estado, nombre in ESTADOS.items():
             self.db.add(Estado(ID_Estados=id_estado, Estado=nombre))
+
+        # Ubicaciones: un barrio de entrega con precio base 5000.
+        self.db.add(Departamento(ID_Departamento=1, Nombre="Antioquia", Estado=1))
+        self.db.add(Ciudad(ID_Ciudad=1, ID_Departamento=1, Nombre="Medellín", Estado=1))
+        self.db.add(Barrio(
+            ID_Barrio=ID_BARRIO, ID_Ciudad=1, Nombre="Centro",
+            Precio=5000, Es_Base=True, Estado=1,
+        ))
 
         self.db.add(Rol(ID_Rol=ROL_ADMIN, Rol="Administrador", Estado=1))
         self.db.add(Rol(ID_Rol=ROL_EMPLEADO, Rol="Empleado", Estado=1))
@@ -319,8 +333,7 @@ class PanelBase(unittest.TestCase):
     def direccion(self, **kw):
         cuerpo = {
             "Direccion_entrega": "Calle 10 #20-30",
-            "Municipio_entrega": "Medellín",
-            "Departamento_entrega": "Antioquia",
+            "ID_Barrio": ID_BARRIO,
         }
         cuerpo.update(kw)
         return cuerpo

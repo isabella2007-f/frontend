@@ -16,7 +16,7 @@
  */
 
 import { useState } from "react";
-import { X, AlertTriangle, Check, Lock, Eye, Plus, PenLine, Trash2, Ban, Upload, Search, RefreshCw, CheckCircle2, XCircle, Globe, Settings, Shield, Users, Package, FolderOpen, Truck, ClipboardList, Factory, Banknote, ShoppingCart, CornerUpLeft, Bike, Receipt, BarChart2 } from "lucide-react";
+import { X, AlertTriangle, Check, Lock, Eye, Plus, PenLine, Trash2, Ban, Upload, Search, RefreshCw, CheckCircle2, XCircle, Globe, Settings, Shield, Users, Package, FolderOpen, Truck, ClipboardList, Factory, Banknote, ShoppingCart, CornerUpLeft, Bike, Receipt, BarChart2, MapPin } from "lucide-react";
 import { createPortal } from "react-dom";
 
 // ── Catálogo completo de acciones posibles ──────────────────────────────────
@@ -52,6 +52,7 @@ const GRUPOS_MODULOS = [
       { key: "Dashboard",       label: "Dashboard",       Icon: BarChart2,     acciones: ["ver"] },
       { key: "Roles",           label: "Roles",           Icon: Shield,        acciones: STD },
       { key: "Usuarios",        label: "Usuarios",        Icon: Users,         acciones: [...STD, "cambiar_rol"] },
+      { key: "Ubicaciones",     label: "Ubicaciones",     Icon: MapPin,        acciones: STD },
       { key: "GestionSalidas",  label: "Gestión Salidas", Icon: Upload,        acciones: ["ver", "crear", "editar", "eliminar"] },
     ],
   },

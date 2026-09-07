@@ -1,10 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { X, Check, AlertCircle, AlertTriangle, CheckCircle2, Package, Bike, Store, Banknote, Building2, CreditCard, Calendar, PenLine, ClipboardList, Phone, Mail, User, MapPin, ShoppingCart, Truck, Paperclip, Camera, Search, Gift } from "lucide-react";
-import { MUNICIPIOS_VALLE_ABURRA } from "../../../utils/departamentosYCiudades.js";
 import SearchableSelect from "../../../shared/components/SearchableSelect.jsx";
-import SelectorDireccionEntrega from "../../../shared/components/SelectorDireccionEntrega";
-import { direccionVacia, lineaGuardada, observacionesDe, queFalta }
-  from "../../../utils/direccionEntrega";
+import SelectorBarrioEntrega from "../../../shared/components/SelectorBarrioEntrega";
 import { getUsuarios } from "../../../services/usuariosService.js";
 import { getProductos } from "../../../services/productosService.js";
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
@@ -40,10 +37,11 @@ const EMPTY_FORM = {
   comprobante:          null,
   comprobantePreview:   null,
   domicilio:            false,
-  // true = se entrega en la dirección registrada del cliente; false = en otra,
-  // que vale solo para este pedido y no toca su perfil.
-  usar_direccion_registrada: true,
-  otra_direccion:       direccionVacia(),
+  // Dirección exacta (texto) + barrio de entrega (determina el precio del
+  // domicilio, que el backend resuelve y congela). Prefill del barrio del cliente.
+  direccion_exacta:     "",
+  id_barrio:            null,
+  cobertura_barrio:     null,
   notas:                "",
   descuento:            0,
   fecha_entrega:        "",
@@ -339,36 +337,28 @@ export default function CrearPedido({ onClose, onSave }) {
   };
 
   /* ─── Cálculos ─── */
-  const COSTO_DOMICILIO = 5000;
   const subtotal      = form.productosItems.reduce((a, p) => a + p.precio * p.cantidad, 0);
   const descuento     = Number(form.descuento) || 0;
   const clienteSeleccionado = clientes.find(
     c => String(c.id) === String(form.idCliente));
 
-  // La dirección con la que sale este pedido: la registrada del cliente o la
-  // alternativa. La registrada no se toca; la otra no altera su perfil.
-  const conRegistrada = form.usar_direccion_registrada
-    && !!clienteSeleccionado?.direccion;
-  const entrega = conRegistrada
-    ? {
-        direccion:     clienteSeleccionado.direccion,
-        municipio:     clienteSeleccionado.municipio    || "",
-        departamento:  clienteSeleccionado.departamento || "Antioquia",
-        barrio:        clienteSeleccionado.barrio       || "",
-        observaciones: clienteSeleccionado.indicaciones || "",
-      }
-    : {
-        direccion:     lineaGuardada(form.otra_direccion),
-        municipio:     form.otra_direccion.municipio,
-        departamento:  form.otra_direccion.departamento,
-        barrio:        form.otra_direccion.barrio,
-        observaciones: observacionesDe(form.otra_direccion),
-      };
+  const barrioDisponible = !!form.cobertura_barrio?.disponible;
+  const entrega = {
+    direccion:     form.direccion_exacta.trim(),
+    id_barrio:     form.id_barrio,
+    municipio:     form.cobertura_barrio?.ciudad || "",
+    departamento:  form.cobertura_barrio?.departamento || "",
+    observaciones: form.notas,
+  };
   /// Qué le falta a la dirección, o null si está lista.
-  const faltaEnLaDireccion = () =>
-    conRegistrada ? null : queFalta(form.otra_direccion);
+  const faltaEnLaDireccion = () => {
+    if (!form.direccion_exacta.trim()) return "Escribe la dirección exacta";
+    if (!form.id_barrio) return "Elige el barrio de entrega";
+    if (!barrioDisponible) return "Ese barrio no tiene cobertura de domicilio";
+    return null;
+  };
 
-  const costoEnvio    = form.domicilio ? COSTO_DOMICILIO : 0;
+  const costoEnvio    = form.domicilio && barrioDisponible ? (form.cobertura_barrio.final ?? 0) : 0;
   const total         = Math.max(0, subtotal - descuento + costoEnvio);
   // Tope: ni mas saldo del que tiene el cliente ni mas de lo que cuesta el
   // pedido. La barra corre sobre ese tope, asi el 100% cae siempre justo.
@@ -569,11 +559,11 @@ export default function CrearPedido({ onClose, onSave }) {
       ),
       domicilio:         form.domicilio,
       direccion_entrega: form.domicilio ? entrega.direccion    : null,
+      // El barrio determina el precio del domicilio; el backend resuelve
+      // ciudad/departamento/precio a partir de él.
+      id_barrio:         form.domicilio ? entrega.id_barrio    : null,
       departamento:      form.domicilio ? entrega.departamento : null,
       municipio:         form.domicilio ? entrega.municipio    : null,
-      // El barrio todavía no es columna en el servidor; se manda para cuando
-      // exista, igual que en el checkout del cliente.
-      barrio_entrega:    form.domicilio ? entrega.barrio       : null,
       observaciones_entrega: form.domicilio ? entrega.observaciones : null,
       fecha_entrega:     form.fecha_entrega || null,
       notas:             form.notas,
@@ -670,8 +660,9 @@ export default function CrearPedido({ onClose, onSave }) {
                       setForm(f => ({
                         ...f,
                         idCliente: "",
-                        usar_direccion_registrada: true,
-                        otra_direccion: direccionVacia(),
+                        direccion_exacta: "",
+                        id_barrio: null,
+                        cobertura_barrio: null,
                       }));
                       setCreditoCliente(0);
                       setCreditoMonto("");
@@ -681,10 +672,11 @@ export default function CrearPedido({ onClose, onSave }) {
                     setForm(f => ({
                       ...f,
                       idCliente: String(cli.id),
-                      // Cada cliente trae la suya: se vuelve a ofrecer la
-                      // registrada y se descarta la alternativa del anterior.
-                      usar_direccion_registrada: !!cli.direccion,
-                      otra_direccion: direccionVacia(),
+                      // Cada cliente trae lo suyo: se precarga su dirección de
+                      // texto y su barrio de referencia.
+                      direccion_exacta: cli.direccion || "",
+                      id_barrio: null,
+                      cobertura_barrio: null,
                     }));
                     setUsarCredito(false);
                     setCreditoMonto("");
@@ -831,24 +823,26 @@ export default function CrearPedido({ onClose, onSave }) {
                       </div>
                     );
                   })()}
-                  {/* La registrada se muestra tal cual y no se edita:
-                      corregirla acá pisaba la del cliente sin querer. */}
-                  <SelectorDireccionEntrega
-                    nombreCliente={clienteSeleccionado?.nombre}
-                    registrada={{
-                      direccion:    clienteSeleccionado?.direccion    || "",
-                      municipio:    clienteSeleccionado?.municipio    || "",
-                      departamento: clienteSeleccionado?.departamento || "Antioquia",
-                      indicaciones: clienteSeleccionado?.indicaciones || "",
-                    }}
-                    usarRegistrada={form.usar_direccion_registrada}
-                    onUsarRegistrada={v => {
-                      setForm(f => ({ ...f, usar_direccion_registrada: v }));
+                  <input
+                    type="text"
+                    className="field-input"
+                    value={form.direccion_exacta}
+                    maxLength={50}
+                    onChange={e => {
+                      setForm(f => ({ ...f, direccion_exacta: e.target.value }));
                       setErrors(p => ({ ...p, direccion_entrega: "" }));
                     }}
-                    otra={form.otra_direccion}
-                    onOtra={d => {
-                      setForm(f => ({ ...f, otra_direccion: d }));
+                    placeholder="Dirección exacta: calle, número, apto/complemento"
+                    style={{ marginBottom: 8 }}
+                  />
+                  {/* El barrio determina el precio del domicilio. Prefill del
+                      barrio guardado en el perfil del cliente. `key` fuerza el
+                      remonte al cambiar de cliente para re-precargar. */}
+                  <SelectorBarrioEntrega
+                    key={clienteSeleccionado?.id || "sin-cliente"}
+                    prefillIdBarrio={clienteSeleccionado?.idBarrio || null}
+                    onChange={(id, cob) => {
+                      setForm(f => ({ ...f, id_barrio: id, cobertura_barrio: cob }));
                       setErrors(p => ({ ...p, direccion_entrega: "" }));
                     }}
                   />

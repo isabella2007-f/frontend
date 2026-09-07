@@ -114,6 +114,16 @@ PERMISOS: list[tuple[str, str, str, str]] = [
     ("editar_liquidaciones",      "Editar liquidaciones",                                "Liquidaciones",      "editar"),
     ("eliminar_liquidaciones",    "Eliminar liquidaciones",                              "Liquidaciones",      "eliminar"),
     ("anular_liquidaciones",      "Anular liquidaciones",                                "Liquidaciones",      "anular"),
+
+    # ── Ubicaciones (Departamento → Ciudad → Barrio + ofertas de domicilio) ──
+    # Los 5 gobiernan barrios Y ofertas de domicilio con mapeo natural. La
+    # columna Permisos.Permiso se amplió a VARCHAR(60) para que
+    # `cambiar_estado_ubicaciones` (26 chars) quepa (ver src/main.py).
+    ("ver_ubicaciones",             "Ver ubicaciones y ofertas de domicilio: listar, filtrar, ver detalle", "Ubicaciones", "ver"),
+    ("crear_ubicaciones",           "Crear barrios y crear ofertas de domicilio",                           "Ubicaciones", "crear"),
+    ("editar_ubicaciones",          "Editar barrios (precio, y nombre si es creado) y editar ofertas",      "Ubicaciones", "editar"),
+    ("eliminar_ubicaciones",        "Eliminar barrios creados no referenciados y eliminar ofertas",         "Ubicaciones", "eliminar"),
+    ("cambiar_estado_ubicaciones",  "Activar/desactivar departamentos, ciudades, barrios y ofertas (incluye acciones masivas)", "Ubicaciones", "cambiar_estado"),
 ]
 
 

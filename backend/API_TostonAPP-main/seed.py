@@ -41,3 +41,11 @@ def sembrar_permisos():
 
 if __name__ == "__main__":
     sembrar_permisos()
+    # Jerarquía Departamento → Ciudad → Barrio del módulo Ubicaciones.
+    # Idempotente; ver seed_ubicaciones.py para el detalle y cómo cargar el
+    # DIVIPOLA completo del DANE.
+    try:
+        from seed_ubicaciones import sembrar_ubicaciones
+        sembrar_ubicaciones()
+    except Exception as e:  # noqa: BLE001
+        print(f"⚠️  seed de ubicaciones omitido: {e}")

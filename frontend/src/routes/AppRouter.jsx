@@ -10,6 +10,7 @@ import GestionUsuarios from "../features/configuracion/Usuarios/GestionUsuarios"
 import Empleados from "../features/configuracion/empleados/Empleados";
 import Roles from "../features/configuracion/roles/Roles";
 import GestionSalidas from "../features/salidas/GestionSalidas.jsx";
+import Ubicaciones from "../features/configuracion/ubicaciones/Ubicaciones";
 
 /* ─── PRODUCCIÓN ─── */
 import CategoriaProductos from "../features/produccion/categoria_productos/Categoriaproductos";
@@ -112,10 +113,11 @@ const AppRouter = () => {
             <Route path="landing"    element={<PR clave="LandingPage_editar" el={<EditarLanding />} />} />
 
             {/* Configuración */}
-            <Route path="usuarios"   element={<PR clave="Usuarios_ver"      el={<GestionUsuarios />} />} />
-            <Route path="empleados"  element={<PR clave="Usuarios_ver"      el={<Empleados />} />} />
-            <Route path="roles"      element={<PR clave="Roles_ver"         el={<Roles />} />} />
-            <Route path="salidas"    element={<PR clave="GestionSalidas_ver" el={<GestionSalidas />} />} />
+            <Route path="usuarios"    element={<PR clave="Usuarios_ver"      el={<GestionUsuarios />} />} />
+            <Route path="empleados"   element={<PR clave="Usuarios_ver"      el={<Empleados />} />} />
+            <Route path="roles"       element={<PR clave="Roles_ver"         el={<Roles />} />} />
+            <Route path="salidas"     element={<PR clave="GestionSalidas_ver" el={<GestionSalidas />} />} />
+            <Route path="ubicaciones" element={<PR clave="Ubicaciones_ver"   el={<Ubicaciones />} />} />
 
             {/* Producción */}
             <Route path="categorias_productos"  element={<PR clave="CategoriaProductos_ver" el={<CategoriaProductos />} />} />

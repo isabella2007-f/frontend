@@ -534,7 +534,8 @@ function HistorialSalidas({ salidas, loading, onAgregarClick, cargarSalidas }) {
       </div>
 
       <div className="card">
-        <table className="tbl tbl--fixed-rows" style={{ "--tbl-row-h": "60px" }}>
+        <div className="tbl-wrapper tbl-wrapper--fixed" style={{ "--tbl-row-h": "60px", "--tbl-rows": ITEMS_PER_PAGE }}>
+        <table className="tbl tbl--fixed-rows">
             <thead>
               <tr>
                 <th>Tipo</th>
@@ -596,6 +597,7 @@ function HistorialSalidas({ salidas, loading, onAgregarClick, cargarSalidas }) {
               )}
             </tbody>
           </table>
+        </div>
       </div>
 
       <div className="pagination-bar">
@@ -728,7 +730,8 @@ function Vencidos({ salidas, loading, cargarSalidas }) {
 
       {/* Tabla compacta */}
       <div className="card">
-        <table className="tbl tbl--fixed-rows" style={{ "--tbl-row-h": "60px" }}>
+        <div className="tbl-wrapper tbl-wrapper--fixed" style={{ "--tbl-row-h": "60px", "--tbl-rows": ITEMS_PER_PAGE }}>
+        <table className="tbl tbl--fixed-rows">
           <thead>
             <tr>
               <th>Elemento</th>
@@ -786,6 +789,7 @@ function Vencidos({ salidas, loading, cargarSalidas }) {
             )}
           </tbody>
         </table>
+        </div>
       </div>
 
       <div className="pagination-bar">

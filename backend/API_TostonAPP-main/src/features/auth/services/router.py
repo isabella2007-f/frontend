@@ -30,6 +30,10 @@ def _formato_perfil(actual: dict, db: Session) -> dict:
     # Nombre de rol EN VIVO (según ID_Rol actual), no el claim del token: tras un
     # cambio de rol el perfil debe reflejar el rol nuevo sin re-login.
     rol_actual = obtener_nombre_rol(db, registro.ID_Rol) if registro.ID_Rol else None
+    # Barrio de referencia (módulo Ubicaciones): nombre legible + si está
+    # disponible para domicilio. Es SOLO dato guía, no condiciona nada.
+    from src.features.ventas.ubicaciones.services.service import barrio_legible
+    id_barrio = getattr(registro, "ID_Barrio", None)
     return {
         "id":             registro.ID_Usuario,
         "Nombre":         registro.Nombre,
@@ -42,6 +46,8 @@ def _formato_perfil(actual: dict, db: Session) -> dict:
         "Municipio":      registro.Municipio,
         "Departamento":   registro.Departamento,
         "Indicaciones":   getattr(registro, "Indicaciones", None),
+        "ID_Barrio":      id_barrio,
+        "Barrio":         barrio_legible(db, id_barrio),
         "Foto_perfil":    registro.Foto_perfil,
         "Fecha_creacion": registro.Fecha_creacion,
         "Estado":         registro.Estado,
@@ -205,6 +211,16 @@ def actualizar_perfil(
             valor_actual = getattr(registro, campo_unico, None)
             if valor_actual:          # ya tiene valor → ignorar
                 del campos[campo_unico]
+
+    # ID_Barrio: 0 = quitar el barrio de referencia; cualquier otro valor debe
+    # apuntar a un barrio que exista (no se exige que esté activo: es dato guía).
+    if "ID_Barrio" in campos:
+        if not campos["ID_Barrio"]:
+            campos["ID_Barrio"] = None
+        else:
+            from src.shared.services.models import Barrio
+            if not db.query(Barrio).filter(Barrio.ID_Barrio == campos["ID_Barrio"]).first():
+                raise HTTPException(status_code=400, detail="El barrio seleccionado no existe")
 
     for campo, valor in campos.items():
         setattr(registro, campo, valor)
