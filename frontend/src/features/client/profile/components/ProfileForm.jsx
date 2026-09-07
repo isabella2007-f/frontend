@@ -428,16 +428,16 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
             adivinar. El barrio no está acá: lo elige el selector de abajo,
             contra el módulo Ubicaciones. */}
         <FormularioDireccion valor={via} onCambio={cambiarVia} soloVia />
+        {/* Municipio y departamento salen del barrio: son los mismos datos
+            y escribirlos aparte permitía que no coincidieran. */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <Field label="Municipio">
-            <input type="text" value={form.municipio} onChange={set('municipio')}
-              maxLength={25} placeholder="Medellín"
-              style={inputBase} onFocus={focusOn} onBlur={focusOff} />
+            <input type="text" value={form.municipio || '—'} readOnly
+              style={disabledStyle} title="Sale del barrio que elijas abajo" />
           </Field>
           <Field label="Departamento">
-            <input type="text" value={form.departamento} onChange={set('departamento')}
-              maxLength={60} placeholder="Antioquia"
-              style={inputBase} onFocus={focusOn} onBlur={focusOff} />
+            <input type="text" value={form.departamento || '—'} readOnly
+              style={disabledStyle} title="Sale del barrio que elijas abajo" />
           </Field>
         </div>
 
@@ -452,7 +452,18 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
           <SelectorBarrioEntrega
             mostrarCobertura={false}
             prefillIdBarrio={idBarrioActual}
-            onChange={(id) => setIdBarrio(id && id !== idBarrioActual ? id : (id === null ? 0 : null))}
+            onChange={(id, cob) => {
+              setIdBarrio(id && id !== idBarrioActual ? id : (id === null ? 0 : null));
+              // El municipio y el departamento son los del barrio: se copian
+              // para que las columnas del usuario digan lo mismo que él eligió.
+              if (cob) {
+                setForm(f => ({
+                  ...f,
+                  municipio: cob.ciudad || f.municipio,
+                  departamento: cob.departamento || f.departamento,
+                }));
+              }
+            }}
           />
         </Field>
       </div>

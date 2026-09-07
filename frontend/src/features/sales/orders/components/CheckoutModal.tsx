@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { X, CreditCard, Banknote, Scale, User, MapPin, ShoppingBag, CheckCircle2, Sparkles, ShieldCheck, UploadCloud, ChevronRight, Gift, Truck, Phone, Save, Package } from 'lucide-react';
+import { X, CreditCard, Banknote, Scale, User, MapPin, ShoppingBag, CheckCircle2, Sparkles, ShieldCheck, UploadCloud, ChevronRight, Gift, Truck, Phone, Save, Package, AlertTriangle } from 'lucide-react';
 import { CartItem } from '../services/cartService';
 import { getUser } from '../../../../services/authService';
 import { getMiCredito } from '../../../../services/pedidosService';
 import { apiFetch } from '../../../../utils/api';
-import SelectorBarrioEntrega from '../../../../shared/components/SelectorBarrioEntrega';
+import { getCobertura } from '../../../../services/ubicacionesService';
 import FormularioDireccion from '../../../../shared/components/FormularioDireccion';
 import { desdeTexto, lineaVia } from '../../../../utils/direccionEntrega';
 // La regla del anticipo vive en un solo lugar, espejo del servidor.
@@ -99,8 +99,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   // pone creditoMaximo; el atajo "Todo" cubre el caso mas comun.
   const [creditoMonto,       setCreditoMonto]       = useState<number | ''>('');
   const [tieneDomicilio,     setTieneDomicilio]     = useState(false);
-  /// La dirección exacta (vía / complemento). Texto libre — el barrio, que
-  /// determina el precio del domicilio, se elige aparte con SelectorBarrioEntrega.
   /// Si el pedido va a la dirección de siempre o a otra.
   ///
   /// La guardada se muestra y no se toca: para cambiarla está "Mis datos".
@@ -161,6 +159,16 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
         // Con dirección guardada se arranca en ella; sin ella, no hay nada
         // que elegir y se pide directamente.
         setUsarRegistrada(!!perfil?.Direccion);
+        // El barrio ya no se pregunta: es el de sus datos, y de ahí sale la
+        // tarifa. Preguntarlo en cada pedido era pedir dos veces lo mismo.
+        if (perfil?.ID_Barrio) {
+          getCobertura(perfil.ID_Barrio)
+            .then((cob: any) => { setIdBarrio(perfil.ID_Barrio); setCoberturaBarrio(cob); })
+            .catch(() => { setIdBarrio(null); setCoberturaBarrio(null); });
+        } else {
+          setIdBarrio(null);
+          setCoberturaBarrio(null);
+        }
       })
       .catch(() => {
         setTelefonoRegistrado(false);
@@ -231,8 +239,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
     : lineaVia(otraVia);
   const faltaDireccion =
     !address ? 'Escribe la dirección exacta (calle, número, complemento)'
-    : !idBarrio             ? 'Elige el barrio de entrega'
-    : !barrioDisponible     ? 'Ese barrio no tiene cobertura de domicilio: elige otro o recoge en tienda'
+    : !idBarrio             ? 'Tu barrio no está en tus datos. Agrégalo en "Mis datos" para pedir a domicilio.'
+    : !barrioDisponible     ? 'Tu barrio no tiene cobertura de domicilio: cámbialo en "Mis datos" o recoge en tienda'
     : null;
   const direccionValida = faltaDireccion === null;
   const direccionError  = direccionTocada ? faltaDireccion : null;
@@ -552,17 +560,37 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                   />
                 )}
 
-                {/* El barrio determina el precio del domicilio. Prefill del
-                    barrio guardado en el perfil; totalmente editable. */}
-                <SelectorBarrioEntrega
-                  compacto
-                  prefillIdBarrio={registrada?.ID_Barrio || null}
-                  onChange={(id: number | null, cob: any) => {
-                    setIdBarrio(id);
-                    setCoberturaBarrio(cob);
-                    setDireccionTocada(true);
-                  }}
-                />
+                {/* El barrio sale de sus datos: acá se muestra para que sepa
+                    a dónde va y cuánto cuesta, no para elegirlo otra vez. */}
+                {coberturaBarrio ? (
+                  <div className="flex items-start gap-2 bg-green-50 border border-green-100 rounded-2xl px-3 py-2.5">
+                    <MapPin size={14} className="text-green-700 mt-0.5 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[9px] font-black text-green-700 uppercase tracking-widest mb-0.5">
+                        Barrio de entrega
+                      </p>
+                      <p className="text-xs font-black text-gray-800">
+                        {coberturaBarrio.barrio}
+                        {coberturaBarrio.ciudad ? ` · ${coberturaBarrio.ciudad}` : ''}
+                      </p>
+                      <p className="text-[11px] font-semibold text-gray-500 mt-0.5">
+                        {barrioDisponible
+                          ? `Domicilio ${COP(coberturaBarrio.final ?? 0)}`
+                          : (coberturaBarrio.motivo || 'Sin cobertura de domicilio')}
+                        {' · '}
+                        <span className="text-gray-400">se cambia en Mis datos</span>
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-2xl px-3 py-2.5">
+                    <AlertTriangle size={14} className="text-amber-600 mt-0.5 shrink-0" />
+                    <p className="text-[11px] font-bold text-amber-700 leading-relaxed">
+                      Todavía no tienes barrio en tus datos. Agrégalo en
+                      «Mis datos» para poder pedir a domicilio.
+                    </p>
+                  </div>
+                )}
                 {direccionError && (
                   <p className="text-[10px] font-bold text-red-500 mt-1 pl-1">
                     {direccionError}
