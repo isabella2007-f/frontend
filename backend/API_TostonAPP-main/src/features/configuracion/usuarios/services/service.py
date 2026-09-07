@@ -135,6 +135,9 @@ def _formato_persona(registro: Usuario, rol_nombre: str = None) -> dict:
         "Direccion":      registro.Direccion,
         "Municipio":      registro.Municipio,
         "Departamento":   registro.Departamento,
+        # Barrio de referencia (módulo Ubicaciones): prefill del selector de
+        # barrio al crear un pedido a nombre de este cliente. Dato guía.
+        "ID_Barrio":      getattr(registro, "ID_Barrio", None),
         "Indicaciones":   getattr(registro, "Indicaciones", None),
         "Telefono":       registro.Telefono,
         "Foto":           registro.Foto_perfil,

@@ -4,12 +4,6 @@ import { X, MapPin, Trash2, Plus, Minus, ShoppingBag, LogIn, Sparkles, ChevronRi
 import { CartItem, removeFromCart, updateQuantity, clearCart, getCart } from '../services/cartService';
 import { isAuthenticated } from '../../../../services/authService';
 import { apiFetch } from '../../../../utils/api';
-import SelectorDireccionEntrega from '../../../../shared/components/SelectorDireccionEntrega';
-import {
-  direccionVacia, lineaGuardada, queFalta,
-} from '../../../../utils/direccionEntrega';
-
-const COSTO_DOMICILIO = 5000;
 const HORA_APERTURA  = 8;   // 8:00 am
 const HORA_CIERRE    = 20;  // 8:00 pm
 
@@ -45,11 +39,10 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
   const [checkoutError,     setCheckoutError]     = useState('');
   const [confirmVaciar,     setConfirmVaciar]     = useState(false);
   const [stockLimitMsg,  setStockLimitMsg]  = useState('');
-  /// Lo que el cliente tiene guardado. No se toca desde acá: para cambiarlo
-  /// está "Mis datos".
-  const [registrada,     setRegistrada]     = useState<any>(null);
-  const [usarRegistrada, setUsarRegistrada] = useState(true);
-  const [otraDireccion,  setOtraDireccion]  = useState(direccionVacia());
+  /// Dirección exacta de entrega (texto). El barrio y el precio del domicilio se
+  /// eligen y confirman en el siguiente paso (CheckoutModal), contra el módulo
+  /// Ubicaciones. Acá solo se pregunta si es domicilio o recogida.
+  const [direccionExacta, setDireccionExacta] = useState('');
   const [total, setTotal]             = useState(() =>
     getCart().reduce((acc, i) => acc + i.precio * i.cantidad, 0)
   );
@@ -97,42 +90,26 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
     updateQuantity(id, num);
   };
 
-  // La dirección guardada se trae al abrir el carrito, no cuando se toca un
-  // botón: es la que se va a usar casi siempre y tiene que estar a la vista.
+  // La dirección exacta guardada se trae al abrir el carrito como punto de
+  // partida. El barrio y el precio se confirman en el siguiente paso.
   useEffect(() => {
     if (!isOpen || !isAuthenticated()) return;
     let vigente = true;
     apiFetch('/auth/perfil')
       .then((perfil: any) => {
         if (!vigente) return;
-        const dir = perfil?.Direccion || '';
-        setRegistrada({
-          direccion:    dir,
-          municipio:    perfil?.Municipio    || '',
-          departamento: perfil?.Departamento || 'Antioquia',
-          barrio:       perfil?.Barrio       || '',
-          indicaciones: perfil?.Indicaciones || '',
-        });
-        setUsarRegistrada(!!dir);
+        if (perfil?.Direccion) setDireccionExacta(perfil.Direccion);
       })
-      .catch(() => {
-        if (!vigente) return;
-        setRegistrada(null);
-        setUsarRegistrada(false);
-      });
+      .catch(() => {});
     return () => { vigente = false; };
   }, [isOpen]);
 
-  /// La dirección con la que sale este pedido.
-  const conRegistrada = usarRegistrada && !!registrada?.direccion;
-  const address       = conRegistrada ? registrada.direccion : lineaGuardada(otraDireccion);
-  const municipio     = conRegistrada ? (registrada.municipio || '') : otraDireccion.municipio;
-  const departamento  = conRegistrada
-    ? (registrada.departamento || 'Antioquia')
-    : otraDireccion.departamento;
-  const faltaDireccion = conRegistrada ? null : queFalta(otraDireccion);
+  const faltaDireccion = tieneDomicilio && !direccionExacta.trim()
+    ? 'Escribe la dirección de entrega' : null;
+  const address = direccionExacta.trim();
 
-  const costoTotal = tieneDomicilio ? total + COSTO_DOMICILIO : total;
+  // El precio del domicilio depende del barrio y se calcula en el checkout.
+  const costoTotal = total;
 
   /// Cierra el carrito y lleva al catálogo.
   ///
@@ -171,7 +148,7 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
     }
     setCheckoutError('');
     if (!isAuthenticated()) { onClose(); onLoginRequired(); return; }
-    onCheckout({ address, departamento, municipio, date: '', observaciones, tieneDomicilio });
+    onCheckout({ address, departamento: '', municipio: '', date: '', observaciones, tieneDomicilio });
   };
 
   if (!isOpen) return null;
@@ -236,17 +213,25 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
             </button>
           </div>
 
-          {/* Formulario de entrega (solo si domicilio) */}
+          {/* Entrega (solo si domicilio). El barrio y el costo del domicilio se
+              eligen en el siguiente paso. */}
           {tieneDomicilio && (
             <div className="mt-3 space-y-2">
               {loggedIn ? (
-                <SelectorDireccionEntrega
-                  registrada={registrada}
-                  usarRegistrada={usarRegistrada}
-                  onUsarRegistrada={setUsarRegistrada}
-                  otra={otraDireccion}
-                  onOtra={setOtraDireccion}
-                />
+                <>
+                  <input
+                    type="text"
+                    value={direccionExacta}
+                    onChange={e => setDireccionExacta(e.target.value)}
+                    placeholder="Dirección exacta: calle, número, apto/complemento"
+                    maxLength={50}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 text-sm text-gray-700 font-medium placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
+                  />
+                  <p className="text-[11px] font-medium text-gray-400 flex items-center gap-1.5">
+                    <MapPin size={11} className="shrink-0" />
+                    En el siguiente paso eliges el barrio y te decimos el costo del domicilio.
+                  </p>
+                </>
               ) : null}
 
               {!loggedIn && (
@@ -384,10 +369,10 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
                 <div className="flex items-center gap-3 text-[13px] text-gray-400 font-medium">
                   <span>Productos <span className="font-black text-gray-700">{COP(total)}</span></span>
                   <span>+</span>
-                  <span>Domicilio <span className="font-black" style={{ color: '#7b1fa2' }}>{COP(COSTO_DOMICILIO)}</span></span>
+                  <span>Domicilio <span className="font-bold" style={{ color: '#7b1fa2' }}>según barrio</span></span>
                 </div>
                 <div className="flex items-baseline gap-1.5">
-                  <span className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Total</span>
+                  <span className="text-[11px] font-black text-gray-400 uppercase tracking-widest">Subtotal</span>
                   <span className="text-2xl font-black text-gray-900 tracking-tighter leading-none">{COP(costoTotal)}</span>
                 </div>
               </div>

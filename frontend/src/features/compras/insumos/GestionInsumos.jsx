@@ -464,8 +464,8 @@ export default function GestionInsumos() {
         </div>
 
         <div className="card">
-          <div className="tbl-wrapper">
-            <table className="tbl tbl--fixed-rows" style={{ "--tbl-row-h": "68px" }}>
+          <div className="tbl-wrapper tbl-wrapper--fixed" style={{ "--tbl-row-h": "74px", "--tbl-rows": 5 }}>
+            <table className="tbl tbl--fixed-rows">
               <thead>
                 <tr>
                   <th>Nº</th>

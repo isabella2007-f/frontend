@@ -202,8 +202,8 @@ export default function FichaTecnica() {
         </div>
 
         <div className="card">
-          <div className="tbl-wrapper">
-            <table className="tbl tbl--fixed-rows" style={{ "--tbl-row-h": "58px" }}>
+          <div className="tbl-wrapper tbl-wrapper--fixed" style={{ "--tbl-row-h": "62px", "--tbl-rows": 5 }}>
+            <table className="tbl tbl--fixed-rows">
               <thead>
                 <tr>
                   <th>Nº</th>

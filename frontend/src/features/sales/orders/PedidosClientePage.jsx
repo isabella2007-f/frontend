@@ -705,7 +705,7 @@ const PedidosClientePage = () => {
                         <p className="text-2xl font-black text-gray-900 tracking-tight leading-none">
                           {COP(pedido.total || (
                             (pedido.productosItems || []).reduce((s, p) => s + p.precio * p.cantidad, 0)
-                            + (pedido.domicilio ? 5000 : 0)
+                            + (pedido.precio_domicilio_final ?? 0)
                             - (pedido.descuento || 0)
                           ))}
                         </p>
@@ -1305,12 +1305,32 @@ const PedidosClientePage = () => {
                     ))}
                   </tbody>
                   <tfoot>
-                    {selectedPedido.domicilio && (
-                      <tr style={{ borderTop: '1px solid #f0f0f0', background: '#fafafa' }}>
-                        <td colSpan={2} style={{ padding: '8px 14px', textAlign: 'right', fontSize: 11, fontWeight: 600, color: '#9e9e9e' }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Truck size={11} /> Costo de domicilio</span></td>
-                        <td style={{ padding: '8px 14px', textAlign: 'right', fontSize: 12, fontWeight: 700, color: '#7b1fa2' }}>{COP(5000)}</td>
-                      </tr>
-                    )}
+                    {selectedPedido.domicilio && (() => {
+                      const desg = selectedPedido.desglose_domicilio;
+                      const base = desg?.base ?? selectedPedido.precio_domicilio_base ?? 0;
+                      const final = selectedPedido.precio_domicilio_final ?? base;
+                      return (
+                        <>
+                          <tr style={{ borderTop: '1px solid #f0f0f0', background: '#fafafa' }}>
+                            <td colSpan={2} style={{ padding: '8px 14px', textAlign: 'right', fontSize: 11, fontWeight: 600, color: '#9e9e9e' }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Truck size={11} /> Domicilio {selectedPedido.barrio_entrega ? `· ${selectedPedido.barrio_entrega}` : ''}</span>
+                            </td>
+                            <td style={{ padding: '8px 14px', textAlign: 'right', fontSize: 12, fontWeight: 700, color: '#7b1fa2' }}>
+                              {(desg?.ofertas || []).length > 0 && base !== final && (
+                                <span style={{ textDecoration: 'line-through', color: '#bdbdbd', fontWeight: 500, marginRight: 4 }}>{COP(base)}</span>
+                              )}
+                              {final === 0 ? 'Gratis' : COP(final)}
+                            </td>
+                          </tr>
+                          {(desg?.ofertas || []).map((o, i) => (
+                            <tr key={i} style={{ background: '#fafafa' }}>
+                              <td colSpan={2} style={{ padding: '2px 14px 2px', textAlign: 'right', fontSize: 10.5, color: o.efecto < 0 ? '#2e7d32' : '#e65100' }}>{o.nombre}</td>
+                              <td style={{ padding: '2px 14px 2px', textAlign: 'right', fontSize: 10.5, color: o.efecto < 0 ? '#2e7d32' : '#e65100' }}>{o.efecto >= 0 ? '+' : ''}{COP(o.efecto)}</td>
+                            </tr>
+                          ))}
+                        </>
+                      );
+                    })()}
                     {(selectedPedido.descuento || 0) > 0 && (
                       <tr style={{ borderTop: '1px solid #f0f0f0', background: '#fafafa' }}>
                         <td colSpan={2} style={{ padding: '8px 14px', textAlign: 'right', fontSize: 11, fontWeight: 600, color: '#1976d2' }}><span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><CreditCard size={11} /> Crédito aplicado</span></td>
@@ -1322,7 +1342,7 @@ const PedidosClientePage = () => {
                       <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 15, fontWeight: 800, color: '#2e7d32' }}>
                         {COP(selectedPedido.total || (
                           (selectedPedido.productosItems || []).reduce((s, p) => s + p.precio * p.cantidad, 0)
-                          + (selectedPedido.domicilio ? 5000 : 0)
+                          + (selectedPedido.precio_domicilio_final ?? 0)
                           - (selectedPedido.descuento || 0)
                         ))}
                       </td>

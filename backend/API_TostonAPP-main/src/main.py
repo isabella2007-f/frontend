@@ -33,6 +33,7 @@ from src.features.ventas.pedidos.services.router        import router as pedidos
 from src.features.ventas.gestion_ventas.services.router import router as ventas_router
 from src.features.ventas.devoluciones.services.router   import router as devoluciones_router
 from src.features.ventas.domicilios.services.router     import router as domicilios_router
+from src.features.ventas.ubicaciones.services.router    import router as ubicaciones_router
 
 # ── Dashboard ──
 from src.features.dashboard.services.router import router as dashboard_router
@@ -833,6 +834,7 @@ app.include_router(pedidos_router,       prefix=PREFIX)
 app.include_router(ventas_router,        prefix=PREFIX)
 app.include_router(devoluciones_router,  prefix=PREFIX)
 app.include_router(domicilios_router,    prefix=PREFIX)
+app.include_router(ubicaciones_router,   prefix=PREFIX)
 app.include_router(dashboard_router,      prefix=PREFIX)
 app.include_router(liquidaciones_router,  prefix=PREFIX)
 

@@ -10,7 +10,7 @@ import {
   Globe, LayoutDashboard, Settings, ShoppingCart, Layers, TrendingUp,
   Home, Pencil, Shield, Users, Upload, FolderOpen, Package, Receipt,
   Building2, Tag, Box, ClipboardList, Utensils, ShoppingBag, Truck,
-  Navigation, History, Banknote, Bell, UserCircle, RotateCcw,
+  Navigation, History, Banknote, Bell, UserCircle, RotateCcw, MapPin,
   Search, ChevronLeft, ChevronRight, ChevronDown, LogOut,
 } from "lucide-react";
 
@@ -37,9 +37,10 @@ const adminMenuItems = [
     section: "Configuración",
     Icon: Settings,
     items: [
-      { label: "Roles y Privilegios", Icon: Shield,  link: "/admin/roles",     privilegioKey: "Roles" },
-      { label: "Gestión de Usuario",  Icon: Users,   link: "/admin/usuarios",   privilegioKey: "Usuarios" },
-      { label: "Gestión de Salidas",  Icon: Upload,  link: "/admin/salidas",    privilegioKey: "GestionSalidas" },
+      { label: "Roles y Privilegios", Icon: Shield,  link: "/admin/roles",       privilegioKey: "Roles" },
+      { label: "Gestión de Usuario",  Icon: Users,   link: "/admin/usuarios",     privilegioKey: "Usuarios" },
+      { label: "Ubicaciones",         Icon: MapPin,  link: "/admin/ubicaciones",  privilegioKey: "Ubicaciones" },
+      { label: "Gestión de Salidas",  Icon: Upload,  link: "/admin/salidas",      privilegioKey: "GestionSalidas" },
     ],
   },
   {

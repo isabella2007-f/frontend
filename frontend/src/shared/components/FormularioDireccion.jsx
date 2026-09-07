@@ -4,6 +4,11 @@ import { BARRIO_OTRO, barriosDe } from '../../utils/barrios';
 import { TIPOS_VIA, direccionCompleta, via } from '../../utils/direccionEntrega';
 
 /**
+ * @deprecated Ya no se usa en la web (el barrio se elige con
+ * `SelectorBarrioEntrega` contra el módulo Ubicaciones). Queda solo para
+ * paridad con `lib/widgets/formulario_direccion.dart` de la app Flutter;
+ * eliminar al sincronizarla (ver CLAUDE.md raíz).
+ *
  * La dirección de entrega, campo por campo.
  *
  * Antes era un renglón de texto libre —"Calle 45 # 32-10", escrito a mano y

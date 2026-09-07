@@ -12,6 +12,7 @@ function adaptarUsuario(u) {
     direccion:     u.Direccion,
     municipio:     u.Municipio,
     departamento:  u.Departamento,
+    idBarrio:      u.ID_Barrio ?? null,
     telefono:      u.Telefono,
     idRol:         u.ID_Rol,
     rol:           u.nombre_rol,

@@ -50,6 +50,12 @@ class DomicilioResponse(BaseModel):
     Direccion_entrega:    Optional[str]      = None
     Municipio_entrega:    Optional[str]      = None
     Departamento_entrega: Optional[str]      = None
+    # Snapshot del precio del domicilio (barrio + ofertas del día), congelado
+    ID_Barrio:              Optional[int]    = None
+    barrio_entrega:         Optional[str]    = None
+    precio_domicilio_base:  Optional[int]    = None
+    precio_domicilio_final: Optional[int]    = None
+    desglose_domicilio:     Optional[dict]   = None
     total:                Optional[float]    = None
     metodo_pago:          Optional[str]      = None
     # Pago mixto: lo que hay que cobrar en mano (el resto ya vino por transferencia)

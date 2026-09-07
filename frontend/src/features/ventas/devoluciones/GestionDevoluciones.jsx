@@ -578,8 +578,8 @@ export default function GestionDevoluciones() {
 
         {/* Tabla */}
         <div className="card">
-          <div className="tbl-wrapper">
-            <table className="tbl tbl--fixed-rows" style={{ "--tbl-row-h": "66px" }}>
+          <div className="tbl-wrapper tbl-wrapper--fixed" style={{ "--tbl-row-h": "74px", "--tbl-rows": 10 }}>
+            <table className="tbl tbl--fixed-rows">
               <thead>
                 <tr>
                   <th style={{ width: 44 }}>Nº</th>

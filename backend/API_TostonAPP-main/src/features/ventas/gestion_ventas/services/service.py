@@ -37,9 +37,10 @@ from src.shared.services.observaciones_utils import observaciones_limpias
 from src.shared.services.pagos_utils import (
     cobro_efectivo_pendiente, comprobante_sin_aprobar,
 )
-
-# Costo fijo de domicilio (COP)
-COSTO_DOMICILIO = Decimal("5000")
+# El precio del domicilio ya NO es una constante: sale de Barrios.Precio ajustado
+# por las ofertas activas del barrio ese día (función única del módulo
+# Ubicaciones) y se CONGELA como snapshot en Domicilios al crear el pedido.
+from src.features.ventas.ubicaciones.services.service import resolver_domicilio
 
 # Porcentaje del pedido que el cliente debe anticipar cuando pide MÁS unidades de
 # las que hay en stock (pedido especial / preorden). Regla de negocio del backend:
@@ -435,6 +436,13 @@ def _formato_venta(venta: Venta, db: Session, *, dxv_map=None) -> dict:
         "direccion_entrega":            domicilio.Direccion_entrega      if domicilio else None,
         "municipio_entrega":            domicilio.Municipio_entrega      if domicilio else None,
         "departamento_entrega":         domicilio.Departamento_entrega   if domicilio else None,
+        # Precio del domicilio: snapshot congelado del barrio + ofertas del día.
+        # No se recalcula aunque después cambie el precio del barrio o una oferta.
+        "ID_Barrio":                    domicilio.ID_Barrio             if domicilio else None,
+        "barrio_entrega":               (domicilio.barrio.Nombre if (domicilio and domicilio.barrio) else None),
+        "precio_domicilio_base":        domicilio.Precio_Domicilio_Base  if domicilio else None,
+        "precio_domicilio_final":       domicilio.Precio_Domicilio_Final if domicilio else None,
+        "desglose_domicilio":           (domicilio.Desglose_Ofertas if domicilio else None),
         # Mismo filtro que en domicilios: el resumen del pedido mostraba la
         # línea [COBRO|...] pegada a las notas del cliente.
         "observaciones_domicilio":      observaciones_limpias(domicilio.Observaciones) if domicilio else None,
@@ -786,6 +794,8 @@ def obtener_ventas(
             selectinload(Venta.detalle),
             selectinload(Venta.domicilios)
                 .selectinload(Domicilio.empleado),
+            selectinload(Venta.domicilios)
+                .selectinload(Domicilio.barrio),
             selectinload(Venta.ordenes_produccion),
             selectinload(Venta.grupos_envio)
                 .selectinload(GrupoEnvio.items),
@@ -836,6 +846,8 @@ def obtener_mis_ventas(
             selectinload(Venta.detalle),
             selectinload(Venta.domicilios)
                 .selectinload(Domicilio.empleado),
+            selectinload(Venta.domicilios)
+                .selectinload(Domicilio.barrio),
             selectinload(Venta.ordenes_produccion),
             selectinload(Venta.grupos_envio)
                 .selectinload(GrupoEnvio.items),
@@ -905,6 +917,17 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
             status_code=400,
             detail="Debes registrar tu número de teléfono en tu perfil antes de solicitar un domicilio"
         )
+
+    # ── Precio del domicilio: snapshot del barrio de entrega ────────────────
+    # El precio (con ofertas del día) se resuelve y se CONGELA acá. Editar
+    # después el precio del barrio o una oferta NO altera este pedido.
+    # `resolver_domicilio` valida cobertura y lanza 400 si el barrio no está
+    # disponible para domicilio (el frontend ya no deja llegar a este punto).
+    snapshot_domicilio = None
+    if datos.domicilio:
+        if not datos.domicilio.ID_Barrio:
+            raise HTTPException(status_code=400, detail="Selecciona el barrio de entrega")
+        snapshot_domicilio = resolver_domicilio(db, datos.domicilio.ID_Barrio)
 
     # Valida productos contra el stock real (con bloqueo de fila) y calcula subtotal.
     # Pedir por encima del stock ya no se rechaza: se marca como preorden y más
@@ -1028,8 +1051,10 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
 
     nueva_venta.Total = max(monto_restante, Decimal("0"))
 
-    # Costo fijo de domicilio: se suma al total cuando el pedido es a domicilio
-    costo_domicilio = COSTO_DOMICILIO if datos.domicilio else Decimal("0")
+    # Precio del domicilio: el snapshot congelado del barrio (precio base +
+    # ofertas del día, piso 0 / techo TECHO_DOMICILIO). Se suma una sola vez al
+    # total; un pedido con grupos de envío NO vuelve a cobrarlo.
+    costo_domicilio = Decimal(snapshot_domicilio["final"]) if snapshot_domicilio else Decimal("0")
     nueva_venta.Total += costo_domicilio
 
     # Pago mixto: el reparto se hace sobre el total ya cerrado (con domicilio,
@@ -1224,6 +1249,9 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
         estado_dom = ESTADO_ASIGNADO if datos.domicilio.ID_Empleado else ESTADO_DOM_PENDIENTE
         # Si el domicilio no trae su propia fecha, usa la fecha_entrega_esperada del pedido
         fecha_dom = datos.domicilio.Fecha_entrega or datos.Fecha_entrega_esperada
+        # Municipio y departamento se DERIVAN del barrio (fuente única); el texto
+        # que mande el cliente es solo respaldo por si el barrio quedara sin
+        # ciudad/departamento cargados.
         db.add(Domicilio(
             ID_Venta             = nueva_venta.ID_Venta,
             ID_Empleado          = datos.domicilio.ID_Empleado,
@@ -1232,8 +1260,12 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
             Observaciones        = datos.domicilio.Observaciones,
             Estado               = estado_dom,
             Direccion_entrega    = datos.domicilio.Direccion_entrega,
-            Municipio_entrega    = datos.domicilio.Municipio_entrega,
-            Departamento_entrega = datos.domicilio.Departamento_entrega,
+            Municipio_entrega    = snapshot_domicilio["ciudad"] or datos.domicilio.Municipio_entrega,
+            Departamento_entrega = snapshot_domicilio["departamento"] or datos.domicilio.Departamento_entrega,
+            ID_Barrio              = snapshot_domicilio["id_barrio"],
+            Precio_Domicilio_Base  = snapshot_domicilio["base"],
+            Precio_Domicilio_Final = snapshot_domicilio["final"],
+            Desglose_Ofertas       = snapshot_domicilio["desglose"],
         ))
         if not datos.domicilio.ID_Empleado:
             notificar(
@@ -1242,7 +1274,10 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
                 nueva_venta.ID_Venta, "/ventas/domicilios",
             )
 
-    db.commit()
+    # G-2: una sola transacción para todo el pedido. Antes había dos commit()
+    # (venta+domicilio, luego órdenes de producción): si el segundo fallaba, la
+    # venta quedaba creada sin sus órdenes y no había forma de cumplirla.
+    db.flush()
     db.refresh(nueva_venta)
 
     # Órdenes de producción del faltante. Se abren en cuanto el pedido está
@@ -1262,7 +1297,13 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
         # Pendiente hasta que el admin lo confirme.
         if _ordenes > 0 and nueva_venta.Estado == EstadoPedido.CONFIRMADO:
             nueva_venta.Estado = EstadoPedido.PREPARANDO
+
+    try:
         db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    db.refresh(nueva_venta)
 
     # El push a los administradores lo dispara notificar() al crear la
     # notificación del panel: así todas las alertas llegan por el mismo camino.
@@ -2446,8 +2487,20 @@ def crear_grupos_envio(
             if cant_pendiente > 0:
                 db.add(GrupoEnvioItem(ID_Grupo=grupo_b.ID_Grupo, ID_Venta=id_venta, ID_Producto=item.ID_Producto, Cantidad=cant_pendiente))
 
-    # Crear registros Domicilio para grupos con tipo_entrega = 'domicilio'
+    # Crear registros Domicilio para grupos con tipo_entrega = 'domicilio'.
+    # El precio del domicilio YA se cobró en Venta.Total al crear el pedido: los
+    # domicilios de grupo heredan el snapshot congelado del domicilio original
+    # (ID_Grupo IS NULL) y NO se recalcula ni se vuelve a sumar nada.
     cliente = db.query(Usuario).filter(Usuario.ID_Usuario == venta.ID_Usuario).first()
+    dom_orig = db.query(Domicilio).filter(
+        Domicilio.ID_Venta == id_venta, Domicilio.ID_Grupo.is_(None),
+    ).first()
+    _snap = dict(
+        ID_Barrio              = dom_orig.ID_Barrio if dom_orig else None,
+        Precio_Domicilio_Base  = dom_orig.Precio_Domicilio_Base if dom_orig else None,
+        Precio_Domicilio_Final = dom_orig.Precio_Domicilio_Final if dom_orig else None,
+        Desglose_Ofertas       = dom_orig.Desglose_Ofertas if dom_orig else None,
+    )
     if tipo_entrega_a == "domicilio":
         dir_a, mun_a, dep_a = _resolver_direccion_grupo(
             direccion_a, municipio_a, departamento_a, venta, cliente, db
@@ -2461,6 +2514,7 @@ def crear_grupos_envio(
                 Direccion_entrega    = dir_a,
                 Municipio_entrega    = mun_a,
                 Departamento_entrega = dep_a,
+                **_snap,
             ))
 
     if grupo_b and tipo_entrega_b == "domicilio":
@@ -2476,6 +2530,7 @@ def crear_grupos_envio(
                 Direccion_entrega    = dir_b,
                 Municipio_entrega    = mun_b,
                 Departamento_entrega = dep_b,
+                **_snap,
             ))
 
     venta.Envio_Completo_Domingo = 0

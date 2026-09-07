@@ -4,10 +4,7 @@ import { CartItem } from '../services/cartService';
 import { getUser } from '../../../../services/authService';
 import { getMiCredito } from '../../../../services/pedidosService';
 import { apiFetch } from '../../../../utils/api';
-import SelectorDireccionEntrega from '../../../../shared/components/SelectorDireccionEntrega';
-import {
-  desdeTexto, direccionVacia, lineaGuardada, observacionesDe, queFalta,
-} from '../../../../utils/direccionEntrega';
+import SelectorBarrioEntrega from '../../../../shared/components/SelectorBarrioEntrega';
 // La regla del anticipo vive en un solo lugar, espejo del servidor.
 import { pideAnticipo } from '../../../../utils/anticipo';
 import SaldoMonto from '../../../../shared/components/SaldoMonto';
@@ -40,11 +37,8 @@ interface CheckoutModalProps {
     observaciones?: string;
     tieneDomicilio?: boolean;
   } | null;
-  onConfirm: (paymentMethod: string, comprobante?: File | null, saldoAFavor?: { usar: boolean; monto: number; efectivoMonto?: number }, deliveryInfo?: { tieneDomicilio: boolean; address: string; municipio: string; barrio: string; departamento: string; date: string; time: string; observaciones: string }, anticipoData?: { requiere: boolean; metodo: string; efectivo: boolean; comprobante: File | null; monto: number; saldo: number; pagarTodo?: boolean; creditoCubreAnticipo?: boolean }) => Promise<void> | void;
+  onConfirm: (paymentMethod: string, comprobante?: File | null, saldoAFavor?: { usar: boolean; monto: number; efectivoMonto?: number }, deliveryInfo?: { tieneDomicilio: boolean; address: string; idBarrio: number | null; municipio: string; departamento: string; date: string; time: string; observaciones: string }, anticipoData?: { requiere: boolean; metodo: string; efectivo: boolean; comprobante: File | null; monto: number; saldo: number; pagarTodo?: boolean; creditoCubreAnticipo?: boolean }) => Promise<void> | void;
 }
-
-const COSTO_DOMICILIO = 5000;
-const hoyISO = () => new Date().toISOString().split('T')[0];
 
 /** Saldo a favor: lo que el cliente tiene abonado de devoluciones anteriores.
  *  No es todo o nada — con la barra decide que parte gasta en este pedido y
@@ -103,9 +97,12 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   // pone creditoMaximo; el atajo "Todo" cubre el caso mas comun.
   const [creditoMonto,       setCreditoMonto]       = useState<number | ''>('');
   const [tieneDomicilio,     setTieneDomicilio]     = useState(false);
-  /// La dirección de entrega, campo por campo. Antes eran dos campos sueltos:
-  /// un renglón de texto libre y el municipio, sin barrio en ninguna parte.
-  const [direccion,          setDireccion]          = useState(direccionVacia());
+  /// La dirección exacta (vía / complemento). Texto libre — el barrio, que
+  /// determina el precio del domicilio, se elige aparte con SelectorBarrioEntrega.
+  const [direccionExacta,    setDireccionExacta]    = useState('');
+  /// Barrio de entrega elegido + su cobertura ({ disponible, base, final, ... }).
+  const [idBarrio,           setIdBarrio]           = useState<number | null>(null);
+  const [coberturaBarrio,    setCoberturaBarrio]    = useState<any>(null);
   const [date,               setDate]               = useState('');
   const [time,               setTime]               = useState('');
   const [observaciones,      setObservaciones]      = useState('');
@@ -117,8 +114,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   // Dirección guardada
   /// Lo que el cliente tiene guardado en su perfil. No se toca desde acá.
   const [registrada,     setRegistrada]     = useState<any>(null);
-  /// true = se entrega en la de siempre; false = en la que escriba ahora.
-  const [usarRegistrada, setUsarRegistrada] = useState(true);
   /// Si ya se intentó confirmar: hasta entonces no se marca nada en rojo.
   const [direccionTocada,     setDireccionTocada]     = useState(false);
   // Anticipo
@@ -134,10 +129,9 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   useEffect(() => {
     if (!isOpen || !orderDetails) return;
     setTieneDomicilio(orderDetails.tieneDomicilio ?? false);
-    setDireccion(desdeTexto(orderDetails.address, {
-      municipio: orderDetails.municipio || '',
-    }));
-    setUsarRegistrada(true);
+    setDireccionExacta(orderDetails.address || '');
+    setIdBarrio(null);
+    setCoberturaBarrio(null);
     setDate(orderDetails.date || '');
     setTime('');
     setObservaciones(orderDetails.observaciones || '');
@@ -145,27 +139,23 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
     setTelefonoTocado(false);
     setDireccionTocada(false);
 
-    // Cargar perfil para verificar teléfono y dirección
+    // Cargar perfil para verificar teléfono y prefill de dirección / barrio.
     apiFetch('/auth/perfil')
       .then((perfil: any) => {
         const tel = perfil?.Telefono || '';
         setTelefono(tel);
         setTelefonoRegistrado(!!tel);
-        const dir = perfil?.Direccion || '';
         setRegistrada({
-          direccion:    dir,
-          municipio:    perfil?.Municipio    || '',
-          departamento: perfil?.Departamento || 'Antioquia',
-          barrio:       perfil?.Barrio       || '',
-          indicaciones: perfil?.Indicaciones || '',
+          direccion:    perfil?.Direccion || '',
+          ID_Barrio:    perfil?.ID_Barrio || null,
+          barrio:       perfil?.Barrio || null,
         });
-        // Sin dirección guardada no hay nada que ofrecer: se escribe una.
-        setUsarRegistrada(!!dir);
+        // La dirección exacta del perfil (texto) se ofrece como punto de partida.
+        if (!orderDetails.address && perfil?.Direccion) setDireccionExacta(perfil.Direccion);
       })
       .catch(() => {
         setTelefonoRegistrado(false);
         setRegistrada(null);
-        setUsarRegistrada(false);
       });
 
     getMiCredito()
@@ -197,7 +187,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
       stock:              it.stock,
       requiereProduccion: it.requiereProduccion,
     })),
-    (orderDetails?.total || 0) + (tieneDomicilio ? COSTO_DOMICILIO : 0),
+    (orderDetails?.total || 0) + (tieneDomicilio && coberturaBarrio?.disponible ? (coberturaBarrio.final ?? 0) : 0),
   );
 
   // Un pedido con anticipo no admite mixto: la parte en efectivo del mixto se
@@ -220,22 +210,22 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
     ? soloDigitos(telefono).length === 0 ? 'El teléfono es obligatorio' : 'Debe tener exactamente 10 dígitos'
     : null;
 
-  // Qué le falta a la dirección, campo por campo. Antes eran dos preguntas
-  // sueltas —¿tiene 5 caracteres?, ¿tiene un número?— sobre un renglón de texto
-  // libre, que dejaban pasar "asdfg 1" y no pedían el barrio en ninguna parte.
-  // La de siempre ya está completa por definición: se guardó completa. La
-  // otra se revisa campo por campo.
-  const conRegistrada   = usarRegistrada && !!registrada?.direccion;
-  const faltaDireccion  = conRegistrada ? null : queFalta(direccion);
+  // La entrega necesita: una dirección exacta (texto) y un barrio con cobertura.
+  // El barrio determina el precio del domicilio (SelectorBarrioEntrega ya
+  // consultó la cobertura contra el backend).
+  const barrioDisponible = !!coberturaBarrio?.disponible;
+  const faltaDireccion =
+    !direccionExacta.trim() ? 'Escribe la dirección exacta (calle, número, complemento)'
+    : !idBarrio             ? 'Elige el barrio de entrega'
+    : !barrioDisponible     ? 'Ese barrio no tiene cobertura de domicilio: elige otro o recoge en tienda'
+    : null;
   const direccionValida = faltaDireccion === null;
   const direccionError  = direccionTocada ? faltaDireccion : null;
-  // Lo que se manda al servidor: la vía en la columna de 50 caracteres y el
-  // resto en las observaciones.
-  const address   = conRegistrada ? registrada.direccion    : lineaGuardada(direccion);
-  const municipio = conRegistrada ? (registrada.municipio || '') : direccion.municipio;
+  const address = direccionExacta.trim();
 
   const user = getUser();
-  const costoDomicilio   = tieneDomicilio ? COSTO_DOMICILIO : 0;
+  const costoDomicilio   = (tieneDomicilio && barrioDisponible) ? (coberturaBarrio.final ?? 0) : 0;
+  const costoDomicilioBase = (tieneDomicilio && barrioDisponible) ? (coberturaBarrio.base ?? 0) : 0;
   // Tope real: no se puede aplicar mas saldo del que hay ni mas de lo que
   // cuesta el pedido. Sobre ese tope corre la barra.
   const creditoMaximo    = Math.min(credito, orderDetails.total + costoDomicilio);
@@ -304,17 +294,16 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
 
     // La dirección del perfil solo se escribe cuando NO había ninguna: una
     // dirección puntual —"hoy déjalo donde mi mamá"— no puede pisar la de
-    // siempre. Para cambiarla está "Mis datos".
-    if (tieneDomicilio && !conRegistrada && !registrada?.direccion && address) {
+    // siempre. Para cambiarla está "Mis datos". El barrio del perfil (dato guía)
+    // se guarda igual: no condiciona nada.
+    if (tieneDomicilio && !registrada?.direccion && address) {
       await apiFetch('/auth/perfil', {
         method: 'PUT',
         body: JSON.stringify({
           Direccion: address,
-          Municipio: municipio,
-          Departamento: direccion.departamento,
-          // Todavía no es columna; se manda para cuando exista.
-          Barrio: direccion.barrio.trim(),
-          Indicaciones: observacionesDe(direccion),
+          ID_Barrio: idBarrio || undefined,
+          Municipio: coberturaBarrio?.ciudad || undefined,
+          Departamento: coberturaBarrio?.departamento || undefined,
         }),
       }).catch(() => {});
     }
@@ -330,15 +319,12 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
       await onConfirm(metodoPedido, comprobante, { usar: usarCredito, monto: creditoAplicar, efectivoMonto: Number(efectivoMonto) || 0 }, {
         tieneDomicilio,
         address,
-        municipio,
-        barrio: direccion.barrio.trim(),
-        departamento: direccion.departamento || orderDetails.departamento || 'Antioquia',
+        idBarrio,
+        municipio: coberturaBarrio?.ciudad || '',
+        departamento: coberturaBarrio?.departamento || '',
         date,
         time,
-        // El barrio, el complemento y las indicaciones del formulario van con
-        // lo que el cliente haya escrito aparte: es lo que lee quien entrega.
-        observaciones: [observacionesDe(direccion), observaciones]
-          .filter(Boolean).join('. '),
+        observaciones,
       }, requiereAnticipo ? {
         requiere: true,
         metodo: creditoCubreAnticipo ? 'credito' : anticipoMetodo,
@@ -493,15 +479,24 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
 
             {tieneDomicilio && (
               <div className="space-y-2">
-                {/* La de siempre o una nueva. La guardada se muestra tal
-                    cual y no se edita: corregirla acá pisaba el perfil sin
-                    querer y el pedido siguiente salía a otro lado. */}
-                <SelectorDireccionEntrega
-                  registrada={registrada}
-                  usarRegistrada={usarRegistrada}
-                  onUsarRegistrada={setUsarRegistrada}
-                  otra={direccion}
-                  onOtra={setDireccion}
+                <input
+                  type="text"
+                  value={direccionExacta}
+                  onChange={e => { setDireccionExacta(e.target.value); setDireccionTocada(true); }}
+                  placeholder="Dirección exacta: calle, número, apto/complemento"
+                  maxLength={50}
+                  className={inputCls}
+                />
+                {/* El barrio determina el precio del domicilio. Prefill del
+                    barrio guardado en el perfil; totalmente editable. */}
+                <SelectorBarrioEntrega
+                  compacto
+                  prefillIdBarrio={registrada?.ID_Barrio || null}
+                  onChange={(id: number | null, cob: any) => {
+                    setIdBarrio(id);
+                    setCoberturaBarrio(cob);
+                    setDireccionTocada(true);
+                  }}
                 />
                 {direccionError && (
                   <p className="text-[10px] font-bold text-red-500 mt-1 pl-1">
@@ -511,7 +506,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                 {direccionValida && !registrada?.direccion && (
                   <p className="text-xs font-bold text-gray-500 flex items-center gap-1.5">
                     <Save size={12} className="text-green-600 shrink-0" />
-                    Como es tu primera dirección, la guardamos en tu perfil.
+                    Como es tu primera dirección, la guardamos en tu perfil como referencia.
                   </p>
                 )}
               </div>
@@ -802,9 +797,15 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
             <div className="flex justify-between text-xs text-gray-500 font-bold">
               <span>Subtotal</span><span>{COP(orderDetails.total)}</span>
             </div>
-            {tieneDomicilio && (
+            {tieneDomicilio && barrioDisponible && (
               <div className="flex justify-between text-xs font-bold text-purple-700">
-                <span>Domicilio</span><span>+{COP(COSTO_DOMICILIO)}</span>
+                <span>Domicilio</span>
+                <span>
+                  {costoDomicilio !== costoDomicilioBase && (
+                    <span className="line-through text-gray-400 font-medium mr-1">{COP(costoDomicilioBase)}</span>
+                  )}
+                  {costoDomicilio === 0 ? 'gratis' : `+${COP(costoDomicilio)}`}
+                </span>
               </div>
             )}
             {paymentMethod === 'mixto' && !requiereAnticipo && Number(efectivoMonto) > 0 && (

@@ -564,16 +564,25 @@ html, body, #root {
   font-family: var(--font-body);
 }
 
-/* ── Paginación con alto de fila fijo ──
-   Las tablas que añaden `tbl--fixed-rows` reservan un alto constante por fila
-   (`--tbl-row-h`, definido por cada módulo según su fila más alta). Junto con
-   <FilasRelleno> esto mantiene la barra de paginación anclada en la misma
-   posición en todas las páginas, aunque la última traiga menos filas o el
-   contenido de algunas filas sea más alto de lo normal. */
-.tbl--fixed-rows tbody tr {
-  height: var(--tbl-row-h, 56px);
+/* ── Paginación con posición fija ──
+   Las tablas que añaden `tbl--fixed-rows` reservan, en su `.tbl-wrapper`, la
+   altura de una página completa: `--tbl-rows` filas de alto base `--tbl-row-h`
+   más la cabecera. Así la barra de paginación queda anclada en la misma
+   posición aunque la página traiga menos filas (el hueco se rellena con
+   <FilasRelleno> o simplemente queda vacío bajo la tabla). Si alguna fila
+   envuelve a varias líneas y el contenido real supera la reserva, la barra
+   baja lo justo para ese caso concreto: es una página genuinamente más alta,
+   nunca hay doble scroll. */
+.tbl-wrapper--fixed {
+  min-height: calc(
+    var(--tbl-rows, 10) * var(--tbl-row-h, 56px) + var(--tbl-head-h, 46px)
+  );
 }
+/* Las filas reales conservan su alto natural. El alto de página se reserva en
+   el `.tbl-wrapper--fixed`; las <FilasRelleno> solo cubren el hueco visible
+   cuando la página trae pocas filas. */
 .tbl-fill-row td {
+  height: var(--tbl-row-h, 56px);
   border-bottom: 1px solid #f1f5f9;
   background: #fff;
 }

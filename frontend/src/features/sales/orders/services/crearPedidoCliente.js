@@ -25,8 +25,10 @@ import { getUser } from '../../../../services/authService';
 export const resolverEntrega = (deliveryInfo, orderDetails) => ({
   tieneDomicilio: deliveryInfo?.tieneDomicilio ?? orderDetails?.tieneDomicilio ?? false,
   address:        deliveryInfo?.address        || orderDetails?.address        || '',
+  // El barrio de entrega es ahora un ID (módulo Ubicaciones): determina el
+  // precio del domicilio, que el backend resuelve y congela como snapshot.
+  idBarrio:       deliveryInfo?.idBarrio       ?? orderDetails?.idBarrio       ?? null,
   municipio:      deliveryInfo?.municipio      || orderDetails?.municipio      || '',
-  barrio:         deliveryInfo?.barrio         || orderDetails?.barrio         || '',
   departamento:   deliveryInfo?.departamento   || orderDetails?.departamento   || '',
   date:           deliveryInfo?.date           || orderDetails?.date           || '',
   time:           deliveryInfo?.time           || '',
@@ -124,14 +126,13 @@ export async function crearPedidoCliente({
     // la usa para marcar pago_final_registrado=1 sin comparar montos exactos.
     pagar_todo:               !!(anticipoData?.requiere && anticipoData?.pagarTodo),
 
-    domicilio: entrega.tieneDomicilio && entrega.address ? {
+    domicilio: entrega.tieneDomicilio && entrega.address && entrega.idBarrio ? {
       Direccion_entrega:    entrega.address,
-      Municipio_entrega:    entrega.municipio    || 'Sin municipio',
-      Departamento_entrega: entrega.departamento || 'Sin departamento',
-      // El barrio todavía no es columna en el servidor —de él va a depender el
-      // costo del domicilio— pero se manda desde ya: el esquema descarta lo que
-      // no conoce, así que hoy no molesta y el día que exista empieza a llegar.
-      Barrio_entrega:       entrega.barrio || null,
+      // El barrio determina el precio del domicilio; el backend resuelve
+      // nombre, ciudad, departamento y precio a partir de él.
+      ID_Barrio:            Number(entrega.idBarrio),
+      Municipio_entrega:    entrega.municipio    || null,
+      Departamento_entrega: entrega.departamento || null,
       Observaciones:        entrega.observaciones,
     } : null,
   };

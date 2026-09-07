@@ -298,8 +298,8 @@ export default function GestionUsuarios() {
         </div>
 
         <div className="card">
-          <div className="tbl-wrapper">
-            <table className="tbl tbl--fixed-rows" style={{ "--tbl-row-h": "64px" }}>
+          <div className="tbl-wrapper tbl-wrapper--fixed" style={{ "--tbl-row-h": "72px", "--tbl-rows": 5 }}>
+            <table className="tbl tbl--fixed-rows">
               <thead>
                 <tr>
                   <th style={{ width: 48 }}>Nº</th>

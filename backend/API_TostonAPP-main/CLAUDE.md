@@ -27,6 +27,7 @@ Guía de contexto para Claude Code. Léela completa antes de tocar cualquier arc
 - **Rol Cliente (`ID_Rol == 3`) es estático y sin permisos** — como Admin: no editable ni eliminable, solo cambio de estado. El comportamiento de cliente se decide por `ID_Rol == 3` (o un helper `es_cliente(actual)`), NO por permisos del rol. Un cliente debe poder hacer todo lo que hace hoy.
 - **Nadie cambia su propio rol** — el endpoint de cambio de rol rechaza `objetivo == actual`, sin excepción (ni super admin).
 - **Anular una Compra** — prohibido si cualquier lote de insumo generado por esa compra ya tuvo consumo (orden de producción, salida, cualquier descuento de stock). Verificar antes de anular; `HTTPException` con el detalle de qué se consumió. Ver `prompts/prompt-compras.md` (raíz del repo).
+- **Precio del domicilio = snapshot del barrio** — sale de `Barrios.Precio` + ofertas del día, se congela en `Domicilios` al crear el pedido y **no se recalcula** (ni pendientes ni históricos). `COSTO_DOMICILIO` fue eliminada. Ver "Módulo Ubicaciones" abajo. No sumar un costo fijo de domicilio en ningún lado.
 
 ---
 
@@ -69,7 +70,8 @@ raíz/
         │   ├── pedidos/services/
         │   ├── gestion_ventas/services/
         │   ├── devoluciones/services/
-        │   └── domicilios/services/
+        │   ├── domicilios/services/
+        │   └── ubicaciones/services/     ← Departamento→Ciudad→Barrio + ofertas de domicilio
         └── dashboard/services/
 ```
 
@@ -206,6 +208,17 @@ Una vez el cliente confirma su pedido cumpliendo los requisitos (cuenta activa c
 
 El cliente puede optar por recibir su pedido como **domicilio**. Un empleado o admin con permisos asigna ese domicilio a un **domiciliario** (empleado con rol Domiciliario, `ID_Rol=4`). `Domicilios.ID_Empleado` apunta a `Empleados`, nunca a `Usuarios`.
 
+### Módulo Ubicaciones y precio del domicilio (reemplaza `COSTO_DOMICILIO`)
+Jerarquía `Departamentos` → `Ciudades` → `Barrios` (modelos en `models.py`, migraciones en `src/main.py`, seed en `seed_ubicaciones.py` + `data/*.json`). Cada barrio tiene un **`Precio` entero (COP)** que es el costo del domicilio de un pedido cuya entrega cae en ese barrio.
+
+- **Función única de cálculo**: `src/features/ventas/ubicaciones/services/service.py` → `precio_domicilio_final(db, id_barrio, fecha) -> dict` (`base`, `final`, `techo_aplicado`, `piso_aplicado`, `ofertas`). La envuelve `resolver_domicilio(...)` validando **cobertura** (estado efectivo activo). Reutilizada por `gestion_ventas.crear_venta`, `pedidos.editar_pedido`, el endpoint de cobertura y la vista del cliente. **Toda** validación de límites, estados, cobertura, descuento y snapshot se hace en backend.
+- **Snapshot**: al crear el pedido se congela en `Domicilios` (`ID_Barrio`, `Precio_Domicilio_Base`, `Precio_Domicilio_Final`, `Desglose_Ofertas` JSON). No se recalcula aunque después cambie el precio del barrio o una oferta. `Venta.Total` usa el snapshot. Grupos de envío: los `Domicilio` de grupo **heredan** el snapshot del original (`ID_Grupo IS NULL`); el domicilio se cobra **una sola vez**.
+- **Estado en cascada**: estado propio de cada nodo + estado efectivo = propio AND ancestros. Desactivar/reactivar un padre **no** muta el estado propio de los hijos. No se puede activar un hijo con el padre inactivo.
+- **Ofertas de domicilio** (`Ofertas_Domicilio` + `Oferta_x_Barrio`): `Tipo` `'descuento'|'recargo'`; `Monto_Pesos`/`Porcentaje` siempre `>= 0` (el `Tipo` decide el signo); `Dias_Semana`/`Dias_Mes` como CSV de enteros (OR entre ambos); día evaluado en `America/Bogota`. Acumulación: **recargos primero** (pesos uno a uno, luego cada % compuesto en orden `ID` asc), luego descuentos igual; **piso 0**, **techo `TECHO_DOMICILIO = 50_000`**, redondeo `ROUND_HALF_UP` por paso. Independiente del módulo congelado `configuracion/descuentos`.
+- **Cobertura para el checkout**: `GET /api/ubicaciones/checkout/{departamentos,ciudades,barrios,cobertura/{id}}` — protegidos con `obtener_usuario_actual` (autenticado, cualquier rol), solo devuelven lo disponible. El panel usa `/api/ubicaciones/*` con `requiere_permiso("*_ubicaciones")`.
+- **`Usuarios.ID_Barrio`** (nullable): dato guía del perfil. `GET/PUT /api/auth/perfil` lo acepta/devuelve (`0` = quitar) + un bloque `Barrio` legible.
+- **Permisos**: los 5 (`ver_/crear_/editar_/eliminar_/cambiar_estado_ubicaciones`, módulo `Ubicaciones`) en `permisos_catalogo.py`. La columna `Permisos.Permiso` se amplió a `VARCHAR(60)` para que `cambiar_estado_ubicaciones` (26 chars) quepa.
+
 ### Devoluciones y créditos
 Una vez el pedido es entregado (`Estado=8`), el cliente puede solicitar una **devolución**. La solicitud llega a un empleado/admin con permisos quien la analiza y puede aprobarla (`Estado=6`) o rechazarla (`Estado=7`). Si la aprueba, el cliente recibe **créditos** en `CreditoCliente` equivalentes al valor devuelto, registrando el movimiento en `MovimientoCredito` con tipo `'recarga'`. El cliente puede usar esos créditos como dinero en futuras compras.
 
@@ -241,8 +254,8 @@ POST /api/auth/recuperar-contrasena  Genera código 6 dígitos y lo envía al co
 POST /api/auth/verificar-codigo      Valida código, retorna reset_token (10 min)
 POST /api/auth/resetear-contrasena   Valida reset_token tipo="reset", actualiza contraseña
 GET  /api/auth/me                    Perfil básico del usuario autenticado
-GET  /api/auth/perfil                Perfil completo del cliente
-PUT  /api/auth/perfil                Edita Telefono, Direccion, Municipio, Departamento
+GET  /api/auth/perfil                Perfil completo del cliente (incluye ID_Barrio + bloque Barrio legible)
+PUT  /api/auth/perfil                Edita Telefono, Direccion, Municipio, Departamento, ID_Barrio (0 = quitar)
 ```
 
 ---

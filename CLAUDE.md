@@ -62,6 +62,25 @@ Ambos proyectos siguen una organización por *feature* (dominio de negocio), no 
 - Los módulos con lógica transaccional (Compras, Órdenes de Producción, Ventas) comparten el sistema de lotes FEFO documentado en el CLAUDE.md del backend — cualquier cambio ahí debe respetar esa regla salvo que se pida explícitamente lo contrario.
 - Hay acoplamiento intencional entre módulos que no siempre es obvio por la carpeta: por ejemplo, la generación automática de una Orden de Producción a partir de un Pedido vive en `ventas/gestion_ventas/services/service.py`, no en `produccion/ordenes_produccion/`. No asumas que la lógica de un flujo vive solo en la carpeta de su nombre — verifica con una búsqueda en todo el repo antes de dar por hecho dónde está algo.
 
+### Módulo Ubicaciones (Departamento → Ciudad → Barrio + ofertas de domicilio)
+
+Módulo nuevo que **gobierna el precio del domicilio**. Antes era una constante quemada (`COSTO_DOMICILIO = Decimal("5000")` en `ventas/gestion_ventas/services/service.py`); ahora sale del **barrio de entrega**.
+
+- **Tablas** (todas en `src/shared/services/models.py`, migraciones en `src/main.py`):
+  - `Departamentos(ID, Nombre, Estado)` → `Ciudades(ID, ID_Departamento FK, Nombre, Estado)` → `Barrios(ID, ID_Ciudad FK, Nombre, Precio INT, Es_Base BOOL, Estado)`.
+  - `Ofertas_Domicilio(ID, Nombre, Tipo['descuento'|'recargo'], Monto_Pesos INT NULL, Porcentaje INT NULL, Dias_Semana CSV, Dias_Mes CSV, Estado, Fecha_Creacion)` + `Oferta_x_Barrio(ID_Oferta, ID_Barrio)` N:M.
+  - `Usuarios.ID_Barrio` (nullable) — **dato guía**, no condiciona nada.
+  - `Domicilios`: columnas de **snapshot** `ID_Barrio`, `Precio_Domicilio_Base INT`, `Precio_Domicilio_Final INT`, `Desglose_Ofertas JSON`.
+- **Backend**: `src/features/ventas/ubicaciones/services/{router,service,ofertas,schemas}.py`. La **función única de cálculo** es `service.precio_domicilio_final(db, id_barrio, fecha) → dict` (base, final, techo/piso, desglose). `service.resolver_domicilio(...)` la envuelve validando cobertura. Reutilizadas por checkout (`gestion_ventas.crear_venta`, `pedidos.editar_pedido`), el endpoint de cobertura y la vista del cliente.
+- **Frontend**: `src/services/ubicacionesService.js` (service único), `src/features/configuracion/ubicaciones/` (2 pestañas), `src/shared/components/SelectorBarrioEntrega.jsx` (Depto→Ciudad→Barrio contra `/ubicaciones/checkout/*`, usado por checkout, alta/edición de pedido del panel y perfil).
+- **Permisos**: 5 en `permisos_catalogo.py` módulo `Ubicaciones` (`ver_/crear_/editar_/eliminar_/cambiar_estado_ubicaciones`); gobiernan barrios **y** ofertas. Ningún rol los recibe por defecto (Admin por bypass).
+- **Seed**: `seed_ubicaciones.py` + `data/ubicaciones_seed.json` + `data/barrios_seed.json`. Idempotente, se corre a mano tras el deploy (no en el `startup`).
+
+**Sincronización pendiente con la app Flutter** (fuera de alcance de este cambio, hacerlo en otro prompt):
+- La app espeja hoy `frontend/src/utils/barrios.js` y `utils/departamentosYCiudades.js` en `lib/config/barrios_config.dart` y `lib/models/direccion_entrega.dart`. En la web esas listas **ya no se usan** para el punto de entrega (quedan para la app hasta que se sincronice).
+- Contrato del checkout tras el cambio: el pedido (`POST /api/pedidos/`) manda `domicilio.ID_Barrio` (entero) **en vez de** `Barrio_entrega` (texto, que el backend ya ignoraba). `Municipio_entrega`/`Departamento_entrega` los deriva el backend del barrio.
+- La app debe: (1) llamar `GET /api/ubicaciones/checkout/{departamentos,ciudades,barrios}` y `GET /api/ubicaciones/checkout/cobertura/{id_barrio}` (todos con token, cualquier rol); (2) mandar `ID_Barrio` en el pedido; (3) mostrar `precio_domicilio_final` + `desglose_domicilio` (snapshot) en "mis pedidos"; (4) opcional: `PUT /api/auth/perfil` acepta `ID_Barrio` (0 para quitarlo).
+
 ---
 
 ## Glosario y convenciones de nombres (para evitar ambigüedad)
@@ -72,6 +91,7 @@ Ambos proyectos siguen una organización por *feature* (dominio de negocio), no 
 - **"Cambiar estado"** ≠ **"anular"**: tener el permiso genérico de cambiar estado no debe habilitar por sí solo la acción de anular en los módulos donde ambos existen como permisos separados, aunque anular sea, técnicamente, un caso particular de cambio de estado.
 - **"Cancelar"** puede ser un estado propio y distinto de "Anular" según el módulo (ej. Compras distingue `Completada`/`Anulada`; Órdenes de Producción usa `Cancelada` como su estado terminal equivalente a "anular", no crea un estado nuevo). No asumas que todos los módulos usan el mismo nombre de estado para el mismo concepto — verifica siempre contra la tabla `Estados` real.
 - IDs de `Estados` documentados en el CLAUDE.md del backend (pueden ampliarse): `1=Activo 2=Inactivo 3=Pendiente 4=Confirmado 5=Cancelado 6=Aprobada 7=Rechazada 8=Entregado 9=En camino 10=Asignado 11=Completada 12=Anulada 13=En proceso 14=Stock bajo 15=Agotado`.
+- **Ubicaciones** (módulo `Ubicaciones`): **Departamento** → **Ciudad** (municipio) → **Barrio**. **Estado efectivo** de un nodo = su estado propio activo Y todos sus ancestros activos ("disponible para domicilio"). **Snapshot**: copia congelada del precio del domicilio (base + desglose de ofertas + final) guardada en `Domicilios` al crear el pedido; no se recalcula. **`Es_Base`**: barrio sembrado (`1`, inmutable salvo precio/estado, no se elimina) vs creado desde el módulo (`0`). **Oferta de domicilio**: `Tipo` descuento o recargo; solo mueve el precio del domicilio, piso 0 y techo $50.000.
 
 ---
 
@@ -92,6 +112,9 @@ No tocar, o tocar solo con confirmación explícita del usuario antes de escribi
   3. Completar la orden sincroniza el pedido a «Listo» (`_sync_venta_por_ordenes`). Ningún otro cambio de estado del pedido arrastra el de la orden.
   4. Una orden ligada a un pedido tampoco se edita desde el módulo de órdenes (se gestiona desde el pedido).
 - **CORS** en el backend — actualmente `allow_origins=["*"]` con `allow_credentials=False`; está pendiente corregir a los orígenes reales de producción (ver CLAUDE.md del backend). No lo cambies como efecto colateral de otro cambio sin decirlo explícitamente.
+- **Precio del domicilio = snapshot del barrio.** Sale de `Barrios.Precio` ajustado por las ofertas activas del barrio ese día (zona horaria `America/Bogota`), y se **congela** en `Domicilios` (`Precio_Domicilio_Base/Final`, `Desglose_Ofertas`) al **crear** el pedido. Editar después el precio del barrio o una oferta **no** recalcula ningún pedido (ni pendiente ni histórico). La única excepción: si el admin cambia el **barrio** de un pedido `Pendiente` con `editar_pedido` (edición explícita). La constante `COSTO_DOMICILIO` **fue eliminada**. Un pedido con **grupos de envío** paga el domicilio **una sola vez** aunque le llegue en dos viajes: los `Domicilio` de grupo heredan el snapshot del original.
+- **Estado en cascada de Ubicaciones.** Cada nodo (departamento/ciudad/barrio) guarda su **estado propio**. El **estado efectivo** ("disponible para domicilio") = estado propio activo **Y** todos los ancestros activos. Desactivar un padre deja a los hijos no disponibles **sin tocar su estado propio**; reactivarlo **no** pisa a los hijos desactivados a mano. No mutar el estado propio de los hijos al tocar un padre.
+- **Ofertas de domicilio** (2ª pestaña de `Ubicaciones`) son **independientes** del módulo congelado `configuracion/descuentos`. Solo afectan el precio del domicilio: **piso 0** (domicilio gratis) y **techo `TECHO_DOMICILIO = 50000`**. Acumulación: recargos primero (pesos, luego % compuesto en orden `ID` asc), después descuentos (igual). Redondeo `ROUND_HALF_UP` por paso.
 - **Contraseñas/secrets** — nunca hardcodear; siempre variables de entorno vía `python-dotenv`.
 - **Migraciones de base de datos** (nuevas tablas/columnas, ej. historial de emojis de Roles) — preséntalas en el plan antes de aplicarlas, nunca las apliques silenciosamente dentro de una tanda más grande de cambios.
 
@@ -106,6 +129,9 @@ Hay una lista de cambios pendientes, ya convertidos en prompts listos para ejecu
 - [`prompts/prompt-compras.md`](./prompts/prompt-compras.md) — comprobante con zoom, precarga al editar, validaciones, "ver detalles", bloqueo de anulación, y despliegue de lotes en **Productos**.
 - [`prompts/prompt-orden-produccion.md`](./prompts/prompt-orden-produccion.md) — explicar por qué no se puede cambiar el estado de una orden.
 - [`prompts/prompt-todos.md`](./prompts/prompt-todos.md) — transversal: no re-guardar sin cambios, paginación fija, ficha técnica insumo↔categoría.
+
+**Feature nueva (no es corrección):**
+- [`prompts/prompt-ubicaciones.md`](./prompts/prompt-ubicaciones.md) — módulo nuevo `Ubicaciones` (Departamento → Ciudad → Barrio, precio de domicilio por barrio que **reemplaza `COSTO_DOMICILIO = 5000`** y se congela como snapshot en el pedido, estados en cascada, `Usuario.ID_Barrio` como dato guía, ofertas de domicilio por barrio/día). Va después de `prompt-roles.md`. **Implementado** — ver la subsección "Módulo Ubicaciones" en Arquitectura y las zonas de peligro de este archivo, y los CLAUDE.md de front/back.
 
 El punto "analizar automáticamente el módulo en busca de bugs/seguridad/optimización pidiendo permiso por cada cambio" está incluido dentro de **cada** prompt de módulo (no en `prompt-todos.md`).
 

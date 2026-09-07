@@ -6,11 +6,12 @@ from fastapi import HTTPException
 from src.shared.services.models import (
     Venta, Estado, DetalleVenta, Domicilio,
     VentaXProducto, Producto, DescuentoXVenta,
-    GrupoEnvio, GrupoEnvioItem,
+    GrupoEnvio, GrupoEnvioItem, Barrio,
 )
 from src.features.ventas.gestion_ventas.services.service import (
-    COSTO_DOMICILIO, _formato_venta, _now, cambiar_estado as _gv_cambiar_estado,
+    _formato_venta, _now, cambiar_estado as _gv_cambiar_estado,
 )
+from src.features.ventas.ubicaciones.services.service import resolver_domicilio
 from src.features.ventas.domicilios.services.estados import EstadoDomicilio
 from src.features.ventas.pedidos.services.estados import EstadoPedido, ESTADOS_ACTIVOS
 
@@ -61,6 +62,8 @@ def obtener_pedidos(
             selectinload(Venta.detalle),
             selectinload(Venta.domicilios)
                 .selectinload(Domicilio.empleado),
+            selectinload(Venta.domicilios)
+                .selectinload(Domicilio.barrio),
             selectinload(Venta.ordenes_produccion),
             selectinload(Venta.grupos_envio)
                 .selectinload(GrupoEnvio.items),
@@ -99,6 +102,8 @@ def obtener_pedido(db: Session, id_venta: int) -> dict:
             selectinload(Venta.detalle),
             selectinload(Venta.domicilios)
                 .selectinload(Domicilio.empleado),
+            selectinload(Venta.domicilios)
+                .selectinload(Domicilio.barrio),
             selectinload(Venta.ordenes_produccion),
             selectinload(Venta.grupos_envio)
                 .selectinload(GrupoEnvio.items),
@@ -164,6 +169,9 @@ def editar_pedido(db: Session, id_venta: int, datos: dict) -> dict:
     quiere_domicilio = datos.get("Domicilio")
     domicilio = db.query(Domicilio).filter(Domicilio.ID_Venta == id_venta).first()
     tenia_domicilio = domicilio is not None
+    # Precio del domicilio hoy congelado en el pedido (0 si no tenía).
+    precio_anterior = int(domicilio.Precio_Domicilio_Final or 0) if domicilio else 0
+    precio_nuevo = precio_anterior
 
     if quiere_domicilio is True:
         if domicilio is None:
@@ -179,26 +187,48 @@ def editar_pedido(db: Session, id_venta: int, datos: dict) -> dict:
             db.add(domicilio)
         if datos.get("Direccion_Entrega") is not None:
             domicilio.Direccion_entrega = datos["Direccion_Entrega"]
-        if datos.get("Municipio_entrega") is not None:
-            domicilio.Municipio_entrega = datos["Municipio_entrega"]
-        if datos.get("Departamento_entrega") is not None:
-            domicilio.Departamento_entrega = datos["Departamento_entrega"]
         if datos.get("Notas") is not None:
             domicilio.Observaciones = datos["Notas"]
+
+        # Barrio de entrega: si llega un ID_Barrio distinto (o el domicilio aún
+        # no tiene barrio), se RECALCULA el precio del domicilio y se congela el
+        # snapshot nuevo. Sin ID_Barrio se conserva el snapshot actual (F-9: solo
+        # se recalcula ante una edición explícita del barrio).
+        id_barrio_nuevo = datos.get("ID_Barrio")
+        if id_barrio_nuevo and int(id_barrio_nuevo) != (domicilio.ID_Barrio or 0):
+            snap = resolver_domicilio(db, int(id_barrio_nuevo))
+            domicilio.ID_Barrio              = snap["id_barrio"]
+            domicilio.Municipio_entrega      = snap["ciudad"]
+            domicilio.Departamento_entrega   = snap["departamento"]
+            domicilio.Precio_Domicilio_Base  = snap["base"]
+            domicilio.Precio_Domicilio_Final = snap["final"]
+            domicilio.Desglose_Ofertas       = snap["desglose"]
+            precio_nuevo = snap["final"]
+        elif not domicilio.ID_Barrio:
+            db.rollback()
+            raise HTTPException(status_code=400, detail="Selecciona el barrio de entrega para el domicilio")
+        # Sin cambio de barrio solo se toca el texto libre (dirección/notas).
+        # Municipio y departamento SIEMPRE salen del barrio: no se aceptan del
+        # request (G-1) — se derivan aquí por si el domicilio quedó sin ellos.
+        if domicilio.ID_Barrio and not (domicilio.Municipio_entrega and domicilio.Departamento_entrega):
+            _b = db.query(Barrio).filter(Barrio.ID_Barrio == domicilio.ID_Barrio).first()
+            if _b and _b.ciudad:
+                domicilio.Municipio_entrega = _b.ciudad.Nombre
+                if _b.ciudad.departamento:
+                    domicilio.Departamento_entrega = _b.ciudad.departamento.Nombre
+
     elif quiere_domicilio is False and domicilio is not None:
         db.delete(domicilio)
+        precio_nuevo = 0
 
-    # El costo del envío lo lleva el servidor, no el formulario. Cambiar el
-    # tipo de entrega desde el panel no lo tocaba: pasar un pedido a domicilio
-    # se llevaba el envío gratis, y quitarle el domicilio dejaba al cliente
-    # pagando un envío que ya no existía. Se ajusta por diferencia para que
-    # repetir la misma edición no lo sume dos veces.
-    queda_con_domicilio = quiere_domicilio if quiere_domicilio is not None else tenia_domicilio
-    if bool(queda_con_domicilio) != bool(tenia_domicilio):
-        signo = 1 if queda_con_domicilio else -1
+    # El costo del envío lo lleva el servidor, no el formulario. Se ajusta por
+    # DIFERENCIA entre el snapshot nuevo y el anterior: pasar a domicilio suma el
+    # precio del barrio, quitarlo lo resta, y repetir la misma edición no lo
+    # duplica.
+    if precio_nuevo != precio_anterior:
         pedido.Total = max(
             Decimal("0"),
-            Decimal(str(pedido.Total or 0)) + signo * COSTO_DOMICILIO,
+            Decimal(str(pedido.Total or 0)) - Decimal(precio_anterior) + Decimal(precio_nuevo),
         )
 
     db.commit()

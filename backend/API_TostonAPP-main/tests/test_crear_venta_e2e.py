@@ -37,7 +37,6 @@ from src.features.ventas.gestion_ventas.services.schemas import (
     VentaCreate,
 )
 from src.features.ventas.gestion_ventas.services.service import (
-    COSTO_DOMICILIO,
     cambiar_estado,
     crear_venta,
 )
@@ -52,8 +51,11 @@ from src.features.ventas.pedidos.services.service import (
     registrar_cobro_pedido,
 )
 from src.shared.services.models import (
+    Barrio,
     Base,
+    Ciudad,
     CreditoCliente,
+    Departamento,
     Domicilio,
     FichaTecnica,
     FichaTecnicaInsumo,
@@ -62,6 +64,12 @@ from src.shared.services.models import (
     Usuario,
     Venta,
 )
+
+# El precio del domicilio ya no es una constante del servidor: sale del barrio de
+# entrega. Los tests siembran un barrio con este precio base, así que las cuentas
+# de antes (Total = subtotal + COSTO_DOMICILIO) siguen valiendo.
+COSTO_DOMICILIO = Decimal("5000")
+ID_BARRIO = 1
 
 # Precio y stock elegidos para que las cuentas den redondo y sean fáciles de
 # seguir a mano: 1 tostón = $10.000.
@@ -87,6 +95,13 @@ class CrearVentaBase(unittest.TestCase):
         self.engine.dispose()
 
     def _sembrar(self, saldo=None):
+        # Barrio de entrega con precio base 5000 (= antiguo COSTO_DOMICILIO).
+        self.db.add(Departamento(ID_Departamento=1, Nombre="Antioquia", Estado=1))
+        self.db.add(Ciudad(ID_Ciudad=1, ID_Departamento=1, Nombre="Medellín", Estado=1))
+        self.db.add(Barrio(
+            ID_Barrio=ID_BARRIO, ID_Ciudad=1, Nombre="Centro",
+            Precio=5000, Es_Base=True, Estado=1,
+        ))
         self.db.add(Usuario(
             ID_Usuario=ID_CLIENTE,
             Nombre="Cliente",
@@ -156,8 +171,7 @@ class CrearVentaBase(unittest.TestCase):
     def domicilio(self, **kwargs):
         base = dict(
             Direccion_entrega="Calle 10 #20-30",
-            Municipio_entrega="Medellín",
-            Departamento_entrega="Antioquia",
+            ID_Barrio=ID_BARRIO,
         )
         base.update(kwargs)
         return DomicilioVentaInput(**base)
@@ -481,6 +495,45 @@ class AnticipoTests(CrearVentaBase):
         v = self.venta_creada()
         esperado = (Decimal("60000") + COSTO_DOMICILIO) / 2
         self.assertEqual(v.Anticipo_Requerido, esperado)
+
+    def _oferta_domicilio(self, *, tipo, pesos=None, pct=None):
+        """Siembra una oferta de domicilio que aplica todos los días al barrio 1."""
+        from src.shared.services.models import OfertaDomicilio, OfertaXBarrio
+        of = OfertaDomicilio(
+            Nombre=f"of-{tipo}", Tipo=tipo, Monto_Pesos=pesos, Porcentaje=pct,
+            Dias_Semana="1,2,3,4,5,6,7", Dias_Mes=None, Estado=1,
+        )
+        self.db.add(of)
+        self.db.flush()
+        self.db.add(OfertaXBarrio(ID_Oferta=of.ID_Oferta, ID_Barrio=ID_BARRIO))
+        self.db.commit()
+
+    def test_anticipo_con_domicilio_gratis_por_oferta(self):
+        """G-9: un descuento que deja el domicilio en 0 → el anticipo se calcula
+        sobre subtotal − descuento + 0, sin sumar la tarifa base."""
+        self._oferta_domicilio(tipo="descuento", pesos=9000)   # 5000 − 9000 → piso 0
+        self.crear(self.sobre_stock(
+            Metodo_Pago="Transferencia",
+            comprobante_pago="https://cloudinary.test/comp.jpg",
+            domicilio=self.domicilio(),
+        ))
+        v = self.venta_creada()
+        self.assertEqual(v.Anticipo_Requerido, Decimal("30000"))   # 60000 / 2, domicilio 0
+        dom = self.db.query(Domicilio).first()
+        self.assertEqual(dom.Precio_Domicilio_Final, 0)
+        self.assertEqual(v.Total, Decimal("60000"))               # subtotal + domicilio 0
+
+    def test_anticipo_con_recargo_de_domicilio(self):
+        """G-9: un recargo sube el precio del domicilio y el anticipo lo incluye."""
+        self._oferta_domicilio(tipo="recargo", pesos=3000)        # 5000 + 3000 = 8000
+        self.crear(self.sobre_stock(
+            Metodo_Pago="Transferencia",
+            comprobante_pago="https://cloudinary.test/comp.jpg",
+            domicilio=self.domicilio(),
+        ))
+        v = self.venta_creada()
+        self.assertEqual(v.Anticipo_Requerido, (Decimal("60000") + Decimal("8000")) / 2)
+        self.assertEqual(self.db.query(Domicilio).first().Precio_Domicilio_Final, 8000)
 
     def test_el_personal_no_necesita_anticipo(self):
         """Los pedidos de mostrador se cobran en el acto.

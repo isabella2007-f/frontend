@@ -197,6 +197,11 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
     direccion_entrega: pedido.direccion_entrega || "",
     departamento:      pedido.departamento || "",
     municipio:         pedido.municipio || "",
+    // Barrio de entrega: null = conservar el snapshot congelado del pedido.
+    // Al elegir uno distinto se recalcula el precio del domicilio y el Total.
+    id_barrio:         null,
+    id_barrio_actual:  pedido.id_barrio || null,
+    cobertura_barrio:  null,
     notas:             pedido.notas || "",
     descuento:         pedido.descuento || 0,
     estadoPedido:      pedido.estado,
@@ -219,6 +224,7 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
       direccion:    (o.direccion_entrega || "").trim(),
       municipio:    (o.municipio || "").trim(),
       departamento: (o.departamento || "").trim(),
+      barrio:       o.id_barrio || null,
       notas:        (o.notas || "").trim(),
       descuento:    desc,
       subtotal:     sub,
@@ -335,7 +341,15 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
 
   const subtotal  = form.productosItems.reduce((a, p) => a + p.precio * p.cantidad, 0);
   const descuento = Number(form.descuento) || 0;
-  const total     = Math.max(0, subtotal - descuento);
+  // El Total que se manda al backend lleva el domicilio congelado del pedido:
+  // si el barrio cambió, el backend ajusta por la diferencia (no lo hacemos
+  // aquí para no contarlo dos veces). Ver editar_pedido en el servidor.
+  const costoDomicilioSnapshot = form.domicilio ? (pedido.precio_domicilio_final ?? 0) : 0;
+  const total     = Math.max(0, subtotal - descuento + costoDomicilioSnapshot);
+  // Solo para mostrar: si el admin eligió otro barrio, el total estimado nuevo.
+  const totalEstimado = form.domicilio && form.id_barrio && form.cobertura_barrio?.disponible
+    ? Math.max(0, subtotal - descuento + (form.cobertura_barrio.final ?? 0))
+    : total;
   const hayProductosSinStock = form.productosItems.some(p => !p.stockOk || p.cantidad > p.stockActual);
 
   const validate = () => {
@@ -350,8 +364,11 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
 
     if (form.domicilio) {
       if (!form.direccion_entrega.trim()) e.direccion_entrega = "Ingresa la dirección";
-      if (!form.departamento.trim())       e.departamento = "Selecciona el departamento";
-      if (!form.municipio.trim())          e.municipio = "Selecciona el municipio";
+      // Barrio: hace falta uno si el pedido no tenía barrio congelado, o si se
+      // está activando el domicilio ahora.
+      if (!form.id_barrio && !form.id_barrio_actual) e.barrio = "Elige el barrio de entrega";
+      if (form.id_barrio && form.cobertura_barrio && !form.cobertura_barrio.disponible)
+        e.barrio = "Ese barrio no tiene cobertura de domicilio";
       const clienteTel = (clienteActual?.telefono || pedido.cliente?.telefono || "").replace(/\D/g, "");
       if (clienteTel.length !== 10) e.telefono_cliente = "El cliente debe tener un teléfono de 10 dígitos válido para pedidos con domicilio";
     }
@@ -388,8 +405,10 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
       comprobante:       comprobanteUrl,
       domicilio:         permisos.domicilio  ? form.domicilio    : pedido.domicilio,
       direccion_entrega: form.direccion_entrega,
-      departamento:      form.departamento,
-      municipio:         form.municipio,
+      // id_barrio solo se manda si cambió: el backend conserva el snapshot si no.
+      id_barrio:         form.id_barrio || null,
+      departamento:      form.cobertura_barrio?.departamento || form.departamento,
+      municipio:         form.cobertura_barrio?.ciudad || form.municipio,
       notas:             form.notas,
       descuento:         permisos.descuento ? descuento : pedido.descuento,
       subtotal:          permisos.productos ? subtotal  : pedido.subtotal,
@@ -857,7 +876,16 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
                     <span>− {fmt(permisos.descuento ? descuento : pedido.descuento)}</span>
                   </div>
                 )}
-                <div className="totales-row totales-row--total"><span>Total</span><span>{fmt(permisos.productos ? total : pedido.total)}</span></div>
+                {form.domicilio && (
+                  <div className="totales-row">
+                    <span>Domicilio {pedido.barrio_entrega ? `· ${pedido.barrio_entrega}` : ""}</span>
+                    <span>{fmt(costoDomicilioSnapshot)}</span>
+                  </div>
+                )}
+                <div className="totales-row totales-row--total">
+                  <span>Total</span>
+                  <span>{fmt(permisos.productos ? totalEstimado : pedido.total)}</span>
+                </div>
               </div>
             </div>
           )}
@@ -962,24 +990,32 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
                   {errors.direccion_entrega && <span className="field-error">{errors.direccion_entrega}</span>}
                 </div>
 
-                <div className="form-grid-2" style={{ marginTop: 12 }}>
-                  <div className="field-wrap">
-                    <label className="field-label">Municipio <span className="required">*</span></label>
-                    <SearchableSelect
-                      options={MUNICIPIOS_VALLE_ABURRA.map(m => ({ value: m, label: m }))}
-                      value={form.municipio}
-                      onChange={e => {
-                        setForm(f => ({ ...f, municipio: e.target.value, departamento: "Antioquia" }));
-                        setErrors(err => ({ ...err, municipio: e.target.value ? "" : "Selecciona el municipio" }));
-                      }}
-                      getValue={o => o.value}
-                      getLabel={o => o.label}
-                      placeholder="— Valle de Aburrá —"
-                      searchPlaceholder="Buscar municipio…"
-                      className={`field-select${errors.municipio ? " error" : ""}`}
-                    />
-                    {errors.municipio && <span className="field-error">{errors.municipio}</span>}
-                  </div>
+                <div className="field-wrap" style={{ marginTop: 12 }}>
+                  <label className="field-label">
+                    Barrio de entrega {form.domicilio && <span className="required">*</span>}
+                  </label>
+                  {form.id_barrio_actual && !form.id_barrio && (
+                    <p style={{ fontSize: 12, color: "#757575", margin: "0 0 6px" }}>
+                      Barrio actual: <strong>{pedido.barrio_entrega || "—"}</strong>
+                      {pedido.precio_domicilio_final != null && ` · domicilio ${fmt(pedido.precio_domicilio_final)}`}.
+                      Elige otro solo si quieres cambiarlo (se recalcula el precio).
+                    </p>
+                  )}
+                  <SelectorBarrioEntrega
+                    prefillIdBarrio={form.id_barrio_actual}
+                    onChange={(id, cob) => {
+                      // Solo cuenta como cambio si es un barrio distinto al
+                      // congelado en el pedido (el prefill vuelve a seleccionar
+                      // el actual y eso no debe disparar recálculo ni "cambios").
+                      setForm(f => ({
+                        ...f,
+                        id_barrio: (id && id !== f.id_barrio_actual) ? id : null,
+                        cobertura_barrio: cob,
+                      }));
+                      setErrors(err => ({ ...err, barrio: "" }));
+                    }}
+                  />
+                  {errors.barrio && <span className="field-error">{errors.barrio}</span>}
                 </div>
               </>
             ) : (

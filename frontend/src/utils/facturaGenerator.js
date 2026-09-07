@@ -264,7 +264,8 @@ function abrirFactura(html) {
 export function descargarFacturaPedido(pedido, usuario) {
   const items    = pedido.productosItems || [];
   const subtotal = items.reduce((s, p) => s + p.precio * p.cantidad, 0);
-  const costo    = pedido.domicilio ? 5000 : 0;
+  // Precio del domicilio: snapshot congelado del barrio (barrio + ofertas).
+  const costo    = pedido.precio_domicilio_final ?? 0;
   const desc     = pedido.descuento || 0;
   const total    = pedido.total ?? (subtotal + costo - desc);
 
