@@ -40,6 +40,8 @@ export default function SelectorBarrioEntrega({
   sinDepartamento = false,
   /** Departamento con el que arrancar cuando `sinDepartamento` está puesto. */
   idDepartamentoPreferido = null,
+  /** Su nombre, cuando solo se tiene eso (lo que el cliente guardó). */
+  nombreDepartamentoPreferido = null,
 }) {
   const [departamentos, setDepartamentos] = useState([]);
   const [ciudades, setCiudades] = useState([]);
@@ -81,15 +83,34 @@ export default function SelectorBarrioEntrega({
       .catch(() => {});
   }, [prefillIdBarrio, departamentos, onChange]);
 
-  // Sin paso de departamento: se elige uno apenas llega la lista.
+  // Sin paso de departamento: se resuelve solo, pero con criterio.
+  //
+  // Tomar el primero de la lista es alfabético, no correcto: daba Amazonas y
+  // ofrecía Leticia y Puerto Nariño. Se busca el del cliente; si no hay forma
+  // de saber cuál es y hay varios, mejor preguntarlo que inventarlo.
+  const departamentoResuelto = (() => {
+    if (departamentos.length === 0) return null;
+    if (idDepartamentoPreferido) {
+      const porId = departamentos.find(
+        (d) => String(d.ID_Departamento) === String(idDepartamentoPreferido));
+      if (porId) return porId;
+    }
+    if (nombreDepartamentoPreferido) {
+      const normal = (t) => String(t || '').trim().toLowerCase();
+      const porNombre = departamentos.find(
+        (d) => normal(d.Nombre) === normal(nombreDepartamentoPreferido));
+      if (porNombre) return porNombre;
+    }
+    return departamentos.length === 1 ? departamentos[0] : null;
+  })();
+
+  /// Se esconde el paso solo si de verdad se pudo resolver.
+  const ocultarDepartamento = sinDepartamento && !!departamentoResuelto;
+
   useEffect(() => {
-    if (!sinDepartamento || idDepto || departamentos.length === 0) return;
-    const preferido = idDepartamentoPreferido
-      ? departamentos.find((d) => String(d.ID_Departamento) === String(idDepartamentoPreferido))
-      : null;
-    const elegido = preferido || departamentos[0];
-    if (elegido) setIdDepto(String(elegido.ID_Departamento));
-  }, [sinDepartamento, idDepartamentoPreferido, departamentos, idDepto]);
+    if (!sinDepartamento || idDepto || !departamentoResuelto) return;
+    setIdDepto(String(departamentoResuelto.ID_Departamento));
+  }, [sinDepartamento, departamentoResuelto, idDepto]);
 
   useEffect(() => {
     if (!idDepto) { setCiudades([]); return; }
@@ -125,7 +146,7 @@ export default function SelectorBarrioEntrega({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      {!sinDepartamento && (
+      {!ocultarDepartamento && (
         <SearchableSelect
           options={departamentos} value={idDepto}
           onChange={(e) => { setIdDepto(e.target.value); setIdCiudad(""); setIdBarrio(""); }}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, CreditCard, Banknote, Scale, User, MapPin, ShoppingBag, CheckCircle2, Sparkles, ShieldCheck, UploadCloud, ChevronRight, Gift, Truck, Phone, Save, Package, AlertTriangle } from 'lucide-react';
+import { X, CreditCard, Banknote, Scale, User, MapPin, ShoppingBag, CheckCircle2, Sparkles, ShieldCheck, UploadCloud, ChevronRight, Gift, Truck, Phone, Save, Package, AlertTriangle, Home, MapPinned } from 'lucide-react';
 import { CartItem } from '../services/cartService';
 import { getUser } from '../../../../services/authService';
 import { getMiCredito } from '../../../../services/pedidosService';
@@ -158,6 +158,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
           direccion:    perfil?.Direccion || '',
           ID_Barrio:    perfil?.ID_Barrio || null,
           barrio:       perfil?.Barrio || null,
+          // Para no preguntar el departamento al elegir otra dirección.
+          departamento: perfil?.Departamento || '',
         });
         // Con dirección guardada se arranca en ella; sin ella, no hay nada
         // que elegir y se pide directamente.
@@ -520,75 +522,91 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
 
             {tieneDomicilio && (
               <div className="space-y-2">
-                {/* La de siempre o una para hoy. Antes había un solo campo
-                    precargado con la del perfil: corregirlo para este pedido
-                    terminaba pisando la dirección guardada. */}
-                {!!registrada?.direccion && (
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { id: true,  titulo: 'Mi dirección', detalle: String(registrada.direccion) },
-                      { id: false, titulo: 'Otra dirección', detalle: 'Solo para este pedido' },
-                    ].map(op => {
-                      const activa = usarRegistrada === op.id;
-                      return (
-                        <button
-                          key={String(op.id)}
-                          type="button"
-                          onClick={() => {
-                            setUsarRegistrada(op.id);
-                            setDireccionTocada(true);
-                            // Cada dirección tiene su barrio: el de siempre
-                            // vuelve solo, y para otra se elige abajo.
-                            if (op.id) {
-                              aplicarBarrioDelPerfil(registrada?.ID_Barrio || null);
-                            } else {
-                              setIdBarrio(null);
-                              setCoberturaBarrio(null);
-                            }
-                          }}
-                          className={`text-left rounded-2xl border px-3 py-2.5 transition ${
-                            activa
-                              ? 'border-green-600 bg-green-50'
-                              : 'border-gray-200 bg-white hover:border-gray-300'
-                          }`}
-                        >
-                          <span className={`block text-[11px] font-black ${activa ? 'text-green-700' : 'text-gray-500'}`}>
+                {/* Una sola tarjeta: arriba de dónde sale la dirección,
+                    adentro lo que corresponda. Dos botones sueltos con un
+                    formulario debajo se leían como cosas sin relación. */}
+                <div className="rounded-2xl border border-gray-200 overflow-hidden bg-white">
+                  {!!registrada?.direccion && (
+                    <div className="flex p-1 gap-1 bg-gray-50 border-b border-gray-100">
+                      {[
+                        { id: true,  icono: <Home size={13} />,      titulo: 'La de siempre' },
+                        { id: false, icono: <MapPinned size={13} />, titulo: 'Otra dirección' },
+                      ].map(op => {
+                        const activa = usarRegistrada === op.id;
+                        return (
+                          <button
+                            key={String(op.id)}
+                            type="button"
+                            onClick={() => {
+                              setUsarRegistrada(op.id);
+                              setDireccionTocada(true);
+                              // Cada dirección tiene su barrio: el de siempre
+                              // vuelve solo, y para otra se elige abajo.
+                              if (op.id) {
+                                aplicarBarrioDelPerfil(registrada?.ID_Barrio || null);
+                              } else {
+                                setIdBarrio(null);
+                                setCoberturaBarrio(null);
+                              }
+                            }}
+                            className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl py-2 text-[11px] font-black transition ${
+                              activa
+                                ? 'bg-white text-green-700 shadow-sm ring-1 ring-green-200'
+                                : 'text-gray-400 hover:text-gray-600'
+                            }`}
+                          >
+                            {op.icono}
                             {op.titulo}
-                          </span>
-                          <span className="block text-[10px] font-semibold text-gray-500 truncate mt-0.5">
-                            {op.detalle}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {conRegistrada ? (
-                  /* Se muestra como es y no se edita: para cambiarla está
-                     "Mis datos", que es donde se cambia de verdad. */
-                  <div className="flex items-start gap-2 bg-gray-50 border border-gray-200 rounded-2xl px-3 py-2.5">
-                    <MapPin size={14} className="text-gray-500 mt-0.5 shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">
-                        Se entrega en
-                      </p>
-                      <p className="text-xs font-black text-gray-800">{registrada.direccion}</p>
-                      {registrada.barrio?.nombre && (
-                        <p className="text-[11px] font-semibold text-gray-500 mt-0.5">
-                          {registrada.barrio.nombre}
-                        </p>
-                      )}
+                          </button>
+                        );
+                      })}
                     </div>
+                  )}
+
+                  <div className="p-3">
+                    {conRegistrada ? (
+                      /* Se muestra como es y no se edita: para cambiarla está
+                         "Mis datos", que es donde se cambia de verdad. */
+                      <>
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">
+                          Se entrega en
+                        </p>
+                        <p className="text-sm font-black text-gray-800 leading-snug">
+                          {registrada.direccion}
+                        </p>
+                        {coberturaBarrio && (
+                          <div className="flex items-center gap-1.5 mt-1.5 text-[11px] font-bold text-gray-500">
+                            <MapPin size={11} className="text-green-600 shrink-0" />
+                            <span>
+                              {coberturaBarrio.barrio}
+                              {coberturaBarrio.ciudad ? ` · ${coberturaBarrio.ciudad}` : ''}
+                            </span>
+                            {barrioDisponible && (
+                              <span className="ml-auto text-green-700 bg-green-50 rounded-full px-2 py-0.5">
+                                {COP(coberturaBarrio.final ?? 0)}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        <p className="text-[10px] font-semibold text-gray-300 mt-2">
+                          Para cambiarla, entra a «Mis datos».
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">
+                          Solo para este pedido
+                        </p>
+                        <FormularioDireccion
+                          valor={otraVia}
+                          onCambio={(d: any) => { setOtraVia(d); setDireccionTocada(true); }}
+                          tema="checkout"
+                          soloVia
+                        />
+                      </>
+                    )}
                   </div>
-                ) : (
-                  <FormularioDireccion
-                    valor={otraVia}
-                    onCambio={(d: any) => { setOtraVia(d); setDireccionTocada(true); }}
-                    tema="checkout"
-                    soloVia
-                  />
-                )}
+                </div>
 
                 {/* Con la dirección de siempre no hay nada que elegir: su
                     barrio ya está en sus datos y el costo sale en el total.
@@ -597,8 +615,10 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                   <SelectorBarrioEntrega
                     compacto
                     // El departamento no se pregunta: no se manda un domicilio
-                    // a otro departamento.
+                    // a otro departamento. Se toma el suyo, no el primero de
+                    // la lista, que alfabéticamente es Amazonas.
                     sinDepartamento
+                    nombreDepartamentoPreferido={registrada?.departamento || null}
                     onChange={(id: number | null, cob: any) => {
                       setIdBarrio(id);
                       setCoberturaBarrio(cob);

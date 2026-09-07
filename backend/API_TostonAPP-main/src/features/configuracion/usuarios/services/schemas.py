@@ -111,6 +111,11 @@ class PersonaResponse(BaseModel):
     Direccion:      Optional[str]   = None
     Municipio:      Optional[str]   = None
     Departamento:   Optional[str]   = None
+    # Barrio de referencia (módulo Ubicaciones). El panel lo necesita para
+    # saber a dónde va un pedido de este cliente y cuánto cuesta el domicilio.
+    # Sin declararlo acá, Pydantic lo descarta y el cliente aparece siempre
+    # "sin barrio" aunque lo tenga.
+    ID_Barrio:      Optional[int]   = None
     Indicaciones:   Optional[str]   = None
     Telefono:       Optional[str]   = None
     Foto:           Optional[str]   = None
