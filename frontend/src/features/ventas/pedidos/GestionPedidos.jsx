@@ -2762,7 +2762,11 @@ export default function GestionPedidos() {
                       <td><div className="date-badge inline-block px-2 py-1 bg-gray-100 rounded-lg text-[11px] font-bold text-gray-600 border border-gray-200">{fmtFecha(ped.fecha_pedido)}</div></td>
                       <td>
                         <div className="total-amount font-black text-gray-900">{fmt(ped.total)}</div>
-                        <div className="total-method text-[10px] font-black uppercase text-green-600/70">{ped.metodo_pago}</div>
+                        <div className="total-method text-[10px] font-black uppercase text-green-600/70">
+                          {esPagoTransferencia(ped.metodo_pago) && Number(ped.total || 0) === 0
+                            ? "Saldo a favor"
+                            : ped.metodo_pago}
+                        </div>
                       </td>
                       <td>
                         {ped.domicilio ? (
