@@ -87,6 +87,16 @@ export const lineaGuardada = (d) => {
 };
 
 /**
+ * La vía con su complemento, sin barrio ni municipio: "Cl. 69 #59-56, Apto 302".
+ *
+ * Es lo que va en la columna cuando el barrio se elige aparte, contra el
+ * módulo Ubicaciones. Sin esto la línea repetiría un barrio que ya viaja por
+ * su propio campo y se comería los 50 caracteres.
+ */
+export const lineaVia = (d) =>
+  recortar([via(d), (d?.complemento || '').trim()].filter(Boolean).join(', '));
+
+/**
  * Lo que no cabe en la columna y quien entrega necesita saber.
  *
  * El barrio va primero aunque ya esté en la línea: es lo primero que mira

@@ -5,6 +5,8 @@ import { getUser } from '../../../../services/authService';
 import { getMiCredito } from '../../../../services/pedidosService';
 import { apiFetch } from '../../../../utils/api';
 import SelectorBarrioEntrega from '../../../../shared/components/SelectorBarrioEntrega';
+import FormularioDireccion from '../../../../shared/components/FormularioDireccion';
+import { desdeTexto, lineaVia } from '../../../../utils/direccionEntrega';
 // La regla del anticipo vive en un solo lugar, espejo del servidor.
 import { pideAnticipo } from '../../../../utils/anticipo';
 import SaldoMonto from '../../../../shared/components/SaldoMonto';
@@ -99,7 +101,14 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   const [tieneDomicilio,     setTieneDomicilio]     = useState(false);
   /// La dirección exacta (vía / complemento). Texto libre — el barrio, que
   /// determina el precio del domicilio, se elige aparte con SelectorBarrioEntrega.
-  const [direccionExacta,    setDireccionExacta]    = useState('');
+  /// Si el pedido va a la dirección de siempre o a otra.
+  ///
+  /// La guardada se muestra y no se toca: para cambiarla está "Mis datos".
+  /// Antes venía precargada en un campo editable y corregirla ahí terminaba
+  /// pisando la del perfil sin que nadie lo pidiera.
+  const [usarRegistrada,     setUsarRegistrada]     = useState(true);
+  /// La otra dirección, en campos separados. Vale solo para este pedido.
+  const [otraVia,            setOtraVia]            = useState(() => desdeTexto(''));
   /// Barrio de entrega elegido + su cobertura ({ disponible, base, final, ... }).
   const [idBarrio,           setIdBarrio]           = useState<number | null>(null);
   const [coberturaBarrio,    setCoberturaBarrio]    = useState<any>(null);
@@ -129,7 +138,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   useEffect(() => {
     if (!isOpen || !orderDetails) return;
     setTieneDomicilio(orderDetails.tieneDomicilio ?? false);
-    setDireccionExacta(orderDetails.address || '');
     setIdBarrio(null);
     setCoberturaBarrio(null);
     setDate(orderDetails.date || '');
@@ -150,8 +158,9 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
           ID_Barrio:    perfil?.ID_Barrio || null,
           barrio:       perfil?.Barrio || null,
         });
-        // La dirección exacta del perfil (texto) se ofrece como punto de partida.
-        if (!orderDetails.address && perfil?.Direccion) setDireccionExacta(perfil.Direccion);
+        // Con dirección guardada se arranca en ella; sin ella, no hay nada
+        // que elegir y se pide directamente.
+        setUsarRegistrada(!!perfil?.Direccion);
       })
       .catch(() => {
         setTelefonoRegistrado(false);
@@ -214,14 +223,19 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   // El barrio determina el precio del domicilio (SelectorBarrioEntrega ya
   // consultó la cobertura contra el backend).
   const barrioDisponible = !!coberturaBarrio?.disponible;
+  /// Solo se puede usar la guardada si hay una.
+  const conRegistrada = usarRegistrada && !!registrada?.direccion;
+  /// A dónde va el pedido: la de siempre, o la que se escribió para hoy.
+  const address = conRegistrada
+    ? String(registrada.direccion).trim()
+    : lineaVia(otraVia);
   const faltaDireccion =
-    !direccionExacta.trim() ? 'Escribe la dirección exacta (calle, número, complemento)'
+    !address ? 'Escribe la dirección exacta (calle, número, complemento)'
     : !idBarrio             ? 'Elige el barrio de entrega'
     : !barrioDisponible     ? 'Ese barrio no tiene cobertura de domicilio: elige otro o recoge en tienda'
     : null;
   const direccionValida = faltaDireccion === null;
   const direccionError  = direccionTocada ? faltaDireccion : null;
-  const address = direccionExacta.trim();
 
   const user = getUser();
   const costoDomicilio   = (tieneDomicilio && barrioDisponible) ? (coberturaBarrio.final ?? 0) : 0;
@@ -479,14 +493,65 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
 
             {tieneDomicilio && (
               <div className="space-y-2">
-                <input
-                  type="text"
-                  value={direccionExacta}
-                  onChange={e => { setDireccionExacta(e.target.value); setDireccionTocada(true); }}
-                  placeholder="Dirección exacta: calle, número, apto/complemento"
-                  maxLength={50}
-                  className={inputCls}
-                />
+                {/* La de siempre o una para hoy. Antes había un solo campo
+                    precargado con la del perfil: corregirlo para este pedido
+                    terminaba pisando la dirección guardada. */}
+                {!!registrada?.direccion && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: true,  titulo: 'Mi dirección', detalle: String(registrada.direccion) },
+                      { id: false, titulo: 'Otra dirección', detalle: 'Solo para este pedido' },
+                    ].map(op => {
+                      const activa = usarRegistrada === op.id;
+                      return (
+                        <button
+                          key={String(op.id)}
+                          type="button"
+                          onClick={() => { setUsarRegistrada(op.id); setDireccionTocada(true); }}
+                          className={`text-left rounded-2xl border px-3 py-2.5 transition ${
+                            activa
+                              ? 'border-green-600 bg-green-50'
+                              : 'border-gray-200 bg-white hover:border-gray-300'
+                          }`}
+                        >
+                          <span className={`block text-[11px] font-black ${activa ? 'text-green-700' : 'text-gray-500'}`}>
+                            {op.titulo}
+                          </span>
+                          <span className="block text-[10px] font-semibold text-gray-500 truncate mt-0.5">
+                            {op.detalle}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {conRegistrada ? (
+                  /* Se muestra como es y no se edita: para cambiarla está
+                     "Mis datos", que es donde se cambia de verdad. */
+                  <div className="flex items-start gap-2 bg-gray-50 border border-gray-200 rounded-2xl px-3 py-2.5">
+                    <MapPin size={14} className="text-gray-500 mt-0.5 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-0.5">
+                        Se entrega en
+                      </p>
+                      <p className="text-xs font-black text-gray-800">{registrada.direccion}</p>
+                      {registrada.barrio?.nombre && (
+                        <p className="text-[11px] font-semibold text-gray-500 mt-0.5">
+                          {registrada.barrio.nombre}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <FormularioDireccion
+                    valor={otraVia}
+                    onCambio={(d: any) => { setOtraVia(d); setDireccionTocada(true); }}
+                    tema="checkout"
+                    soloVia
+                  />
+                )}
+
                 {/* El barrio determina el precio del domicilio. Prefill del
                     barrio guardado en el perfil; totalmente editable. */}
                 <SelectorBarrioEntrega

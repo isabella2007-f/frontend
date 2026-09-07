@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import { X, Check, AlertCircle, AlertTriangle, CheckCircle2, Package, Bike, Store, Banknote, Building2, CreditCard, Calendar, PenLine, ClipboardList, Phone, Mail, User, MapPin, ShoppingCart, Truck, Paperclip, Camera, Search, Gift } from "lucide-react";
 import SearchableSelect from "../../../shared/components/SearchableSelect.jsx";
 import SelectorBarrioEntrega from "../../../shared/components/SelectorBarrioEntrega";
+import FormularioDireccion from "../../../shared/components/FormularioDireccion";
+import { desdeTexto, lineaVia } from "../../../utils/direccionEntrega";
 import { getUsuarios } from "../../../services/usuariosService.js";
 import { getProductos } from "../../../services/productosService.js";
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
@@ -40,6 +42,11 @@ const EMPTY_FORM = {
   // Dirección exacta (texto) + barrio de entrega (determina el precio del
   // domicilio, que el backend resuelve y congela). Prefill del barrio del cliente.
   direccion_exacta:     "",
+  /// Si el pedido va a la dirección registrada del cliente o a otra.
+  usar_direccion_registrada: true,
+  /// La otra dirección, por campos. Vale solo para este pedido: no toca la
+  /// que el cliente tiene guardada.
+  otra_direccion:       null,
   id_barrio:            null,
   cobertura_barrio:     null,
   notas:                "",
@@ -343,8 +350,15 @@ export default function CrearPedido({ onClose, onSave }) {
     c => String(c.id) === String(form.idCliente));
 
   const barrioDisponible = !!form.cobertura_barrio?.disponible;
+  /// Solo se puede usar la registrada si el cliente tiene una.
+  const conRegistrada =
+    form.usar_direccion_registrada && !!clienteSeleccionado?.direccion;
+  /// A dónde va el pedido: la de siempre del cliente, o la de hoy.
+  const direccionEntrega = conRegistrada
+    ? String(clienteSeleccionado.direccion).trim()
+    : lineaVia(form.otra_direccion || desdeTexto(""));
   const entrega = {
-    direccion:     form.direccion_exacta.trim(),
+    direccion:     direccionEntrega,
     id_barrio:     form.id_barrio,
     municipio:     form.cobertura_barrio?.ciudad || "",
     departamento:  form.cobertura_barrio?.departamento || "",
@@ -352,7 +366,7 @@ export default function CrearPedido({ onClose, onSave }) {
   };
   /// Qué le falta a la dirección, o null si está lista.
   const faltaEnLaDireccion = () => {
-    if (!form.direccion_exacta.trim()) return "Escribe la dirección exacta";
+    if (!direccionEntrega) return "Escribe la dirección exacta";
     if (!form.id_barrio) return "Elige el barrio de entrega";
     if (!barrioDisponible) return "Ese barrio no tiene cobertura de domicilio";
     return null;
@@ -661,6 +675,8 @@ export default function CrearPedido({ onClose, onSave }) {
                         ...f,
                         idCliente: "",
                         direccion_exacta: "",
+                        usar_direccion_registrada: true,
+                        otra_direccion: null,
                         id_barrio: null,
                         cobertura_barrio: null,
                       }));
@@ -675,6 +691,9 @@ export default function CrearPedido({ onClose, onSave }) {
                       // Cada cliente trae lo suyo: se precarga su dirección de
                       // texto y su barrio de referencia.
                       direccion_exacta: cli.direccion || "",
+                      // Cada cliente arranca en la suya. Si no tiene, se pide.
+                      usar_direccion_registrada: !!cli.direccion,
+                      otra_direccion: null,
                       id_barrio: null,
                       cobertura_barrio: null,
                     }));
@@ -823,18 +842,82 @@ export default function CrearPedido({ onClose, onSave }) {
                       </div>
                     );
                   })()}
-                  <input
-                    type="text"
-                    className="field-input"
-                    value={form.direccion_exacta}
-                    maxLength={50}
-                    onChange={e => {
-                      setForm(f => ({ ...f, direccion_exacta: e.target.value }));
-                      setErrors(p => ({ ...p, direccion_entrega: "" }));
-                    }}
-                    placeholder="Dirección exacta: calle, número, apto/complemento"
-                    style={{ marginBottom: 8 }}
-                  />
+                  {/* La del cliente o una para hoy. Antes había un solo
+                      campo precargado con la suya: corregirlo para este pedido
+                      dejaba la duda de si se estaba cambiando su dirección. */}
+                  {!!clienteSeleccionado?.direccion && (
+                    <div style={{
+                      display: "grid", gridTemplateColumns: "1fr 1fr",
+                      gap: 8, marginBottom: 8,
+                    }}>
+                      {[
+                        { id: true,  titulo: "Su dirección", detalle: String(clienteSeleccionado.direccion) },
+                        { id: false, titulo: "Otra dirección", detalle: "Solo para este pedido" },
+                      ].map(op => {
+                        const activa = form.usar_direccion_registrada === op.id;
+                        return (
+                          <button
+                            key={String(op.id)}
+                            type="button"
+                            onClick={() => {
+                              setForm(f => ({ ...f, usar_direccion_registrada: op.id }));
+                              setErrors(p => ({ ...p, direccion_entrega: "" }));
+                            }}
+                            style={{
+                              textAlign: "left", padding: "10px 12px", borderRadius: 10,
+                              border: `2px solid ${activa ? "#2e7d32" : "#e0e0e0"}`,
+                              background: activa ? "#f1f8e9" : "#fff",
+                              cursor: "pointer", fontFamily: "inherit",
+                              minWidth: 0, overflow: "hidden",
+                            }}
+                          >
+                            <span style={{
+                              display: "block", fontSize: 12, fontWeight: 800,
+                              color: activa ? "#2e7d32" : "#9e9e9e",
+                            }}>{op.titulo}</span>
+                            <span style={{
+                              display: "block", fontSize: 11, color: "#9e9e9e",
+                              marginTop: 1, whiteSpace: "nowrap",
+                              overflow: "hidden", textOverflow: "ellipsis",
+                            }}>{op.detalle}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {conRegistrada ? (
+                    /* Se muestra como es y no se edita: cambiarla es cosa del
+                       cliente, desde sus datos. */
+                    <div style={{
+                      display: "flex", gap: 8, alignItems: "flex-start",
+                      background: "#fafafa", border: "1px solid #e0e0e0",
+                      borderRadius: 10, padding: "10px 12px", marginBottom: 8,
+                    }}>
+                      <MapPin size={14} style={{ flexShrink: 0, marginTop: 2, color: "#757575" }} />
+                      <div style={{ minWidth: 0 }}>
+                        <span style={{
+                          display: "block", fontSize: 10, fontWeight: 800,
+                          letterSpacing: ".06em", textTransform: "uppercase",
+                          color: "#9e9e9e",
+                        }}>Se entrega en</span>
+                        <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: "#222" }}>
+                          {clienteSeleccionado.direccion}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ marginBottom: 8 }}>
+                      <FormularioDireccion
+                        valor={form.otra_direccion || desdeTexto("")}
+                        onCambio={d => {
+                          setForm(f => ({ ...f, otra_direccion: d }));
+                          setErrors(p => ({ ...p, direccion_entrega: "" }));
+                        }}
+                        soloVia
+                      />
+                    </div>
+                  )}
                   {/* El barrio determina el precio del domicilio. Prefill del
                       barrio guardado en el perfil del cliente. `key` fuerza el
                       remonte al cambiar de cliente para re-precargar. */}

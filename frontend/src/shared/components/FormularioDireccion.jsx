@@ -96,6 +96,14 @@ export default function FormularioDireccion({
   mostrarAvisoCosto = false,
   /** 'perfil' (estilos en línea) o 'checkout' (Tailwind, más compacto). */
   tema: nombreTema = 'perfil',
+  /**
+   * Solo la vía: tipo, número y el número después del #.
+   *
+   * Para convivir con `SelectorBarrioEntrega`, que se ocupa de departamento,
+   * ciudad y barrio contra el módulo Ubicaciones. Sin esto habría dos lugares
+   * donde elegir barrio y ninguno mandaría de verdad.
+   */
+  soloVia = false,
 }) {
   const tema = TEMAS[nombreTema] || TEMAS.perfil;
   const campo = tema.campoProps();
@@ -130,52 +138,56 @@ export default function FormularioDireccion({
         </div>
       )}
 
-      {/* Municipio */}
-      <Campo label="Municipio (Valle de Aburrá)" icon={MapPin} tema={tema}>
-        <select
-          value={d.municipio || ''}
-          // Cambiar de municipio deja el barrio anterior sin sentido.
-          onChange={(e) => onCambio({ ...d, municipio: e.target.value, barrio: '' })}
-          {...campo}
-          style={{ ...campo.style, cursor: 'pointer' }}
-        >
-          <option value="">— Municipio —</option>
-          {MUNICIPIOS_VALLE_ABURRA.map((m) => <option key={m} value={m}>{m}</option>)}
-        </select>
-      </Campo>
-
-      {/* Barrio */}
-      <Campo label="Barrio" icon={Home} tema={tema}>
-        <select
-          value={barrioEnLista ? d.barrio : (eligioOtro ? BARRIO_OTRO : '')}
-          onChange={(e) => onCambio({
-            ...d,
-            // Un espacio marca "otro elegido pero sin escribir todavía": deja
-            // el campo de texto a la vista y la dirección incompleta.
-            barrio: e.target.value === BARRIO_OTRO ? ' ' : e.target.value,
-          })}
-          disabled={!d.municipio}
-          {...campo}
-          style={{ ...campo.style, cursor: d.municipio ? 'pointer' : 'not-allowed' }}
-        >
-          <option value="">
-            {d.municipio ? '— Barrio —' : 'Primero elige el municipio'}
-          </option>
-          {barrios.map((b) => <option key={b} value={b}>{b}</option>)}
-        </select>
-      </Campo>
-
-      {/* El barrio que no está en la lista se escribe. Sin esta salida, quien
-          viva en uno que falte no puede pedir, y eso es peor que una lista
-          incompleta. */}
-      {eligioOtro && (
-        <Campo label="¿Cómo se llama tu barrio?" icon={Home} tema={tema}>
-          <input
-            type="text" value={d.barrio.trim()} onChange={set('barrio')}
-            placeholder="¿Cómo se llama tu barrio?" {...campo}
-          />
+      {/* Departamento, ciudad y barrio los maneja el módulo Ubicaciones
+          cuando este formulario se usa solo para la vía. */}
+      {!soloVia && (<>
+        {/* Municipio */}
+        <Campo label="Municipio (Valle de Aburrá)" icon={MapPin} tema={tema}>
+          <select
+            value={d.municipio || ''}
+            // Cambiar de municipio deja el barrio anterior sin sentido.
+            onChange={(e) => onCambio({ ...d, municipio: e.target.value, barrio: '' })}
+            {...campo}
+            style={{ ...campo.style, cursor: 'pointer' }}
+          >
+            <option value="">— Municipio —</option>
+            {MUNICIPIOS_VALLE_ABURRA.map((m) => <option key={m} value={m}>{m}</option>)}
+          </select>
         </Campo>
-      )}
+
+        {/* Barrio */}
+        <Campo label="Barrio" icon={Home} tema={tema}>
+          <select
+            value={barrioEnLista ? d.barrio : (eligioOtro ? BARRIO_OTRO : '')}
+            onChange={(e) => onCambio({
+              ...d,
+              // Un espacio marca "otro elegido pero sin escribir todavía": deja
+              // el campo de texto a la vista y la dirección incompleta.
+              barrio: e.target.value === BARRIO_OTRO ? ' ' : e.target.value,
+            })}
+            disabled={!d.municipio}
+            {...campo}
+            style={{ ...campo.style, cursor: d.municipio ? 'pointer' : 'not-allowed' }}
+          >
+            <option value="">
+              {d.municipio ? '— Barrio —' : 'Primero elige el municipio'}
+            </option>
+            {barrios.map((b) => <option key={b} value={b}>{b}</option>)}
+          </select>
+        </Campo>
+
+        {/* El barrio que no está en la lista se escribe. Sin esta salida, quien
+            viva en uno que falte no puede pedir, y eso es peor que una lista
+            incompleta. */}
+        {eligioOtro && (
+          <Campo label="¿Cómo se llama tu barrio?" icon={Home} tema={tema}>
+            <input
+              type="text" value={d.barrio.trim()} onChange={set('barrio')}
+              placeholder="¿Cómo se llama tu barrio?" {...campo}
+            />
+          </Campo>
+        )}
+      </>)}
 
       {/* La vía */}
       <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 8 }}>
@@ -231,7 +243,9 @@ export default function FormularioDireccion({
             <p style={{
               margin: '2px 0 0', fontSize: 13.5, fontWeight: 700,
               lineHeight: 1.4, color: 'var(--gray-900)',
-            }}>{direccionCompleta(d)}</p>
+            }}>{soloVia
+                ? [via(d), (d.complemento || '').trim()].filter(Boolean).join(', ')
+                : direccionCompleta(d)}</p>
             {d.indicaciones?.trim() && (
               <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--gray-600)' }}>
                 {d.indicaciones.trim()}

@@ -42,6 +42,8 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
   /// Dirección exacta de entrega (texto). El barrio y el precio del domicilio se
   /// eligen y confirman en el siguiente paso (CheckoutModal), contra el módulo
   /// Ubicaciones. Acá solo se pregunta si es domicilio o recogida.
+  /// La dirección del perfil, solo para pasarla al checkout como punto de
+  /// partida. Acá no se edita.
   const [direccionExacta, setDireccionExacta] = useState('');
   const [total, setTotal]             = useState(() =>
     getCart().reduce((acc, i) => acc + i.precio * i.cantidad, 0)
@@ -104,8 +106,6 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
     return () => { vigente = false; };
   }, [isOpen]);
 
-  const faltaDireccion = tieneDomicilio && !direccionExacta.trim()
-    ? 'Escribe la dirección de entrega' : null;
   const address = direccionExacta.trim();
 
   // El precio del domicilio depende del barrio y se calcula en el checkout.
@@ -142,10 +142,7 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
 
   const handleCheckout = () => {
     if (cart.length === 0) return;
-    if (tieneDomicilio && faltaDireccion) {
-      setCheckoutError(faltaDireccion);
-      return;
-    }
+    // La dirección la valida el checkout, que es donde se elige.
     setCheckoutError('');
     if (!isAuthenticated()) { onClose(); onLoginRequired(); return; }
     onCheckout({ address, departamento: '', municipio: '', date: '', observaciones, tieneDomicilio });
@@ -218,20 +215,14 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
           {tieneDomicilio && (
             <div className="mt-3 space-y-2">
               {loggedIn ? (
-                <>
-                  <input
-                    type="text"
-                    value={direccionExacta}
-                    onChange={e => setDireccionExacta(e.target.value)}
-                    placeholder="Dirección exacta: calle, número, apto/complemento"
-                    maxLength={50}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 text-sm text-gray-700 font-medium placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-green-200 focus:border-green-400"
-                  />
-                  <p className="text-[11px] font-medium text-gray-400 flex items-center gap-1.5">
-                    <MapPin size={11} className="shrink-0" />
-                    En el siguiente paso eliges el barrio y te decimos el costo del domicilio.
-                  </p>
-                </>
+                /* La dirección se elige en el checkout, un paso después: ahí
+                   se puede usar la de siempre o poner otra. Preguntarla acá
+                   era preguntar dos veces y lo de acá no se usaba. */
+                <p className="text-[11px] font-medium text-gray-400 flex items-start gap-1.5">
+                  <MapPin size={11} className="shrink-0 mt-0.5" />
+                  En el siguiente paso eliges la dirección y el barrio, y te
+                  decimos el costo del domicilio.
+                </p>
               ) : null}
 
               {!loggedIn && (

@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import SelectorBarrioEntrega from '../../../../shared/components/SelectorBarrioEntrega';
+import FormularioDireccion from '../../../../shared/components/FormularioDireccion';
+import { desdeTexto, lineaVia } from '../../../../utils/direccionEntrega';
 import { Mail, Phone, MapPin, Camera, Save, X, CreditCard, Lock, Eye, EyeOff, KeyRound, Clock, User, AlertTriangle, Info } from 'lucide-react';
 import { apiFetch } from '../../../../utils/api';
 import { soloDigitos } from '../../../../utils/inputFilters';
@@ -80,6 +82,17 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
   // "guardar sin cambios".
   const snapshotInicial = useRef(null);
 
+  /// La vía en campos separados. Lo guardado es una línea de texto —así es la
+  /// columna— y se parsea al abrir para poder mostrarla por partes.
+  const [via, setVia] = useState(() => desdeTexto(''));
+
+  /// Cambia la vía y deja la línea armada en el formulario, que es lo que
+  /// viaja al servidor.
+  const cambiarVia = (d) => {
+    setVia(d);
+    setForm(f => ({ ...f, direccion: lineaVia(d) }));
+  };
+
   // Cargar perfil completo desde la API al abrir el formulario
   useEffect(() => {
     setLoadingPerfil(true);
@@ -96,6 +109,7 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
           tipo_documento: data.Tipo_Documento || '',
         };
         setForm(f);
+        setVia(desdeTexto(data.Direccion || ''));
         setIdBarrioActual(data.ID_Barrio || null);
         setBarrioInfo(data.Barrio || null);
         snapshotInicial.current = JSON.stringify({ f, b: data.ID_Barrio || null });
@@ -409,11 +423,11 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
             guardarlo aquí no la habilita.</span>
         </div>
 
-        <Field label="Dirección">
-          <input type="text" value={form.direccion} onChange={set('direccion')}
-            maxLength={50} placeholder="Calle 45 # 32-10, Apto 201"
-            style={inputBase} onFocus={focusOn} onBlur={focusOff} />
-        </Field>
+        {/* La vía por partes. Escrita a mano, cada quien inventaba su
+            formato —"cll 45 32 10", "Calle45#32-10"— y quien reparte tenía que
+            adivinar. El barrio no está acá: lo elige el selector de abajo,
+            contra el módulo Ubicaciones. */}
+        <FormularioDireccion valor={via} onCambio={cambiarVia} soloVia />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <Field label="Municipio">
             <input type="text" value={form.municipio} onChange={set('municipio')}
