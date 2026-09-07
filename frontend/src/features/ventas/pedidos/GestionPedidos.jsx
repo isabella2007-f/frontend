@@ -332,7 +332,10 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
     setEditFecha(g.fecha ? g.fecha.slice(0, 10) : '');
     setEditTipo(g.tipo_entrega || '');
     setEditDir(g.direccion_entrega || '');
-    setEditIdBarrio(null);
+    // Precargar el barrio actual del grupo (o del pedido si el grupo no tiene uno).
+    // Sin esto, cambiar a domicilio sin seleccionar barrio explícitamente enviaba
+    // id_barrio=null y el backend lanzaba el error de "elige el barrio".
+    setEditIdBarrio(g.id_barrio || pedido.id_barrio || null);
     setEditCobertura(null);
     setErrorEdit('');
   };
