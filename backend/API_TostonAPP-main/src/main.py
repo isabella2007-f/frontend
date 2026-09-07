@@ -667,24 +667,39 @@ def migrate_db():
         except Exception:
             pass  # ya existe
 
+    # ── Fecha_Produccion en Lote_Producto (puede faltar en tablas viejas) ────────
+    with engine.connect() as conn:
+        try:
+            conn.execute(text(
+                "ALTER TABLE Lote_Producto ADD COLUMN Fecha_Produccion DATETIME NULL"
+            ))
+            conn.commit()
+            _log.info("migración Lote_Producto.Fecha_Produccion: columna creada")
+        except Exception:
+            pass  # ya existe
+
     # ── Backfill Fecha_Vencimiento en lotes ya creados ──────────────────────────
     # Los lotes creados antes de que se configurara Dias_Vida_Util tienen
-    # Fecha_Vencimiento = NULL. Ahora que la ficha tiene el dato, se calcula
-    # desde Fecha_Produccion del lote con la unidad de la ficha.
+    # Fecha_Vencimiento = NULL. Se calcula desde Fecha_Produccion del lote,
+    # o desde Fecha_fin de la orden como respaldo cuando Fecha_Produccion es NULL.
     with engine.connect() as conn:
         try:
             conn.execute(text("""
                 UPDATE Lote_Producto lp
                 JOIN Orden_Produccion op ON op.ID_Orden_Produccion = lp.ID_Orden_Produccion
                 JOIN Ficha_Tecnica ft    ON ft.ID_Ficha             = op.ID_Ficha
-                SET lp.Fecha_Vencimiento = CASE
-                    WHEN ft.Vida_Util_Unidad = 'meses'   THEN DATE_ADD(lp.Fecha_Produccion, INTERVAL ft.Dias_Vida_Util MONTH)
-                    WHEN ft.Vida_Util_Unidad = 'semanas' THEN DATE_ADD(lp.Fecha_Produccion, INTERVAL ft.Dias_Vida_Util WEEK)
-                    ELSE                                       DATE_ADD(lp.Fecha_Produccion, INTERVAL ft.Dias_Vida_Util DAY)
-                END
+                SET lp.Fecha_Produccion  = COALESCE(lp.Fecha_Produccion, op.Fecha_fin),
+                    lp.Fecha_Vencimiento = CASE
+                        WHEN ft.Vida_Util_Unidad = 'meses'
+                            THEN DATE_ADD(COALESCE(lp.Fecha_Produccion, op.Fecha_fin), INTERVAL ft.Dias_Vida_Util MONTH)
+                        WHEN ft.Vida_Util_Unidad = 'semanas'
+                            THEN DATE_ADD(COALESCE(lp.Fecha_Produccion, op.Fecha_fin), INTERVAL ft.Dias_Vida_Util WEEK)
+                        ELSE
+                            DATE_ADD(COALESCE(lp.Fecha_Produccion, op.Fecha_fin), INTERVAL ft.Dias_Vida_Util DAY)
+                    END
                 WHERE lp.Fecha_Vencimiento IS NULL
-                  AND ft.Dias_Vida_Util  IS NOT NULL
-                  AND lp.Fecha_Produccion IS NOT NULL
+                  AND ft.Dias_Vida_Util IS NOT NULL
+                  AND COALESCE(lp.Fecha_Produccion, op.Fecha_fin) IS NOT NULL
             """))
             conn.commit()
             _log.info("migración backfill Fecha_Vencimiento lotes: ok")
