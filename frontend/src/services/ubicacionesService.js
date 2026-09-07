@@ -20,19 +20,46 @@ const qs = (obj) => {
 };
 
 // ── Checkout / cliente: solo lo disponible para domicilio ──────────────────
+//
+// Depto/Ciudad/Barrio del checkout casi no cambian dentro de una sesión, y el
+// backend gratis (Render) arranca en frío: cada ida y vuelta de más se siente.
+// Se cachean en memoria las LISTAS (no la cobertura, que decide el precio y el
+// backend siempre revalida al confirmar). El caché muere al recargar la página.
+let _cacheDeptosCheckout = null;
+const _cacheCiudadesCheckout = new Map();
+const _cacheBarriosCheckout = new Map();
 
-export const getDepartamentosCheckout = () =>
-  apiFetch("/ubicaciones/checkout/departamentos");
+/** Vacía los cachés del checkout (tras un cambio en el panel de Ubicaciones). */
+export const invalidarCacheCheckout = () => {
+  _cacheDeptosCheckout = null;
+  _cacheCiudadesCheckout.clear();
+  _cacheBarriosCheckout.clear();
+};
 
-export const getCiudadesCheckout = (idDepartamento) =>
-  apiFetch(`/ubicaciones/checkout/ciudades${qs({ id_departamento: idDepartamento })}`);
+export const getDepartamentosCheckout = () => {
+  if (_cacheDeptosCheckout) return Promise.resolve(_cacheDeptosCheckout);
+  return apiFetch("/ubicaciones/checkout/departamentos").then((d) => {
+    _cacheDeptosCheckout = d;
+    return d;
+  });
+};
 
-export const getBarriosCheckout = ({ idCiudad, texto = null, pagina = 1, porPagina = 50 } = {}) =>
-  apiFetch(`/ubicaciones/checkout/barrios${qs({
+export const getCiudadesCheckout = (idDepartamento) => {
+  const key = String(idDepartamento);
+  if (_cacheCiudadesCheckout.has(key)) return Promise.resolve(_cacheCiudadesCheckout.get(key));
+  return apiFetch(`/ubicaciones/checkout/ciudades${qs({ id_departamento: idDepartamento })}`)
+    .then((d) => { _cacheCiudadesCheckout.set(key, d); return d; });
+};
+
+export const getBarriosCheckout = ({ idCiudad, texto = null, pagina = 1, porPagina = 50 } = {}) => {
+  const key = `${idCiudad}|${texto || ""}|${pagina}|${porPagina}`;
+  if (_cacheBarriosCheckout.has(key)) return Promise.resolve(_cacheBarriosCheckout.get(key));
+  return apiFetch(`/ubicaciones/checkout/barrios${qs({
     id_ciudad: idCiudad, texto, pagina, por_pagina: porPagina,
-  })}`);
+  })}`).then((d) => { _cacheBarriosCheckout.set(key, d); return d; });
+};
 
-/** Cobertura + precio del día (con ofertas) de un barrio. */
+/** Cobertura + precio del día (con ofertas) de un barrio. Nunca se cachea. */
 export const getCobertura = (idBarrio) =>
   apiFetch(`/ubicaciones/checkout/cobertura/${idBarrio}`);
 
@@ -55,43 +82,47 @@ export const getBarrios = ({
 
 export const getBarrio = (idBarrio) => apiFetch(`/ubicaciones/barrios/${idBarrio}`);
 
+// Toda mutación del panel puede cambiar lo que ve el checkout → limpia su caché.
+const conInvalidacion = (promesa) =>
+  promesa.then((r) => { invalidarCacheCheckout(); return r; });
+
 export const crearBarrio = ({ ID_Ciudad, Nombre, Precio }) =>
-  apiFetch("/ubicaciones/barrios", {
+  conInvalidacion(apiFetch("/ubicaciones/barrios", {
     method: "POST",
     body: JSON.stringify({ ID_Ciudad, Nombre, Precio }),
-  });
+  }));
 
 export const editarBarrio = (idBarrio, { Nombre, Precio } = {}) =>
-  apiFetch(`/ubicaciones/barrios/${idBarrio}`, {
+  conInvalidacion(apiFetch(`/ubicaciones/barrios/${idBarrio}`, {
     method: "PUT",
     body: JSON.stringify({ Nombre, Precio }),
-  });
+  }));
 
 export const eliminarBarrio = (idBarrio) =>
-  apiFetch(`/ubicaciones/barrios/${idBarrio}`, { method: "DELETE" });
+  conInvalidacion(apiFetch(`/ubicaciones/barrios/${idBarrio}`, { method: "DELETE" }));
 
 // ── Panel: estados (individual + masivo) ──────────────────────────────────
 
 export const cambiarEstadoDepartamento = (id, estado) =>
-  apiFetch(`/ubicaciones/departamentos/${id}/estado`, {
+  conInvalidacion(apiFetch(`/ubicaciones/departamentos/${id}/estado`, {
     method: "PATCH", body: JSON.stringify({ Estado: estado }),
-  });
+  }));
 
 export const cambiarEstadoCiudad = (id, estado) =>
-  apiFetch(`/ubicaciones/ciudades/${id}/estado`, {
+  conInvalidacion(apiFetch(`/ubicaciones/ciudades/${id}/estado`, {
     method: "PATCH", body: JSON.stringify({ Estado: estado }),
-  });
+  }));
 
 export const cambiarEstadoBarrio = (id, estado) =>
-  apiFetch(`/ubicaciones/barrios/${id}/estado`, {
+  conInvalidacion(apiFetch(`/ubicaciones/barrios/${id}/estado`, {
     method: "PATCH", body: JSON.stringify({ Estado: estado }),
-  });
+  }));
 
 export const accionMasivaEstado = ({ nivel, idPadre = null, estado }) =>
-  apiFetch("/ubicaciones/estado-masivo", {
+  conInvalidacion(apiFetch("/ubicaciones/estado-masivo", {
     method: "POST",
     body: JSON.stringify({ nivel, id_padre: idPadre, Estado: estado }),
-  });
+  }));
 
 // ── Panel: ofertas de domicilio ──────────────────────────────────────────
 

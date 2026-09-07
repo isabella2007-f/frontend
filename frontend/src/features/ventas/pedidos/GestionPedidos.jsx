@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { fmtFecha, getRecordDate } from "../../../utils/dateUtils.js";
 import DateRangeFilter from "../../../shared/components/DateRangeFilter";
+import SelectorBarrioEntrega from "../../../shared/components/SelectorBarrioEntrega";
 import { descargarFacturaPedido } from "../../../utils/facturaGenerator.js";
 import { getPedidos, getPedido, getHistorialPedidos, confirmarPedido, cancelarPedido, crearPedido, editarPedido, cambiarEstadoVenta, proponerFechaProduccion, registrarPagoFinal, aprobarComprobante, rechazarComprobante, registrarCobroPedido, resolverEscaladoAcuerdo, resolverEscaladoCancelar, getItemsListos, crearGruposEnvio, actualizarEstadoGrupo, cancelarGrupoPendiente, guardarEnvioCompletoDomingo, editarGrupo } from "../../../services/pedidosService.js";
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
@@ -236,11 +237,11 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
   const [adminTipoA,      setAdminTipoA]      = useState('');
   const [adminTipoB,      setAdminTipoB]      = useState('');
   const [adminDireccionA, setAdminDireccionA] = useState(pedido.direccion_entrega || '');
-  const [adminMunicipioA, setAdminMunicipioA] = useState(pedido.municipio_entrega || '');
-  const [adminDeptoA,     setAdminDeptoA]     = useState(pedido.departamento_entrega || '');
+  const [adminIdBarrioA,  setAdminIdBarrioA]  = useState(null);
+  const [adminCoberturaA, setAdminCoberturaA] = useState(null);
   const [adminDireccionB, setAdminDireccionB] = useState(pedido.direccion_entrega || '');
-  const [adminMunicipioB, setAdminMunicipioB] = useState(pedido.municipio_entrega || '');
-  const [adminDeptoB,     setAdminDeptoB]     = useState(pedido.departamento_entrega || '');
+  const [adminIdBarrioB,  setAdminIdBarrioB]  = useState(null);
+  const [adminCoberturaB, setAdminCoberturaB] = useState(null);
   const [creandoAdmin,    setCreandoAdmin]    = useState(false);
   const [errorAdmin,      setErrorAdmin]      = useState('');
 
@@ -253,8 +254,8 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
   const [editFecha,     setEditFecha]     = useState('');
   const [editTipo,      setEditTipo]      = useState('');
   const [editDir,       setEditDir]       = useState('');
-  const [editMunicipio, setEditMunicipio] = useState('');
-  const [editDepto,     setEditDepto]     = useState('');
+  const [editIdBarrio,  setEditIdBarrio]  = useState(null);
+  const [editCobertura, setEditCobertura] = useState(null);
   const [savingEdit,    setSavingEdit]    = useState(false);
   const [errorEdit,     setErrorEdit]     = useState('');
 
@@ -282,11 +283,9 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
         tipoEntregaA:    adminTipoA || null,
         tipoEntregaB:    adminTipoB || null,
         direccionA:      adminTipoA === 'domicilio' ? adminDireccionA || null : null,
-        municipioA:      adminTipoA === 'domicilio' ? adminMunicipioA || null : null,
-        departamentoA:   adminTipoA === 'domicilio' ? adminDeptoA     || null : null,
+        idBarrioA:       adminTipoA === 'domicilio' ? adminIdBarrioA  || null : null,
         direccionB:      adminTipoB === 'domicilio' ? adminDireccionB || null : null,
-        municipioB:      adminTipoB === 'domicilio' ? adminMunicipioB || null : null,
-        departamentoB:   adminTipoB === 'domicilio' ? adminDeptoB     || null : null,
+        idBarrioB:       adminTipoB === 'domicilio' ? adminIdBarrioB  || null : null,
       });
       setPedido(actualizado);
       onUpdatePedido?.(actualizado);
@@ -330,8 +329,8 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
     setEditFecha(g.fecha ? g.fecha.slice(0, 10) : '');
     setEditTipo(g.tipo_entrega || '');
     setEditDir(g.direccion_entrega || '');
-    setEditMunicipio(g.municipio_entrega || '');
-    setEditDepto(g.departamento_entrega || '');
+    setEditIdBarrio(null);
+    setEditCobertura(null);
     setErrorEdit('');
   };
 
@@ -340,11 +339,10 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
     setErrorEdit('');
     try {
       const actualizado = await editarGrupo(pedido.id, editandoGrupo, {
-        fecha_entrega:        editFecha || undefined,
-        tipo_entrega:         editTipo  || undefined,
-        direccion_entrega:    editDir   || undefined,
-        municipio_entrega:    editMunicipio || undefined,
-        departamento_entrega: editDepto || undefined,
+        fecha_entrega:     editFecha    || undefined,
+        tipo_entrega:      editTipo     || undefined,
+        direccion_entrega: editDir      || undefined,
+        id_barrio:         editIdBarrio || undefined,
       });
       setPedido(actualizado);
       onUpdatePedido?.(actualizado);
@@ -626,9 +624,12 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
                         {adminTipoA === 'domicilio' && (
                           <div style={{ marginBottom: 6 }}>
                             <p style={{ fontSize: 10, fontWeight: 700, color: "#1565c0", margin: "0 0 3px" }}>Dirección (listos)</p>
-                            <input value={adminDireccionA} onChange={e => setAdminDireccionA(e.target.value)} placeholder="Dirección" style={{ width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid #90caf9", fontSize: 12, boxSizing: "border-box", marginBottom: 4 }} />
-                            <input value={adminMunicipioA} onChange={e => setAdminMunicipioA(e.target.value)} placeholder="Municipio" style={{ width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid #90caf9", fontSize: 12, boxSizing: "border-box", marginBottom: 4 }} />
-                            <input value={adminDeptoA} onChange={e => setAdminDeptoA(e.target.value)} placeholder="Departamento" style={{ width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid #90caf9", fontSize: 12, boxSizing: "border-box" }} />
+                            <input value={adminDireccionA} onChange={e => setAdminDireccionA(e.target.value)} maxLength={50} placeholder="Dirección exacta: calle, número, complemento" style={{ width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid #90caf9", fontSize: 12, boxSizing: "border-box", marginBottom: 4 }} />
+                            <SelectorBarrioEntrega
+                              compacto
+                              prefillIdBarrio={pedido.id_barrio || null}
+                              onChange={(id, cob) => { setAdminIdBarrioA(id); setAdminCoberturaA(cob); }}
+                            />
                           </div>
                         )}
                         {adminItems.pendientes?.length > 0 && (
@@ -643,20 +644,37 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
                             {adminTipoB === 'domicilio' && (
                               <div style={{ marginBottom: 6 }}>
                                 <p style={{ fontSize: 10, fontWeight: 700, color: "#1565c0", margin: "0 0 3px" }}>Dirección (en producción)</p>
-                                <input value={adminDireccionB} onChange={e => setAdminDireccionB(e.target.value)} placeholder="Dirección" style={{ width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid #90caf9", fontSize: 12, boxSizing: "border-box", marginBottom: 4 }} />
-                                <input value={adminMunicipioB} onChange={e => setAdminMunicipioB(e.target.value)} placeholder="Municipio" style={{ width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid #90caf9", fontSize: 12, boxSizing: "border-box", marginBottom: 4 }} />
-                                <input value={adminDeptoB} onChange={e => setAdminDeptoB(e.target.value)} placeholder="Departamento" style={{ width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid #90caf9", fontSize: 12, boxSizing: "border-box" }} />
+                                <input value={adminDireccionB} onChange={e => setAdminDireccionB(e.target.value)} maxLength={50} placeholder="Dirección exacta: calle, número, complemento" style={{ width: "100%", padding: "6px 10px", borderRadius: 8, border: "1.5px solid #90caf9", fontSize: 12, boxSizing: "border-box", marginBottom: 4 }} />
+                                <SelectorBarrioEntrega
+                                  compacto
+                                  prefillIdBarrio={pedido.id_barrio || null}
+                                  onChange={(id, cob) => { setAdminIdBarrioB(id); setAdminCoberturaB(cob); }}
+                                />
                               </div>
                             )}
                           </>
                         )}
+                        {(adminTipoA === 'domicilio' || adminTipoB === 'domicilio') && (adminCoberturaA?.disponible || adminCoberturaB?.disponible) && (
+                          <p style={{ fontSize: 10, color: "#5c6bc0", margin: "0 0 6px", lineHeight: 1.4 }}>
+                            Cada entrega a domicilio se cobra por separado.
+                            {adminCoberturaA?.disponible && ` Listos: ${adminCoberturaA.final === 0 ? 'domicilio gratis' : `domicilio ${fmt(adminCoberturaA.final)}`}.`}
+                            {adminCoberturaB?.disponible && ` En producción: ${adminCoberturaB.final === 0 ? 'domicilio gratis' : `domicilio ${fmt(adminCoberturaB.final)}`}.`}
+                          </p>
+                        )}
                         {errorAdmin && <p style={{ fontSize: 11, color: "#c62828", margin: "0 0 6px" }}>{errorAdmin}</p>}
-                        <button
-                          onClick={handleDividirEntrega}
-                          disabled={creandoAdmin || !adminFecha}
-                          style={{ width: "100%", padding: "9px 0", borderRadius: 10, border: "none", background: creandoAdmin || !adminFecha ? "#b0bec5" : "#1565c0", color: "#fff", fontWeight: 800, fontSize: 13, cursor: creandoAdmin || !adminFecha ? "not-allowed" : "pointer" }}>
-                          {creandoAdmin ? "Guardando..." : "Confirmar división de entrega"}
-                        </button>
+                        {(() => {
+                          const barrioAOk = adminTipoA !== 'domicilio' || (adminIdBarrioA && adminCoberturaA?.disponible);
+                          const barrioBOk = adminTipoB !== 'domicilio' || (adminIdBarrioB && adminCoberturaB?.disponible);
+                          const bloqueado = creandoAdmin || !adminFecha || !barrioAOk || !barrioBOk;
+                          return (
+                            <button
+                              onClick={handleDividirEntrega}
+                              disabled={bloqueado}
+                              style={{ width: "100%", padding: "9px 0", borderRadius: 10, border: "none", background: bloqueado ? "#b0bec5" : "#1565c0", color: "#fff", fontWeight: 800, fontSize: 13, cursor: bloqueado ? "not-allowed" : "pointer" }}>
+                              {creandoAdmin ? "Guardando..." : "Confirmar división de entrega"}
+                            </button>
+                          );
+                        })()}
                       </div>
                     </div>
                   )}
@@ -794,27 +812,32 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
                             <>
                               <div>
                                 <label style={{ fontSize: 10, fontWeight: 700, color: "#4a148c" }}>Dirección</label>
-                                <input value={editDir} onChange={e => setEditDir(e.target.value)}
+                                <input value={editDir} onChange={e => setEditDir(e.target.value)} maxLength={50}
+                                  placeholder="Dirección exacta: calle, número, complemento"
                                   style={{ width: "100%", padding: "5px 8px", borderRadius: 6, border: "1.5px solid #ce93d8", fontSize: 12, boxSizing: "border-box", marginTop: 2 }} />
                               </div>
-                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-                                <div>
-                                  <label style={{ fontSize: 10, fontWeight: 700, color: "#4a148c" }}>Municipio</label>
-                                  <input value={editMunicipio} onChange={e => setEditMunicipio(e.target.value)}
-                                    style={{ width: "100%", padding: "5px 8px", borderRadius: 6, border: "1.5px solid #ce93d8", fontSize: 12, boxSizing: "border-box", marginTop: 2 }} />
-                                </div>
-                                <div>
-                                  <label style={{ fontSize: 10, fontWeight: 700, color: "#4a148c" }}>Departamento</label>
-                                  <input value={editDepto} onChange={e => setEditDepto(e.target.value)}
-                                    style={{ width: "100%", padding: "5px 8px", borderRadius: 6, border: "1.5px solid #ce93d8", fontSize: 12, boxSizing: "border-box", marginTop: 2 }} />
-                                </div>
+                              <div>
+                                <label style={{ fontSize: 10, fontWeight: 700, color: "#4a148c" }}>Barrio de entrega</label>
+                                <SelectorBarrioEntrega
+                                  compacto
+                                  prefillIdBarrio={g.id_barrio || pedido.id_barrio || null}
+                                  onChange={(id, cob) => { setEditIdBarrio(id); setEditCobertura(cob); }}
+                                />
+                                <p style={{ fontSize: 9, color: "#8e24aa", margin: "3px 0 0", lineHeight: 1.4 }}>
+                                  Si no cambias el barrio se mantiene el actual del grupo.
+                                </p>
                               </div>
                             </>
                           )}
                           {errorEdit && <p style={{ fontSize: 11, color: "#c62828", margin: 0 }}>{errorEdit}</p>}
+                          {(() => {
+                            const vaADomicilio = editTipo === "domicilio";
+                            const barrioBloquea = vaADomicilio && editIdBarrio && editCobertura && !editCobertura.disponible;
+                            const bloqueado = savingEdit || barrioBloquea;
+                            return (
                           <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                            <button onClick={handleGuardarEditGrupo} disabled={savingEdit}
-                              style={{ flex: 1, padding: "7px 0", borderRadius: 7, border: "none", background: savingEdit ? "#b0bec5" : "#6a1b9a", color: "#fff", fontWeight: 800, fontSize: 12, cursor: savingEdit ? "not-allowed" : "pointer" }}>
+                            <button onClick={handleGuardarEditGrupo} disabled={bloqueado}
+                              style={{ flex: 1, padding: "7px 0", borderRadius: 7, border: "none", background: bloqueado ? "#b0bec5" : "#6a1b9a", color: "#fff", fontWeight: 800, fontSize: 12, cursor: bloqueado ? "not-allowed" : "pointer" }}>
                               {savingEdit ? "Guardando..." : "Guardar cambios"}
                             </button>
                             <button onClick={() => setEditandoGrupo(null)} disabled={savingEdit}
@@ -822,6 +845,8 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
                               Cancelar
                             </button>
                           </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     )}

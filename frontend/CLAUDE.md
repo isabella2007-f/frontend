@@ -31,6 +31,7 @@ src/
 - `src/features/configuracion/ubicaciones/` — panel con 2 pestañas: jerarquía (lista anidada con acordeón, búsqueda + paginación server-side) y ofertas/recargos.
 - `src/shared/components/SelectorBarrioEntrega.jsx` — Depto → Ciudad → Barrio contra el API + recuadro de cobertura/precio. Lo usan el checkout (`CheckoutModal`), el alta/edición de pedido del panel (`CrearPedido`, `EditarPedido`) y el perfil (`ProfileForm`, con `mostrarCobertura={false}`).
 - **El precio del domicilio ya no es una constante.** Sale del barrio de entrega (`precio_domicilio_final` / `desglose_domicilio` en la respuesta del pedido). En el checkout se muestra el precio ya calculado (base tachado + final + etiqueta de oferta). El carrito (`CartAside`) ya no suma un costo fijo: dice "se calcula en el checkout".
+- **Pedido dividido = un domicilio por viaje.** En "Mis pedidos" (`PedidosClientePage`), cuando el cliente elige *recibir antes lo disponible*, cada grupo (anticipado / programado) elige su barrio con `SelectorBarrioEntrega` y **cada entrega a domicilio se cobra por separado**. La respuesta trae `grupos_envio[].precio_domicilio_final` (snapshot por grupo) y `costo_domicilio_total` (ya incluido en `total`). `ubicacionesService.js` cachea en memoria las listas del checkout (no la cobertura); las mutaciones del panel limpian la caché.
 - `utils/barrios.js` y la lista de barrios de `utils/direccionEntrega.js` / `FormularioDireccion.jsx` / `SelectorDireccionEntrega.jsx` **quedaron sin uso en la web** (solo las espeja la app Flutter). No borrar hasta sincronizar la app — ver la sección "Sincronización pendiente con la app Flutter" en el CLAUDE.md raíz.
 
 ## Convenciones API
@@ -60,7 +61,7 @@ src/
 
 ## Zonas de peligro (frontend)
 - **Formularios de editar** — al guardar sin cambios no debe dispararse `PUT`/`PATCH`; mostrar "No se hicieron cambios". No relajes validaciones por implementar esto.
-- **Costo del domicilio en el checkout** — nunca lo calcules ni lo hardcodees en el frontend. Viene de `GET /ubicaciones/checkout/cobertura/{id_barrio}` (`base`, `final`, `desglose`) y el backend lo **recalcula y congela** al confirmar. El frontend solo lo muestra. `Municipio_entrega`/`Departamento_entrega` los deriva el backend del barrio.
+- **Costo del domicilio en el checkout** — nunca lo calcules ni lo hardcodees en el frontend. Viene de `GET /ubicaciones/checkout/cobertura/{id_barrio}` (`base`, `final`, `desglose`) y el backend lo **recalcula y congela** al confirmar. El frontend solo lo muestra. `Municipio_entrega`/`Departamento_entrega` los deriva el backend del barrio. En un pedido dividido, **el mismo principio por grupo**: se cobra un domicilio por cada grupo a domicilio.
 - **Barrio del perfil** — es `Usuario.ID_Barrio`, **dato guía**: no habilita ni condiciona el domicilio. `Municipio`/`Departamento` del perfil siguen siendo texto libre. El pedido siempre vuelve a pedir la ubicación de entrega.
 - **Comprobantes de pago / imágenes** — son URLs de Cloudinary (string plano). El frontend sube a Cloudinary y solo manda la URL. Nunca base64.
 - **Vistas del cliente** (`features/client/`, catálogo público, carrito, perfil) — el cliente se identifica por `ID_Rol === 3`, no por permisos. No condiciones funcionalidad de cliente a permisos del rol.

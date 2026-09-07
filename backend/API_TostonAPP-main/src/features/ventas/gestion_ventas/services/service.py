@@ -392,7 +392,17 @@ def _formato_venta(venta: Venta, db: Session, *, dxv_map=None) -> dict:
         dxv = db.query(DescuentoXVenta).filter(DescuentoXVenta.ID_Venta == venta.ID_Venta).first()
     descuento_aplicado = dxv.Monto_Aplicado if dxv else Decimal("0")
 
-    domicilio      = venta.domicilios[0] if venta.domicilios else None
+    # El domicilio "del pedido" es el que NO pertenece a un grupo de envío
+    # (ID_Grupo IS NULL). Tras dividir el pedido pueden coexistir ese row de
+    # referencia y uno por grupo; `venta.domicilios[0]` caía en cualquiera.
+    domicilio = next(
+        (d for d in venta.domicilios if d.ID_Grupo is None),
+        venta.domicilios[0] if venta.domicilios else None,
+    )
+    dom_por_grupo = {
+        d.ID_Grupo: d for d in venta.domicilios
+        if d.ID_Grupo is not None and d.Estado != 5   # excluye los cancelados
+    }
     subtotal_bruto = sum(p["subtotal"] for p in productos)
 
     domiciliario = None
@@ -477,8 +487,25 @@ def _formato_venta(venta: Venta, db: Session, *, dxv_map=None) -> dict:
             None if getattr(venta, "Envio_Completo_Domingo", None) is None
             else bool(venta.Envio_Completo_Domingo)
         ),
-        "grupos_envio": [_formato_grupo(g, db) for g in venta.grupos_envio] if venta.grupos_envio else [],
+        "grupos_envio": [
+            _formato_grupo(g, dom_por_grupo.get(g.ID_Grupo)) for g in venta.grupos_envio
+        ] if venta.grupos_envio else [],
+        # Suma de los domicilios que de verdad paga el pedido: si está dividido,
+        # uno por cada grupo a domicilio (activo); si no, el snapshot único.
+        "costo_domicilio_total": _costo_domicilio_total(venta, domicilio, dom_por_grupo),
     }
+
+
+def _costo_domicilio_total(venta, domicilio, dom_por_grupo) -> int:
+    """Un domicilio por viaje: total de domicilio que refleja `Venta.Total`."""
+    if venta.grupos_envio:
+        # Pedido dividido: uno por cada grupo a domicilio no cancelado (0, 1 o 2).
+        return sum(
+            int(d.Precio_Domicilio_Final or 0)
+            for d in dom_por_grupo.values()
+            if d.Estado != 5
+        )
+    return int(domicilio.Precio_Domicilio_Final or 0) if domicilio else 0
 
 
 def _aplicar_credito(
@@ -2303,24 +2330,24 @@ def _items_listos_venta(db: Session, id_venta: int) -> dict[int, int]:
     return resultado
 
 
-def _formato_grupo(grupo: GrupoEnvio, db: Session | None = None) -> dict:
-    dom = None
-    if db is not None:
-        dom = db.query(Domicilio).filter(
-            Domicilio.ID_Grupo == grupo.ID_Grupo,
-            Domicilio.Estado.notin_([5]),
-        ).first()
+def _formato_grupo(grupo: GrupoEnvio, dom: Domicilio | None = None) -> dict:
+    """`dom`: el `Domicilio` de este grupo (si `Tipo_Entrega == 'domicilio'`).
+    Un domicilio por viaje: cada grupo a domicilio trae su propio snapshot."""
     return {
-        "id_grupo":           grupo.ID_Grupo,
-        "tipo":               grupo.Tipo,
-        "fecha":              grupo.Fecha_Entrega,
-        "tipo_entrega":       grupo.Tipo_Entrega,
-        "estado":             grupo.Estado,
-        "productos":          [{"id_producto": i.ID_Producto, "cantidad": i.Cantidad} for i in grupo.items],
-        "direccion_entrega":  dom.Direccion_entrega    if dom else None,
-        "municipio_entrega":  dom.Municipio_entrega    if dom else None,
-        "departamento_entrega": dom.Departamento_entrega if dom else None,
-        "domicilio_con_repartidor": bool(dom and dom.ID_Empleado) if dom else False,
+        "id_grupo":             grupo.ID_Grupo,
+        "tipo":                 grupo.Tipo,
+        "fecha":                grupo.Fecha_Entrega,
+        "tipo_entrega":         grupo.Tipo_Entrega,
+        "estado":               grupo.Estado,
+        "productos":            [{"id_producto": i.ID_Producto, "cantidad": i.Cantidad} for i in grupo.items],
+        "direccion_entrega":    dom.Direccion_entrega     if dom else None,
+        "municipio_entrega":    dom.Municipio_entrega     if dom else None,
+        "departamento_entrega": dom.Departamento_entrega  if dom else None,
+        "domicilio_con_repartidor": bool(dom and dom.ID_Empleado),
+        "barrio_entrega":         (dom.barrio.Nombre if (dom and dom.barrio) else None),
+        "precio_domicilio_base":  dom.Precio_Domicilio_Base  if dom else None,
+        "precio_domicilio_final": dom.Precio_Domicilio_Final if dom else None,
+        "desglose_domicilio":     dom.Desglose_Ofertas       if dom else None,
     }
 
 
@@ -2360,22 +2387,51 @@ def obtener_items_listos(db: Session, id_venta: int, actual: dict) -> dict:
     }
 
 
-def _resolver_direccion_grupo(direccion_req, municipio_req, departamento_req, venta, cliente, db):
-    """Devuelve (direccion, municipio, departamento) para un grupo con domicilio.
+def _via_grupo(direccion_req, venta, cliente, db):
+    """La vía / complemento (texto libre) de un grupo a domicilio.
 
-    Prioridad: payload del request → domicilio original de la venta → perfil del cliente.
+    Prioridad: payload → domicilio original de la venta → dirección del perfil.
+    Municipio y departamento ya NO salen de acá: los deriva el barrio (snapshot).
     """
     if direccion_req:
-        return direccion_req, municipio_req, departamento_req
+        return direccion_req
     dom_orig = db.query(Domicilio).filter(
         Domicilio.ID_Venta == venta.ID_Venta,
         Domicilio.ID_Grupo.is_(None),
     ).first()
     if dom_orig and dom_orig.Direccion_entrega:
-        return dom_orig.Direccion_entrega, dom_orig.Municipio_entrega, dom_orig.Departamento_entrega
+        return dom_orig.Direccion_entrega
     if cliente and cliente.Direccion:
-        return cliente.Direccion, getattr(cliente, "Municipio", None), getattr(cliente, "Departamento", None)
-    return None, None, None
+        return cliente.Direccion
+    return None
+
+
+def _domicilio_grupo_kwargs(db, id_barrio_pref, dom_orig, fecha, direccion_txt, venta, cliente):
+    """Un domicilio por viaje: snapshot PROPIO del domicilio de un grupo.
+
+    Barrio: el del payload o, si no llega, el del domicilio original del pedido.
+    Precio: `resolver_domicilio` con la fecha de entrega de ESE grupo (valida
+    cobertura y aplica las ofertas de ese día). Devuelve (kwargs_Domicilio, final).
+    """
+    id_barrio = id_barrio_pref or (dom_orig.ID_Barrio if dom_orig else None)
+    if not id_barrio:
+        raise HTTPException(
+            status_code=400,
+            detail="Elige el barrio de entrega del grupo que recibes a domicilio.",
+        )
+    snap = resolver_domicilio(db, id_barrio, fecha)   # valida cobertura → 400
+    return dict(
+        ID_Venta             = venta.ID_Venta,
+        Estado               = 3,   # PENDIENTE
+        Fecha_asignacion     = _now(),
+        Direccion_entrega    = _via_grupo(direccion_txt, venta, cliente, db),
+        Municipio_entrega    = snap["ciudad"],
+        Departamento_entrega = snap["departamento"],
+        ID_Barrio              = snap["id_barrio"],
+        Precio_Domicilio_Base  = snap["base"],
+        Precio_Domicilio_Final = snap["final"],
+        Desglose_Ofertas       = snap["desglose"],
+    ), int(snap["final"])
 
 
 def crear_grupos_envio(
@@ -2386,11 +2442,9 @@ def crear_grupos_envio(
     tipo_entrega_b: str | None,
     actual: dict,
     direccion_a: str | None = None,
-    municipio_a: str | None = None,
-    departamento_a: str | None = None,
+    id_barrio_a: int | None = None,
     direccion_b: str | None = None,
-    municipio_b: str | None = None,
-    departamento_b: str | None = None,
+    id_barrio_b: int | None = None,
 ) -> dict:
     """Registra la preferencia de entrega anticipada del cliente.
 
@@ -2487,51 +2541,36 @@ def crear_grupos_envio(
             if cant_pendiente > 0:
                 db.add(GrupoEnvioItem(ID_Grupo=grupo_b.ID_Grupo, ID_Venta=id_venta, ID_Producto=item.ID_Producto, Cantidad=cant_pendiente))
 
-    # Crear registros Domicilio para grupos con tipo_entrega = 'domicilio'.
-    # El precio del domicilio YA se cobró en Venta.Total al crear el pedido: los
-    # domicilios de grupo heredan el snapshot congelado del domicilio original
-    # (ID_Grupo IS NULL) y NO se recalcula ni se vuelve a sumar nada.
+    # Un domicilio por viaje. Cada grupo que se entrega a domicilio paga su
+    # PROPIO domicilio, con snapshot propio (su barrio + ofertas de SU fecha de
+    # entrega). Se recalcula el aporte del domicilio a `Venta.Total`: sale el que
+    # se congeló al crear el pedido (dom_orig) y entran los de los grupos.
     cliente = db.query(Usuario).filter(Usuario.ID_Usuario == venta.ID_Usuario).first()
     dom_orig = db.query(Domicilio).filter(
         Domicilio.ID_Venta == id_venta, Domicilio.ID_Grupo.is_(None),
     ).first()
-    _snap = dict(
-        ID_Barrio              = dom_orig.ID_Barrio if dom_orig else None,
-        Precio_Domicilio_Base  = dom_orig.Precio_Domicilio_Base if dom_orig else None,
-        Precio_Domicilio_Final = dom_orig.Precio_Domicilio_Final if dom_orig else None,
-        Desglose_Ofertas       = dom_orig.Desglose_Ofertas if dom_orig else None,
-    )
+    costo_domicilio_anterior = int(dom_orig.Precio_Domicilio_Final or 0) if dom_orig else 0
+    costo_domicilio_grupos = 0
+
     if tipo_entrega_a == "domicilio":
-        dir_a, mun_a, dep_a = _resolver_direccion_grupo(
-            direccion_a, municipio_a, departamento_a, venta, cliente, db
+        kw_a, final_a = _domicilio_grupo_kwargs(
+            db, id_barrio_a, dom_orig, grupo_a.Fecha_Entrega, direccion_a, venta, cliente
         )
-        if dir_a:
-            db.add(Domicilio(
-                ID_Venta             = id_venta,
-                ID_Grupo             = grupo_a.ID_Grupo,
-                Estado               = 3,   # PENDIENTE
-                Fecha_asignacion     = _now(),
-                Direccion_entrega    = dir_a,
-                Municipio_entrega    = mun_a,
-                Departamento_entrega = dep_a,
-                **_snap,
-            ))
+        db.add(Domicilio(ID_Grupo=grupo_a.ID_Grupo, **kw_a))
+        costo_domicilio_grupos += final_a
 
     if grupo_b and tipo_entrega_b == "domicilio":
-        dir_b, mun_b, dep_b = _resolver_direccion_grupo(
-            direccion_b, municipio_b, departamento_b, venta, cliente, db
+        kw_b, final_b = _domicilio_grupo_kwargs(
+            db, id_barrio_b, dom_orig, grupo_b.Fecha_Entrega, direccion_b, venta, cliente
         )
-        if dir_b:
-            db.add(Domicilio(
-                ID_Venta             = id_venta,
-                ID_Grupo             = grupo_b.ID_Grupo,
-                Estado               = 3,   # PENDIENTE
-                Fecha_asignacion     = _now(),
-                Direccion_entrega    = dir_b,
-                Municipio_entrega    = mun_b,
-                Departamento_entrega = dep_b,
-                **_snap,
-            ))
+        db.add(Domicilio(ID_Grupo=grupo_b.ID_Grupo, **kw_b))
+        costo_domicilio_grupos += final_b
+
+    venta.Total = (
+        (venta.Total or Decimal("0"))
+        - Decimal(costo_domicilio_anterior)
+        + Decimal(costo_domicilio_grupos)
+    )
 
     venta.Envio_Completo_Domingo = 0
     db.commit()
@@ -2663,8 +2702,18 @@ def actualizar_tipo_entrega_grupo(
     id_grupo: int,
     tipo_entrega: str,
     actual: dict,
+    id_barrio: int | None = None,
+    direccion: str | None = None,
 ) -> dict:
-    """Cliente o admin actualiza el tipo de entrega de un grupo."""
+    """Cliente o admin cambia el tipo de entrega de un grupo (domicilio/tienda).
+
+    Un domicilio por viaje: pasar un grupo A 'domicilio' le crea su propio
+    `Domicilio` (snapshot de su barrio + ofertas de su fecha) y suma ese costo a
+    `Venta.Total`; pasarlo a 'tienda' cancela ese `Domicilio` y lo resta.
+    """
+    if tipo_entrega not in ("domicilio", "tienda"):
+        raise HTTPException(status_code=400, detail="El tipo de entrega debe ser 'domicilio' o 'tienda'")
+
     venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
@@ -2677,8 +2726,35 @@ def actualizar_tipo_entrega_grupo(
     ).first()
     if not grupo:
         raise HTTPException(status_code=404, detail="Grupo de envío no encontrado")
-    if grupo.Estado == "entregado":
-        raise HTTPException(status_code=400, detail="No se puede cambiar el tipo de entrega de un grupo ya entregado")
+    if grupo.Estado in ("enviado", "entregado"):
+        raise HTTPException(status_code=400, detail="No se puede cambiar el tipo de entrega de un grupo ya enviado o entregado")
+
+    if tipo_entrega == grupo.Tipo_Entrega:
+        return _formato_venta(venta, db)   # sin cambios
+
+    cliente = db.query(Usuario).filter(Usuario.ID_Usuario == venta.ID_Usuario).first()
+    dom_orig = db.query(Domicilio).filter(
+        Domicilio.ID_Venta == id_venta, Domicilio.ID_Grupo.is_(None),
+    ).first()
+    dom_grupo = db.query(Domicilio).filter(
+        Domicilio.ID_Venta == id_venta, Domicilio.ID_Grupo == id_grupo,
+    ).first()
+
+    if tipo_entrega == "domicilio":
+        kw, final = _domicilio_grupo_kwargs(
+            db, id_barrio, dom_orig, grupo.Fecha_Entrega, direccion, venta, cliente
+        )
+        if dom_grupo:
+            for campo, valor in kw.items():
+                setattr(dom_grupo, campo, valor)
+            dom_grupo.Estado = 3
+        else:
+            db.add(Domicilio(ID_Grupo=id_grupo, **kw))
+        venta.Total = (venta.Total or Decimal("0")) + Decimal(final)
+    else:  # → tienda
+        if dom_grupo and dom_grupo.Estado != 5:
+            venta.Total = (venta.Total or Decimal("0")) - Decimal(int(dom_grupo.Precio_Domicilio_Final or 0))
+            dom_grupo.Estado = 5   # Cancelado
 
     grupo.Tipo_Entrega = tipo_entrega
     db.commit()
@@ -2767,13 +2843,16 @@ def cancelar_grupo_pendiente(
             if reembolso > 0:
                 _abonar_credito(db, venta.ID_Usuario, reembolso, id_venta)
 
-    # Cancelar el domicilio asociado al grupo si existe y no está ya en estado final.
+    # Cancelar el domicilio asociado al grupo si existe y no está ya en estado
+    # final, y quitar su costo del total (un domicilio por viaje: si el viaje no
+    # ocurre, no se cobra).
     dom_grupo = db.query(Domicilio).filter(
         Domicilio.ID_Venta == id_venta,
         Domicilio.ID_Grupo == id_grupo,
         Domicilio.Estado.notin_([8, 5]),
     ).first()
     if dom_grupo:
+        venta.Total = (venta.Total or Decimal("0")) - Decimal(int(dom_grupo.Precio_Domicilio_Final or 0))
         dom_grupo.Estado = 5  # Cancelado
 
     grupo.Estado = "cancelado"
@@ -2828,15 +2907,20 @@ def editar_grupo(
     nueva_fecha,
     nuevo_tipo_entrega: str | None,
     nueva_dir: str | None,
-    nuevo_municipio: str | None,
-    nuevo_depto: str | None,
+    nuevo_id_barrio: int | None,
     actual: dict,
 ) -> dict:
-    """Admin edita fecha y/o tipo de entrega de un grupo pendiente.
+    """Admin edita fecha, tipo de entrega y/o barrio de un grupo pendiente.
 
     Bloqueado si el domicilio asociado ya tiene repartidor asignado (ID_Empleado
     no nulo), porque cambiar la dirección en ese punto afectaría una entrega
     ya en camino.
+
+    Un domicilio por viaje: pasar el grupo a 'domicilio' le crea su propio
+    `Domicilio` (snapshot del barrio + ofertas de su fecha) y suma ese costo a
+    `Venta.Total`; pasarlo a 'tienda' cancela ese `Domicilio` y lo resta; cambiar
+    el barrio de un grupo que ya va a domicilio vuelve a congelar el snapshot y
+    ajusta `Venta.Total` por la diferencia.
     """
     if actual["tipo"] not in ("admin", "empleado"):
         raise HTTPException(status_code=403, detail="Solo disponible para administradores")
@@ -2873,36 +2957,45 @@ def editar_grupo(
 
     if nueva_fecha is not None:
         grupo.Fecha_Entrega = nueva_fecha
+        if dom_grupo:
+            dom_grupo.Fecha_entrega = nueva_fecha
+
+    cliente = db.query(Usuario).filter(Usuario.ID_Usuario == venta.ID_Usuario).first()
+    dom_orig = db.query(Domicilio).filter(
+        Domicilio.ID_Venta == id_venta, Domicilio.ID_Grupo.is_(None),
+    ).first()
+    fecha_grupo = nueva_fecha or grupo.Fecha_Entrega
+    tipo_final = nuevo_tipo_entrega or tipo_anterior
 
     if nuevo_tipo_entrega is not None and nuevo_tipo_entrega != tipo_anterior:
         grupo.Tipo_Entrega = nuevo_tipo_entrega
-        if nuevo_tipo_entrega == "domicilio" and not dom_grupo:
-            dir_res, mun_res, dep_res = _resolver_direccion_grupo(
-                db, venta,
-                nueva_dir, nuevo_municipio, nuevo_depto,
+        if nuevo_tipo_entrega == "domicilio":
+            kw, final = _domicilio_grupo_kwargs(
+                db, nuevo_id_barrio, dom_orig, fecha_grupo, nueva_dir, venta, cliente
             )
-            db.add(Domicilio(
-                ID_Venta             = id_venta,
-                ID_Grupo             = id_grupo,
-                Direccion_entrega    = dir_res,
-                Municipio_entrega    = mun_res,
-                Departamento_entrega = dep_res,
-                Fecha_asignacion     = _now(),
-                Fecha_entrega        = nueva_fecha or grupo.Fecha_Entrega,
-                Estado               = 3,  # Pendiente
-            ))
+            if dom_grupo:
+                for campo, valor in kw.items():
+                    setattr(dom_grupo, campo, valor)
+                dom_grupo.Estado = 3
+            else:
+                db.add(Domicilio(ID_Grupo=id_grupo, **kw))
+            venta.Total = (venta.Total or Decimal("0")) + Decimal(final)
         elif nuevo_tipo_entrega == "tienda" and dom_grupo:
+            venta.Total = (venta.Total or Decimal("0")) - Decimal(int(dom_grupo.Precio_Domicilio_Final or 0))
             dom_grupo.Estado = 5  # Cancelado
 
-    if nuevo_tipo_entrega in (None, "domicilio") and dom_grupo and tipo_anterior == "domicilio":
-        if nueva_dir:
-            dom_grupo.Direccion_entrega = nueva_dir
-        if nuevo_municipio:
-            dom_grupo.Municipio_entrega = nuevo_municipio
-        if nuevo_depto:
-            dom_grupo.Departamento_entrega = nuevo_depto
-        if nueva_fecha:
-            dom_grupo.Fecha_entrega = nueva_fecha
+    elif tipo_final == "domicilio" and dom_grupo and (nuevo_id_barrio or nueva_dir):
+        # Sigue a domicilio pero cambió el barrio o la vía → re-congelar snapshot.
+        # Sin barrio nuevo se mantiene el del propio grupo (no el del pedido).
+        final_anterior = int(dom_grupo.Precio_Domicilio_Final or 0)
+        kw, final = _domicilio_grupo_kwargs(
+            db, nuevo_id_barrio or dom_grupo.ID_Barrio, dom_orig,
+            fecha_grupo, nueva_dir, venta, cliente
+        )
+        for campo, valor in kw.items():
+            setattr(dom_grupo, campo, valor)
+        dom_grupo.Estado = 3
+        venta.Total = (venta.Total or Decimal("0")) - Decimal(final_anterior) + Decimal(final)
 
     db.commit()
     db.refresh(venta)

@@ -76,16 +76,25 @@ const adaptPedido = (p) => {
     estado_pago:               p.estado_pago         || null,
     envio_completo_domingo:
       p.envio_completo_domingo == null ? null : !!p.envio_completo_domingo,
+    // Un domicilio por viaje: si el pedido está dividido, es la suma de los
+    // domicilios de cada grupo a domicilio; si no, el snapshot único. Ya incluido en `total`.
+    costo_domicilio_total: p.costo_domicilio_total ?? null,
     grupos_envio: (p.grupos_envio || []).map(g => ({
       id_grupo:    g.id_grupo,
       tipo:        g.tipo,          // 'anticipado' | 'programado'
       fecha:       g.fecha,
       tipo_entrega: g.tipo_entrega,
       estado:      g.estado,        // 'pendiente' | 'enviado' | 'entregado' | 'cancelado'
-      direccion_entrega:    g.direccion_entrega    || null,
+      // Snapshot del domicilio de ESTE grupo (solo si tipo_entrega === 'domicilio').
+      // Un domicilio por viaje: cada grupo a domicilio trae su propio precio.
+      direccion_entrega:    g.direccion_entrega    || '',
       municipio_entrega:    g.municipio_entrega    || null,
       departamento_entrega: g.departamento_entrega || null,
       domicilio_con_repartidor: !!g.domicilio_con_repartidor,
+      barrio_entrega:         g.barrio_entrega || '',
+      precio_domicilio_base:  g.precio_domicilio_base ?? null,
+      precio_domicilio_final: g.precio_domicilio_final ?? null,
+      desglose_domicilio:     g.desglose_domicilio ?? null,
       // productos: [{id_producto, cantidad}] — un producto puede aparecer en dos
       // grupos con cantidades distintas si está parcialmente cubierto por stock
       productos:   (g.productos || []).map(pr =>
@@ -228,8 +237,9 @@ export const getItemsListos = async (idVenta) =>
 export const crearGruposEnvio = async (idVenta, {
   fechaAnticipada,
   tipoEntregaA = null, tipoEntregaB = null,
-  direccionA = null, municipioA = null, departamentoA = null,
-  direccionB = null, municipioB = null, departamentoB = null,
+  // Un domicilio por viaje: el barrio de cada grupo decide su precio.
+  direccionA = null, idBarrioA = null,
+  direccionB = null, idBarrioB = null,
 }) => {
   const data = await apiFetch(`/ventas/${idVenta}/crear-grupos-envio`, {
     method: "POST",
@@ -237,12 +247,10 @@ export const crearGruposEnvio = async (idVenta, {
       fecha_anticipada:  fechaAnticipada,
       tipo_entrega_a:    tipoEntregaA,
       tipo_entrega_b:    tipoEntregaB,
-      direccion_a:       direccionA    || null,
-      municipio_a:       municipioA    || null,
-      departamento_a:    departamentoA || null,
-      direccion_b:       direccionB    || null,
-      municipio_b:       municipioB    || null,
-      departamento_b:    departamentoB || null,
+      direccion_a:       direccionA || null,
+      id_barrio_a:       idBarrioA  || null,
+      direccion_b:       direccionB || null,
+      id_barrio_b:       idBarrioB  || null,
     }),
   });
   return adaptPedido(data);
@@ -256,10 +264,14 @@ export const actualizarEstadoGrupo = async (idVenta, idGrupo, estado) => {
   return adaptPedido(data);
 };
 
-export const actualizarTipoEntregaGrupo = async (idVenta, idGrupo, tipoEntrega) => {
+export const actualizarTipoEntregaGrupo = async (idVenta, idGrupo, tipoEntrega, { idBarrio = null, direccion = null } = {}) => {
   const data = await apiFetch(`/ventas/${idVenta}/grupos/${idGrupo}/tipo-entrega`, {
     method: "PATCH",
-    body: JSON.stringify({ tipo_entrega: tipoEntrega }),
+    body: JSON.stringify({
+      tipo_entrega: tipoEntrega,
+      id_barrio: idBarrio || null,
+      direccion: direccion || null,
+    }),
   });
   return adaptPedido(data);
 };

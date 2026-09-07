@@ -158,6 +158,9 @@ class VentaResponse(BaseModel):
     intentos_rechazo:              int              = 0
     # División del pedido en grupos de envío
     grupos_envio:                  list             = []
+    # Un domicilio por viaje: total de domicilio que ya incluye `Total`
+    # (uno por grupo a domicilio si el pedido está dividido; el snapshot único si no).
+    costo_domicilio_total:         Optional[Decimal] = None
 
     class Config:
         from_attributes = True
@@ -197,14 +200,14 @@ class CrearGruposEnvioInput(BaseModel):
     fecha_anticipada:    datetime
     tipo_entrega_a:      Optional[str]  = None   # 'domicilio' | 'tienda'
     tipo_entrega_b:      Optional[str]  = None
-    # Dirección de entrega para el grupo A (solo cuando tipo_entrega_a = 'domicilio')
+    # Entrega del grupo A (solo cuando tipo_entrega_a = 'domicilio'): la vía es
+    # texto libre; el barrio decide el precio del domicilio (municipio/depto los
+    # deriva el backend del barrio). Si no llega id_barrio se hereda el del pedido.
     direccion_a:         Optional[str]  = None
-    municipio_a:         Optional[str]  = None
-    departamento_a:      Optional[str]  = None
-    # Dirección de entrega para el grupo B (solo cuando tipo_entrega_b = 'domicilio')
+    id_barrio_a:         Optional[int]  = None
+    # Entrega del grupo B (solo cuando tipo_entrega_b = 'domicilio')
     direccion_b:         Optional[str]  = None
-    municipio_b:         Optional[str]  = None
-    departamento_b:      Optional[str]  = None
+    id_barrio_b:         Optional[int]  = None
 
 
 # ── Actualizar estado de un grupo de envío ──
@@ -219,6 +222,10 @@ class ActualizarEstadoGrupoInput(BaseModel):
 # ── Actualizar tipo de entrega de un grupo ──
 class ActualizarTipoEntregaGrupoInput(BaseModel):
     tipo_entrega: str
+    # Solo al pasar un grupo a 'domicilio': barrio (precio) y vía. Si no llega
+    # id_barrio se hereda el del pedido original.
+    id_barrio:    Optional[int] = None
+    direccion:    Optional[str] = None
 
 
 # ── Editar grupo pendiente (fecha, tipo de entrega y/o dirección) ──
@@ -226,5 +233,7 @@ class EditarGrupoInput(BaseModel):
     fecha_entrega:        Optional[datetime] = None
     tipo_entrega:         Optional[str]      = None   # 'domicilio' | 'tienda'
     direccion_entrega:    Optional[str]      = None
-    municipio_entrega:    Optional[str]      = None
-    departamento_entrega: Optional[str]      = None
+    # Un domicilio por viaje: el barrio decide el precio del domicilio del grupo;
+    # municipio/departamento los deriva el backend del barrio. Si no llega,
+    # se hereda el barrio del domicilio original del pedido.
+    id_barrio:           Optional[int]      = None

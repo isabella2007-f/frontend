@@ -1,10 +1,10 @@
 ﻿import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { getMisVentas, cancelarMiPedido, aceptarFechaProduccion, rechazarFechaProduccion, guardarEnvioCompletoDomingo, getItemsListos, crearGruposEnvio } from '../../../services/pedidosService';
 import { crearDevolucion } from '../../../services/devolucionesService';
 import { fmtFecha } from '../../../utils/dateUtils.js';
 import { getCurrentUser } from '../../client/profile/services/profileService.js';
 import { descargarFacturaPedido } from '../../../utils/facturaGenerator.js';
+import SelectorBarrioEntrega from '../../../shared/components/SelectorBarrioEntrega';
 import {
   Package, Calendar, MapPin, DollarSign, Leaf, Search,
   ChevronRight, Clock, CheckCircle2, Truck, AlertTriangle,
@@ -389,16 +389,16 @@ const PedidosClientePage = () => {
   const [fechaAnticipada,      setFechaAnticipada]      = useState('');
   const [tipoEntregaA,         setTipoEntregaA]         = useState('');
   const [tipoEntregaB,         setTipoEntregaB]         = useState('');
+  // Un domicilio por viaje: cada grupo a domicilio elige su barrio (precio propio).
   const [direccionA,           setDireccionA]           = useState('');
-  const [municipioA,           setMunicipioA]           = useState('');
-  const [deptoA,               setDeptoA]               = useState('');
+  const [idBarrioA,            setIdBarrioA]            = useState(null);
+  const [coberturaA,           setCoberturaA]           = useState(null);
   const [direccionB,           setDireccionB]           = useState('');
-  const [municipioB,           setMunicipioB]           = useState('');
-  const [deptoB,               setDeptoB]               = useState('');
+  const [idBarrioB,            setIdBarrioB]            = useState(null);
+  const [coberturaB,           setCoberturaB]           = useState(null);
   const [creandoGrupos,        setCreandoGrupos]        = useState(false);
   const [gruposError,          setGruposError]          = useState('');
   const [itemsListosError,     setItemsListosError]     = useState(null);
-  const navigate = useNavigate();
 
   // Ref para acceder al pedido seleccionado dentro del interval sin recrear el callback
   const selectedPedidoRef = useRef(null);
@@ -472,8 +472,14 @@ const PedidosClientePage = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPedido?.id, selectedPedido?.envio_completo_domingo, selectedPedido?.grupos_envio?.length]);
 
+  const hayPendientesGrupo = !!(itemsListos?.pendientes && itemsListos.pendientes.length > 0);
+  // Cada grupo a domicilio necesita un barrio con cobertura.
+  const grupoADomicilioOk = tipoEntregaA !== 'domicilio' || (idBarrioA && coberturaA?.disponible);
+  const grupoBDomicilioOk = !hayPendientesGrupo || tipoEntregaB !== 'domicilio' || (idBarrioB && coberturaB?.disponible);
+  const puedeCrearGrupos = !!fechaAnticipada && grupoADomicilioOk && grupoBDomicilioOk;
+
   const handleCrearGrupos = async () => {
-    if (!fechaAnticipada) return;
+    if (!puedeCrearGrupos) return;
     setCreandoGrupos(true);
     setGruposError('');
     try {
@@ -482,11 +488,9 @@ const PedidosClientePage = () => {
         tipoEntregaA:  tipoEntregaA || null,
         tipoEntregaB:  tipoEntregaB || null,
         direccionA:    tipoEntregaA === 'domicilio' ? direccionA || null : null,
-        municipioA:    tipoEntregaA === 'domicilio' ? municipioA || null : null,
-        departamentoA: tipoEntregaA === 'domicilio' ? deptoA     || null : null,
+        idBarrioA:     tipoEntregaA === 'domicilio' ? idBarrioA  || null : null,
         direccionB:    tipoEntregaB === 'domicilio' ? direccionB || null : null,
-        municipioB:    tipoEntregaB === 'domicilio' ? municipioB || null : null,
-        departamentoB: tipoEntregaB === 'domicilio' ? deptoB     || null : null,
+        idBarrioB:     tipoEntregaB === 'domicilio' ? idBarrioB  || null : null,
       });
       setItemsListos(null);
       setPedidos(prev => prev.map(p => p.id === actualizado.id ? actualizado : p));
@@ -494,6 +498,8 @@ const PedidosClientePage = () => {
       setFechaAnticipada('');
       setTipoEntregaA('');
       setTipoEntregaB('');
+      setIdBarrioA(null); setCoberturaA(null); setDireccionA('');
+      setIdBarrioB(null); setCoberturaB(null); setDireccionB('');
     } catch (e) {
       setGruposError(e.message || 'No se pudo guardar la entrega anticipada. Intenta de nuevo.');
     } finally {
@@ -944,6 +950,9 @@ const PedidosClientePage = () => {
                   {loadingItemsListos && (
                     <p style={{ fontSize: 12, color: '#5c6bc0', margin: 0 }}>Verificando disponibilidad de productos...</p>
                   )}
+                  {!loadingItemsListos && itemsListosError && (
+                    <p style={{ fontSize: 12, color: '#c62828', margin: 0 }}>{itemsListosError}</p>
+                  )}
                   {/* Ninguno listo aún: solo informativo, sin acción posible */}
                   {!loadingItemsListos && itemsListos && itemsListos.listos && itemsListos.listos.length === 0 && (
                     <p style={{ fontSize: 12, color: '#1565c0', margin: 0, lineHeight: 1.5 }}>
@@ -1002,7 +1011,7 @@ const PedidosClientePage = () => {
                         </p>
                         <select
                           value={tipoEntregaA}
-                          onChange={e => { setTipoEntregaA(e.target.value); if (!direccionA) { setDireccionA(selectedPedido.direccion_entrega || ''); setMunicipioA(selectedPedido.municipio_entrega || ''); setDeptoA(selectedPedido.departamento_entrega || ''); } }}
+                          onChange={e => { setTipoEntregaA(e.target.value); if (e.target.value === 'domicilio' && !direccionA) setDireccionA(selectedPedido.direccion_entrega || ''); }}
                           style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 13, boxSizing: 'border-box', marginBottom: 8, background: '#fff' }}>
                           <option value="">Sin especificar</option>
                           <option value="domicilio">Domicilio</option>
@@ -1010,10 +1019,13 @@ const PedidosClientePage = () => {
                         </select>
                         {tipoEntregaA === 'domicilio' && (
                           <div style={{ marginBottom: 8 }}>
-                            <p style={{ fontSize: 10, fontWeight: 700, color: '#1565c0', margin: '0 0 3px' }}>Dirección de entrega</p>
-                            <input value={direccionA} onChange={e => setDireccionA(e.target.value)} placeholder="Dirección" style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 12, boxSizing: 'border-box', marginBottom: 4 }} />
-                            <input value={municipioA} onChange={e => setMunicipioA(e.target.value)} placeholder="Municipio" style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 12, boxSizing: 'border-box', marginBottom: 4 }} />
-                            <input value={deptoA} onChange={e => setDeptoA(e.target.value)} placeholder="Departamento" style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 12, boxSizing: 'border-box' }} />
+                            <p style={{ fontSize: 10, fontWeight: 700, color: '#1565c0', margin: '0 0 3px' }}>Dónde recibes los productos listos</p>
+                            <input value={direccionA} onChange={e => setDireccionA(e.target.value)} maxLength={50} placeholder="Dirección exacta: calle, número, complemento" style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 12, boxSizing: 'border-box', marginBottom: 6 }} />
+                            <SelectorBarrioEntrega
+                              compacto
+                              prefillIdBarrio={selectedPedido.id_barrio || null}
+                              onChange={(id, cob) => { setIdBarrioA(id); setCoberturaA(cob); }}
+                            />
                           </div>
                         )}
                         {itemsListos.pendientes && itemsListos.pendientes.length > 0 && (
@@ -1021,7 +1033,7 @@ const PedidosClientePage = () => {
                             <p style={{ fontSize: 10, fontWeight: 700, color: '#1565c0', margin: '0 0 4px' }}>Tipo de entrega (productos en producción)</p>
                             <select
                               value={tipoEntregaB}
-                              onChange={e => { setTipoEntregaB(e.target.value); if (!direccionB) { setDireccionB(selectedPedido.direccion_entrega || ''); setMunicipioB(selectedPedido.municipio_entrega || ''); setDeptoB(selectedPedido.departamento_entrega || ''); } }}
+                              onChange={e => { setTipoEntregaB(e.target.value); if (e.target.value === 'domicilio' && !direccionB) setDireccionB(selectedPedido.direccion_entrega || ''); }}
                               style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 13, boxSizing: 'border-box', marginBottom: 8, background: '#fff' }}>
                               <option value="">Sin especificar</option>
                               <option value="domicilio">Domicilio</option>
@@ -1029,19 +1041,29 @@ const PedidosClientePage = () => {
                             </select>
                             {tipoEntregaB === 'domicilio' && (
                               <div style={{ marginBottom: 8 }}>
-                                <p style={{ fontSize: 10, fontWeight: 700, color: '#1565c0', margin: '0 0 3px' }}>Dirección de entrega</p>
-                                <input value={direccionB} onChange={e => setDireccionB(e.target.value)} placeholder="Dirección" style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 12, boxSizing: 'border-box', marginBottom: 4 }} />
-                                <input value={municipioB} onChange={e => setMunicipioB(e.target.value)} placeholder="Municipio" style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 12, boxSizing: 'border-box', marginBottom: 4 }} />
-                                <input value={deptoB} onChange={e => setDeptoB(e.target.value)} placeholder="Departamento" style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 12, boxSizing: 'border-box' }} />
+                                <p style={{ fontSize: 10, fontWeight: 700, color: '#1565c0', margin: '0 0 3px' }}>Dónde recibes los productos en producción</p>
+                                <input value={direccionB} onChange={e => setDireccionB(e.target.value)} maxLength={50} placeholder="Dirección exacta: calle, número, complemento" style={{ width: '100%', padding: '7px 10px', borderRadius: 8, border: '1.5px solid #90caf9', fontSize: 12, boxSizing: 'border-box', marginBottom: 6 }} />
+                                <SelectorBarrioEntrega
+                                  compacto
+                                  prefillIdBarrio={selectedPedido.id_barrio || null}
+                                  onChange={(id, cob) => { setIdBarrioB(id); setCoberturaB(cob); }}
+                                />
                               </div>
                             )}
                           </>
                         )}
+                        {(tipoEntregaA === 'domicilio' || tipoEntregaB === 'domicilio') && (coberturaA?.disponible || coberturaB?.disponible) && (
+                          <p style={{ fontSize: 11, color: '#5c6bc0', margin: '0 0 8px', lineHeight: 1.4 }}>
+                            Cada entrega a domicilio se cobra por separado.
+                            {coberturaA?.disponible && ` Productos listos: ${coberturaA.final === 0 ? 'domicilio gratis' : `domicilio ${COP(coberturaA.final)}`}.`}
+                            {coberturaB?.disponible && ` En producción: ${coberturaB.final === 0 ? 'domicilio gratis' : `domicilio ${COP(coberturaB.final)}`}.`}
+                          </p>
+                        )}
                         {gruposError && <p style={{ fontSize: 11, color: '#c62828', margin: '0 0 8px' }}>{gruposError}</p>}
                         <button
                           onClick={handleCrearGrupos}
-                          disabled={creandoGrupos || !fechaAnticipada}
-                          style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: creandoGrupos || !fechaAnticipada ? '#b0bec5' : '#1565c0', color: '#fff', fontWeight: 800, fontSize: 13, cursor: creandoGrupos || !fechaAnticipada ? 'not-allowed' : 'pointer' }}>
+                          disabled={creandoGrupos || !puedeCrearGrupos}
+                          style={{ width: '100%', padding: '10px 0', borderRadius: 10, border: 'none', background: creandoGrupos || !puedeCrearGrupos ? '#b0bec5' : '#1565c0', color: '#fff', fontWeight: 800, fontSize: 13, cursor: creandoGrupos || !puedeCrearGrupos ? 'not-allowed' : 'pointer' }}>
                           {creandoGrupos ? 'Guardando...' : 'Confirmar entrega anticipada'}
                         </button>
                       </div>
@@ -1077,9 +1099,27 @@ const PedidosClientePage = () => {
                             {g.productos.length} producto(s) en este grupo
                           </p>
                         )}
+                        <p style={{ fontSize: 11, color: '#4a148c', margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          {g.tipo_entrega === 'domicilio' ? <><Truck size={11} /> Domicilio
+                            {g.precio_domicilio_final != null && (
+                              <span style={{ fontWeight: 800 }}>
+                                {' · '}
+                                {g.precio_domicilio_base != null && g.precio_domicilio_base !== g.precio_domicilio_final && (
+                                  <span style={{ textDecoration: 'line-through', color: '#9e9e9e', fontWeight: 500 }}>{COP(g.precio_domicilio_base)} </span>
+                                )}
+                                {g.precio_domicilio_final === 0 ? 'gratis' : COP(g.precio_domicilio_final)}
+                              </span>
+                            )}
+                          </> : g.tipo_entrega === 'tienda' ? <><Store size={11} /> Retiro en tienda</> : 'Método de entrega sin definir'}
+                        </p>
                       </div>
                     ))}
                   </div>
+                  {selectedPedido.costo_domicilio_total != null && Number(selectedPedido.costo_domicilio_total) > 0 && (
+                    <p style={{ fontSize: 11, fontWeight: 700, color: '#6a1b9a', margin: '10px 0 0' }}>
+                      Total domicilios de este pedido: {COP(Number(selectedPedido.costo_domicilio_total))}
+                    </p>
+                  )}
                 </div>
               )}
 

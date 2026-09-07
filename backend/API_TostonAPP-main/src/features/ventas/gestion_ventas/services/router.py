@@ -241,8 +241,8 @@ def crear_grupos_envio_endpoint(
         datos.tipo_entrega_a,
         datos.tipo_entrega_b,
         actual,
-        datos.direccion_a,   datos.municipio_a,   datos.departamento_a,
-        datos.direccion_b,   datos.municipio_b,   datos.departamento_b,
+        datos.direccion_a,   datos.id_barrio_a,
+        datos.direccion_b,   datos.id_barrio_b,
     )
 
 
@@ -267,7 +267,10 @@ def actualizar_tipo_entrega_grupo_endpoint(
     actual:    dict    = Depends(obtener_usuario_actual),
 ):
     """Cliente o admin actualiza el tipo de entrega de un grupo (domicilio/tienda)."""
-    return actualizar_tipo_entrega_grupo(db, id_venta, id_grupo, datos.tipo_entrega, actual)
+    return actualizar_tipo_entrega_grupo(
+        db, id_venta, id_grupo, datos.tipo_entrega, actual,
+        id_barrio=datos.id_barrio, direccion=datos.direccion,
+    )
 
 
 @router.delete("/{id_venta}/grupos/{id_grupo}", response_model=VentaResponse)
@@ -295,6 +298,6 @@ def editar_grupo_endpoint(
     return editar_grupo(
         db, id_venta, id_grupo,
         datos.fecha_entrega, datos.tipo_entrega,
-        datos.direccion_entrega, datos.municipio_entrega, datos.departamento_entrega,
+        datos.direccion_entrega, datos.id_barrio,
         actual,
     )

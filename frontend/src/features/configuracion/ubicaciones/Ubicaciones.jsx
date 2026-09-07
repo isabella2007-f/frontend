@@ -17,10 +17,12 @@ export default function Ubicaciones() {
 
   return (
     <div className="ub-wrap">
-      <div className="ub-head">
-        <h1><MapPin size={20} /> Ubicaciones</h1>
-        <p>Departamentos, ciudades y barrios de Colombia. Cada barrio tiene el
-          precio del domicilio de los pedidos que se entregan ahí.</p>
+      <div className="page-header ub-head">
+        <h1 className="page-header__title">Gestión de Ubicaciones</h1>
+        <div className="page-header__line" />
+        <p className="ub-head__desc">Departamentos, ciudades y barrios de Colombia.
+          Cada barrio define el precio del domicilio de los pedidos que se
+          entregan ahí.</p>
       </div>
 
       <div className="ub-tabs">

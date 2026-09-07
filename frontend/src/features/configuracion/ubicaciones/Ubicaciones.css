@@ -4,11 +4,9 @@
 .ub-wrap { padding: 20px 24px 60px; }
 
 .ub-head { margin-bottom: 18px; }
-.ub-head h1 {
-  font-size: 22px; font-weight: 800; color: #1a1a1a; margin: 0 0 4px;
-  display: flex; align-items: center; gap: 8px;
+.ub-head__desc {
+  margin: 8px 0 0; font-size: 13px; color: #757575; max-width: 640px; line-height: 1.45;
 }
-.ub-head p { margin: 0; font-size: 13px; color: #757575; }
 
 /* ── Tabs ── */
 .ub-tabs { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 1px solid #eee; }
