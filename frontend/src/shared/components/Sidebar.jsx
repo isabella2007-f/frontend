@@ -7,7 +7,7 @@ import { usePrivilegios } from "../../context/PrivilegiosContext";
 import LogoutModal from "./LogoutModal";
 import "./Sidebar.css";
 import {
-  Globe, LayoutDashboard, Settings, ShoppingCart, Layers, TrendingUp, User,
+  Globe, LayoutDashboard, Settings, ShoppingCart, Layers, TrendingUp,
   Home, Pencil, Shield, Users, Upload, FolderOpen, Package, Receipt,
   Building2, Tag, Box, ClipboardList, Utensils, ShoppingBag, Truck,
   Navigation, History, Banknote, Bell, UserCircle, RotateCcw,
@@ -85,32 +85,20 @@ const adminMenuItems = [
    domicilios de sus compañeros, sin liquidaciones. Las mismas rutas están en
    adminMenuItems para cualquier otro rol que tenga el privilegio. */
 const repartidorMenuItems = [
-  {
-    section: "Mi Trabajo",
-    Icon: Truck,
-    items: [
-      { label: "Mis Entregas",   Icon: Navigation,      link: "/admin/mis-entregas" },
-      { label: "Pedido Actual",  Icon: Package,         link: "/admin/pedido-actual" },
-      { label: "Mi Dashboard",   Icon: LayoutDashboard, link: "/admin/mi-dashboard" },
-      { label: "Historial",      Icon: History,         link: "/admin/historial-entregas" },
-      { label: "Lo que entregué", Icon: Banknote,       link: "/admin/mis-ganancias" },
-      { label: "Notificaciones", Icon: Bell,            link: "/admin/mis-notificaciones" },
-      { label: "Mi Perfil",      Icon: UserCircle,      link: "/admin/mi-perfil-repartidor" },
-    ],
-  },
+  { section: "Mis Entregas",    Icon: Navigation,      link: "/admin/mis-entregas" },
+  { section: "Pedido Actual",   Icon: Package,         link: "/admin/pedido-actual" },
+  { section: "Mi Dashboard",    Icon: LayoutDashboard, link: "/admin/mi-dashboard" },
+  { section: "Historial",       Icon: History,         link: "/admin/historial-entregas" },
+  { section: "Lo que entregué", Icon: Banknote,        link: "/admin/mis-ganancias" },
+  { section: "Notificaciones",  Icon: Bell,            link: "/admin/mis-notificaciones" },
+  { section: "Mi Perfil",       Icon: UserCircle,      link: "/admin/mi-perfil-repartidor" },
 ];
 
 const clienteMenuItems = [
-  {
-    section: "Mi Cuenta",
-    Icon: User,
-    items: [
-      { label: "Inicio",       Icon: Home,        link: "/cliente/inicio" },
-      { label: "Mis Pedidos",  Icon: ShoppingBag, link: "/cliente/pedidos" },
-      { label: "Devoluciones", Icon: RotateCcw,   link: "/cliente/devoluciones" },
-      { label: "Mi Perfil",    Icon: UserCircle,  link: "/cliente/perfil" },
-    ],
-  },
+  { section: "Inicio",        Icon: Home,        link: "/cliente/inicio" },
+  { section: "Mis Pedidos",   Icon: ShoppingBag, link: "/cliente/pedidos" },
+  { section: "Devoluciones",  Icon: RotateCcw,   link: "/cliente/devoluciones" },
+  { section: "Mi Perfil",     Icon: UserCircle,  link: "/cliente/perfil" },
 ];
 
 /* =========================

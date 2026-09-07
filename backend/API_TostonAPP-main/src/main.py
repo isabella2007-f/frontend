@@ -14,6 +14,7 @@ from src.features.configuracion.roles.services.router              import router
 from src.features.configuracion.notificaciones.services.router     import router as notificaciones_router
 from src.features.configuracion.salidas.services.router            import router as salidas_router
 from src.features.configuracion.control_acceso.services.router     import router as control_acceso_router
+from src.features.configuracion.landing.services.router            import router as landing_router
 
 # ── Compras ──
 from src.features.compras.insumos.services.router           import router as insumos_router
@@ -577,6 +578,39 @@ def migrate_db():
         except Exception:
             pass
 
+    # ── Configuración de Landing Page ─────────────────────────────────────────
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS Configuracion_Landing (
+                    ID                       INT AUTO_INCREMENT PRIMARY KEY,
+                    hero_badge               VARCHAR(200)  NULL,
+                    hero_title               VARCHAR(200)  NULL,
+                    hero_description         TEXT          NULL,
+                    history_title            VARCHAR(200)  NULL,
+                    history_description      TEXT          NULL,
+                    cta_title                VARCHAR(200)  NULL,
+                    cta_description          TEXT          NULL,
+                    contact_phone1           VARCHAR(50)   NULL,
+                    contact_phone2           VARCHAR(50)   NULL,
+                    contact_address_line     VARCHAR(200)  NULL,
+                    contact_city             VARCHAR(200)  NULL,
+                    contact_instagram_url    VARCHAR(500)  NULL,
+                    contact_instagram_handle VARCHAR(100)  NULL,
+                    horario_lunes_viernes    VARCHAR(100)  NULL,
+                    horario_sabado           VARCHAR(100)  NULL
+                )
+            """))
+            conn.commit()
+            # Garantizar que exista la fila singleton (ID=1)
+            conn.execute(text(
+                "INSERT IGNORE INTO Configuracion_Landing (ID) VALUES (1)"
+            ))
+            conn.commit()
+            _log.info("migración Configuracion_Landing: lista")
+        except Exception as exc:
+            _log.debug("migración Configuracion_Landing skip: %.80s", exc)
+
 
 def _migrar_catalogo_permisos(engine):
     """Migración idempotente del catálogo de permisos (ver `migrate_db`)."""
@@ -702,6 +736,7 @@ app.include_router(roles_router,           prefix=PREFIX)
 app.include_router(notificaciones_router,  prefix=PREFIX)
 app.include_router(salidas_router,         prefix=PREFIX)
 app.include_router(control_acceso_router,  prefix=PREFIX)
+app.include_router(landing_router,         prefix=PREFIX)
 
 app.include_router(insumos_router,         prefix=PREFIX)
 app.include_router(cat_insumos_router,     prefix=PREFIX)

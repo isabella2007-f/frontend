@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useRef } from "react";
-import { Search, X, AlertTriangle, Package, ClipboardList, Check, Eye, PenLine, Ban, RefreshCw, Building2, FolderOpen, ShoppingCart, Lock } from "lucide-react";
+import { Search, X, AlertTriangle, Package, ClipboardList, Check, Eye, PenLine, Ban, RefreshCw, Building2, FolderOpen, ShoppingCart, ShoppingBag, Lock } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { fmtFecha } from "../../../utils/dateUtils.js";
 import DateRangeFilter from "../../../shared/components/DateRangeFilter";
@@ -117,7 +117,7 @@ function Toast({ toast }) {
 function SkeletonRows() {
   return Array.from({ length: 5 }, (_, i) => (
     <tr key={i}>
-      {Array.from({ length: 6 }, (_, j) => (
+      {Array.from({ length: 7 }, (_, j) => (
         <td key={j}><div className="skeleton-cell" /></td>
       ))}
     </tr>
@@ -268,6 +268,17 @@ function ModalDetallesOrden({ orden, onClose }) {
               </div>
             </div>
           </div>
+
+          {/* Pedido de venta vinculado */}
+          {orden.idVenta && (
+            <div className="field-input field-input--disabled" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <ShoppingBag size={18} />
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: "#9e9e9e", textTransform: "uppercase", letterSpacing: 1 }}>Pedido de venta</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "#1565c0" }}>#{orden.idVenta}</div>
+              </div>
+            </div>
+          )}
 
           {/* Fechas — siempre visible, antes del bloque de insumos */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
@@ -1426,6 +1437,7 @@ export default function GestionOrdenesProduccion() {
                 <tr>
                   <th style={{ width: 44 }}>Nº</th>
                   <th>Producto</th>
+                  <th>Pedido</th>
                   <th>Cantidad</th>
                   <th>Entrega</th>
                   <th>Costo</th>
@@ -1438,7 +1450,7 @@ export default function GestionOrdenesProduccion() {
                   <SkeletonRows />
                 ) : paged.length === 0 ? (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={8}>
                       <div className="empty-state">
                         <div className="empty-state__icon"><Building2 size={32} strokeWidth={1} style={{ color: "#bdbdbd" }} /></div>
                         <p className="empty-state__text">
@@ -1464,6 +1476,12 @@ export default function GestionOrdenesProduccion() {
                           <Lock size={9} style={{ verticalAlign: "-1px" }} /> Ligada al pedido #{orden.idVenta}
                         </span>
                       )}
+                    </td>
+                    <td>
+                      {orden.idVenta
+                        ? <span style={{ fontSize: 12, fontWeight: 700, color: "#1565c0", background: "#e3f2fd", border: "1px solid #90caf9", borderRadius: 6, padding: "3px 8px", whiteSpace: "nowrap" }}>#{orden.idVenta}</span>
+                        : <span style={{ fontSize: 12, color: "#bdbdbd" }}>—</span>
+                      }
                     </td>
                     <td style={{ fontSize: 14, fontWeight: 700, color: "#2e7d32" }}>{orden.cantidad}</td>
                     <td>

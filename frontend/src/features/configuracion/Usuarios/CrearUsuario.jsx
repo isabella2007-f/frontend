@@ -457,7 +457,7 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
           <StepsBar current={step} />
         </div>
 
-        <div className="modal-body" style={{ overflowY: "hidden", overflowX: "hidden", minHeight: 280 }}>
+        <div className="modal-body" style={{ overflowY: "auto", overflowX: "hidden", minHeight: 280 }}>
 
           {/* ── Step 1: Datos personales ── */}
           {step === 1 && (

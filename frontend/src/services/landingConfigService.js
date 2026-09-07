@@ -1,4 +1,4 @@
-const KEY = 'toston_landing_config';
+import { apiFetch } from "../utils/api";
 
 export const LANDING_DEFAULTS = {
   heroBadge:          "SABOR NATURAL 100%",
@@ -18,21 +18,31 @@ export const LANDING_DEFAULTS = {
   horarioSabado:         "8:00 am – 8:00 pm",
 };
 
-export function getLandingConfig() {
+export async function getLandingConfig() {
   try {
-    const saved = localStorage.getItem(KEY);
-    if (!saved) return { ...LANDING_DEFAULTS };
-    return { ...LANDING_DEFAULTS, ...JSON.parse(saved) };
+    const data = await apiFetch("/configuracion/landing");
+    // Mezcla los defaults con lo que devuelve el backend
+    // (los campos null en el backend usan el default)
+    const merged = { ...LANDING_DEFAULTS };
+    for (const key of Object.keys(LANDING_DEFAULTS)) {
+      if (data[key] != null) merged[key] = data[key];
+    }
+    return merged;
   } catch {
     return { ...LANDING_DEFAULTS };
   }
 }
 
-export function saveLandingConfig(config) {
-  localStorage.setItem(KEY, JSON.stringify(config));
+export async function saveLandingConfig(config) {
+  return apiFetch("/configuracion/landing", {
+    method: "PUT",
+    body: JSON.stringify(config),
+  });
 }
 
-export function resetLandingConfig() {
-  localStorage.removeItem(KEY);
+export async function resetLandingConfig() {
+  await saveLandingConfig(
+    Object.fromEntries(Object.keys(LANDING_DEFAULTS).map(k => [k, LANDING_DEFAULTS[k]]))
+  );
   return { ...LANDING_DEFAULTS };
 }

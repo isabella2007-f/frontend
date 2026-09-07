@@ -65,8 +65,8 @@ export function validateCedula(cedula, tipoDocumento) {
   }
   
   // Validar rango de dígitos según tipo de documento
-  const minDigitos = tipoDocumento === "NIT" ? 9 : 8;
-  const maxDigitos = tipoDocumento === "NIT" ? 11 : 10;
+  const minDigitos = tipoDocumento === "NIT" ? 9 : tipoDocumento === "CE" ? 6 : 8;
+  const maxDigitos = tipoDocumento === "NIT" ? 11 : tipoDocumento === "CE" ? 15 : 10;
   
   if (cedulaLimpia.length < minDigitos || cedulaLimpia.length > maxDigitos) {
     return `La cédula debe tener entre ${minDigitos} y ${maxDigitos} dígitos`;
