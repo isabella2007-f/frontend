@@ -697,6 +697,85 @@ def migrate_db():
         except Exception as exc:
             _log.debug("migración backfill Fecha_Vencimiento skip: %.80s", exc)
 
+    # ── Módulo Ubicaciones: ampliar columna Permisos.Permiso ─────────────────
+    # cambiar_estado_ubicaciones tiene 26 chars; si la columna es VARCHAR(50) no cabe.
+    with engine.connect() as conn:
+        try:
+            conn.execute(text(
+                "ALTER TABLE Permisos MODIFY COLUMN Permiso VARCHAR(60) NOT NULL"
+            ))
+            conn.commit()
+        except Exception:
+            pass  # ya tiene el ancho correcto o mayor
+
+    # ── Módulo Ubicaciones: tablas de jerarquía y ofertas ────────────────────
+    with engine.connect() as conn:
+        for stmt in [
+            """CREATE TABLE IF NOT EXISTS Departamentos (
+                ID_Departamento INT AUTO_INCREMENT PRIMARY KEY,
+                Nombre          VARCHAR(80) NOT NULL,
+                Estado          INT NOT NULL DEFAULT 1,
+                FOREIGN KEY (Estado) REFERENCES Estados(ID_Estados)
+            )""",
+            """CREATE TABLE IF NOT EXISTS Ciudades (
+                ID_Ciudad       INT AUTO_INCREMENT PRIMARY KEY,
+                ID_Departamento INT NOT NULL,
+                Nombre          VARCHAR(120) NOT NULL,
+                Estado          INT NOT NULL DEFAULT 1,
+                FOREIGN KEY (ID_Departamento) REFERENCES Departamentos(ID_Departamento),
+                FOREIGN KEY (Estado)          REFERENCES Estados(ID_Estados)
+            )""",
+            """CREATE TABLE IF NOT EXISTS Barrios (
+                ID_Barrio INT AUTO_INCREMENT PRIMARY KEY,
+                ID_Ciudad INT NOT NULL,
+                Nombre    VARCHAR(35) NOT NULL,
+                Precio    INT NOT NULL DEFAULT 0,
+                Es_Base   TINYINT(1) NOT NULL DEFAULT 0,
+                Estado    INT NOT NULL DEFAULT 1,
+                FOREIGN KEY (ID_Ciudad) REFERENCES Ciudades(ID_Ciudad),
+                FOREIGN KEY (Estado)    REFERENCES Estados(ID_Estados)
+            )""",
+            """CREATE TABLE IF NOT EXISTS Ofertas_Domicilio (
+                ID_Oferta      INT AUTO_INCREMENT PRIMARY KEY,
+                Nombre         VARCHAR(80) NOT NULL,
+                Tipo           VARCHAR(10) NOT NULL DEFAULT 'descuento',
+                Monto_Pesos    INT NULL,
+                Porcentaje     INT NULL,
+                Dias_Semana    VARCHAR(20) NULL,
+                Dias_Mes       VARCHAR(120) NULL,
+                Estado         INT NOT NULL DEFAULT 1,
+                Fecha_Creacion DATETIME NULL,
+                FOREIGN KEY (Estado) REFERENCES Estados(ID_Estados)
+            )""",
+            """CREATE TABLE IF NOT EXISTS Oferta_x_Barrio (
+                ID_Oferta INT NOT NULL,
+                ID_Barrio INT NOT NULL,
+                PRIMARY KEY (ID_Oferta, ID_Barrio),
+                FOREIGN KEY (ID_Oferta) REFERENCES Ofertas_Domicilio(ID_Oferta),
+                FOREIGN KEY (ID_Barrio) REFERENCES Barrios(ID_Barrio)
+            )""",
+        ]:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception:
+                pass  # tabla ya existe
+
+    # ── Módulo Ubicaciones: columnas nuevas en tablas existentes ─────────────
+    with engine.connect() as conn:
+        for stmt in [
+            "ALTER TABLE Usuarios   ADD COLUMN ID_Barrio              INT  NULL",
+            "ALTER TABLE Domicilios ADD COLUMN ID_Barrio              INT  NULL",
+            "ALTER TABLE Domicilios ADD COLUMN Precio_Domicilio_Base  INT  NULL",
+            "ALTER TABLE Domicilios ADD COLUMN Precio_Domicilio_Final INT  NULL",
+            "ALTER TABLE Domicilios ADD COLUMN Desglose_Ofertas       JSON NULL",
+        ]:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception:
+                pass  # columna ya existe
+
 
 def _migrar_catalogo_permisos(engine):
     """Migración idempotente del catálogo de permisos (ver `migrate_db`)."""
