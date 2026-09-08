@@ -16,7 +16,7 @@
  */
 
 import { useState } from "react";
-import { X, AlertTriangle, Check, Lock, Eye, Plus, PenLine, Trash2, Ban, Upload, Search, RefreshCw, CheckCircle2, XCircle, Globe, Settings, Shield, Users, Package, FolderOpen, Truck, ClipboardList, Factory, Banknote, ShoppingCart, CornerUpLeft, Bike, Receipt, BarChart2, MapPin } from "lucide-react";
+import { X, AlertTriangle, Check, Lock, Eye, Plus, PenLine, Trash2, Ban, Upload, Search, RefreshCw, CheckCircle2, XCircle, Globe, Settings, Shield, Users, Package, FolderOpen, Truck, ClipboardList, Factory, Banknote, ShoppingCart, CornerUpLeft, Bike, BarChart2, MapPin } from "lucide-react";
 import { createPortal } from "react-dom";
 
 // ── Catálogo completo de acciones posibles ──────────────────────────────────
@@ -83,7 +83,6 @@ const GRUPOS_MODULOS = [
       { key: "Pedidos",       label: "Pedidos",        Icon: ShoppingCart,  acciones: ["ver", "crear", "editar", "cancelar"] },
       { key: "Devoluciones",  label: "Devoluciones",   Icon: CornerUpLeft,  acciones: ["ver", "crear", "editar", "aprobar", "desaprobar"] },
       { key: "Domicilios",    label: "Domicilios",     Icon: Bike,          acciones: ["ver", "ver_detalles", "crear", "editar", "cambiar_estado"] },
-      { key: "Liquidaciones", label: "Liquidaciones",  Icon: Receipt,       acciones: ["ver", "crear", "editar", "eliminar", "anular"] },
     ],
   },
 ];

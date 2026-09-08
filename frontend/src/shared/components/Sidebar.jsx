@@ -76,7 +76,6 @@ const adminMenuItems = [
       { label: "Lo que entregué", Icon: Banknote,      link: "/admin/mis-ganancias",        clave: "Domicilios_cambiar_estado", hideFromAdmin: true },
       { label: "Notificaciones", Icon: Bell,           link: "/admin/mis-notificaciones",   clave: "Domicilios_cambiar_estado", hideFromAdmin: true },
       { label: "Mi Perfil",      Icon: UserCircle,     link: "/admin/mi-perfil-repartidor", clave: "Domicilios_cambiar_estado", hideFromAdmin: true },
-      { label: "Liquidaciones",  Icon: Banknote,       link: "/admin/liquidaciones",        privilegioKey: "Liquidaciones" },
       { label: "Devoluciones",   Icon: RotateCcw,      link: "/admin/devoluciones",         privilegioKey: "Devoluciones" },
     ],
   },

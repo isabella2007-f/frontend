@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from src.shared.services.models import (
     Usuario, Rol, RolXPermiso, Permiso, Venta, Domicilio, VerificacionEmail,
     Devolucion, CreditoCliente,
-    TarifaEmpleado, Liquidacion, RegistroHoras, Salida,
+    Salida,
 )
 from src.features.auth.services.service import (
     hashear_contrasena, _enviar_email_verificacion,
@@ -438,9 +438,6 @@ def eliminar_persona(db: Session, id_persona: int, actual: dict) -> dict:
             bloqueos.append(f"crédito a favor de ${credito.Saldo}")
     else:
         _cuenta(Domicilio, Domicilio.ID_Empleado == id_persona, "domicilio(s) asignado(s)")
-        _cuenta(Liquidacion, Liquidacion.ID_Empleado == id_persona, "liquidación(es)")
-        _cuenta(RegistroHoras, RegistroHoras.ID_Empleado == id_persona, "registro(s) de horas")
-        _cuenta(TarifaEmpleado, TarifaEmpleado.ID_Empleado == id_persona, "tarifa(s)")
         _cuenta(Salida, Salida.ID_Empleado == id_persona, "salida(s) registrada(s)")
 
     if bloqueos:

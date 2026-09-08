@@ -77,11 +77,6 @@ const CLAVE_A_PERMISO = {
   "Ubicaciones_editar":              "editar_ubicaciones",
   "Ubicaciones_eliminar":            "eliminar_ubicaciones",
   "Ubicaciones_cambiar_estado":      "cambiar_estado_ubicaciones",
-  "Liquidaciones_ver":               "ver_liquidaciones",
-  "Liquidaciones_crear":             "crear_liquidaciones",
-  "Liquidaciones_editar":            "editar_liquidaciones",
-  "Liquidaciones_eliminar":          "eliminar_liquidaciones",
-  "Liquidaciones_anular":            "anular_liquidaciones",
 };
 
 // nombre backend → clave(s) frontend (varias claves pueden compartir permiso)

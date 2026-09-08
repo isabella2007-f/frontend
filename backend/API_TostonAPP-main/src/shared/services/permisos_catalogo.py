@@ -108,12 +108,6 @@ PERMISOS: list[tuple[str, str, str, str]] = [
     ("editar_domicilios",         "Editar y asignar repartidor a un domicilio",          "Domicilios",         "editar"),
     ("cambiar_estado_domicilios", "Cambiar el estado de un domicilio",                   "Domicilios",         "cambiar_estado"),
 
-    # ── Liquidaciones (feature de frontend) ──
-    ("ver_liquidaciones",         "Ver listado y detalle de liquidaciones",             "Liquidaciones",      "ver"),
-    ("crear_liquidaciones",       "Registrar nuevas liquidaciones",                      "Liquidaciones",      "crear"),
-    ("editar_liquidaciones",      "Editar liquidaciones",                                "Liquidaciones",      "editar"),
-    ("eliminar_liquidaciones",    "Eliminar liquidaciones",                              "Liquidaciones",      "eliminar"),
-    ("anular_liquidaciones",      "Anular liquidaciones",                                "Liquidaciones",      "anular"),
 
     # ── Ubicaciones (Departamento → Ciudad → Barrio + ofertas de domicilio) ──
     # Los 5 gobiernan barrios Y ofertas de domicilio con mapeo natural. La
