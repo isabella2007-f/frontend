@@ -22,7 +22,7 @@ export const LANDING_DEFAULTS = {
   // de horario" del carrito y el checkout. diasAtencion = CSV ISO (1=Lun … 7=Dom).
   horaApertura:          "08:00",
   horaCierre:            "20:00",
-  diasAtencion:          "1,2,3,4,5,6",
+  diasAtencion:          "1,2,3,4,5,6,7",
 };
 
 export async function getLandingConfig() {

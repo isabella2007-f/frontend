@@ -7,7 +7,9 @@
 
 const HORA_APERTURA_DEF = "08:00";
 const HORA_CIERRE_DEF   = "20:00";
-const DIAS_DEF          = "1,2,3,4,5,6";
+// Se atiende todos los días. Es lo que rige mientras el administrador no
+// configure otra cosa desde "Editar Landing Page".
+const DIAS_DEF          = "1,2,3,4,5,6,7";
 
 const parseHM = (s) => {
   const [h, m] = String(s || "").split(":").map(Number);
