@@ -39,7 +39,6 @@ from src.features.ventas.gestion_ventas.services.schemas import (
     VentaCreate,
 )
 from src.features.ventas.gestion_ventas.services.service import (
-    COSTO_DOMICILIO,
     actualizar_estado_grupo,
     cambiar_estado,
     cancelar_grupo_pendiente,
@@ -63,8 +62,11 @@ from src.features.ventas.pedidos.services.service import (
     registrar_cobro_pedido,
 )
 from src.shared.services.models import (
+    Barrio,
     Base,
+    Ciudad,
     CreditoCliente,
+    Departamento,
     Domicilio,
     FichaTecnica,
     GrupoEnvio,
@@ -81,6 +83,12 @@ PRECIO = Decimal("10000")
 ID_CLI = 1
 ID_P1  = 1   # Tostón, stock=10, sin producción por defecto
 ID_P2  = 2   # Torta,  stock=2,  se marca por encargo en los tests que lo necesitan
+
+# Zona de entrega. El precio del barrio es el costo del domicilio: antes era
+# la constante COSTO_DOMICILIO, que dejó de existir cuando pasó a depender
+# del barrio.
+ID_BARRIO = 1
+COSTO_DOMICILIO = 5000
 ADMIN  = 99  # ID ficticio para auditorías
 
 
@@ -115,6 +123,14 @@ class BaseTest(unittest.TestCase):
             ID_Producto=ID_P2, nombre="Torta",
             Precio_venta=PRECIO, Stock=2, Estado=1, Publicado=1,
         ))
+        # Zona de entrega: el precio del domicilio sale del barrio y se congela
+        # al crear la venta. Sin barrio no hay pedido a domicilio posible.
+        self.db.add(Departamento(ID_Departamento=1, Nombre="Antioquia", Estado=1))
+        self.db.add(Ciudad(ID_Ciudad=1, ID_Departamento=1, Nombre="Medellín", Estado=1))
+        self.db.add(Barrio(
+            ID_Barrio=ID_BARRIO, ID_Ciudad=1, Nombre="Centro",
+            Precio=COSTO_DOMICILIO, Estado=1,
+        ))
         self.db.commit()
 
     # ── Builders ────────────────────────────────────────────────────────────
@@ -130,6 +146,7 @@ class BaseTest(unittest.TestCase):
     def dom_input(self, **kw):
         base = dict(
             Direccion_entrega="Calle 1",
+            ID_Barrio=ID_BARRIO,
             Municipio_entrega="Medellín",
             Departamento_entrega="Antioquia",
         )
@@ -1270,8 +1287,9 @@ class GruposEnvioTest(BaseTest):
             tipo_entrega_b=None,
             actual=self.mock_admin(),
             direccion_a="Calle 2",
-            municipio_a="Bogotá",
-            departamento_a="Cundinamarca",
+            # El municipio y el departamento salen del barrio: mandarlos
+            # aparte dejaba la puerta abierta a que no coincidieran.
+            id_barrio_a=ID_BARRIO,
         )
         dom = self.primer_dom()
         self.assertIsNotNone(dom)
@@ -1501,8 +1519,7 @@ class GruposEnvioTest(BaseTest):
             tipo_entrega_b="domicilio",
             actual=self.mock_admin(),
             direccion_b="Carrera 5",
-            municipio_b="Cali",
-            departamento_b="Valle",
+            id_barrio_b=ID_BARRIO,
         )
         grupos = self.grupos(v.ID_Venta)
         grupo_a = next(g for g in grupos if g.Tipo == "anticipado")

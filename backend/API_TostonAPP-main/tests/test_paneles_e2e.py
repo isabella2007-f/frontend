@@ -1088,7 +1088,12 @@ class CancelarTests(PanelBase):
 
         respuesta = self.patch(f"/pedidos/{id_venta}/cancelar-mi-pedido", self.cliente)
         self.assertEqual(respuesta.status_code, 400)
-        self.assertIn("preparación", self.detalle(respuesta).lower())
+        # Se comprueba que el rechazo le explique al cliente qué hacer, no la
+        # redacción exacta: atarse a una palabra convierte cualquier arreglo de
+        # estilo en una prueba roja.
+        detalle = self.detalle(respuesta).lower()
+        self.assertIn("no puede cancelarse", detalle)
+        self.assertIn("escríbenos", detalle)
         self.assertEqual(self.venta(id_venta).Estado, PEDIDO_CONFIRMADO)
 
     def test_el_cliente_tampoco_cancela_lo_que_ya_esta_en_produccion(self):

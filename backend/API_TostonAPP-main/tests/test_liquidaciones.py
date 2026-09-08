@@ -251,6 +251,7 @@ class TestTransicionEstados(unittest.TestCase):
         db, _ = self._db_con_liq("Pagada")
         datos = LiquidacionPago(
             Metodo_Pago="Efectivo",
+            Referencia_Pago="REC-001",
             Fecha_Pago=datetime(2024, 7, 1, 12, 0),
         )
         with self.assertRaises(HTTPException) as ctx:
@@ -262,6 +263,7 @@ class TestTransicionEstados(unittest.TestCase):
         db, _ = self._db_con_liq("Anulada")
         datos = LiquidacionPago(
             Metodo_Pago="Efectivo",
+            Referencia_Pago="REC-001",
             Fecha_Pago=datetime(2024, 7, 1, 12, 0),
         )
         with self.assertRaises(HTTPException) as ctx:
@@ -295,6 +297,7 @@ class TestTransicionEstados(unittest.TestCase):
                    return_value={}):
             registrar_pago(db, 1, LiquidacionPago(
                 Metodo_Pago="Transferencia",
+                Referencia_Pago="TRF-90210",
                 Fecha_Pago=datetime(2024, 7, 1, 12, 0),
             ))
 
