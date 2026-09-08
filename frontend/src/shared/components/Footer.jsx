@@ -111,7 +111,7 @@ function Footer({ onExplorar }) {
   };
 
   return (
-    <footer style={{ background: "#1b5e20", color: "#fff", fontFamily: "inherit" }}>
+    <footer id="contacto" style={{ background: "#1b5e20", color: "#fff", fontFamily: "inherit", scrollMarginTop: 80 }}>
 
       {/* ── Acento superior ── */}
       <div style={{ height: 4, background: "linear-gradient(90deg, #4caf50, #81c784, #4caf50)" }} />

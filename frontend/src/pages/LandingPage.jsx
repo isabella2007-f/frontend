@@ -635,9 +635,6 @@ const LandingPage = ({ hideNavbar = false }) => {
                   Explorar menú
                   <ShoppingBag className="w-5 h-5 group-hover:rotate-12 transition-transform" />
                 </button>
-                <button onClick={() => scrollToSection('nosotros')} data-tooltip="Conocer más sobre nosotros" className="flex items-center gap-2 px-10 py-5 bg-white text-[#1b5e20] font-bold rounded-2xl border-2 border-[#e8f5e9] hover:border-[#1b5e20] transition-all w-full sm:w-auto justify-center">
-                  Nuestra historia
-                </button>
               </div>
             </div>
             <div className="flex-1 relative">

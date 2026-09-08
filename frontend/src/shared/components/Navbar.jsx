@@ -134,11 +134,9 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
           {/* CENTER — Logo */}
           <div
             className="logo-wrapper"
-            onClick={() => {
-              if (user?.tipo === 'empleado') navigate('/admin');
-              else navigate('/');
-            }}
+            onClick={() => navigate('/')}
             style={{ cursor: 'pointer' }}
+            data-tooltip="Ir a la página principal"
           >
             <img src="/Logo.png" alt="Logo" className="logo" />
           </div>
@@ -159,7 +157,7 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
                       className="nav-link"
                     >Productos</button>
                     <button
-                      onClick={() => isOnLanding ? scrollToSection('nosotros')  : navigate({ pathname: '/', hash: '#nosotros' })}
+                      onClick={() => isOnLanding ? scrollToSection('contacto')  : navigate({ pathname: '/', hash: '#contacto' })}
                       className="nav-link"
                     >Nosotros</button>
                   </>
