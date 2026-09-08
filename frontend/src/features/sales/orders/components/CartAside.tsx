@@ -285,7 +285,7 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
                         )}
                       </div>
                       <div className="flex-1 flex flex-col justify-between py-0.5 min-w-0">
-                        <div>
+                        <div className="pr-7">
                           <h4 className="font-black text-gray-800 text-[15px] leading-tight mb-1 truncate">{item.nombre}</h4>
                           <p className="font-black text-[13px]" style={{ color: 'var(--green-700)' }}>{COP(item.precio)} c/u</p>
                           {(item as any).pedidoProgramado && (
@@ -319,8 +319,8 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
                         </div>
                       </div>
                     </div>
-                    <button onClick={() => removeFromCart(item.id)} aria-label={`Quitar ${item.nombre}`} className="absolute top-2 right-2 p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all">
-                      <X size={20} strokeWidth={2.5} />
+                    <button onClick={() => removeFromCart(item.id)} aria-label={`Quitar ${item.nombre}`} className="absolute top-2 right-2 z-20 w-9 h-9 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all">
+                      <X size={18} strokeWidth={2.5} />
                     </button>
                   </div>
                 ))}
