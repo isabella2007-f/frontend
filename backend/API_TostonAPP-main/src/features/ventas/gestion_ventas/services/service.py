@@ -275,6 +275,27 @@ PARTE_PREORDEN   = "preorden"     # el faltante, que llega cuando cierra la orde
 PARTE_TODO       = "todo"         # la línea completa
 
 
+ORDEN_COMPLETADA = 11
+
+
+def anticipo_vuelve_solo(db: Session, id_venta: int) -> bool:
+    """¿Se le abona el anticipo al cliente al cancelar, sin preguntarle a nadie?
+
+    Solo mientras no se haya horneado. Si alguna orden de producción del pedido
+    llegó a completarse, los insumos ya se gastaron y qué pasa con esa plata lo
+    acuerdan el cliente y quien atiende: el sistema no decide por ellos.
+
+    Antes se devolvía siempre —también después de hornear, con la panadería ya
+    con el gasto encima— y las pruebas pedían lo contrario, que no volviera
+    nunca, dejando al cliente que cancela a tiempo persiguiendo su plata.
+    """
+    horneado = db.query(OrdenProduccion).filter(
+        OrdenProduccion.ID_Venta == id_venta,
+        OrdenProduccion.Estado == ORDEN_COMPLETADA,
+    ).first()
+    return horneado is None
+
+
 def _abonar_credito(db: Session, id_usuario: int, monto: Decimal, id_venta: int) -> None:
     """Le devuelve plata al cliente como saldo a favor.
 
@@ -1701,12 +1722,13 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
         if credito_devuelto > 0:
             _abonar_credito(db, venta.ID_Usuario, credito_devuelto, id_venta)
 
-        # Devolver el anticipo registrado como saldo a favor (igual que en
-        # resolver_escalado_cancelar y cancelar_grupo_pendiente). La devolución
-        # en efectivo/transferencia la gestiona el admin fuera del sistema; el
-        # crédito queda como trazabilidad y puede usarse en el próximo pedido.
+        # Devolver el anticipo registrado como saldo a favor, pero solo si no
+        # se alcanzó a hornear: ahí la panadería no gastó nada y la plata del
+        # cliente vuelve sola. Horneado, los insumos ya se fueron y qué pasa
+        # con esa plata lo acuerdan el cliente y quien atiende.
         _anticipo = Decimal(str(getattr(venta, "Anticipo_Monto", None) or 0))
-        if getattr(venta, "Anticipo_Registrado", 0) and _anticipo > 0:
+        if (getattr(venta, "Anticipo_Registrado", 0) and _anticipo > 0
+                and anticipo_vuelve_solo(db, id_venta)):
             _abonar_credito(db, venta.ID_Usuario, _anticipo, id_venta)
 
     if venta.Estado == EstadoPedido.PENDIENTE:
@@ -2308,7 +2330,8 @@ def resolver_escalado_cancelar(db: Session, id_venta: int, actual: dict) -> dict
     # CreditoCliente asegura que quede trazabilidad y que el cliente pueda usarlo
     # en el próximo pedido si lo prefiere.
     _anticipo = Decimal(str(getattr(venta, "Anticipo_Monto", None) or 0))
-    if getattr(venta, "Anticipo_Registrado", 0) and _anticipo > 0:
+    if (getattr(venta, "Anticipo_Registrado", 0) and _anticipo > 0
+            and anticipo_vuelve_solo(db, id_venta)):
         _abonar_credito(db, venta.ID_Usuario, _anticipo, id_venta)
 
     # Cancelar OPs abiertas (defensivo: no debería haber ninguna en ESCALADO_A_ADMIN,
@@ -2880,7 +2903,9 @@ def cancelar_grupo_pendiente(
             )
             # Guardrail: nunca devolver más del anticipo total (por redondeo extremo)
             reembolso = min(reembolso, anticipo)
-            if reembolso > 0:
+            # La misma regla que al cancelar el pedido entero: horneado, la
+            # plata no se mueve sola.
+            if reembolso > 0 and anticipo_vuelve_solo(db, id_venta):
                 _abonar_credito(db, venta.ID_Usuario, reembolso, id_venta)
 
     # Cancelar el domicilio asociado al grupo si existe y no está ya en estado
