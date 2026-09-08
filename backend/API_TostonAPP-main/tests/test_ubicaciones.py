@@ -330,5 +330,36 @@ class OfertaCrudTests(Base_):
             ofs.editar_oferta(self.db, of.ID_Oferta, OfertaUpdate(barrios=[]))
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# Resumen del catálogo (tarjetas del panel)
+# ══════════════════════════════════════════════════════════════════════════
+class ResumenTests(Base_):
+    def test_contadores_y_precio_promedio(self):
+        r = svc.resumen(self.db)
+        self.assertEqual(r["departamentos"], 2)
+        self.assertEqual(r["departamentos_activos"], 2)
+        self.assertEqual(r["ciudades"], 2)
+        self.assertEqual(r["barrios"], 2)
+        # Centro y El Poblado con toda la cadena activa.
+        self.assertEqual(r["barrios_con_cobertura"], 2)
+        self.assertEqual(r["precio_min"], 5000)
+        self.assertEqual(r["precio_max"], 8000)
+        self.assertEqual(r["precio_promedio"], 6500)
+
+    def test_barrio_sin_cadena_activa_no_cuenta_como_cobertura(self):
+        svc.cambiar_estado_ciudad(self.db, 1, 2)   # Medellín inactiva
+        r = svc.resumen(self.db)
+        self.assertEqual(r["barrios"], 2)
+        self.assertEqual(r["barrios_con_cobertura"], 0)
+        self.assertEqual(r["precio_promedio"], 0)
+
+    def test_cuenta_ofertas_activas(self):
+        self._oferta(pesos=1000, estado=1)
+        self._oferta(pesos=2000, estado=2)
+        r = svc.resumen(self.db)
+        self.assertEqual(r["ofertas"], 2)
+        self.assertEqual(r["ofertas_activas"], 1)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

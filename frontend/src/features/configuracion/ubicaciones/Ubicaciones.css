@@ -7,16 +7,38 @@
   min-height: 100%;
 }
 
-.ub-head { margin-bottom: 20px; }
-.ub-head__desc {
-  margin: 12px 0 0;
-  max-width: 620px;
-  padding: 10px 0 10px 14px;
-  border-left: 3px solid #a5d6a7;
-  font-size: 13px;
-  color: #55685a;
-  line-height: 1.6;
+.ub-head { margin-bottom: 18px; }
+
+/* ── Tira de tarjetas de resumen ── */
+.ub-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px;
 }
+@media (max-width: 780px) { .ub-stats { grid-template-columns: repeat(2, 1fr); } }
+.ub-stat {
+  display: flex; align-items: center; gap: 12px;
+  background: #fff; border: 1px solid var(--green-100); border-radius: 14px;
+  padding: 13px 16px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 8px 22px rgba(16, 24, 40, .05);
+  transition: transform .15s, box-shadow .15s;
+}
+.ub-stat:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(46, 125, 50, .12); }
+.ub-stat__icon {
+  width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.ub-stat__icon--dep { background: #e8f5e9; color: #2e7d32; }
+.ub-stat__icon--ciu { background: #e3f2fd; color: #1565c0; }
+.ub-stat__icon--bar { background: #fff3e0; color: #e65100; }
+.ub-stat__icon--pre { background: #f3e5f5; color: #7b1fa2; }
+.ub-stat__num {
+  font-family: var(--font-display, 'Nunito'), sans-serif;
+  font-size: 21px; font-weight: 800; color: #1a2b1f; line-height: 1;
+}
+.ub-stat__label {
+  font-size: 10.5px; font-weight: 700; color: #8a9a8c;
+  text-transform: uppercase; letter-spacing: .05em; margin-top: 3px;
+}
+.ub-stat__hint { font-size: 10.5px; color: #b0bec5; font-weight: 600; }
 
 /* ── Tabs ── */
 .ub-tabs {
@@ -84,8 +106,10 @@
   cursor: pointer; user-select: none;
 }
 .ub-node__row:hover { background: #fafafa; }
-.ub-node__row--depto { background: #eef6ee; font-weight: 700; }
-.ub-node__row--ciudad { padding-left: 34px; }
+.ub-node__row--depto {
+  background: #eef6ee; font-weight: 700; box-shadow: inset 3px 0 0 #66bb6a;
+}
+.ub-node__row--ciudad { padding-left: 34px; box-shadow: inset 3px 0 0 #b8ddba; }
 .ub-node__row--barrio { padding-left: 54px; cursor: default; }
 .ub-node__row--barrio:hover { background: #fff; }
 .ub-node__caret { color: #9e9e9e; flex-shrink: 0; transition: transform .15s; }

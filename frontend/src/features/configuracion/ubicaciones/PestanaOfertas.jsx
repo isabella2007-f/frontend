@@ -71,11 +71,21 @@ export default function PestanaOfertas() {
   const refrescar = () => setRefreshKey((k) => k + 1);
   const totalPags = Math.max(1, Math.ceil(data.total / PER_PAGE));
 
+  // Cambio de estado optimista: se pinta el toggle al instante y solo se
+  // revierte esa fila si el backend falla — sin recargar toda la tabla.
   const toggleEstado = async (o) => {
+    const nuevo = o.estado === 1 ? 2 : 1;
+    setData((d) => ({
+      ...d, ofertas: d.ofertas.map((x) => (x.id === o.id ? { ...x, estado: nuevo } : x)),
+    }));
     try {
-      await cambiarEstadoOferta(o.id, o.estado === 1 ? 2 : 1);
-      refrescar();
-    } catch (e) { setAviso(e?.message || "No se pudo cambiar el estado"); }
+      await cambiarEstadoOferta(o.id, nuevo);
+    } catch (e) {
+      setData((d) => ({
+        ...d, ofertas: d.ofertas.map((x) => (x.id === o.id ? { ...x, estado: o.estado } : x)),
+      }));
+      setAviso(e?.message || "No se pudo cambiar el estado");
+    }
   };
 
   const pedirEliminar = (o) => setConfirmar({

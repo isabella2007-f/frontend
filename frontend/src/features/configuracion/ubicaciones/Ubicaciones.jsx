@@ -20,9 +20,6 @@ export default function Ubicaciones() {
       <div className="page-header ub-head">
         <h1 className="page-header__title">Gestión de Ubicaciones</h1>
         <div className="page-header__line" />
-        <p className="ub-head__desc">Departamentos, ciudades y barrios de Colombia.
-          Cada barrio define el precio del domicilio de los pedidos que se
-          entregan ahí.</p>
       </div>
 
       <div className="ub-tabs">

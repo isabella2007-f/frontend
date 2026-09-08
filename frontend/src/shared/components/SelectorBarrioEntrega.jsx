@@ -136,9 +136,19 @@ export default function SelectorBarrioEntrega({
 
   const tieneDescuento = cobertura?.disponible && cobertura.final < cobertura.base;
   const tieneRecargo = cobertura?.disponible && cobertura.final > cobertura.base;
-  const etiquetas = (cobertura?.desglose?.ofertas || [])
-    .map((o) => o.nombre)
-    .filter((v, i, a) => a.indexOf(v) === i);
+
+  // Un barrio puede tener recargo Y descuento a la vez. Se listan por separado
+  // (cada uno con su nombre y color); el precio de arriba ya muestra el neto.
+  const uniq = (a) => a.filter((v, i, arr) => arr.indexOf(v) === i);
+  const ofertasDesglose = cobertura?.desglose?.ofertas || [];
+  const nombresRecargo = uniq(
+    ofertasDesglose.filter((o) => String(o.tipo || "").startsWith("recargo") || o.efecto > 0)
+      .map((o) => o.nombre),
+  );
+  const nombresDescuento = uniq(
+    ofertasDesglose.filter((o) => String(o.tipo || "").startsWith("descuento") || o.efecto < 0)
+      .map((o) => o.nombre),
+  );
 
   const cls = compacto
     ? "w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 text-sm text-gray-700 font-medium"
@@ -208,9 +218,14 @@ export default function SelectorBarrioEntrega({
                 {cobertura.final === 0 ? "gratis" : COP(cobertura.final)}
               </span>
             </span>
-            {etiquetas.length > 0 && (
-              <span style={{ display: "block", fontSize: 11, color: "#546e7a", marginTop: 1 }}>
-                {tieneRecargo ? "Recargo: " : "Oferta: "}{etiquetas.join(", ")}
+            {nombresRecargo.length > 0 && (
+              <span style={{ display: "block", fontSize: 11, color: "#e65100", marginTop: 1 }}>
+                Recargo: {nombresRecargo.join(", ")}
+              </span>
+            )}
+            {nombresDescuento.length > 0 && (
+              <span style={{ display: "block", fontSize: 11, color: "#2e7d32", marginTop: 1 }}>
+                Descuento: {nombresDescuento.join(", ")}
               </span>
             )}
           </div>

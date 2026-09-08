@@ -65,6 +65,8 @@ export const getCobertura = (idBarrio) =>
 
 // ── Panel: jerarquía ──────────────────────────────────────────────────────
 
+export const getResumen = () => apiFetch("/ubicaciones/resumen");
+
 export const getDepartamentos = () => apiFetch("/ubicaciones/departamentos");
 
 export const getCiudades = (idDepartamento = null) =>

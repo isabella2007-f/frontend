@@ -299,6 +299,55 @@ def listar_departamentos(db: Session) -> list[dict]:
     ]
 
 
+def resumen(db: Session) -> dict:
+    """Contadores del catálogo para la tira de tarjetas del panel.
+
+    `con cobertura` = barrio activo Y su ciudad activa Y su departamento activo
+    (mismo criterio que `estado_efectivo`). Los precios promedian solo sobre esos
+    barrios: son los que de verdad se pueden cobrar hoy.
+    """
+    deps_total = db.query(func.count(Departamento.ID_Departamento)).scalar() or 0
+    deps_act = (
+        db.query(func.count(Departamento.ID_Departamento))
+        .filter(Departamento.Estado == ACTIVO).scalar() or 0
+    )
+    ciu_total = db.query(func.count(Ciudad.ID_Ciudad)).scalar() or 0
+    barr_total = db.query(func.count(Barrio.ID_Barrio)).scalar() or 0
+
+    n_cob, p_min, p_max, p_avg = (
+        db.query(
+            func.count(Barrio.ID_Barrio), func.min(Barrio.Precio),
+            func.max(Barrio.Precio), func.avg(Barrio.Precio),
+        )
+        .join(Ciudad, Ciudad.ID_Ciudad == Barrio.ID_Ciudad)
+        .join(Departamento, Departamento.ID_Departamento == Ciudad.ID_Departamento)
+        .filter(
+            Barrio.Estado == ACTIVO, Ciudad.Estado == ACTIVO,
+            Departamento.Estado == ACTIVO,
+        )
+        .one()
+    )
+
+    ofertas_total = db.query(func.count(OfertaDomicilio.ID_Oferta)).scalar() or 0
+    ofertas_act = (
+        db.query(func.count(OfertaDomicilio.ID_Oferta))
+        .filter(OfertaDomicilio.Estado == ACTIVO).scalar() or 0
+    )
+
+    return {
+        "departamentos": int(deps_total),
+        "departamentos_activos": int(deps_act),
+        "ciudades": int(ciu_total),
+        "barrios": int(barr_total),
+        "barrios_con_cobertura": int(n_cob or 0),
+        "precio_min": int(p_min) if p_min is not None else 0,
+        "precio_max": int(p_max) if p_max is not None else 0,
+        "precio_promedio": int(round(float(p_avg))) if p_avg is not None else 0,
+        "ofertas": int(ofertas_total),
+        "ofertas_activas": int(ofertas_act),
+    }
+
+
 def listar_ciudades(db: Session, id_departamento: int | None = None,
                     solo_activas: bool = False) -> list[dict]:
     q = db.query(Ciudad).options(selectinload(Ciudad.departamento))

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Search, ChevronRight, Plus, Pencil, Trash2, Eye, MapPin, Building2, Layers,
+  Banknote,
 } from "lucide-react";
 import { usePrivilegios } from "../../../context/PrivilegiosContext";
 import {
-  getDepartamentos, getCiudades, getBarrios, getBarrio,
+  getResumen, getDepartamentos, getCiudades, getBarrios, getBarrio,
   cambiarEstadoDepartamento, cambiarEstadoCiudad, cambiarEstadoBarrio,
   accionMasivaEstado, eliminarBarrio,
 } from "../../../services/ubicacionesService";
@@ -27,6 +28,44 @@ function Pager({ pagina, totalPags, onPagina, className = "ub-pager", extra }) {
       <button disabled={pagina <= 1} onClick={() => onPagina(pagina - 1)}>‹</button>
       <span>Página {pagina} de {totalPags}{extra ? ` · ${extra}` : ""}</span>
       <button disabled={pagina >= totalPags} onClick={() => onPagina(pagina + 1)}>›</button>
+    </div>
+  );
+}
+
+/** Tira de tarjetas de resumen del catálogo. Se recarga con `refreshKey`. */
+function ResumenStats({ refreshKey }) {
+  const [r, setR] = useState(null);
+
+  useEffect(() => {
+    getResumen().then(setR).catch(() => setR(null));
+  }, [refreshKey]);
+
+  if (!r) return null;
+
+  const cards = [
+    { icon: <Layers size={19} />, mod: "dep", num: r.departamentos,
+      label: "Departamentos", hint: `${r.departamentos_activos} activos` },
+    { icon: <Building2 size={19} />, mod: "ciu", num: r.ciudades,
+      label: "Ciudades / municipios" },
+    { icon: <MapPin size={19} />, mod: "bar", num: r.barrios,
+      label: "Barrios", hint: `${r.barrios_con_cobertura} con cobertura` },
+    { icon: <Banknote size={19} />, mod: "pre", num: fmt(r.precio_promedio),
+      label: "Domicilio promedio",
+      hint: r.precio_min !== r.precio_max ? `${fmt(r.precio_min)} – ${fmt(r.precio_max)}` : null },
+  ];
+
+  return (
+    <div className="ub-stats">
+      {cards.map((c) => (
+        <div className="ub-stat" key={c.label}>
+          <div className={`ub-stat__icon ub-stat__icon--${c.mod}`}>{c.icon}</div>
+          <div style={{ minWidth: 0 }}>
+            <div className="ub-stat__num">{c.num}</div>
+            <div className="ub-stat__label">{c.label}</div>
+            {c.hint && <div className="ub-stat__hint">{c.hint}</div>}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -252,6 +291,8 @@ export default function PestanaUbicaciones() {
 
   return (
     <div>
+      <ResumenStats refreshKey={refreshKey} />
+
       {aviso && (
         <div className="ub-info" style={{ marginBottom: 12 }}>
           <span>{aviso}</span>

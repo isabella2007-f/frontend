@@ -75,6 +75,15 @@ def checkout_cobertura(
 # PANEL — jerarquía (lectura)
 # ═══════════════════════════════════════════════════════════════════════
 
+@router.get("/resumen")
+def resumen(
+    db: Session = Depends(get_db),
+    _: dict = Depends(requiere_permiso("ver_ubicaciones")),
+):
+    """Contadores del catálogo (tarjetas del panel)."""
+    return service.resumen(db)
+
+
 @router.get("/departamentos")
 def listar_departamentos(
     db: Session = Depends(get_db),
