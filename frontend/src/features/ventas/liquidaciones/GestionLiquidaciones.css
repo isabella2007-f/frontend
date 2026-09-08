@@ -1126,6 +1126,34 @@
 }
 
 /* ─────────────────────────────────────────────────────────────
+   BOTONES DE ACCIÓN EN TABLA (patrón act-btn)
+   ───────────────────────────────────────────────────────────── */
+.liq-root .liq-actions-cell {
+  display: flex;
+  gap: 5px;
+  justify-content: center;
+  align-items: center;
+}
+.liq-root .liq-act-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  transition: transform .15s, background .15s, border-color .15s;
+}
+.liq-root .liq-act-btn:hover:not(:disabled) { transform: scale(1.1); }
+.liq-root .liq-act-btn:disabled { opacity: .4; cursor: not-allowed; }
+.liq-root .liq-act-btn--view    { background: #e8f5e9; border-color: #a5d6a7; color: var(--liq-verde-700); }
+.liq-root .liq-act-btn--edit    { background: #fff8e1; border-color: #ffe082; color: #f9a825; }
+.liq-root .liq-act-btn--success { background: #e3f2fd; border-color: #90caf9; color: #1565c0; }
+.liq-root .liq-act-btn--delete  { background: #ffebee; border-color: #ef9a9a; color: var(--liq-rojo); }
+
+/* ─────────────────────────────────────────────────────────────
    RESPONSIVE
    ───────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {

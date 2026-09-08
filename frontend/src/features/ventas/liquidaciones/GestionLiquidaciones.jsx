@@ -127,6 +127,15 @@ function Vacio({ icono, titulo, texto }) {
 
 function Modal({ titulo, onClose, children, ancho = "500px", icono, peligro = false }) {
   const Icono = icono || FileText;
+  useEffect(() => {
+    const scrollW = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = "hidden";
+    document.body.style.paddingRight = scrollW + "px";
+    return () => {
+      document.body.style.overflow = "";
+      document.body.style.paddingRight = "";
+    };
+  }, []);
   return (
     <div className="liq-overlay">
       <div className="liq-modal" style={{ maxWidth: ancho }}>
@@ -783,6 +792,8 @@ function TabLiquidaciones({ empleados, onVerDetalle }) {
   const [filtros, setFiltros]   = useState({ idEmpleado: "", estado: "", fechaInicio: "", fechaFin: "", busqueda: "" });
   const [showFiltros, setShowFiltros] = useState(false);
   const [modalGenerar, setModalGenerar] = useState(false);
+  const [modalPago, setModalPago]       = useState(null);
+  const [modalAnular, setModalAnular]   = useState(null);
   const [toast, setToast]       = useState(null);
   const debounceRef             = useRef(null);
 
@@ -929,10 +940,24 @@ function TabLiquidaciones({ empleados, onVerDetalle }) {
                   <td data-label="Estado"><EstadoBadge estado={liq.Estado} /></td>
                   <td data-label="Creada" className="liq-celda-tenue">{fmtFecha(liq.Fecha_Creacion)}</td>
                   <td>
-                    <button className="btn-icon" title="Ver detalle" aria-label="Ver detalle"
-                      onClick={() => onVerDetalle(liq.ID_Liquidacion)}>
-                      <Eye size={15} />
-                    </button>
+                    <div className="liq-actions-cell">
+                      <button className="liq-act-btn liq-act-btn--view" data-tooltip="Ver detalle"
+                        onClick={() => onVerDetalle(liq.ID_Liquidacion)}>
+                        <Eye size={15} />
+                      </button>
+                      {liq.Estado === "Borrador" && (
+                        <button className="liq-act-btn liq-act-btn--success" data-tooltip="Registrar pago"
+                          onClick={() => setModalPago(liq)}>
+                          <CreditCard size={15} />
+                        </button>
+                      )}
+                      {liq.Estado === "Borrador" && (
+                        <button className="liq-act-btn liq-act-btn--delete" data-tooltip="Anular"
+                          onClick={() => setModalAnular(liq)}>
+                          <Ban size={15} />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -951,6 +976,14 @@ function TabLiquidaciones({ empleados, onVerDetalle }) {
             mostrarToast("Liquidación generada en estado Borrador");
             onVerDetalle(liq.ID_Liquidacion);
           }} />
+      )}
+      {modalPago && (
+        <ModalPago liquidacion={modalPago} onClose={() => setModalPago(null)}
+          onPagada={() => { setModalPago(null); mostrarToast("Pago registrado correctamente"); cargar(pagina); }} />
+      )}
+      {modalAnular && (
+        <ModalAnular liquidacion={modalAnular} onClose={() => setModalAnular(null)}
+          onAnulada={() => { setModalAnular(null); mostrarToast("Liquidación anulada"); cargar(pagina); }} />
       )}
     </div>
   );
@@ -1091,12 +1124,14 @@ function TabRegistros({ empleados }) {
                   <td data-label="Horas"><span className="liq-horas">{r.Horas_Trabajadas} h</span></td>
                   <td data-label="Estado"><EstadoBadge estado={r.Estado} /></td>
                   <td>
-                    {r.Estado === "pendiente" && (
-                      <button className="btn-icon btn-icon--danger" title="Eliminar" aria-label="Eliminar registro"
-                        onClick={() => borrarRegistro(r.ID_Registro)}>
-                        <Trash2 size={14} />
-                      </button>
-                    )}
+                    <div className="liq-actions-cell">
+                      {r.Estado === "pendiente" && (
+                        <button className="liq-act-btn liq-act-btn--delete" data-tooltip="Eliminar registro"
+                          onClick={() => borrarRegistro(r.ID_Registro)}>
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
