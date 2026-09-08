@@ -6,6 +6,7 @@ import DateRangeFilter from "../../../shared/components/DateRangeFilter";
 import FilasRelleno from "../../../shared/components/FilasRelleno";
 import { X, Check, AlertTriangle, BarChart2, Clock, CreditCard, Ban, Search, CornerUpLeft, Package, Eye, CheckCircle2, Image, Video, FileText, Paperclip, ClipboardList } from "lucide-react";
 import "./Devoluciones.css";
+import { formatCOP } from "../../../utils/formato";
 
 function SkeletonRows({ cols = 8, rows = 5 }) {
   return Array.from({ length: rows }).map((_, i) => (
@@ -17,8 +18,7 @@ function SkeletonRows({ cols = 8, rows = 5 }) {
   ));
 }
 
-const fmt = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
+const fmt = formatCOP;
 
 const PER_PAGE  = 10;
 const ESTADO_IDS = { Pendiente: 3, Reembolsada: 6, Rechazada: 7 };

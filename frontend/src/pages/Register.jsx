@@ -71,6 +71,9 @@ const Register = () => {
   const [emailChecking,  setEmailChecking]  = useState(false);
   const [emailTaken,     setEmailTaken]     = useState(false);
   const emailDebounceRef = useRef(null);
+  const [docChecking,    setDocChecking]    = useState(false);
+  const [docTaken,       setDocTaken]       = useState(false);
+  const docDebounceRef   = useRef(null);
 
   const [form, setForm] = useState({
     Nombre:               '',
@@ -119,13 +122,39 @@ const Register = () => {
           if (!newForm.Apellidos.trim()) n.Apellidos = 'Los apellidos son obligatorios';
         }
       }
-      if (k === 'Numero_documento') {
-        const tipo  = (k === 'Numero_documento' ? newForm : form).Tipo_documento;
+      if (k === 'Numero_documento' || k === 'Tipo_documento') {
+        const tipo  = newForm.Tipo_documento;
+        const numDoc = newForm.Numero_documento;
         const minD  = tipo === 'NIT' ? 9 : tipo === 'CE' ? 6 : 8;
         const maxD  = tipo === 'NIT' ? 11 : tipo === 'CE' ? 15 : 11;
-        if (!val.trim()) n.Numero_documento = 'El número de documento es obligatorio';
-        else if (val.length < minD || val.length > maxD) n.Numero_documento = `Debe tener entre ${minD} y ${maxD} dígitos`;
-        else delete n.Numero_documento;
+        setDocTaken(false);
+        clearTimeout(docDebounceRef.current);
+        if (!numDoc.trim()) {
+          n.Numero_documento = 'El número de documento es obligatorio';
+          setDocChecking(false);
+        } else if (numDoc.length < minD || numDoc.length > maxD) {
+          n.Numero_documento = `Debe tener entre ${minD} y ${maxD} dígitos`;
+          setDocChecking(false);
+        } else {
+          delete n.Numero_documento;
+          setDocChecking(true);
+          docDebounceRef.current = setTimeout(async () => {
+            try {
+              await apiFetch('/auth/verificar-documento', {
+                method: 'POST',
+                body: JSON.stringify({ numero_documento: numDoc, tipo_documento: tipo }),
+              });
+              setDocChecking(false);
+              setDocTaken(false);
+            } catch (err) {
+              setDocChecking(false);
+              if (err.statusCode === 409) {
+                setDocTaken(true);
+                setErrors(p => ({ ...p, Numero_documento: 'Este número de documento ya está registrado.' }));
+              }
+            }
+          }, 600);
+        }
       }
       if (k === 'Correo') {
         setEmailTaken(false);
@@ -182,6 +211,8 @@ const Register = () => {
     const e = {};
     if (emailChecking) { e.Correo = 'Verificando correo, espera un momento…'; }
     else if (emailTaken) { e.Correo = 'Este correo ya está registrado.'; }
+    if (docChecking) { e.Numero_documento = 'Verificando el documento, espera un momento…'; }
+    else if (docTaken) { e.Numero_documento = 'Este número de documento ya está registrado.'; }
     const esNIT = form.Tipo_documento === 'NIT';
     if (esNIT) {
       if (!form.RazonSocial.trim()) e.RazonSocial = 'La razón social es obligatoria';
@@ -345,6 +376,12 @@ const Register = () => {
                     inputMode="numeric"
                     maxLength={form.Tipo_documento === 'CE' ? 15 : form.Tipo_documento === 'NIT' ? 11 : 11}
                   />
+                  {docChecking && (
+                    <span className="auth-spinner" style={{ width: 14, height: 14, marginRight: 10, flexShrink: 0 }} />
+                  )}
+                  {!docChecking && form.Numero_documento && !errors.Numero_documento && !docTaken && (
+                    <span style={{ marginRight: 10, color: '#16a34a', flexShrink: 0 }}><Check size={15} /></span>
+                  )}
                 </div>
               </div>
               {errors.Numero_documento && <p style={{ margin: '3px 0 0', fontSize: 11, color: '#dc2626' }}>{errors.Numero_documento}</p>}

@@ -151,6 +151,16 @@ def migrate_db():
             # Backfill: las órdenes previas heredan su Fecha_inicio como aproximación.
             "ALTER TABLE Orden_Produccion ADD COLUMN Fecha_Creacion DATETIME NULL",
             "UPDATE Orden_Produccion SET Fecha_Creacion = Fecha_inicio WHERE Fecha_Creacion IS NULL",
+            # Landing: punto exacto del local en el mapa + horario de atención
+            # estructurado (gobierna el aviso de "fuera de horario").
+            "ALTER TABLE Configuracion_Landing ADD COLUMN map_lat DECIMAL(10,7) NULL",
+            "ALTER TABLE Configuracion_Landing ADD COLUMN map_lng DECIMAL(10,7) NULL",
+            "ALTER TABLE Configuracion_Landing ADD COLUMN hora_apertura VARCHAR(5) NULL",
+            "ALTER TABLE Configuracion_Landing ADD COLUMN hora_cierre VARCHAR(5) NULL",
+            "ALTER TABLE Configuracion_Landing ADD COLUMN dias_atencion VARCHAR(20) NULL",
+            # Marca que el propio cliente eliminó su cuenta (para distinguirla de
+            # una desactivada por un admin y poder recuperarla).
+            "ALTER TABLE Usuarios ADD COLUMN Auto_Eliminado TINYINT(1) NOT NULL DEFAULT 0",
             # Chat de domicilios persistido en BD (antes se perdía en cada reinicio)
             """CREATE TABLE IF NOT EXISTS MensajesChat (
                 ID_Mensaje       INT AUTO_INCREMENT PRIMARY KEY,

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { formatCOP } from "../../../utils/formato";
 import {
   Check, X, Package, ClipboardList, Building2, Calendar, CreditCard, PenLine,
   AlertTriangle, CheckCircle2, Ban, Banknote, Receipt, Tag, Paperclip, Clock, ChevronDown,
@@ -41,12 +42,7 @@ const METODOS_PAGO = [
   { value: "transferencia", label: "Transferencia", Icon: Building2 },
 ];
 
-const COP = (n) =>
-  new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    maximumFractionDigits: 0,
-  }).format(n);
+const COP = formatCOP;
 
 const calcularSubtotal = (items) =>
   (items || []).reduce((s, i) => s + (Number(i.cantidad) || 0) * (Number(i.precioUnd) || 0), 0);

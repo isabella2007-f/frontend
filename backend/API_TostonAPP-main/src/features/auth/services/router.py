@@ -12,6 +12,7 @@ from .schemas import (
     CambiarContrasenaInput, CambiarContrasenaResponse,
     PerfilUpdate, FotoUrlInput,
     ReenviarVerificacionInput, ReenviarVerificacionResponse,
+    VerificarDocumentoInput,
 )
 from .service import (
     autenticar, crear_token, obtener_nombre_rol,
@@ -20,6 +21,7 @@ from .service import (
     cambiar_contrasena, actualizar_foto_perfil, eliminar_foto_perfil,
     obtener_mis_permisos, verificar_email_token, reenviar_verificacion,
     verificar_token_empleado, buscar_por_correo, eliminar_mi_cuenta as _svc_eliminar_cuenta,
+    documento_en_uso,
 )
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -138,6 +140,13 @@ def verificar_correo_disponible(datos: RecuperarContrasenaInput, db: Session = D
     registro, _ = buscar_por_correo(db, datos.correo)
     if registro:
         raise HTTPException(status_code=409, detail="Este correo ya está registrado.")
+    return {"disponible": True}
+
+
+@router.post("/verificar-documento")
+def verificar_documento_disponible(datos: VerificarDocumentoInput, db: Session = Depends(get_db)):
+    if documento_en_uso(db, datos.numero_documento):
+        raise HTTPException(status_code=409, detail="Este número de documento ya está registrado.")
     return {"disponible": True}
 
 

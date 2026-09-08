@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect, useRef } from "react";
 import { esEmpleadoRepartidor } from "../../../utils/roles.js";
 import { Navigate } from "react-router-dom";
+import { formatCOP } from "../../../utils/formato";
 import {
   Search, Bike, Package, CheckCircle2, XCircle, Clock,
   MapPin, AlertTriangle, AlertCircle, User, ShoppingBag, CreditCard, Calendar,
@@ -37,8 +38,7 @@ function SkeletonRows({ cols = 9, rows = 5 }) {
 }
 
 /* ─── Helpers ────────────────────────────────────────────── */
-const fmt = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
+const fmt = formatCOP;
 
 const PER_PAGE = 5;
 

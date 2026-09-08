@@ -11,6 +11,9 @@ export interface CartItem {
 
 const CART_KEY = "toston_app_cart";
 
+/** Tope de unidades por línea: máximo 4 dígitos. */
+export const MAX_QTY = 9999;
+
 /** Lo que pasó al intentar agregar algo al carrito. */
 export interface ResultadoAgregar {
   /** Cuántas unidades entraron de verdad. */
@@ -82,7 +85,7 @@ export const updateQuantity = (productId: number, quantity: number): void => {
   const item = cart.find((i) => i.id === productId);
   if (item) {
     // `stock || Infinity` dejaba sin tope justo lo que tiene stock 0.
-    item.cantidad = Math.max(1, Math.min(quantity, topeDe(item)));
+    item.cantidad = Math.max(1, Math.min(quantity, MAX_QTY, topeDe(item)));
     saveCart(cart);
     window.dispatchEvent(new Event('cart-updated'));
   }
@@ -125,8 +128,8 @@ export const addToCartWithQty = (
   };
   // El pedido programado llega desde afuera: puede convertir en ilimitado algo
   // que ya estaba en el carrito con tope.
-  const tope = topeDe({ ...referencia, pedidoProgramado:
-    pedidoProgramado || (referencia as any).pedidoProgramado });
+  const tope = Math.min(MAX_QTY, topeDe({ ...referencia, pedidoProgramado:
+    pedidoProgramado || (referencia as any).pedidoProgramado }));
 
   const yaHay = existing?.cantidad ?? 0;
   const cabe  = Math.max(0, tope - yaHay);

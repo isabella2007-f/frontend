@@ -144,6 +144,7 @@ def _formato_persona(registro: Usuario, rol_nombre: str = None) -> dict:
         "ID_Rol":         id_rol,
         "nombre_rol":     rol_nombre,
         "Estado":         registro.Estado,
+        "Auto_Eliminado": bool(getattr(registro, "Auto_Eliminado", 0)),
         "Fecha_creacion": registro.Fecha_creacion,
         "tipo":           _tipo_desde_rol(id_rol),
     }
@@ -189,6 +190,21 @@ def _cedula_en_uso(db: Session, cedula: str, excluir_id: int = None) -> bool:
     if excluir_id:
         q = q.filter(Usuario.ID_Usuario != excluir_id)
     return q.first() is not None
+
+
+def verificar_disponibilidad(db: Session, correo: str | None = None,
+                             cedula: str | None = None, excluir_id: int | None = None) -> dict:
+    """¿Están libres el correo y/o la cédula? Para avisar en el wizard de creación
+    antes de enviar el formulario completo."""
+    out: dict = {}
+    if correo:
+        q = db.query(Usuario).filter(Usuario.Correo == correo)
+        if excluir_id:
+            q = q.filter(Usuario.ID_Usuario != excluir_id)
+        out["correo_disponible"] = q.first() is None
+    if cedula:
+        out["cedula_disponible"] = not _cedula_en_uso(db, cedula, excluir_id=excluir_id)
+    return out
 
 
 def crear_empleado(db: Session, datos: EmpleadoCreate, actual: dict) -> dict:
@@ -325,6 +341,12 @@ def editar_persona(db: Session, id_persona: int, datos: PersonaUpdate, actual: d
         if _cedula_en_uso(db, datos.Cedula, excluir_id=id_persona):
             raise HTTPException(status_code=400, detail="Cédula ya registrada")
 
+    if datos.Correo and datos.Correo != registro.Correo:
+        if db.query(Usuario).filter(
+            Usuario.Correo == datos.Correo, Usuario.ID_Usuario != id_persona
+        ).first():
+            raise HTTPException(status_code=400, detail="Correo ya registrado")
+
     if datos.Telefono:
         error_telefono = validar_telefono(datos.Telefono)
         if error_telefono:
@@ -342,6 +364,10 @@ def editar_persona(db: Session, id_persona: int, datos: PersonaUpdate, actual: d
             registro.Contrasena = hashear_contrasena(valor)
         else:
             setattr(registro, campo, valor)
+
+    # Editar una cuenta que su dueño eliminó = recuperarla.
+    if getattr(registro, "Auto_Eliminado", 0):
+        registro.Auto_Eliminado = 0
 
     db.commit()
     db.refresh(registro)
@@ -372,6 +398,9 @@ def cambiar_estado(db: Session, id_persona: int, nuevo_estado: int, actual: dict
             )
 
     registro.Estado = nuevo_estado
+    # Reactivar una cuenta auto-eliminada = recuperarla.
+    if nuevo_estado == 1 and getattr(registro, "Auto_Eliminado", 0):
+        registro.Auto_Eliminado = 0
     db.commit()
     db.refresh(registro)
     return _formato_persona(registro, _rol_nombre(db, registro.ID_Rol))

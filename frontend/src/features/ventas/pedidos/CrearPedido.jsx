@@ -14,6 +14,7 @@ import { getCreditoCliente } from "../../../services/devolucionesService.js";
 // La regla del anticipo vive en un solo lugar, espejo del servidor.
 import { pideAnticipo, esFabricable } from "../../../utils/anticipo.js";
 import "./Pedidos.css";
+import { formatCOP } from "../../../utils/formato";
 
 /* ─── Datos de transferencia ─────────────────────────────── */
 const CUENTA_TRANSFERENCIA = {
@@ -24,8 +25,7 @@ const CUENTA_TRANSFERENCIA = {
 };
 
 /* ─── Helpers ────────────────────────────────────────────── */
-const fmt = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
+const fmt = formatCOP;
 
 const METODOS_PAGO = ["Efectivo", "Transferencia", "Mixto"];
 

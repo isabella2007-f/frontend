@@ -9,11 +9,11 @@ import DateRangeFilter from "../../../shared/components/DateRangeFilter";
 import FilasRelleno from "../../../shared/components/FilasRelleno";
 import { usePrivilegio } from "../../../context/PrivilegiosContext";
 import "./compras.css";
+import { formatCOP } from "../../../utils/formato";
 
 const ITEMS_PER_PAGE = 5;
 
-const COP = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(n);
+const COP = formatCOP;
 
 const METODOS_LABEL = {
   efectivo:      { label: "Efectivo",      Icon: Banknote,    bg: "#e8f5e9", color: "#2e7d32", border: "#c8e6c9" },

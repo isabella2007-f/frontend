@@ -11,7 +11,7 @@ from .schemas import (
 from .service import (
     obtener_todos, obtener_persona, crear_empleado,
     crear_cliente, editar_persona, cambiar_estado, eliminar_persona,
-    cambiar_rol_usuario,
+    cambiar_rol_usuario, verificar_disponibilidad,
 )
 
 router = APIRouter(prefix="/usuarios", tags=["Gestión de Usuarios"])
@@ -26,6 +26,19 @@ def listar_todos(
     _:          dict          = Depends(requiere_permiso("ver_usuarios"))
 ):
     return obtener_todos(db, pagina, por_pagina, busqueda)
+
+
+@router.get("/disponibilidad")
+def disponibilidad(
+    correo:     Optional[str] = Query(None),
+    cedula:     Optional[str] = Query(None),
+    excluir_id: Optional[int] = Query(None),
+    db:         Session       = Depends(get_db),
+    _:          dict          = Depends(requiere_permiso("ver_usuarios")),
+):
+    """¿Correo / cédula libres? Se usa en el wizard 'Crear usuario' para marcar
+    el error en el paso 'Personal' antes de avanzar."""
+    return verificar_disponibilidad(db, correo, cedula, excluir_id)
 
 
 @router.get("/{id_persona}", response_model=PersonaResponse)

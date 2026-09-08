@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
+import { milesConApostrofe } from "./utils/formato";
 
 /* ══════════════════════════════════════════════════════════
    UTILIDADES DE FECHAS
@@ -1008,7 +1009,7 @@ export function AppProvider({ children }) {
       tipo:  NOTIF_TIPOS.PEDIDO_NUEVO,
       clave: `${NOTIF_TIPOS.PEDIDO_NUEVO}-${numero}`,
       titulo: `Nuevo pedido: ${numero}`,
-      mensaje: `Se creó el pedido ${numero} para "${payload.cliente?.nombre || "cliente"}". Total: $${(payload.total || 0).toLocaleString("es-CO")}. Estado: ${estadoInicial}.`,
+      mensaje: `Se creó el pedido ${numero} para "${payload.cliente?.nombre || "cliente"}". Total: $${milesConApostrofe(payload.total || 0)}. Estado: ${estadoInicial}.`,
       idReferencia: numero, refNombre: numero,
       idDestinatario: 'admin',
     });

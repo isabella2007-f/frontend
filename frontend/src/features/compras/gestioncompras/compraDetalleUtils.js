@@ -1,3 +1,4 @@
+import { formatCOP } from "../../../utils/formato";
 /* Constantes y helpers compartidos del detalle de insumos de una compra.
    Fuente única para CrearCompra, EditarCompra y DetalleInsumoFields. */
 
@@ -23,5 +24,4 @@ export const unidadesDelGrupo = (idUnidadBase) => {
   return UNIDADES.filter((u) => GRUPO_UNIDAD[u.id] === grupo);
 };
 
-export const COP = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(n);
+export const COP = formatCOP;

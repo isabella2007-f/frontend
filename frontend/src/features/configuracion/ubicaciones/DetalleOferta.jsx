@@ -1,9 +1,9 @@
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { DIAS_SEMANA } from "../../../services/ubicacionesService";
+import { formatCOP } from "../../../utils/formato";
 
-const fmt = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n || 0);
+const fmt = formatCOP;
 
 export default function DetalleOferta({ oferta, onCerrar }) {
   const o = oferta;

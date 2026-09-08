@@ -8,14 +8,14 @@ import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
 import DetalleInsumoFields from "./DetalleInsumoFields.jsx";
 import { GRUPO_UNIDAD, CANT_MAX } from "./compraDetalleUtils.js";
 import "./compras.css";
+import { formatCOP } from "../../../utils/formato";
 
 const METODOS_PAGO = [
   { value: "efectivo",      label: "Efectivo",      Icon: Banknote  },
   { value: "transferencia", label: "Transferencia", Icon: Building2 },
 ];
 
-const COP = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(n);
+const COP = formatCOP;
 
 // total entre $0 y $50 000 000 COP
 const TOTAL_MIN  = 0;

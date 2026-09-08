@@ -17,6 +17,7 @@ import FilasRelleno from "../../../shared/components/FilasRelleno";
 import { puedeEditarsePedido } from "./permisosEdicion.js";
 import { esPagoEfectivo, esPagoMixto, esPagoTransferencia, montoACobrar, montoTransferido } from "../../../utils/metodosPago.js";
 import SearchableSelect from "../../../shared/components/SearchableSelect.jsx";
+import { formatCOP } from "../../../utils/formato.js";
 import {
   Trash2, Truck, Package,
   RotateCcw, X, AlertCircle,
@@ -37,8 +38,7 @@ const CUENTA_TRANSFERENCIA = {
 };
 
 /* ─── Helpers ────────────────────────────────────────────── */
-const fmt = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n ?? 0);
+const fmt = formatCOP;
 
 const PER_PAGE = 5;
 
@@ -1738,7 +1738,7 @@ function ModalRegistrarCobro({ pedido, saving, onClose, onConfirm }) {
           <div>
             <h2 className="text-lg font-black text-white leading-none">Registrar Cobro en Efectivo</h2>
             <p className="text-white/60 text-[9px] font-bold uppercase tracking-widest mt-1">
-              Pedido #{pedido.numero} · ${montoACobrar(pedido).toLocaleString("es-CO")}
+              Pedido #{pedido.numero} · {fmt(montoACobrar(pedido))}
             </p>
           </div>
           <button onClick={onClose} className="text-white/70 hover:text-white"><X size={18} /></button>
@@ -1748,8 +1748,8 @@ function ModalRegistrarCobro({ pedido, saving, onClose, onConfirm }) {
           {/* Pago mixto: en mano va solo una parte del pedido. */}
           {esPagoMixto(pedido.metodo_pago) && (
             <p style={{ fontSize: 12, color: "#757575", background: "#f5f5f5", borderRadius: 8, padding: "8px 10px" }}>
-              Son <strong>${montoACobrar(pedido).toLocaleString("es-CO")}</strong> de
-              un pedido de ${(pedido.total || 0).toLocaleString("es-CO")}: el resto va por transferencia.
+              Son <strong>{fmt(montoACobrar(pedido))}</strong> de
+              un pedido de {fmt(pedido.total || 0)}: el resto va por transferencia.
             </p>
           )}
           <div style={{ display: "flex", gap: 10 }}>

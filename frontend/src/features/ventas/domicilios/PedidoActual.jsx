@@ -4,14 +4,14 @@ import { getDomicilios, getDomicilio, cambiarEstadoDomicilio, registrarPagoEfect
 import { ESTADO_DOMICILIO, ESTADO_DOM_CONFIG, labelEstadoDom, cobroEfectivoPendiente, esDomicilioActivo, esPagoMixto, montoACobrar, transicionesDom } from "./estadosDomicilio";
 import "./DomiciliarioUI.css";
 import "./PedidoActual.css";
+import { formatCOP } from "../../../utils/formato";
 import {
   Package, CheckCircle2, Truck, XCircle, MapPin, CreditCard,
   Clock, X, Check, Navigation, Map, Banknote, Bike, Wallet,
   RefreshCw, AlertCircle, Route, ShoppingBag,
 } from "lucide-react";
 
-const fmt = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
+const fmt = formatCOP;
 
 // Cual es "el pedido actual" cuando hay varios: primero el que ya va en ruta.
 const ESTADO_ORDEN = [

@@ -4,7 +4,7 @@ import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
 import { soloLetras, soloDigitos, esUbicacionValida } from "../../../utils/inputFilters";
 import { GB, getRolStyle, EMPTY_FORM, TIPO_DOC, validatePassword, validateCedula, validateTelefono } from "./usuariosUtils.js";
 import { Ic } from "./usuariosIcons.jsx";
-import { crearEmpleado, crearCliente, editarUsuario } from "../../../services/usuariosService.js";
+import { crearEmpleado, crearCliente, editarUsuario, verificarDisponibilidad } from "../../../services/usuariosService.js";
 import { getUser } from "../../../services/authService.js";
 import { usePrivilegio } from "../../../context/PrivilegiosContext.jsx";
 import SearchableSelect from "../../../shared/components/SearchableSelect.jsx";
@@ -237,6 +237,7 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
 
   const [errors,      setErrors]      = useState({});
   const [saving,      setSaving]      = useState(false);
+  const [checkingStep1, setCheckingStep1] = useState(false);
   const [step,        setStep]        = useState(1);
   const [fotoFile,    setFotoFile]    = useState(null);
   const [showPass,    setShowPass]    = useState(false);
@@ -344,9 +345,29 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
     return e;
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     const e = validateStep(step);
     if (Object.keys(e).length) { setErrors(e); return; }
+
+    // Paso "Personal": avisar de correo / cédula repetidos ANTES de paginar.
+    if (step === 1 && !isEdit) {
+      setCheckingStep1(true);
+      try {
+        const disp = await verificarDisponibilidad({
+          correo: form.correo.trim(),
+          cedula: form.cedula.trim(),
+        });
+        const err2 = {};
+        if (disp.correo_disponible === false) err2.correo = "Este correo ya está registrado";
+        if (disp.cedula_disponible === false) err2.cedula = "Este número de documento ya está registrado";
+        if (Object.keys(err2).length) { setErrors(prev => ({ ...prev, ...err2 })); return; }
+      } catch {
+        // Si la verificación falla (red), no bloquear: el backend revalida al crear.
+      } finally {
+        setCheckingStep1(false);
+      }
+    }
+
     setStep(s => s + 1);
   };
 
@@ -462,6 +483,12 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
           {/* ── Step 1: Datos personales ── */}
           {step === 1 && (
             <>
+              {isEdit && user?.autoEliminado && (
+                <div style={{ marginBottom: 14, padding: "10px 14px", background: "#fff3e0", border: "1px solid #ffe0b2", borderRadius: 12, fontSize: 12, color: "#8d5b00", fontWeight: 600 }}>
+                  Esta persona eliminó su propia cuenta. Al guardar los cambios (o activarla desde el
+                  listado) la cuenta se recupera. Vuelve a registrar su correo y documento si es necesario.
+                </div>
+              )}
               <div style={{ display: "flex", gap: 18, alignItems: "flex-start" }}>
                 <PhotoUploader foto={form.foto} onFoto={(preview, file) => { set("foto", preview); setFotoFile(file); }} />
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -651,7 +678,9 @@ export default function CrearUsuario({ user, roles = [], onClose, onSave }) {
           }
           <div style={{ display: "flex", gap: 10 }}>
             {step < 3
-              ? <button className="btn-save" onClick={handleNext}>Siguiente →</button>
+              ? <button className="btn-save" onClick={handleNext} disabled={checkingStep1}>
+                  {checkingStep1 ? "Verificando…" : "Siguiente →"}
+                </button>
               : <button className="btn-save" onClick={handleSave} disabled={saving}>
                   {saving ? "Guardando…" : isEdit ? "Guardar cambios" : "Crear usuario"}
                 </button>

@@ -2,6 +2,31 @@ from sqlalchemy.orm import Session
 from src.shared.services.models import ConfiguracionLanding
 
 
+# Campos del horario de atención — solo un admin puede modificarlos.
+CAMPOS_HORARIO = ("horaApertura", "horaCierre", "diasAtencion")
+
+_MAPPING = {
+    "heroBadge":              "hero_badge",
+    "heroTitle":              "hero_title",
+    "heroDescription":        "hero_description",
+    "historyTitle":           "history_title",
+    "historyDescription":     "history_description",
+    "ctaTitle":               "cta_title",
+    "ctaDescription":         "cta_description",
+    "contactPhone1":          "contact_phone1",
+    "contactPhone2":          "contact_phone2",
+    "contactAddressLine":     "contact_address_line",
+    "contactCity":            "contact_city",
+    "contactInstagramUrl":    "contact_instagram_url",
+    "contactInstagramHandle": "contact_instagram_handle",
+    "mapLat":                 "map_lat",
+    "mapLng":                 "map_lng",
+    "horaApertura":           "hora_apertura",
+    "horaCierre":             "hora_cierre",
+    "diasAtencion":           "dias_atencion",
+}
+
+
 def _fila(db: Session) -> ConfiguracionLanding:
     """Devuelve la fila singleton (ID=1); la crea si no existe."""
     fila = db.query(ConfiguracionLanding).filter(ConfiguracionLanding.ID == 1).first()
@@ -14,23 +39,10 @@ def _fila(db: Session) -> ConfiguracionLanding:
 
 
 def _to_dict(fila: ConfiguracionLanding) -> dict:
-    return {
-        "heroBadge":              fila.hero_badge,
-        "heroTitle":              fila.hero_title,
-        "heroDescription":        fila.hero_description,
-        "historyTitle":           fila.history_title,
-        "historyDescription":     fila.history_description,
-        "ctaTitle":               fila.cta_title,
-        "ctaDescription":         fila.cta_description,
-        "contactPhone1":          fila.contact_phone1,
-        "contactPhone2":          fila.contact_phone2,
-        "contactAddressLine":     fila.contact_address_line,
-        "contactCity":            fila.contact_city,
-        "contactInstagramUrl":    fila.contact_instagram_url,
-        "contactInstagramHandle": fila.contact_instagram_handle,
-        "horarioLunesViernes":    fila.horario_lunes_viernes,
-        "horarioSabado":          fila.horario_sabado,
-    }
+    out = {campo_js: getattr(fila, campo_db) for campo_js, campo_db in _MAPPING.items()}
+    for k in ("mapLat", "mapLng"):
+        out[k] = float(out[k]) if out[k] is not None else None
+    return out
 
 
 def obtener_config(db: Session) -> dict:
@@ -39,24 +51,7 @@ def obtener_config(db: Session) -> dict:
 
 def guardar_config(db: Session, datos: dict) -> dict:
     fila = _fila(db)
-    mapping = {
-        "heroBadge":              "hero_badge",
-        "heroTitle":              "hero_title",
-        "heroDescription":        "hero_description",
-        "historyTitle":           "history_title",
-        "historyDescription":     "history_description",
-        "ctaTitle":               "cta_title",
-        "ctaDescription":         "cta_description",
-        "contactPhone1":          "contact_phone1",
-        "contactPhone2":          "contact_phone2",
-        "contactAddressLine":     "contact_address_line",
-        "contactCity":            "contact_city",
-        "contactInstagramUrl":    "contact_instagram_url",
-        "contactInstagramHandle": "contact_instagram_handle",
-        "horarioLunesViernes":    "horario_lunes_viernes",
-        "horarioSabado":          "horario_sabado",
-    }
-    for campo_js, campo_db in mapping.items():
+    for campo_js, campo_db in _MAPPING.items():
         valor = datos.get(campo_js)
         if valor is not None:
             setattr(fila, campo_db, valor)

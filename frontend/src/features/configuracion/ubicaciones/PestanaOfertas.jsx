@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Search, Plus, Pencil, Trash2, Eye } from "lucide-react";
 import { usePrivilegios } from "../../../context/PrivilegiosContext";
+import { formatCOP } from "../../../utils/formato";
 import {
   getOfertas, getOferta, cambiarEstadoOferta, eliminarOferta, DIAS_SEMANA,
 } from "../../../services/ubicacionesService";
@@ -8,8 +9,7 @@ import ModalOferta from "./ModalOferta";
 import ModalConfirmar from "./ModalConfirmar";
 import DetalleOferta from "./DetalleOferta";
 
-const fmt = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n || 0);
+const fmt = formatCOP;
 
 const PER_PAGE = 15;
 

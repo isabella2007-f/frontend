@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Leaf, Phone, MapPin, Clock3, ExternalLink, Instagram, ShoppingBag, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getLandingConfig, LANDING_DEFAULTS } from "../../services/landingConfigService";
+import { estaAbierto, filasHorario } from "../../utils/horario";
 
 const FALLBACK_COORDS = { lat: 11.016, lon: -74.825 };
 
@@ -47,8 +48,12 @@ function useGeocoder(query) {
 }
 
 /* ── Mapa OSM ── */
-function MapaEncuentranos({ address }) {
-  const { coords, status } = useGeocoder(address);
+function MapaEncuentranos({ address, lat, lng }) {
+  // Punto exacto configurado por el admin → sin geocodificar.
+  const fijo = lat != null && lng != null && !Number.isNaN(Number(lat)) && !Number.isNaN(Number(lng));
+  const { coords: geoCoords, status: geoStatus } = useGeocoder(fijo ? null : address);
+  const coords = fijo ? { lat: Number(lat), lon: Number(lng) } : geoCoords;
+  const status = fijo ? "ok" : geoStatus;
 
   if (status === "loading") {
     return (
@@ -84,19 +89,13 @@ function MapaEncuentranos({ address }) {
 function Footer({ onExplorar }) {
   const navigate = useNavigate();
   const [cfg, setCfg] = useState({ ...LANDING_DEFAULTS });
-  const h             = new Date().getHours();
 
   useEffect(() => {
     getLandingConfig().then(setCfg);
   }, []);
-  const dia     = new Date().getDay();
-  const abierto = dia !== 0 && h >= 8 && h < 20;
 
-  const horario = [
-    { dias: "Lun – Vie", horas: cfg.horarioLunesViernes, activo: true  },
-    { dias: "Sábado",    horas: cfg.horarioSabado,        activo: true  },
-    { dias: "Domingo",   horas: "Cerrado",                activo: false },
-  ];
+  const abierto = estaAbierto(cfg);
+  const horario = filasHorario(cfg);
 
   const navLinks = [
     { label: "Inicio",    href: "#inicio"    },
@@ -320,7 +319,11 @@ function Footer({ onExplorar }) {
               Abrir en Maps
             </a>
           </div>
-          <MapaEncuentranos address={`${cfg.contactAddressLine}, ${cfg.contactCity}`} />
+          <MapaEncuentranos
+            address={`${cfg.contactAddressLine}, ${cfg.contactCity}`}
+            lat={cfg.mapLat}
+            lng={cfg.mapLng}
+          />
         </div>
 
       </div>

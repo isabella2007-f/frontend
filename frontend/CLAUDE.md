@@ -34,6 +34,10 @@ src/
 - **Pedido dividido = un domicilio por viaje.** En "Mis pedidos" (`PedidosClientePage`), cuando el cliente elige *recibir antes lo disponible*, cada grupo (anticipado / programado) elige su barrio con `SelectorBarrioEntrega` y **cada entrega a domicilio se cobra por separado**. La respuesta trae `grupos_envio[].precio_domicilio_final` (snapshot por grupo) y `costo_domicilio_total` (ya incluido en `total`). `ubicacionesService.js` cachea en memoria las listas del checkout (no la cobertura); las mutaciones del panel limpian la caché.
 - `utils/barrios.js` y la lista de barrios de `utils/direccionEntrega.js` / `FormularioDireccion.jsx` / `SelectorDireccionEntrega.jsx` **quedaron sin uso en la web** (solo las espeja la app Flutter). No borrar hasta sincronizar la app — ver la sección "Sincronización pendiente con la app Flutter" en el CLAUDE.md raíz.
 
+## Formato de dinero y horario
+- **Precios**: `src/utils/formato.js` → `formatCOP(n)` = `$100'000` (pesos, sin decimales, apóstrofe de miles). `milesConApostrofe(n)` para el número solo, `parseMiles(s)` para leerlo. Es el único formateador de dinero de la app (web, panel y factura). No usar `Intl.NumberFormat`/`toLocaleString` para montos.
+- **Horario de atención**: `src/utils/horario.js` (`estaAbierto`, `mensajeFueraHorario`, `rangoHorario`, `filasHorario`) lee `getLandingConfig()` (`horaApertura`, `horaCierre`, `diasAtencion` CSV ISO 1..7). El aviso de "fuera de horario" es **informativo** (carrito y checkout), no bloquea el pedido. Solo un admin edita el horario en "Editar Landing Page"; el mapa del footer usa `mapLat`/`mapLng` de la config (fallback: geocodificar la dirección).
+
 ## Convenciones API
 - El backend devuelve campos PascalCase para IDs y datos (`ID_Producto`, `Nombre`, `Estado`)
 - Excepciones: nombres de joins son snake_case (`nombre_producto`, `nombre_categoria`)

@@ -4,9 +4,7 @@ import SearchableSelect from "./SearchableSelect";
 import {
   getDepartamentosCheckout, getCiudadesCheckout, getBarriosCheckout, getCobertura,
 } from "../../services/ubicacionesService";
-
-const COP = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n || 0);
+import { formatCOP as COP } from "../../utils/formato";
 
 /**
  * Selector Departamento → Ciudad → Barrio de la dirección de ENTREGA, contra el

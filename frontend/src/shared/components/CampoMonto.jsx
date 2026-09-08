@@ -1,4 +1,5 @@
 import "./CampoMonto.css";
+import { milesConApostrofe } from "../../utils/formato";
 
 /**
  * Campo para escribir una cantidad de plata.
@@ -25,7 +26,7 @@ export default function CampoMonto({
   };
 
   const mostrado =
-    valor === "" || valor == null ? "" : Number(valor).toLocaleString("es-CO");
+    valor === "" || valor == null ? "" : milesConApostrofe(valor);
 
   return (
     <div className="campo-monto">

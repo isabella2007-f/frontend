@@ -5,14 +5,14 @@ import { fmtFechaHora as fmtFecha } from "../../../utils/dateUtils.js";
 import { ESTADO_DOMICILIO, ESTADO_DOM_CONFIG, cobroEfectivoPendiente, esDomicilioActivo, esPagoMixto, montoACobrar, transicionesDom } from "./estadosDomicilio";
 import "./DomiciliarioUI.css";
 import "./MisEntregas.css";
+import { formatCOP } from "../../../utils/formato";
 import {
   Search, RefreshCw, Truck, Package, CheckCircle2, XCircle, Clock,
   MapPin, MessageSquare, X, Check, Phone, Banknote, Bike, Wallet,
   AlertCircle, ChevronRight,
 } from "lucide-react";
 
-const fmt = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
+const fmt = formatCOP;
 
 // Los colores salen de la fuente única de estados; aquí solo el icono.
 const ICONO_ESTADO = {

@@ -4,8 +4,7 @@ import { fmtFecha } from "../../utils/dateUtils";
 import { ESTADOS_FLUJO, ESTADO_ID_KEY, ESTADO_KEY_COLOR, ESTADOS_COMPLETADO_ID } from "./estados";
 import { datasetsTarjeta, exportarDatasets } from "./dashboardExport";
 import ExportMenu from "./ExportMenu";
-
-const money = (n) => `$${Math.round(Number(n) || 0).toLocaleString("es-CO")}`;
+import { formatCOP as money } from "../../utils/formato";
 
 const TITULOS = {
   flujo:    "Flujo de ventas — detalle",

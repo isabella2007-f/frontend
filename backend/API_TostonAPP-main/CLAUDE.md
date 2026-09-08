@@ -236,6 +236,8 @@ Una vez el pedido es entregado (`Estado=8`), el cliente puede solicitar una **de
 ## Reglas de negocio
 
 - Si una venta incluye domicilio → el cliente DEBE tener `Telefono` en su perfil (validar antes de crear)
+- **Cuenta eliminada por el propio cliente** (`DELETE /api/auth/mi-cuenta`): si tiene historial se hace borrado lógico — libera `Correo`, borra `Cedula`/`Tipo_Documento`, `Estado=2` y `Auto_Eliminado=1`. Un admin/empleado con permiso la recupera al editarla o reactivarla (`Auto_Eliminado` vuelve a 0). El panel muestra el aviso "eliminó su propia cuenta".
+- **Horario de atención** (`Configuracion_Landing.hora_apertura/hora_cierre/dias_atencion`): solo un **admin** (`ID_Usuario==1` o `ID_Rol==1`) puede cambiarlo vía `PUT /api/configuracion/landing`; para el resto esos campos se ignoran. `Configuracion_Landing` también guarda `map_lat`/`map_lng` (punto del local en el mapa del footer).
 - Devolución aprobada → recargar crédito automáticamente en `CreditoCliente`
 - Al completar una `OrdenProduccion` → incrementar `Stock` del `Producto`
 - Al iniciar una `OrdenProduccion` → descontar `Stock_Actual` del `Insumo` usado
@@ -249,7 +251,9 @@ Una vez el pedido es entregado (`Estado=8`), el cliente puede solicitar una **de
 
 ```
 POST /api/auth/login                 Login unificado empleados y clientes
-POST /api/auth/registro              Crea cliente (Nombre, Apellidos, Correo, Contrasena, Confirmar_contrasena)
+POST /api/auth/registro              Crea cliente (Nombre, Apellidos, Correo, Contrasena, Confirmar_contrasena, Numero_documento?). Rechaza correo o Numero_documento ya registrados.
+POST /api/auth/verificar-correo      409 si el correo ya existe (chequeo en vivo del registro)
+POST /api/auth/verificar-documento   409 si el Numero_documento ya existe (chequeo en vivo del registro)
 POST /api/auth/recuperar-contrasena  Genera código 6 dígitos y lo envía al correo (Resend SMTP)
 POST /api/auth/verificar-codigo      Valida código, retorna reset_token (10 min)
 POST /api/auth/resetear-contrasena   Valida reset_token tipo="reset", actualiza contraseña

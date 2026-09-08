@@ -35,6 +35,7 @@ class ClienteUpdate(BaseModel):
     Direccion:      Optional[str]       = None
     Departamento:   Optional[str]       = None
     Municipio:      Optional[str]       = None
+    Estado:         Optional[int]       = None
 
 
 class ClienteEstado(BaseModel):
@@ -54,6 +55,7 @@ class ClienteResponse(BaseModel):
     Direccion:       Optional[str]      = None
     Departamento:    Optional[str]      = None
     Municipio:       Optional[str]      = None
+    Auto_Eliminado:  Optional[bool]     = None
     tiene_foto:      bool               = False
 
     class Config:

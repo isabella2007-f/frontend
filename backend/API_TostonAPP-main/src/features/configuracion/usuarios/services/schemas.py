@@ -122,6 +122,8 @@ class PersonaResponse(BaseModel):
     ID_Rol:         Optional[int]   = None
     nombre_rol:     Optional[str]   = None
     Estado:         Optional[int]   = None
+    # True = la propia persona eliminó su cuenta (recuperable editándola).
+    Auto_Eliminado: Optional[bool]  = None
     Fecha_creacion: Optional[datetime] = None
     tipo:           str             # "empleado" o "cliente"
 

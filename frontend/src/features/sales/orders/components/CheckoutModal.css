@@ -401,3 +401,143 @@
     font-size: 24px;
   }
 }
+
+/* ══════════════════════════════════════════
+   REDISEÑO — panel lateral + banners deslizantes
+══════════════════════════════════════════ */
+
+.modal-box.co-card {
+  width: min(96vw, 860px);
+  max-width: 96vw;
+  border-radius: 24px;
+}
+
+/* Banners fijos arriba del modal, entran deslizando y quedan hasta cerrar */
+.co-banners {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 0;
+  background: #f9fafb;
+}
+.co-banners:empty { display: none; }
+
+.co-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  animation: co-banner-in 0.38s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.co-banner--warn  { background: #fff8e1; border: 1px solid #ffe082; color: #8d6e00; }
+.co-banner--info  { background: #e3f2fd; border: 1px solid #bbdefb; color: #1565c0; }
+.co-banner__x {
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.55;
+  flex-shrink: 0;
+  padding: 0;
+}
+.co-banner__x:hover { opacity: 1; }
+
+@keyframes co-banner-in {
+  from { opacity: 0; transform: translateY(-14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Split: formulario (izq) + panel de totales (der) */
+.co-split {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.co-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.co-side {
+  width: 300px;
+  flex-shrink: 0;
+  border-left: 1px solid #eceff1;
+  background: #fff;
+  overflow-y: auto;
+}
+.co-side-inner { padding: 16px; }
+
+@media (max-width: 900px) {
+  .modal-box.co-card { width: min(95vw, 460px); }
+  .co-split { flex-direction: column; overflow: visible; }
+  .co-main { overflow-y: auto; }
+  .co-side {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid #eceff1;
+    position: sticky;
+    bottom: 0;
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.06);
+  }
+}
+
+.co-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: #2e7d32;
+  font-weight: 800;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Tarjeta de términos y condiciones */
+.co-tyc-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(5, 46, 22, 0.5);
+  backdrop-filter: blur(4px);
+}
+.co-tyc-card {
+  background: #fff;
+  border-radius: 20px;
+  max-width: 440px;
+  width: 100%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+}
+.co-tyc-head {
+  padding: 16px 18px;
+  background: linear-gradient(135deg, #1b5e20, #2e7d32);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.co-tyc-head h3 { margin: 0; font-size: 15px; font-weight: 800; }
+.co-tyc-body {
+  padding: 16px 18px;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #444;
+}
+.co-tyc-body p { margin: 0 0 10px; }
+.co-tyc-body strong { color: #1b5e20; }

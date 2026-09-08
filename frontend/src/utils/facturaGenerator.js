@@ -1,5 +1,6 @@
-const COP = (n) =>
-  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(n ?? 0);
+import { formatCOP } from './formato';
+
+const COP = formatCOP;
 
 const fmtFechaLarga = (str) => {
   if (!str) return new Date().toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' });

@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { fmtFecha } from "../../../utils/dateUtils.js";
 import DateRangeFilter from "../../../shared/components/DateRangeFilter";
 import FilasRelleno from "../../../shared/components/FilasRelleno";
+import { formatCOP } from "../../../utils/formato";
 import {
   getOrdenes, crearOrden, editarOrden, anularOrden, cambiarEstadoOrden,
 } from "../../../services/ordenesProduccionService.js";
@@ -61,8 +62,7 @@ const produccionBloqueadaPorPedido = (orden) =>
 // (una orden generada por un pedido se gestiona desde el pedido; validado en backend).
 const esEditable = (orden) => orden?.estado === "Pendiente" && !orden?.idVenta;
 
-const fmt = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n ?? 0);
+const fmt = formatCOP;
 
 const urgenciaFecha = (fechaISO) => {
   if (!fechaISO) return "normal";

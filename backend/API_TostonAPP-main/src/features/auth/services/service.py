@@ -176,10 +176,22 @@ def autenticar(db: Session, correo: str, contrasena: str):
 # REGISTRO
 # ─────────────────────────────────────────
 
+def documento_en_uso(db: Session, numero: str) -> bool:
+    """¿Hay ya un usuario con ese número de documento?"""
+    numero = (numero or "").strip()
+    if not numero:
+        return False
+    return db.query(Usuario).filter(Usuario.Cedula == numero).first() is not None
+
+
 def registrar_cliente(db: Session, datos):
 
     if buscar_por_correo(db, datos.Correo)[0]:
         raise HTTPException(status_code=400, detail="El correo ya está registrado")
+
+    numero_doc = (getattr(datos, "Numero_documento", None) or "").strip()
+    if numero_doc and documento_en_uso(db, numero_doc):
+        raise HTTPException(status_code=400, detail="Este número de documento ya está registrado")
 
     # El rol Cliente es el ID 3 (estático). Se busca por ID; el nombre es solo
     # un respaldo por si algún entorno tuviera los IDs corridos.
@@ -625,9 +637,14 @@ def eliminar_mi_cuenta(db: Session, actual: dict) -> dict:
     #    correo dará "credenciales incorrectas" (ya no existe esa cuenta).
     obj = db.query(Usuario).filter(Usuario.ID_Usuario == id_u).first()
     if obj:
+        # Se libera el correo y NO se conserva el documento de identidad. Queda
+        # marcada como "auto-eliminada" para que un admin pueda recuperarla.
         obj.Correo            = f"eliminado+{id_u}@cuenta.local"
+        obj.Cedula            = None
+        obj.Tipo_Documento    = None
         obj.Estado            = ESTADO_CUENTA_ELIMINADA
         obj.Correo_Verificado = 0
+        obj.Auto_Eliminado    = 1
         obj.Contrasena        = hashear_contrasena(uuid.uuid4().hex)
         try:
             db.commit()

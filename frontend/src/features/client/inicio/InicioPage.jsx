@@ -6,13 +6,7 @@ import { getProductos } from '../../../services/productosService.js';
 import { getCurrentUser } from '../profile/services/profileService.js';
 import { Package, Clock, CheckCircle, UserCircle, Leaf, Gift, ShoppingCart } from 'lucide-react';
 import '../../../styles/Client.css';
-
-const COP = (n) =>
-  new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    minimumFractionDigits: 0,
-  }).format(n);
+import { formatCOP as COP } from '../../../utils/formato';
 
 
 const InicioPage = () => {
@@ -161,7 +155,7 @@ const InicioPage = () => {
                     </p>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: 18, fontWeight: 800, color: agotado ? 'var(--gray-400)' : 'var(--green-700)' }}>
-                        ${producto.precio.toLocaleString()}
+                        {COP(producto.precio)}
                       </span>
                       <span style={{ fontSize: 12, color: agotado ? '#d32f2f' : 'var(--gray-500)', fontWeight: agotado ? 700 : 400 }}>
                         {agotado ? 'Sin stock' : `Stock: ${producto.stock}`}
@@ -218,7 +212,7 @@ const InicioPage = () => {
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--gray-900)' }}>
-                          Total: ${pedido.total.toLocaleString()}
+                          Total: {COP(pedido.total)}
                         </span>
                         <button className="btn-secondary" data-tooltip="Ver detalles del pedido" style={{ fontSize: 12, padding: '6px 12px' }}>
                           Ver detalles

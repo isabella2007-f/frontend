@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { formatCOP } from "../../../utils/formato";
 import {
   Search, ChevronRight, Plus, Pencil, Trash2, Eye, MapPin, Building2, Layers,
   Banknote,
@@ -13,8 +14,7 @@ import ModalBarrio from "./ModalBarrio";
 import ModalConfirmar from "./ModalConfirmar";
 import DetalleBarrio from "./DetalleBarrio";
 
-const fmt = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n || 0);
+const fmt = formatCOP;
 
 const PER_PAGE = 10;
 const PER_PAGE_DEP = 8;   // departamentos por página en la vista de árbol

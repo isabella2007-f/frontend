@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
+from decimal import Decimal
 
 
 class LandingConfigResponse(BaseModel):
@@ -16,8 +17,11 @@ class LandingConfigResponse(BaseModel):
     contactCity:            Optional[str] = None
     contactInstagramUrl:    Optional[str] = None
     contactInstagramHandle: Optional[str] = None
-    horarioLunesViernes:    Optional[str] = None
-    horarioSabado:          Optional[str] = None
+    mapLat:                 Optional[Decimal] = None
+    mapLng:                 Optional[Decimal] = None
+    horaApertura:           Optional[str] = None   # "08:00"
+    horaCierre:             Optional[str] = None   # "20:00"
+    diasAtencion:           Optional[str] = None   # CSV ISO 1..7 (1=Lun)
 
     class Config:
         from_attributes = True
@@ -37,5 +41,8 @@ class LandingConfigUpdate(BaseModel):
     contactCity:            Optional[str] = None
     contactInstagramUrl:    Optional[str] = None
     contactInstagramHandle: Optional[str] = None
-    horarioLunesViernes:    Optional[str] = None
-    horarioSabado:          Optional[str] = None
+    mapLat:                 Optional[Decimal] = None
+    mapLng:                 Optional[Decimal] = None
+    horaApertura:           Optional[str] = None
+    horaCierre:             Optional[str] = None
+    diasAtencion:           Optional[str] = None

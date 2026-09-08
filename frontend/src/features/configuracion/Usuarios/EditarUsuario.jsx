@@ -4,6 +4,7 @@ import { getPedidos } from "../../../services/pedidosService.js";
 import { Avatar } from "./CrearUsuario.jsx";
 import { Ic } from "./usuariosIcons.jsx";
 import { getRolStyle } from "./usuariosUtils.js";
+import { formatCOP } from "../../../utils/formato.js";
 import "./Usuarios.css";
 
 // ─── Campo solo lectura ───────────────────────────────────
@@ -269,7 +270,7 @@ export function ModalVerUsuario({ user, roles = [], onClose }) {
                       Saldo disponible
                     </div>
                     <div style={{ fontSize: 26, fontWeight: 800, color: saldoFavor > 0 ? "#2e7d32" : "#9e9e9e", fontFamily: "inherit" }}>
-                      ${saldoFavor.toLocaleString("es-CO")}
+                      {formatCOP(saldoFavor)}
                     </div>
                     {saldoFavor > 0 && (
                       <div style={{ fontSize: 11, color: "#66bb6a", marginTop: 2 }}>

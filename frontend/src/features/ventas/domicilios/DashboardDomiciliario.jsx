@@ -10,6 +10,7 @@ import {
   ClipboardList, Bell, User, Truck, CalendarDays, RefreshCw,
   ChevronRight, AlertCircle,
 } from "lucide-react";
+import { formatCOP } from "../../../utils/formato";
 
 
 // Prioridad para elegir el pedido en curso: primero el que ya va en ruta.
@@ -19,9 +20,7 @@ const ESTADO_ORDEN = [
   ESTADO_DOMICILIO.PENDIENTE,
 ];
 
-const fmtCOP = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 })
-    .format(n || 0);
+const fmtCOP = formatCOP;
 
 /* Las variables de color viajan al CSS: la hoja no repite ningún hex de
    estado, así sigue mandando estadosDomicilio.js como fuente única. */

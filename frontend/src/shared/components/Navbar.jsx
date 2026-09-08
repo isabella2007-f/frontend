@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { getUser, logout } from "../../services/authService";
 import { getMiCredito } from "../../services/pedidosService";
+import { formatCOP } from "../../utils/formato";
 import Avatar from "./Avatar";
 import { crearPedidoCliente, resolverEntrega } from "../../features/sales/orders/services/crearPedidoCliente";
 import { Menu, X, ShoppingCart, Bell, LogOut, Gift, CheckCircle2, AlertCircle } from "lucide-react";
@@ -207,7 +208,7 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
                 onClick={() => navigate('/cliente/perfil')}
                 data-tooltip="Ver mi saldo a favor"
               >
-                <Gift size={14} style={{ marginRight: 4 }} />{new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(credito)}
+                <Gift size={14} style={{ marginRight: 4 }} />{formatCOP(credito)}
               </button>
             )}
 

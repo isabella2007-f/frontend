@@ -1,8 +1,6 @@
 import CampoMonto from "./CampoMonto";
 import "./SplitPagoMonto.css";
-
-const COP = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n || 0);
+import { formatCOP as COP } from "../../utils/formato";
 
 /**
  * Reparto de un pedido entre efectivo y transferencia.

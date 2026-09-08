@@ -21,6 +21,7 @@ def _formato_cliente(cliente: Usuario) -> dict:
         "Direccion":      cliente.Direccion,
         "Departamento":   cliente.Departamento,
         "Municipio":      cliente.Municipio,
+        "Auto_Eliminado": bool(getattr(cliente, "Auto_Eliminado", 0)),
         "tiene_foto":     cliente.Foto_perfil is not None,
     }
 
@@ -89,8 +90,28 @@ def editar_cliente(db: Session, id_usuario: int, datos: ClienteUpdate) -> dict:
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
-    for campo, valor in datos.model_dump(exclude_none=True).items():
+    campos = datos.model_dump(exclude_none=True)
+
+    nuevo_correo = campos.get("Correo")
+    if nuevo_correo and nuevo_correo != cliente.Correo:
+        if db.query(Usuario).filter(
+            Usuario.Correo == nuevo_correo, Usuario.ID_Usuario != id_usuario
+        ).first():
+            raise HTTPException(status_code=400, detail="Correo ya registrado")
+
+    nueva_cedula = campos.get("Cedula")
+    if nueva_cedula and nueva_cedula != cliente.Cedula:
+        if db.query(Usuario).filter(
+            Usuario.Cedula == nueva_cedula, Usuario.ID_Usuario != id_usuario
+        ).first():
+            raise HTTPException(status_code=400, detail="Cédula ya registrada")
+
+    for campo, valor in campos.items():
         setattr(cliente, campo, valor)
+
+    # Editar una cuenta que su dueño eliminó = recuperarla.
+    if getattr(cliente, "Auto_Eliminado", 0):
+        cliente.Auto_Eliminado = 0
 
     db.commit()
     db.refresh(cliente)
@@ -103,6 +124,8 @@ def cambiar_estado(db: Session, id_usuario: int, nuevo_estado: int) -> dict:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
     cliente.Estado = nuevo_estado
+    if nuevo_estado == 1 and getattr(cliente, "Auto_Eliminado", 0):
+        cliente.Auto_Eliminado = 0
     db.commit()
     db.refresh(cliente)
     return _formato_cliente(cliente)

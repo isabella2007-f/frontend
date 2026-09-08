@@ -50,6 +50,12 @@ class RegistroInput(BaseModel):
         return self
 
 
+# ── Verificar disponibilidad de documento (registro) ──
+class VerificarDocumentoInput(BaseModel):
+    numero_documento: str = Field(example="1234567890")
+    tipo_documento:   Optional[str] = Field(default="CC", example="CC")
+
+
 # ── Recuperación de contraseña ──
 class RecuperarContrasenaInput(BaseModel):
     correo: str = Field(example="admin@empresa.com")

@@ -5,14 +5,14 @@ import { getTodosLosDomicilios } from "../../../services/domiciliosService";
 import { esDomicilioActivo } from "./estadosDomicilio";
 import "./DomiciliarioUI.css";
 import "./PerfilDomiciliario.css";
+import { formatCOP } from "../../../utils/formato";
 import {
   X, Check, User, Phone, Mail, MapPin, IdCard, CalendarDays,
   Pencil, Package, CheckCircle2, Banknote, Bike, ShieldCheck,
   AlertCircle, Info, MessageSquare, Building2, Map,
 } from "lucide-react";
 
-const fmt = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n || 0);
+const fmt = formatCOP;
 
 const fmtMes = (iso) => {
   if (!iso) return null;

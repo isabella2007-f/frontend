@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { getPedidos } from "../../../services/pedidosService.js";
+import { formatCOP } from "../../../utils/formato";
 import { AVISO_PLAZO_DEVOLUCION, plazoVencido, tieneDevolucionActiva }
   from "../../../utils/devolucionReglas";
 import { subirImagenCloudinary } from "../../../utils/cloudinary.js";
@@ -7,8 +8,7 @@ import SearchableSelect from "../../../shared/components/SearchableSelect.jsx";
 import { Check, X, Search, Paperclip, AlertTriangle, Video, FileText, Loader } from "lucide-react";
 import "./Devoluciones.css";
 
-const fmt = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
+const fmt = formatCOP;
 
 const MOTIVOS = [
   "Producto en mal estado",

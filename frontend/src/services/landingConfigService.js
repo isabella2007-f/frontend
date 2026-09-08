@@ -14,8 +14,15 @@ export const LANDING_DEFAULTS = {
   contactCity:           "Barranquilla, Colombia",
   contactInstagramUrl:   "https://www.instagram.com/tostonesbroms?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==",
   contactInstagramHandle:"@tostonesbroms",
-  horarioLunesViernes:   "8:00 am – 8:00 pm",
-  horarioSabado:         "8:00 am – 8:00 pm",
+  // Punto exacto del local en el mapa (editable en "Editar Landing Page"). Si
+  // están en null, el footer geocodifica la dirección como respaldo.
+  mapLat:                null,
+  mapLng:                null,
+  // Horario de atención (solo lo edita un admin). Gobierna el aviso de "fuera
+  // de horario" del carrito y el checkout. diasAtencion = CSV ISO (1=Lun … 7=Dom).
+  horaApertura:          "08:00",
+  horaCierre:            "20:00",
+  diasAtencion:          "1,2,3,4,5,6",
 };
 
 export async function getLandingConfig() {

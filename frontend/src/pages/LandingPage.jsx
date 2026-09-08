@@ -22,6 +22,29 @@ import {
   clearCart
 } from '../features/sales/orders/services/cartService';
 import { getLandingConfig, LANDING_DEFAULTS } from '../services/landingConfigService';
+import { formatCOP } from '../utils/formato';
+import { MAX_QTY } from '../features/sales/orders/services/cartService';
+
+/** Input de cantidad editable por teclado (máx. 4 dígitos). */
+function QtyInput({ value, onChange, className = '' }) {
+  const [draft, setDraft] = useState(null);
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      maxLength={4}
+      value={draft ?? String(value)}
+      onChange={e => setDraft(e.target.value.replace(/\D/g, '').slice(0, 4))}
+      onBlur={() => {
+        const n = Math.min(MAX_QTY, Math.max(1, parseInt(draft ?? '', 10) || 1));
+        setDraft(null);
+        onChange(n);
+      }}
+      onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+      className={className}
+    />
+  );
+}
 
 /* ═══════════════════════════════════════════
    PRODUCT DETAIL MODAL
@@ -153,7 +176,7 @@ function ProductDetailModal({ product, cat, onClose, onAddToCart }) {
           <div>
             <h2 className="text-3xl font-black text-[#1b5e20] leading-tight mb-2">{product.nombre}</h2>
             <p className="text-4xl font-black text-[#4caf50]">
-              ${product.precio?.toLocaleString('es-CO')}
+              {formatCOP(product.precio)}
             </p>
           </div>
 
@@ -193,8 +216,12 @@ function ProductDetailModal({ product, cat, onClose, onAddToCart }) {
               <div className="flex items-center gap-1 bg-[#f7faf8] rounded-2xl border border-[#e8f5e9] p-1.5 flex-shrink-0">
                 <button onClick={() => setQty(q => Math.max(1, q - 1))} data-tooltip="Disminuir cantidad"
                   className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[#e8f5e9] transition-colors active:scale-90 text-[#1b5e20] font-bold text-lg">−</button>
-                <span className="w-10 text-center font-black text-[#1b5e20] text-sm">{qty}</span>
-                <button onClick={() => setQty(q => q + 1)} data-tooltip="Aumentar cantidad"
+                <QtyInput
+                  value={qty}
+                  onChange={setQty}
+                  className="w-10 text-center font-black text-[#1b5e20] text-sm bg-transparent border-none outline-none"
+                />
+                <button onClick={() => setQty(q => Math.min(MAX_QTY, q + 1))} data-tooltip="Aumentar cantidad"
                   className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-[#e8f5e9] transition-colors active:scale-90 text-[#1b5e20] font-bold text-lg">+</button>
               </div>
               <button
@@ -375,7 +402,7 @@ const LandingPage = ({ hideNavbar = false }) => {
   }, []);
 
   const getQty = (id) => quantities[id] || 1;
-  const setQty = (id, v) => setQuantities(prev => ({ ...prev, [id]: Math.max(1, v) }));
+  const setQty = (id, v) => setQuantities(prev => ({ ...prev, [id]: Math.min(MAX_QTY, Math.max(1, v)) }));
 
   const mostrarLimiteStock = (nombre, stock, enCarrito = 0) => {
     const unidades = (n) => `${n} unidad${n !== 1 ? 'es' : ''}`;
@@ -482,10 +509,16 @@ const LandingPage = ({ hideNavbar = false }) => {
     safeProductsPage * PRODUCTS_PER_PAGE
   );
 
-  const handleProductsPage = (n) => {
-    setProductsPage(n);
+  const handleProductsPage = (n) => setProductsPage(n);
+
+  // El scroll a la grilla se hace DESPUÉS de renderizar la página nueva: hacerlo
+  // en el mismo click medía la posición con el layout viejo (más alto) y el
+  // salto caía en la sección de abajo.
+  const primerRenderPagina = useRef(true);
+  useEffect(() => {
+    if (primerRenderPagina.current) { primerRenderPagina.current = false; return; }
     productsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
+  }, [productsPage, activeTab]);
 
   const scrollToSection = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
@@ -574,7 +607,7 @@ const LandingPage = ({ hideNavbar = false }) => {
           </div>
           <span>Ver Carrito</span>
           <span className="bg-white/20 backdrop-blur-md text-white px-3 py-1 rounded-xl text-sm font-black border border-white/20">
-            ${getCart().reduce((s, i) => s + i.precio * i.cantidad, 0).toLocaleString('es-CO')}
+            {formatCOP(getCart().reduce((s, i) => s + i.precio * i.cantidad, 0))}
           </span>
         </button>
       )}
@@ -672,7 +705,7 @@ const LandingPage = ({ hideNavbar = false }) => {
                       </div>
                     </div>
                     <div className="absolute top-6 right-6 bg-white/95 backdrop-blur-sm px-5 py-2.5 rounded-2xl font-black text-[#1b5e20] shadow-lg">
-                      ${p.precio?.toLocaleString('es-CO')}
+                      {formatCOP(p.precio)}
                     </div>
                     {agotado && (
                       <div className="absolute top-6 left-6 bg-gray-600 text-white px-3 py-1.5 rounded-xl text-xs font-black shadow-lg">
@@ -713,7 +746,11 @@ const LandingPage = ({ hideNavbar = false }) => {
                         <button onClick={() => setQty(p.id, qty - 1)} data-tooltip="Disminuir cantidad" className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-[#e8f5e9] transition-colors active:scale-90">
                           <Minus className="w-3.5 h-3.5 text-[#1b5e20]" />
                         </button>
-                        <span className="w-8 text-center font-black text-[#1b5e20] text-sm">{qty}</span>
+                        <QtyInput
+                          value={qty}
+                          onChange={(n) => setQty(p.id, n)}
+                          className="w-8 text-center font-black text-[#1b5e20] text-sm bg-transparent border-none outline-none"
+                        />
                         <button onClick={() => setQty(p.id, qty + 1)} data-tooltip="Aumentar cantidad" className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-[#e8f5e9] transition-colors active:scale-90">
                           <Plus className="w-3.5 h-3.5 text-[#1b5e20]" />
                         </button>
@@ -803,36 +840,36 @@ const LandingPage = ({ hideNavbar = false }) => {
         </div>
       </section>
 
-      {/* ─── NOSOTROS ─── */}
+      {/* ─── NOSOTROS / NUESTRA HISTORIA ─── */}
       <section id="nosotros" className="py-32 bg-[#1b5e20] text-white relative overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="flex flex-col lg:flex-row items-center gap-24">
-            <div className="flex-1 space-y-10">
-              <div className="space-y-4">
-                <h2 className="text-[#81c784] font-black tracking-[0.4em] uppercase text-sm">El origen</h2>
-                <h3 className="text-5xl lg:text-7xl font-black leading-tight tracking-tighter">
-                  {content.historyTitle}
-                </h3>
-              </div>
-              <p className="text-xl text-[#c8e6c9] leading-relaxed font-medium">
-                {content.historyDescription}
-              </p>
-            </div>
-            <div className="flex-1">
-              <div className="bg-[#0d3300]/30 rounded-[60px] p-20 text-center border-2 border-[#1b5e20] shadow-2xl backdrop-blur-sm">
-                <Leaf className="w-24 h-24 text-[#81c784] mx-auto mb-8 animate-pulse" />
-                <h4 className="text-3xl font-black mb-4">{content.ctaTitle}</h4>
-                <p className="text-[#c8e6c9] mb-10">{content.ctaDescription}</p>
-                {!user && (
-                  <button onClick={() => navigate('/register')} data-tooltip="Crear una cuenta para hacer pedidos" className="w-full py-5 bg-white text-[#1b5e20] font-black rounded-3xl hover:bg-[#e8f5e9] transition-all shadow-xl">
-                    Crear mi cuenta gratis
-                  </button>
-                )}
-              </div>
-            </div>
+        <div className="absolute -top-24 -right-24 w-96 h-96 bg-[#4caf50]/10 rounded-full blur-3xl" />
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
+          <div className="flex items-center justify-center gap-3 mb-6">
+            <Leaf className="w-8 h-8 text-[#81c784]" />
+            <h2 className="text-[#81c784] font-black tracking-[0.4em] uppercase text-sm">El origen</h2>
           </div>
+          <h3 className="text-5xl lg:text-7xl font-black leading-tight tracking-tighter mb-8">
+            {content.historyTitle}
+          </h3>
+          <p className="text-xl lg:text-2xl text-[#c8e6c9] leading-relaxed font-medium max-w-3xl mx-auto">
+            {content.historyDescription}
+          </p>
+          <div className="w-24 h-2 bg-[#81c784] mx-auto rounded-full mt-12" />
         </div>
       </section>
+
+      {/* ─── ÚNETE (CTA de registro, solo invitados) ─── */}
+      {!user && (
+        <section id="unete" className="py-24 bg-[#0d3300] text-white relative overflow-hidden">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <h4 className="text-3xl lg:text-4xl font-black mb-4">{content.ctaTitle}</h4>
+            <p className="text-[#c8e6c9] mb-10 text-lg">{content.ctaDescription}</p>
+            <button onClick={() => navigate('/register')} data-tooltip="Crear una cuenta para hacer pedidos" className="px-12 py-5 bg-white text-[#1b5e20] font-black rounded-3xl hover:bg-[#e8f5e9] transition-all shadow-xl">
+              Crear mi cuenta gratis
+            </button>
+          </div>
+        </section>
+      )}
 
       <Footer onExplorar={() => scrollToSection('productos')} />
     </div>

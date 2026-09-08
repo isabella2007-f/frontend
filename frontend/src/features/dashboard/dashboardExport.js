@@ -1,11 +1,10 @@
 import { fmtFecha } from "../../utils/dateUtils";
 import { ESTADOS_COMPLETADO_ID } from "./estados";
+import { formatCOP as money } from "../../utils/formato";
 
 // xlsx y jspdf son pesados; se cargan solo cuando el usuario exporta.
 const loadXLSX = () => import("xlsx");
 const loadPDF = () => Promise.all([import("jspdf"), import("jspdf-autotable")]);
-
-const money = (n) => `$${Math.round(Number(n) || 0).toLocaleString("es-CO")}`;
 
 const fmtCell = (val, type, target) => {
   if (val === null || val === undefined || val === "") return "";

@@ -1,9 +1,10 @@
 import { ShoppingBag, MapPin, Calendar, Download, Receipt } from 'lucide-react';
+import { formatCOP, milesConApostrofe } from '../../../../utils/formato';
 
 const DeliveryDetails = ({ order, onDownload }) => {
   if (!order) return null;
 
-  const total = order.total?.toLocaleString('es-CO') ?? '—';
+  const total = order.total != null ? milesConApostrofe(order.total) : '—';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -77,7 +78,7 @@ const DeliveryDetails = ({ order, onDownload }) => {
                   fontSize: 13, fontWeight: 700,
                   color: 'var(--gray-900)', fontFamily: 'var(--font-body)',
                 }}>
-                  ${(item.price * item.quantity).toLocaleString('es-CO')}
+                  {formatCOP(item.price * item.quantity)}
                 </span>
               </div>
             ))}

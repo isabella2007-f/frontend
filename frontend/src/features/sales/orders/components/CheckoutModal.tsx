@@ -12,6 +12,10 @@ import { desdeTexto, lineaVia } from '../../../../utils/direccionEntrega';
 import { pideAnticipo } from '../../../../utils/anticipo';
 import SaldoMonto from '../../../../shared/components/SaldoMonto';
 import SplitPagoMonto from '../../../../shared/components/SplitPagoMonto';
+import TerminosCondicionesModal from '../../../../shared/components/TerminosCondicionesModal';
+import { getLandingConfig, LANDING_DEFAULTS } from '../../../../services/landingConfigService';
+import { estaAbierto, mensajeFueraHorario, rangoHorario } from '../../../../utils/horario';
+import { formatCOP } from '../../../../utils/formato';
 import './CheckoutModal.css';
 
 // Datos de la cuenta bancaria — actualiza en GestionPedidos.jsx también
@@ -23,8 +27,7 @@ const CUENTA = {
 };
 
 
-const COP = (n: number) =>
-  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(n);
+const COP = formatCOP;
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -135,6 +138,13 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   const [anticipoOpcion,      setAnticipoOpcion]      = useState<'mitad' | 'todo' | 'personalizado'>('mitad');
   const [montoPersonalizado,  setMontoPersonalizado]  = useState<number | ''>('');
   const [terminosAceptados,  setTerminosAceptados]   = useState(false);
+  const [verTerminos,        setVerTerminos]         = useState(false);
+  const [cfgHorario,         setCfgHorario]          = useState<any>({ ...LANDING_DEFAULTS });
+  // Banners deslizantes: se pueden descartar; vuelven a salir al reabrir.
+  const [bannerHorario,      setBannerHorario]       = useState(true);
+  const [bannerProduccion,   setBannerProduccion]    = useState(true);
+
+  useEffect(() => { getLandingConfig().then(setCfgHorario); }, []);
 
   useEffect(() => {
     if (!isOpen || !orderDetails) return;
@@ -196,6 +206,9 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
     setEfectivoMonto('');
     setMixtoError('');
     setTerminosAceptados(false);
+    setVerTerminos(false);
+    setBannerHorario(true);
+    setBannerProduccion(true);
   }, [isOpen]);
 
   // El anticipo se le pide al pedido que hay que hornear Y que pasa de
@@ -389,7 +402,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
 
   return (
     <div className="modal-overlay">
-      <div className="modal-box relative shadow-2xl overflow-hidden flex flex-col max-h-[95vh] border-none" style={{ maxWidth: '460px', borderRadius: '24px' }}>
+      {verTerminos && <TerminosCondicionesModal onClose={() => setVerTerminos(false)} />}
+      <div className="modal-box co-card relative shadow-2xl overflow-hidden flex flex-col max-h-[95vh] border-none">
 
         {/* Header */}
         <div className="shrink-0 flex items-center justify-between px-5 py-4" style={{ background: 'linear-gradient(135deg, var(--green-800) 0%, var(--green-700) 100%)' }}>
@@ -409,31 +423,40 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
           </button>
         </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar bg-gray-50 px-4 py-3 space-y-3">
-
-          {/* Aviso de producción */}
-          {itemsConDeficit.length > 0 && (
-            <div className="rounded-2xl border border-blue-200 bg-blue-50 px-3 py-3">
-              <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                <Package size={13} /> Orden de producción requerida
-              </p>
-              <p className="text-xs font-semibold text-blue-700 mb-2">
-                Los siguientes productos no tienen suficiente stock. Se creará una orden de producción y el administrador te propondrá una fecha de entrega.
-              </p>
-              <ul className="space-y-1">
-                {itemsConDeficit.map((it: CartItem) => (
-                  <li key={it.id} className="flex justify-between text-[11px] font-bold text-blue-800">
-                    <span>{it.nombre}</span>
-                    <span className="text-blue-500">
-                      Stock: {it.stock ?? 0} · Pedido: {it.cantidad}
-                      {it.cantidad > (it.stock ?? 0) ? ` · Déficit: ${it.cantidad - (it.stock ?? 0)}` : ''}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+        {/* Banners deslizantes: quedan fijos arriba hasta cerrar el modal */}
+        <div className="co-banners">
+          {!estaAbierto(cfgHorario) && bannerHorario && (
+            <div className="co-banner co-banner--warn">
+              <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+              <div>
+                <strong>Fuera del horario de atención.</strong>{' '}
+                {mensajeFueraHorario(cfgHorario)}{' '}
+                <span style={{ opacity: 0.8 }}>Horario: {rangoHorario(cfgHorario)}.</span>
+              </div>
+              <button className="co-banner__x" onClick={() => setBannerHorario(false)} aria-label="Descartar">
+                <X size={13} />
+              </button>
             </div>
           )}
+          {itemsConDeficit.length > 0 && bannerProduccion && (
+            <div className="co-banner co-banner--info">
+              <Package size={15} className="shrink-0 mt-0.5" />
+              <div>
+                <strong>Pedido programado.</strong> Algunos productos no tienen stock inmediato
+                ({itemsConDeficit.map((it: CartItem) => it.nombre).join(', ')}). Se creará una orden
+                de producción y el administrador te propondrá una fecha de entrega.
+              </div>
+              <button className="co-banner__x" onClick={() => setBannerProduccion(false)} aria-label="Descartar">
+                <X size={13} />
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="co-split">
+
+        {/* Body */}
+        <div className="co-main flex-1 overflow-y-auto custom-scrollbar bg-gray-50 px-4 py-3 space-y-3">
 
           {/* Quién recibe. Al lado había un "A nombre de" que se guardaba
               en una columna que nadie lee: no sale en el detalle, ni en el
@@ -939,9 +962,9 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="shrink-0 bg-white border-t border-gray-100 px-4 py-3">
-          <div className="space-y-1 mb-3">
+        {/* Panel de totales — lateral en desktop, sticky abajo en móvil */}
+        <aside className="co-side">
+          <div className="co-side-inner space-y-1">
             <div className="flex justify-between text-xs text-gray-500 font-bold">
               <span>Subtotal</span><span>{COP(orderDetails.total)}</span>
             </div>
@@ -1005,7 +1028,14 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                 style={{ marginTop: 2, accentColor: '#388e3c', width: 15, height: 15, flexShrink: 0 }}
               />
               <span style={{ fontSize: 11, color: '#5d4037', lineHeight: 1.5 }}>
-                He leído y acepto los <strong>términos y condiciones</strong>: entiendo que <strong>Tostón no realiza devoluciones de dinero</strong> una vez confirmado el pedido. En caso de devolución aprobada, el valor se acreditará como <strong>saldo a favor</strong> para futuros pedidos.
+                He leído y acepto los{' '}
+                <button
+                  type="button"
+                  className="co-link"
+                  onClick={e => { e.preventDefault(); e.stopPropagation(); setVerTerminos(true); }}
+                >
+                  términos y condiciones
+                </button>
               </span>
             </label>
 
@@ -1031,7 +1061,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
               </button>
             </div>
           </div>
-        </div>
+        </aside>
+        </div>{/* /co-split */}
       </div>
 
       <style>{`

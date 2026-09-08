@@ -10,10 +10,10 @@ import { PERMISOS_POR_ESTADO, puedeEditarsePedido } from "./permisosEdicion.js";
 import { X, Ban, AlertTriangle, CheckCircle2, CreditCard, PenLine, Check, Paperclip, Upload, Bike, Store, Truck, Pencil, Calendar, AlertCircle } from "lucide-react";
 import SelectorBarrioEntrega from "../../../shared/components/SelectorBarrioEntrega.jsx";
 import "./Pedidos.css";
+import { formatCOP } from "../../../utils/formato";
 
 /* ─── Helpers ────────────────────────────────────────────── */
-const fmt = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
+const fmt = formatCOP;
 
 const METODOS_PAGO = ["Efectivo", "Transferencia"];
 

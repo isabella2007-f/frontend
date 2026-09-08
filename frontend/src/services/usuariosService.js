@@ -17,6 +17,7 @@ function adaptarUsuario(u) {
     idRol:         u.ID_Rol,
     rol:           u.nombre_rol,
     estado:        u.Estado === 1,
+    autoEliminado: !!u.Auto_Eliminado,
     fecha_creacion: u.Fecha_Creacion ?? u.Fecha_creacion,
     fechaCreacion: fmtFecha(u.Fecha_Creacion ?? u.Fecha_creacion),
     tipo:          u.tipo,
@@ -29,6 +30,16 @@ export async function getUsuarios({ pagina = 1, porPagina = 100, busqueda = "" }
   if (busqueda) params.append("busqueda", busqueda);
   const data = await apiFetch(`/usuarios/?${params}`);
   return (data.personas || []).map(adaptarUsuario);
+}
+
+// Chequeo previo para el wizard: ¿correo / cédula libres? Se marca el error en
+// el paso "Personal" antes de avanzar en vez de fallar al final.
+export async function verificarDisponibilidad({ correo, cedula, excluirId } = {}) {
+  const params = new URLSearchParams();
+  if (correo) params.append("correo", correo);
+  if (cedula) params.append("cedula", cedula);
+  if (excluirId) params.append("excluir_id", excluirId);
+  return apiFetch(`/usuarios/disponibilidad?${params}`);
 }
 
 export async function crearEmpleado(data) {

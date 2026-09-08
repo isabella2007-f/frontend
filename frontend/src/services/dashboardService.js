@@ -1,8 +1,7 @@
 import { apiFetch } from "../utils/api";
+import { formatCOP as money } from "../utils/formato";
 
 const COLORS = ["#43a047", "#ef5350", "#fb8c00", "#5c6bc0", "#26c6da", "#ec407a", "#7e57c2"];
-
-const money = (n) => `$${Math.round(Number(n) || 0).toLocaleString("es-CO")}`;
 
 const fmtDelta = (pct, subiendo) => {
   if (pct === null || pct === undefined) return null;

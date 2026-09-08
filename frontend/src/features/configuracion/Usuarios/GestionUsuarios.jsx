@@ -339,6 +339,11 @@ export default function GestionUsuarios() {
                         <div>
                           <div className="client-name">{user.nombre} {user.apellidos}</div>
                           <a href={`mailto:${user.correo}`} className="client-email" style={{ textDecoration: "none" }}>{user.correo}</a>
+                          {user.autoEliminado && (
+                            <div style={{ marginTop: 3, fontSize: 10, fontWeight: 800, color: "#b26a00", background: "#fff3e0", border: "1px solid #ffe0b2", borderRadius: 6, padding: "2px 6px", display: "inline-block" }}>
+                              ⚠ El usuario eliminó su propia cuenta — edítalo o actívalo para recuperarla
+                            </div>
+                          )}
                         </div>
                       </div>
                     </td>

@@ -67,6 +67,28 @@ class RegistroDocumentoTests(PanelBase):
         self.assertEqual(respuesta.status_code, 201, respuesta.text)
         self.assertIsNone(self.registrado(correo).Cedula)
 
+    def test_no_se_puede_repetir_el_documento(self):
+        # El módulo interno ya lo impedía; el registro público no.
+        self.client.post("/api/auth/registro", json=self.cuerpo(
+            "primero.doc@correo.com", Numero_documento="5566778899", Tipo_documento="CC"))
+
+        repetido = self.client.post("/api/auth/registro", json=self.cuerpo(
+            "segundo.doc@correo.com", Numero_documento="5566778899", Tipo_documento="CC"))
+        self.assertEqual(repetido.status_code, 400, repetido.text)
+        self.assertIsNone(self.registrado("segundo.doc@correo.com"))
+
+    def test_verificar_documento_avisa_si_esta_en_uso(self):
+        self.client.post("/api/auth/registro", json=self.cuerpo(
+            "dueno.doc@correo.com", Numero_documento="1112223334", Tipo_documento="CC"))
+
+        libre = self.client.post("/api/auth/verificar-documento",
+                                 json={"numero_documento": "9998887776", "tipo_documento": "CC"})
+        self.assertEqual(libre.status_code, 200, libre.text)
+
+        tomado = self.client.post("/api/auth/verificar-documento",
+                                  json={"numero_documento": "1112223334", "tipo_documento": "CC"})
+        self.assertEqual(tomado.status_code, 409, tomado.text)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -8,8 +8,9 @@ import { UserCircle, Leaf, ShieldCheck, Package, Gift, Trash2, AlertTriangle, Bi
 import { apiFetch } from '../../../utils/api.js';
 import { useNavigate } from 'react-router-dom';
 import '../../../styles/Client.css';
+import { formatCOP } from "../../../utils/formato";
 
-const COP = (n) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(n);
+const COP = formatCOP;
 
 const ESTADO_CONFIG = {
   'Pendiente':    { bg: '#fff8e1', color: '#f57f17', border: '#ffe082', dot: '#ffa726' },

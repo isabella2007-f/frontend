@@ -12,6 +12,7 @@ import {
   listarTarifas, crearTarifa,
   getEmpleadosParaLiquidaciones,
 } from "../../../services/liquidacionesService";
+import { formatCOP } from "../../../utils/formato";
 import "./GestionLiquidaciones.css";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -35,7 +36,7 @@ function fmtHora(dt) {
 }
 function fmtMoneda(v) {
   if (v === null || v === undefined) return "—";
-  return new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(v);
+  return formatCOP(v);
 }
 
 /** Nombre completo del empleado, venga en PascalCase o en minúscula. */

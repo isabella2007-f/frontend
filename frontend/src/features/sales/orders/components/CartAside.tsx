@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { X, MapPin, Trash2, Plus, Minus, ShoppingBag, LogIn, Sparkles, ChevronRight, ShoppingCart, FileText, Truck, Clock, AlertTriangle, Package } from 'lucide-react';
-import { CartItem, removeFromCart, updateQuantity, clearCart, getCart } from '../services/cartService';
+import { CartItem, removeFromCart, updateQuantity, clearCart, getCart, MAX_QTY } from '../services/cartService';
 import { isAuthenticated } from '../../../../services/authService';
 import { apiFetch } from '../../../../utils/api';
-const HORA_APERTURA  = 8;   // 8:00 am
-const HORA_CIERRE    = 20;  // 8:00 pm
+import { getLandingConfig, LANDING_DEFAULTS } from '../../../../services/landingConfigService';
+import { estaAbierto, mensajeFueraHorario, rangoHorario } from '../../../../utils/horario';
+import { formatCOP } from '../../../../utils/formato';
 
 interface CartAsideProps {
   isOpen: boolean;
@@ -15,19 +16,7 @@ interface CartAsideProps {
   cartUpdateToggle?: boolean;
 }
 
-const COP = (n: number) =>
-  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(n);
-
-const estaAbierto = () => {
-  const h = new Date().getHours();
-  return h >= HORA_APERTURA && h < HORA_CIERRE;
-};
-
-const mensajeFueraHorario = () => {
-  const h = new Date().getHours();
-  if (h < HORA_APERTURA) return `Abrimos a las ${HORA_APERTURA}:00 am — tu pedido se procesará en cuanto abramos.`;
-  return `Cerramos a las ${HORA_CIERRE - 12}:00 pm — tu pedido se procesará mañana a las ${HORA_APERTURA}:00 am.`;
-};
+const COP = formatCOP;
 
 const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLoginRequired }) => {
   const navigate = useNavigate();
@@ -48,7 +37,10 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
   const [total, setTotal]             = useState(() =>
     getCart().reduce((acc, i) => acc + i.precio * i.cantidad, 0)
   );
-  const abierto = estaAbierto();
+  const [cfgHorario, setCfgHorario]   = useState<any>({ ...LANDING_DEFAULTS });
+  const abierto = estaAbierto(cfgHorario);
+
+  useEffect(() => { getLandingConfig().then(setCfgHorario); }, []);
 
   const syncCart = useCallback(() => {
     const c = getCart();
@@ -71,7 +63,7 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
   const handleQty = (id: number, delta: number) => {
     const item = cart.find(i => i.id === id);
     if (!item) return;
-    const newQty = item.cantidad + delta;
+    const newQty = Math.min(MAX_QTY, item.cantidad + delta);
     if (newQty <= 0) { removeFromCart(id); return; }
     if (item.stock && !((item as any).pedidoProgramado) && !((item as any).requiereProduccion) && newQty > item.stock) {
       mostrarLimiteStock(item.nombre, item.stock);
@@ -81,7 +73,7 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
   };
 
   const handleQtyDirect = (id: number, value: string) => {
-    const num = parseInt(value, 10);
+    const num = Math.min(MAX_QTY, parseInt(value, 10));
     if (isNaN(num) || num < 1) { removeFromCart(id); return; }
     const item = cart.find(i => i.id === id);
     if (item?.stock && !((item as any).pedidoProgramado) && !((item as any).requiereProduccion) && num > item.stock) {
@@ -185,8 +177,8 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
             <Clock size={18} className="shrink-0 mt-0.5 text-amber-600" />
             <div>
               <p className="text-xs font-black text-amber-700">Fuera del horario de atención</p>
-              <p className="text-[11px] font-medium text-amber-600 mt-0.5 leading-snug">{mensajeFueraHorario()}</p>
-              <p className="text-[10px] text-amber-500 mt-1">Horario: lunes a sábado · 8:00 am – 8:00 pm</p>
+              <p className="text-[11px] font-medium text-amber-600 mt-0.5 leading-snug">{mensajeFueraHorario(cfgHorario)}</p>
+              <p className="text-[10px] text-amber-500 mt-1">Horario de atención: {rangoHorario(cfgHorario)}</p>
             </div>
           </div>
         )}
@@ -308,8 +300,9 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
                             <input
                               type="number"
                               min="1"
+                              maxLength={4}
                               value={qtyDrafts[item.id] ?? String(item.cantidad)}
-                              onChange={e => setQtyDrafts(prev => ({ ...prev, [item.id]: e.target.value }))}
+                              onChange={e => setQtyDrafts(prev => ({ ...prev, [item.id]: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
                               onBlur={e => {
                                 const val = e.target.value;
                                 setQtyDrafts(prev => { const n = { ...prev }; delete n[item.id]; return n; });

@@ -85,6 +85,9 @@ class Usuario(Base):
     #                                           ADD COLUMN Bloqueado_Hasta DATETIME NULL;
     Intentos_Login = Column(Integer, default=0, nullable=True)
     Bloqueado_Hasta = Column(DateTime, nullable=True)
+    # 1 = la propia persona eliminó su cuenta (borrado lógico). Distingue este
+    # caso de una cuenta desactivada por un admin, para poder recuperarla.
+    Auto_Eliminado = Column(Integer, default=0, nullable=True)
     # Barrio de referencia del cliente (módulo Ubicaciones). Es SOLO dato guía:
     # no condiciona el domicilio, que se elige y confirma en el checkout.
     # Migración: ALTER TABLE Usuarios ADD COLUMN ID_Barrio INT NULL;
@@ -661,8 +664,15 @@ class ConfiguracionLanding(Base):
     contact_city             = Column(String(200),  nullable=True)
     contact_instagram_url    = Column(String(500),  nullable=True)
     contact_instagram_handle = Column(String(100),  nullable=True)
-    horario_lunes_viernes    = Column(String(100),  nullable=True)
-    horario_sabado           = Column(String(100),  nullable=True)
+    # Ubicación del local en el mapa del footer (punto exacto, editable desde
+    # "Editar Landing Page"). Si están en NULL se cae a geocodificar la dirección.
+    map_lat                  = Column(Numeric(10, 7), nullable=True)
+    map_lng                  = Column(Numeric(10, 7), nullable=True)
+    # Horario de atención estructurado: gobierna el aviso de "fuera de horario"
+    # del carrito y el checkout. Solo un admin puede editarlo.
+    hora_apertura            = Column(String(5),   nullable=True)   # "08:00"
+    hora_cierre              = Column(String(5),   nullable=True)   # "20:00"
+    dias_atencion            = Column(String(20),  nullable=True)   # CSV ISO 1..7 (1=Lun)
 
 # ─────────────────────────────────────────
 # SALIDAS (daños, vencimientos, ajustes)

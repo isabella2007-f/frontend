@@ -31,6 +31,7 @@ import {
 } from "../../../services/productosService";
 import { registrarSalida, procesarVencidos } from "../../../services/salidasService";
 import { usePrivilegio } from "../../../context/PrivilegiosContext";
+import { formatCOP } from "../../../utils/formato.js";
 import "./Productos.css";
 
 const ITEMS_PER_PAGE = 5;
@@ -533,7 +534,7 @@ function VerProducto({ product, catObj, onClose, onOpenFicha }) {
                 <div className="ver-ins-field">
                   <span className="ver-ins-field__label">Precio de venta</span>
                   <span style={{ fontWeight: 700, fontSize: 16, color: "#2e7d32" }}>
-                    ${product.precio?.toLocaleString("es-CO")}
+                    {formatCOP(product.precio)}
                   </span>
                 </div>
                 <div className="ver-ins-field">
@@ -1219,7 +1220,7 @@ export default function GestionProductos() {
                           <td><CatCell cat={cat} /></td>
                           <td>
                             <span style={{ fontWeight: 700, color: "#2e7d32", fontSize: 14 }}>
-                              ${p.precio?.toLocaleString("es-CO")}
+                              {formatCOP(p.precio)}
                             </span>
                           </td>
                           <td>

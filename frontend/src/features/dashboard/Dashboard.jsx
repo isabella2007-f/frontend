@@ -4,6 +4,7 @@ import {
   PieChart, Pie, Cell, AreaChart, Area, CartesianGrid,
 } from "recharts";
 import "./dashboard.css";
+import { milesConApostrofe } from "../../utils/formato";
 import { getDashboard, getDashboardDetalle } from "../../services/dashboardService";
 import { AlertTriangle, Banknote, Package, User, Tag, Info } from "lucide-react";
 import { fmtFecha } from "../../utils/dateUtils";
@@ -43,7 +44,7 @@ function CustomTooltip({ active, payload, label, prefix = "" }) {
       <p style={{ margin: "0 0 4px", fontWeight: 700, color: "#424242" }}>{label}</p>
       {payload.filter(p => p.value).map((p, i) => (
         <p key={i} style={{ margin: "2px 0", color: p.fill || p.color || p.stroke || "#43a047", fontWeight: 600 }}>
-          {p.name}: {prefix === "$" ? `$${(p.value || 0).toLocaleString("es-CO")}` : p.value}
+          {p.name}: {prefix === "$" ? `$${milesConApostrofe(p.value || 0)}` : p.value}
         </p>
       ))}
     </div>

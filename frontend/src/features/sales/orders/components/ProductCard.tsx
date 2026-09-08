@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { ShoppingCart, Plus, Heart, Package } from 'lucide-react';
+import { formatCOP } from '../../../../utils/formato';
 
 interface ProductCardProps {
   product: {
@@ -87,7 +88,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
           <div className="flex flex-col">
             <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Precio</span>
             <span className="text-2xl font-black text-emerald-700 leading-none">
-              ${product.precio.toLocaleString('es-CO')}
+              {formatCOP(product.precio)}
             </span>
           </div>
 

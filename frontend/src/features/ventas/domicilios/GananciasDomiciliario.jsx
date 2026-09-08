@@ -5,13 +5,13 @@ import { esPagoEfectivo, esPagoMixto } from "../../../utils/metodosPago";
 import { fmtFecha } from "../../../utils/dateUtils.js";
 import "./DomiciliarioUI.css";
 import "./GananciasDomiciliario.css";
+import { formatCOP } from "../../../utils/formato";
 import {
   Banknote, CheckCircle2, BarChart2, Wallet, Info, Clock,
   RefreshCw, AlertCircle,
 } from "lucide-react";
 
-const fmt = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n || 0);
+const fmt = formatCOP;
 
 /**
  * Cuánta plata de esta entrega pasó por las manos del repartidor.

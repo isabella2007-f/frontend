@@ -4,13 +4,13 @@ import { getTodosLosDomicilios } from "../../../services/domiciliosService";
 import { ESTADO_DOM_CONFIG } from "./estadosDomicilio";
 import "./DomiciliarioUI.css";
 import "./HistorialEntregas.css";
+import { formatCOP } from "../../../utils/formato";
 import {
   CheckCircle2, XCircle, Banknote, ClipboardList, MapPin,
   History, RefreshCw, AlertCircle, Clock,
 } from "lucide-react";
 
-const fmt = (n) =>
-  new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 }).format(n);
+const fmt = formatCOP;
 
 const fmtHora = (iso) => {
   if (!iso) return "—";
