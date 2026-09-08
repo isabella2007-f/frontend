@@ -32,6 +32,7 @@ from src.shared.services.models import (
     GrupoEnvio,
     GrupoEnvioItem,
     MovimientoCredito,
+    OrdenProduccion,
     Producto,
     Usuario,
     Venta,
@@ -263,6 +264,86 @@ class TestReembolsoProporcionalSplit3070(CancelarGrupoBase):
         reembolso_b = Decimal(str(movs[1].Monto))
         # 250.000 × 0.6 = 150.000
         self.assertEqual(reembolso_b, Decimal("150000"))
+
+
+class TestReembolsoSegunLoHorneado(CancelarGrupoBase):
+    """Lo horneado de un grupo no congela la plata del otro.
+
+    Dos productos, uno por grupo. Solo el del grupo A entró al horno y salió.
+    Cancelar B tiene que devolver su parte —de ese grupo no se gastó un insumo—
+    y cancelar A no, porque esa plata ya se fue en harina.
+
+    Antes la pregunta era por el pedido entero: bastaba que algo estuviera
+    horneado para que ningún grupo devolviera nada.
+    """
+
+    PRECIO = Decimal("100000")
+    ANTICIPO = Decimal("100000")   # la mitad de un pedido de 200.000
+    ID_HORNEADO = 20               # va en el grupo A y ya salió del horno
+    ID_PENDIENTE = 21              # va en el grupo B, ni se empezó
+    ID_VENTA = 1
+
+    def setUp(self):
+        super().setUp()
+        for id_prod, nombre in ((self.ID_HORNEADO, "Torta"),
+                                (self.ID_PENDIENTE, "Pan")):
+            self.db.add(Producto(
+                ID_Producto=id_prod, nombre=nombre,
+                Precio_venta=self.PRECIO, Stock=0, Estado=1, Publicado=1,
+            ))
+        self.db.add(Venta(
+            ID_Venta=self.ID_VENTA, ID_Usuario=ID_CLIENTE,
+            Total=self.PRECIO * 2, Estado=4,
+            Anticipo_Monto=self.ANTICIPO,
+            Anticipo_Registrado=1,
+        ))
+        for id_prod in (self.ID_HORNEADO, self.ID_PENDIENTE):
+            self.db.add(VentaXProducto(
+                ID_Venta=self.ID_VENTA, ID_Producto=id_prod, Cantidad=1,
+            ))
+
+        grupo_a = GrupoEnvio(ID_Venta=self.ID_VENTA, Tipo="anticipado",
+                             Estado="pendiente", Tipo_Entrega="recoger")
+        grupo_b = GrupoEnvio(ID_Venta=self.ID_VENTA, Tipo="programado",
+                             Estado="pendiente", Tipo_Entrega="recoger")
+        self.db.add(grupo_a)
+        self.db.add(grupo_b)
+        self.db.flush()
+        self.id_grupo_a = grupo_a.ID_Grupo
+        self.id_grupo_b = grupo_b.ID_Grupo
+
+        self.db.add(GrupoEnvioItem(
+            ID_Grupo=self.id_grupo_a, ID_Venta=self.ID_VENTA,
+            ID_Producto=self.ID_HORNEADO, Cantidad=1,
+        ))
+        self.db.add(GrupoEnvioItem(
+            ID_Grupo=self.id_grupo_b, ID_Venta=self.ID_VENTA,
+            ID_Producto=self.ID_PENDIENTE, Cantidad=1,
+        ))
+        # Lo del grupo A ya salió del horno (11 = Completada).
+        self.db.add(OrdenProduccion(
+            ID_Venta=self.ID_VENTA, ID_Producto=self.ID_HORNEADO,
+            Cantidad=1, Estado=11,
+        ))
+        self.db.commit()
+
+    def test_el_grupo_sin_hornear_si_recupera_su_parte(self):
+        cancelar_grupo_pendiente(self.db, self.ID_VENTA, self.id_grupo_b, ADMIN)
+        self.assertEqual(
+            self._credito_saldo(), self.ANTICIPO / 2,
+            "de este grupo no se gastó un insumo: su mitad tiene que volver")
+
+    def test_el_grupo_ya_horneado_no_mueve_la_plata(self):
+        cancelar_grupo_pendiente(self.db, self.ID_VENTA, self.id_grupo_a, ADMIN)
+        self.assertEqual(
+            self._credito_saldo(), Decimal("0"),
+            "esa plata ya se fue en harina: qué pasa con ella se acuerda aparte")
+
+    def test_cancelar_el_horneado_no_le_quita_al_otro_lo_suyo(self):
+        # El orden no cambia el resultado: cada grupo responde por lo suyo.
+        cancelar_grupo_pendiente(self.db, self.ID_VENTA, self.id_grupo_a, ADMIN)
+        cancelar_grupo_pendiente(self.db, self.ID_VENTA, self.id_grupo_b, ADMIN)
+        self.assertEqual(self._credito_saldo(), self.ANTICIPO / 2)
 
 
 if __name__ == "__main__":

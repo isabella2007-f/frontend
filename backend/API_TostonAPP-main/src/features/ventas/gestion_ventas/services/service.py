@@ -278,22 +278,32 @@ PARTE_TODO       = "todo"         # la línea completa
 ORDEN_COMPLETADA = 11
 
 
-def anticipo_vuelve_solo(db: Session, id_venta: int) -> bool:
+def anticipo_vuelve_solo(db: Session, id_venta: int, id_productos=None) -> bool:
     """¿Se le abona el anticipo al cliente al cancelar, sin preguntarle a nadie?
 
-    Solo mientras no se haya horneado. Si alguna orden de producción del pedido
-    llegó a completarse, los insumos ya se gastaron y qué pasa con esa plata lo
-    acuerdan el cliente y quien atiende: el sistema no decide por ellos.
+    Solo mientras no se haya horneado. Si alguna orden de producción llegó a
+    completarse, los insumos ya se gastaron y qué pasa con esa plata lo acuerdan
+    el cliente y quien atiende: el sistema no decide por ellos.
 
     Antes se devolvía siempre —también después de hornear, con la panadería ya
     con el gasto encima— y las pruebas pedían lo contrario, que no volviera
     nunca, dejando al cliente que cancela a tiempo persiguiendo su plata.
+
+    [id_productos] acota la pregunta a esos productos. Al cancelar UN grupo de
+    envío, lo que importa es si se horneó lo de ESE grupo: que el otro grupo ya
+    esté en el horno no tiene por qué congelarle al cliente la plata de este,
+    donde no se gastó un solo insumo.
     """
-    horneado = db.query(OrdenProduccion).filter(
+    consulta = db.query(OrdenProduccion).filter(
         OrdenProduccion.ID_Venta == id_venta,
         OrdenProduccion.Estado == ORDEN_COMPLETADA,
-    ).first()
-    return horneado is None
+    )
+    if id_productos is not None:
+        # Un grupo sin productos no tiene nada horneado que reclamar.
+        if not id_productos:
+            return True
+        consulta = consulta.filter(OrdenProduccion.ID_Producto.in_(id_productos))
+    return consulta.first() is None
 
 
 def _abonar_credito(db: Session, id_usuario: int, monto: Decimal, id_venta: int) -> None:
@@ -2903,9 +2913,10 @@ def cancelar_grupo_pendiente(
             )
             # Guardrail: nunca devolver más del anticipo total (por redondeo extremo)
             reembolso = min(reembolso, anticipo)
-            # La misma regla que al cancelar el pedido entero: horneado, la
-            # plata no se mueve sola.
-            if reembolso > 0 and anticipo_vuelve_solo(db, id_venta):
+            # La misma regla que al cancelar el pedido entero, pero preguntada
+            # por lo de ESTE grupo: lo que se hornee del otro no tiene por qué
+            # congelarle al cliente la parte de este.
+            if reembolso > 0 and anticipo_vuelve_solo(db, id_venta, prod_ids_b):
                 _abonar_credito(db, venta.ID_Usuario, reembolso, id_venta)
 
     # Cancelar el domicilio asociado al grupo si existe y no está ya en estado
