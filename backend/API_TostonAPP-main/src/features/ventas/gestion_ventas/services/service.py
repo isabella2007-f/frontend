@@ -47,6 +47,12 @@ from src.features.ventas.ubicaciones.services.service import resolver_domicilio
 # nunca se toma del request, el cliente no puede alterarla.
 PORCENTAJE_ANTICIPO_SOBRE_STOCK = Decimal("0.50")
 
+#: Estado con el que queda un domicilio cancelado (catálogo de Estados).
+#:
+#: Lo usa la división de entregas para retirar del tablero el domicilio
+#: original, que después de dividir ya no es un viaje sino una plantilla.
+ESTADO_DOMICILIO_CANCELADO = 5
+
 # Monto a partir del cual un pedido por encargo pide anticipo. Por debajo el
 # trámite le cuesta más al cliente de lo que protege al negocio: un pedido chico
 # que no se recoge se le vende al siguiente que entre.
@@ -2596,6 +2602,15 @@ def crear_grupos_envio(
         - Decimal(costo_domicilio_anterior)
         + Decimal(costo_domicilio_grupos)
     )
+
+    # El domicilio original deja de ser un viaje: su precio acaba de salir del
+    # total y los productos los llevan los grupos. La fila se conserva —de ella
+    # salen la dirección que heredan los grupos y este mismo precio— pero
+    # cancelada, o queda en el tablero una entrega que nadie va a tomar nunca y
+    # que igual cuenta como domicilio del día.
+    if dom_orig:
+        dom_orig.Estado = ESTADO_DOMICILIO_CANCELADO
+        dom_orig.ID_Empleado = None
 
     venta.Envio_Completo_Domingo = 0
     db.commit()
