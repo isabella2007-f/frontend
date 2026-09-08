@@ -506,7 +506,9 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
                   <button
                     className="info-box info-box--info"
                     style={{ width: "100%", cursor: "pointer", textAlign: "left", border: "1px solid #90caf9" }}
-                    onClick={() => { onClose(); navigate(`/admin/ordenes-produccion?search=${pedido.numero}`); }}
+                    // Por id, que es lo que la lista de órdenes conoce del
+                    // pedido. Con el número formateado no coincidía nada.
+                    onClick={() => { onClose(); navigate(`/admin/ordenes-produccion?search=${pedido.id}`); }}
                   >
                     <span className="info-box__icon"><Package size={16} /></span>
                     <div>
@@ -2145,7 +2147,10 @@ export default function GestionPedidos() {
   const listaActual = vista === "activos" ? pedidos : historial;
   const filtered = listaActual.filter(p => {
     const q      = search.toLowerCase();
-    const matchQ = [p.numero, p.cliente?.nombre, p.cliente?.correo, p.metodo_pago, p.estado]
+    // El id además del número: desde producción se llega con el id pelado, y
+     // hasta ahora coincidía de casualidad porque "V-43" contiene "43".
+    const matchQ = [String(p.id ?? ""), p.numero, p.cliente?.nombre,
+                    p.cliente?.correo, p.metodo_pago, p.estado]
       .filter(Boolean).some(v => v.toLowerCase().includes(q));
     const matchE = filterEstado === "todos" || p.estado === filterEstado;
     const matchT =

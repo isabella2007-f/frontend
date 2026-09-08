@@ -544,7 +544,9 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
       // Las unidades incompatibles también frenan: no es que falte insumo, es
       // que la ficha no se puede leer, y el servidor lo va a rechazar igual.
       const insuficientes = fichaConCheck.filter(i => i.faltante > 0.0001 || i.error);
-      setStockCheck({ insuficientes, fichaConCheck, stockMap, cantidadOrden });
+      // Sin `stockMap`: esa variable no existe —quedó de cuando se llamaba
+      // así— y la línea reventaba en silencio, dejando la revisión sin hacer.
+      setStockCheck({ insuficientes, fichaConCheck, cantidadOrden });
 
       // Fecha vencimiento automática solo al completar: sale de la ficha técnica
       // (Dias_Vida_Util + Vida_Util_Unidad), igual que el backend.
@@ -1286,11 +1288,15 @@ export default function GestionOrdenesProduccion() {
 
   const filtered = ordenes.filter(o => {
     const q = search.toLowerCase();
+    // También por el pedido: es como se llega acá desde "Producción activa",
+    // y es lo que alguien escribe cuando busca "las órdenes del pedido 43".
     const matchQ = [
       String(o.id ?? ""),
+      String(o.idVenta ?? ""),
+      o.idVenta ? `v-${o.idVenta}` : "",
       o.nombreProducto ?? "",
       o.nombreInsumo   ?? "",
-    ].some(v => v.toLowerCase().includes(q));
+    ].some(v => v && v.toLowerCase().includes(q));
     const matchE = filterEstado === "todos" || o.estado === filterEstado;
 
     let matchFecha = true;
