@@ -124,6 +124,10 @@ class VentaResponse(BaseModel):
     desglose_domicilio:       Optional[dict]     = None
     observaciones_domicilio:  Optional[str]      = None
     nombre_domiciliario:      Optional[str]      = None
+    # Repartidor asignado. El panel lo usa como respaldo para resolver el
+    # nombre contra su lista de empleados; sin declararlo acá, Pydantic lo
+    # descartaba y ese camino no servía para nada.
+    ID_Empleado:              Optional[int]      = None
     comprobante_pago:         Optional[str]      = None
     # Pago mixto: cuánto se paga de cada forma
     monto_efectivo:           Optional[Decimal]  = None

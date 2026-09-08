@@ -405,9 +405,19 @@ def _formato_venta(venta: Venta, db: Session, *, dxv_map=None) -> dict:
     }
     subtotal_bruto = sum(p["subtotal"] for p in productos)
 
+    # Quién lo lleva. Se busca en el domicilio del pedido y, si ahí no hay,
+    # en los de los grupos: al dividir la entrega el repartidor se asigna al
+    # domicilio DEL GRUPO y la fila de referencia se queda sin empleado, así
+    # que un pedido dividido y en camino se veía como "Sin asignar".
+    dom_con_repartidor = next(
+        (d for d in ([domicilio] if domicilio else []) + list(venta.domicilios)
+         if d is not None and d.ID_Empleado and d.Estado != 5),
+        None,
+    )
     domiciliario = None
-    if domicilio and domicilio.ID_Empleado:
-        emp = domicilio.empleado
+    id_repartidor = dom_con_repartidor.ID_Empleado if dom_con_repartidor else None
+    if dom_con_repartidor:
+        emp = dom_con_repartidor.empleado
         if emp:
             domiciliario = f"{emp.Nombre} {emp.Apellidos}"
 
@@ -457,7 +467,7 @@ def _formato_venta(venta: Venta, db: Session, *, dxv_map=None) -> dict:
         # línea [COBRO|...] pegada a las notas del cliente.
         "observaciones_domicilio":      observaciones_limpias(domicilio.Observaciones) if domicilio else None,
         "nombre_domiciliario":          domiciliario,
-        "ID_Empleado":                  domicilio.ID_Empleado if domicilio else None,
+        "ID_Empleado":                  id_repartidor,
         "ordenes_produccion_pendientes": ordenes_pendientes,
         "ordenes_en_espera":             ordenes_en_espera,
         "requiere_produccion":           requiere_produccion,
@@ -660,8 +670,23 @@ def _batch_ventas(ventas: list, db: Session) -> list:
             db.query(DescuentoXVenta).filter(DescuentoXVenta.ID_Venta.in_(venta_ids)).all()}
 
     # Batch 7: domicilios
-    domicilios = {d.ID_Venta: d for d in
-                  db.query(Domicilio).filter(Domicilio.ID_Venta.in_(venta_ids)).all()}
+    #
+    # Un pedido dividido tiene varios: la fila de referencia (sin grupo) y una
+    # por grupo. El repartidor se asigna a la del grupo, así que quedarse con
+    # una cualquiera —la última que devolviera la consulta— hacía que la tabla
+    # dijera "Sin asignar" en pedidos que ya iban en camino. Gana el que tiene
+    # repartidor; entre iguales, el de referencia.
+    domicilios = {}
+    for d in db.query(Domicilio).filter(Domicilio.ID_Venta.in_(venta_ids)).all():
+        if d.Estado == 5:                      # cancelado: no cuenta
+            continue
+        actual = domicilios.get(d.ID_Venta)
+        if actual is None:
+            domicilios[d.ID_Venta] = d
+        elif d.ID_Empleado and not actual.ID_Empleado:
+            domicilios[d.ID_Venta] = d
+        elif d.ID_Grupo is None and not actual.ID_Empleado:
+            domicilios[d.ID_Venta] = d
 
     # Batch 8: repartidores
     emp_ids = list({d.ID_Empleado for d in domicilios.values() if d.ID_Empleado})
