@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Check, X, User, Camera, Eye, EyeOff } from "lucide-react";
 import { TIPOS_DOC, fmtTel, toInputDate, fromInputDate } from "./empleadosUtils.js";
 import { soloLetras, soloDigitos } from "../../../utils/inputFilters";
-import { getUsuarios } from "../../../services/usuariosService.js";
+import { getUsuarios, verificarDisponibilidad } from "../../../services/usuariosService.js";
 import "./Empleados.css";
 
 /* ─── RolBadge ───────────────────────────────────────────── */
@@ -138,6 +138,7 @@ export default function CrearEmpleado({ onClose, onSave, roles = [] }) {
   const [saving, setSaving]     = useState(false);
   const [showPass, setShowPass] = useState(false);
   const [step, setStep]         = useState(1);
+  const [checkingStep, setCheckingStep] = useState(false);
   const fotoRef = useRef();
 
   const set = (k, v) => {
@@ -232,9 +233,28 @@ export default function CrearEmpleado({ onClose, onSave, roles = [] }) {
     return e;
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     const e = validateStep(step);
     if (Object.keys(e).length) { setErrors(e); return; }
+
+    // La lista local viene topada a 100 usuarios: contra el servidor se
+    // confirma el documento (paso 1) y el correo (paso 2) antes de paginar.
+    const consulta = step === 1 ? { cedula: form.numDoc.trim() }
+                   : step === 2 ? { correo: form.correo.trim() }
+                   : null;
+    if (consulta) {
+      setCheckingStep(true);
+      try {
+        const disp = await verificarDisponibilidad(consulta);
+        if (disp.cedula_disponible === false) { setErrors(p => ({ ...p, numDoc: "Este documento ya está registrado" })); return; }
+        if (disp.correo_disponible === false) { setErrors(p => ({ ...p, correo: "Este correo ya está en uso" })); return; }
+      } catch {
+        // El backend revalida al crear si la verificación falla.
+      } finally {
+        setCheckingStep(false);
+      }
+    }
+
     setStep(s => s + 1);
   };
 
@@ -430,7 +450,7 @@ export default function CrearEmpleado({ onClose, onSave, roles = [] }) {
             : <button className="btn-ghost" onClick={onClose}>Cancelar</button>
           }
           {step < 4
-            ? <button className="btn-save" onClick={handleNext}>Siguiente →</button>
+            ? <button className="btn-save" onClick={handleNext} disabled={checkingStep}>{checkingStep ? "Verificando…" : "Siguiente →"}</button>
             : <button className="btn-save" onClick={handleSave} disabled={saving}>
                 {saving && <span className="spinner">◌</span>}
                 {saving ? "Guardando…" : "Crear empleado"}
