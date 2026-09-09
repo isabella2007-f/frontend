@@ -649,22 +649,24 @@ def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observacio
 
     es_domicilio_grupo = bool(dom.ID_Grupo)
 
-    # Validación de producción: aplica a todos.
-    # Para domicilios de grupo se compara la cantidad lista de cada producto
-    # (via _items_listos_venta, que descuenta correctamente el stock vs. preorden)
-    # contra la cantidad del grupo — así un producto que aparece en los dos grupos
-    # (parte en stock, parte en producción) no bloquea el grupo que ya tiene su
-    # porción lista.
+    # Validación de producción.
+    # Grupo anticipado: por construcción sus unidades siempre están en stock o
+    # en una OP ya completada al momento de crearse; no hay nada que validar.
+    # Grupo programado: sus productos pueden tener OPs abiertas; se verifica
+    # directamente contra OrdenProduccion filtrada por los productos del grupo,
+    # sin usar el pool compartido de _items_listos_venta (que incluiría las
+    # unidades del grupo anticipado y produciría un falso positivo).
     if nuevo_estado in (EstadoDomicilio.EN_CAMINO, EstadoDomicilio.ENTREGADO) and dom.ID_Venta:
         if es_domicilio_grupo:
-            items_grupo = db.query(GrupoEnvioItem).filter(GrupoEnvioItem.ID_Grupo == dom.ID_Grupo).all()
-            if items_grupo:
-                listos = _items_listos_venta(db, dom.ID_Venta)
-                faltantes_grupo = [
-                    i for i in items_grupo
-                    if listos.get(i.ID_Producto, 0) < i.Cantidad
-                ]
-                if faltantes_grupo:
+            grupo_obj = db.query(GrupoEnvio).filter(GrupoEnvio.ID_Grupo == dom.ID_Grupo).first()
+            if grupo_obj and grupo_obj.Tipo == "programado":
+                ids_prod = [i.ID_Producto for i in
+                            db.query(GrupoEnvioItem).filter(GrupoEnvioItem.ID_Grupo == dom.ID_Grupo).all()]
+                if ids_prod and db.query(OrdenProduccion).filter(
+                    OrdenProduccion.ID_Venta == dom.ID_Venta,
+                    OrdenProduccion.ID_Producto.in_(ids_prod),
+                    OrdenProduccion.Estado.notin_([11, 5]),
+                ).count() > 0:
                     raise HTTPException(
                         status_code=400,
                         detail=(
@@ -741,7 +743,7 @@ def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observacio
                         venta.Fecha_entrega = _now()
                 elif "entregado" in estados_grupos:
                     venta.Estado = 18  # PARCIALMENTE_ENTREGADO
-    elif nuevo_estado in ESTADO_DOM_A_VENTA and dom.ID_Venta:
+    elif not es_domicilio_grupo and nuevo_estado in ESTADO_DOM_A_VENTA and dom.ID_Venta:
         # Propagar a la Venta. "Asignado" no la mueve: el pedido sigue Listo.
         venta = db.query(Venta).filter(Venta.ID_Venta == dom.ID_Venta).with_for_update().first()
         if venta:

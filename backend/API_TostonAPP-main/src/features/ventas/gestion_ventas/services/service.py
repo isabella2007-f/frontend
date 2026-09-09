@@ -2403,6 +2403,7 @@ def _formato_grupo(grupo: GrupoEnvio, dom: Domicilio | None = None) -> dict:
         "fecha":                grupo.Fecha_Entrega,
         "tipo_entrega":         grupo.Tipo_Entrega,
         "estado":               grupo.Estado,
+        "domicilio_estado":     dom.Estado if dom else None,
         "productos":            [{"id_producto": i.ID_Producto, "cantidad": i.Cantidad} for i in grupo.items],
         "direccion_entrega":    dom.Direccion_entrega     if dom else None,
         "municipio_entrega":    dom.Municipio_entrega     if dom else None,
@@ -2710,48 +2711,45 @@ def actualizar_estado_grupo(
             detail=f"No se puede pasar de '{grupo.Estado}' a '{nuevo_estado}'",
         )
 
-    # El grupo programado contiene ítems que pueden aún estar en producción.
-    # Antes de marcarlo como "enviado", verificamos que cada producto asignado
-    # al grupo tenga la cantidad requerida cubierta por stock o OP completada.
+    # Grupo programado: puede tener OPs abiertas para sus productos. Se valida
+    # directo contra OrdenProduccion filtrada por los productos de ESTE grupo,
+    # sin usar _items_listos_venta() (su pool es global a la venta y contiene
+    # también las unidades del grupo anticipado, produciendo falsos negativos).
+    # Grupo anticipado: por construcción siempre está cubierto; no se valida.
     if grupo.Tipo == "programado" and nuevo_estado == "enviado":
-        listos = _items_listos_venta(db, id_venta)
-        items_grupo = db.query(GrupoEnvioItem).filter(
-            GrupoEnvioItem.ID_Grupo == id_grupo
-        ).all()
-        faltantes = []
-        for item in items_grupo:
-            cant_lista = listos.get(item.ID_Producto, 0)
-            if cant_lista < item.Cantidad:
-                nombre = item.producto.nombre if item.producto else f"Producto #{item.ID_Producto}"
-                faltantes.append(f"{nombre} ({cant_lista}/{item.Cantidad} listos)")
-        if faltantes:
+        ids_prod = [i.ID_Producto for i in
+                    db.query(GrupoEnvioItem).filter(GrupoEnvioItem.ID_Grupo == id_grupo).all()]
+        if ids_prod and db.query(OrdenProduccion).filter(
+            OrdenProduccion.ID_Venta == id_venta,
+            OrdenProduccion.ID_Producto.in_(ids_prod),
+            OrdenProduccion.Estado.notin_([11, 5]),
+        ).count() > 0:
             raise HTTPException(
                 status_code=400,
                 detail=(
-                    "El grupo programado aún tiene producción pendiente: "
-                    f"{', '.join(faltantes)}. "
+                    "El grupo programado aún tiene producción pendiente. "
                     "Completá las órdenes de producción antes de marcarlo como enviado."
                 ),
             )
 
-    # Al entregar un grupo tienda: verificar producción de los productos de ESTE grupo.
-    # Los grupos domicilio llegan por cambiar_estado() en domicilios, que ya valida allí.
-    if nuevo_estado == "entregado" and grupo.Tipo_Entrega == "tienda":
-        items_grupo_e = db.query(GrupoEnvioItem).filter(GrupoEnvioItem.ID_Grupo == id_grupo).all()
-        if items_grupo_e:
-            listos_e = _items_listos_venta(db, id_venta)
-            faltantes_e = [
-                i for i in items_grupo_e
-                if listos_e.get(i.ID_Producto, 0) < i.Cantidad
-            ]
-            if faltantes_e:
-                raise HTTPException(
-                    status_code=400,
-                    detail=(
-                        "La producción de este grupo aún no está completada. "
-                        "Completá las órdenes de producción antes de marcarlo como entregado."
-                    ),
-                )
+    # Al entregar un grupo tienda programado: misma validación directa contra OP.
+    # Anticipado tienda: sin validación (ídem arriba). Domicilio: valida en
+    # domicilios/service.py cambiar_estado(), no aquí.
+    if nuevo_estado == "entregado" and grupo.Tipo_Entrega == "tienda" and grupo.Tipo == "programado":
+        ids_prod_e = [i.ID_Producto for i in
+                      db.query(GrupoEnvioItem).filter(GrupoEnvioItem.ID_Grupo == id_grupo).all()]
+        if ids_prod_e and db.query(OrdenProduccion).filter(
+            OrdenProduccion.ID_Venta == id_venta,
+            OrdenProduccion.ID_Producto.in_(ids_prod_e),
+            OrdenProduccion.Estado.notin_([11, 5]),
+        ).count() > 0:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "La producción de este grupo aún no está completada. "
+                    "Completá las órdenes de producción antes de marcarlo como entregado."
+                ),
+            )
 
     # Al entregar: validar pago completo del pedido (el pago nunca se divide).
     if nuevo_estado == "entregado":
