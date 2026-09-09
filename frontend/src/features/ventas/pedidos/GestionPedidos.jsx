@@ -2839,6 +2839,20 @@ export default function GestionPedidos() {
                               </span>
                             );
                           })()}
+                          {(ped.grupos_resumen || []).map((g, i) => {
+                            const DOM_EST = { 3:"Pendiente", 10:"Asignado", 9:"En camino", 8:"Entregado", 5:"Cancelado" };
+                            const DOM_CLR = { 3:"#f57f17", 10:"#283593", 9:"#1565c0", 8:"#2e7d32", 5:"#c62828" };
+                            const GRP_CLR = { pendiente:"#f57f17", enviado:"#1565c0", entregado:"#2e7d32", cancelado:"#c62828" };
+                            const dominioActivo = [9,8,5].includes(g.domicilio_estado);
+                            const label = dominioActivo ? DOM_EST[g.domicilio_estado] : (g.estado === "pendiente" ? "Pendiente" : g.estado === "enviado" ? "Enviado" : g.estado === "entregado" ? "Entregado" : g.estado);
+                            const color = dominioActivo ? DOM_CLR[g.domicilio_estado] : (GRP_CLR[g.estado] || "#757575");
+                            return (
+                              <span key={i} style={{ fontSize: 9, fontWeight: 700, color, letterSpacing: 0.3, display: "flex", alignItems: "center", gap: 3 }}>
+                                <span style={{ width: 5, height: 5, borderRadius: "50%", background: color, display: "inline-block", flexShrink: 0 }} />
+                                {g.tipo === "anticipado" ? "Anticip." : "Program."}: {label}
+                              </span>
+                            );
+                          })}
                         </div>
                       </td>
                       <td>

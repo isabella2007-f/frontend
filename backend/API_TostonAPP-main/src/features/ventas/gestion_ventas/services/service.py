@@ -730,7 +730,24 @@ def _batch_ventas(ventas: list, db: Session) -> list:
     repartidores = {u.ID_Usuario: u for u in
                     db.query(Usuario).filter(Usuario.ID_Usuario.in_(emp_ids)).all()} if emp_ids else {}
 
-    # Batch 9: órdenes pendientes por venta (COUNT total + en espera=Pendiente)
+    # Batch 9: grupos de envío — solo estado/tipo, sin ítems ni eager-load
+    grupos_rows = db.query(GrupoEnvio).filter(GrupoEnvio.ID_Venta.in_(venta_ids)).all()
+    grupos_por_venta: dict = {}
+    grupo_ids = []
+    for g in grupos_rows:
+        grupos_por_venta.setdefault(g.ID_Venta, []).append(g)
+        grupo_ids.append(g.ID_Grupo)
+
+    # Batch 10: estado del domicilio por grupo (para mostrar En camino/Entregado real)
+    dom_estado_por_grupo: dict = {}
+    if grupo_ids:
+        for d in db.query(Domicilio).filter(
+            Domicilio.ID_Grupo.in_(grupo_ids),
+            Domicilio.Estado != 5,
+        ).all():
+            dom_estado_por_grupo[d.ID_Grupo] = d.Estado
+
+    # Batch 11: órdenes pendientes por venta (COUNT total + en espera=Pendiente)
     ordenes_rows = (
         db.query(
             OrdenProduccion.ID_Venta,
@@ -835,9 +852,18 @@ def _batch_ventas(ventas: list, db: Session) -> list:
                 None if getattr(venta, "Envio_Completo_Domingo", None) is None
                 else bool(venta.Envio_Completo_Domingo)
             ),
-            # En el listado batch no cargamos grupos: evita N+1 en paginación.
-            # El detalle individual los trae vía _formato_venta con eager-load.
+            # Resumen liviano de grupos para el listado. El detalle completo
+            # (con ítems y snapshot de domicilio) llega por _formato_venta.
             "grupos_envio": [],
+            "grupos_resumen": [
+                {
+                    "tipo":            g.Tipo,
+                    "estado":          g.Estado,
+                    "tipo_entrega":    g.Tipo_Entrega,
+                    "domicilio_estado": dom_estado_por_grupo.get(g.ID_Grupo),
+                }
+                for g in grupos_por_venta.get(venta.ID_Venta, [])
+            ],
         })
 
     return result
@@ -1582,6 +1608,18 @@ def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
                     "Completá su orden de producción —si el producto no tiene ficha técnica, "
                     "cargala primero para poder abrirla— o reponé el stock."
                 ),
+            )
+
+    # Para salir a domicilio debe haber un repartidor asignado.
+    if nuevo_estado == EstadoPedido.EN_CAMINO:
+        domicilio_sin_rep = db.query(Domicilio).filter(
+            Domicilio.ID_Venta == id_venta,
+            Domicilio.ID_Empleado.is_(None),
+        ).first()
+        if domicilio_sin_rep:
+            raise HTTPException(
+                status_code=400,
+                detail="Asigná un repartidor al domicilio antes de marcar el pedido como 'En camino'.",
             )
 
     # Entregar es cerrar la venta: no se cierra sin decir qué pasó con la
