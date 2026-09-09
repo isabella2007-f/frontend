@@ -90,6 +90,7 @@ const adaptPedido = (p) => {
     // Un domicilio por viaje: si el pedido está dividido, es la suma de los
     // domicilios de cada grupo a domicilio; si no, el snapshot único. Ya incluido en `total`.
     costo_domicilio_total: p.costo_domicilio_total ?? null,
+    grupos_resumen: (p.grupos_resumen || []),
     grupos_envio: (p.grupos_envio || []).map(g => ({
       id_grupo:    g.id_grupo,
       tipo:        g.tipo,          // 'anticipado' | 'programado'
@@ -102,6 +103,7 @@ const adaptPedido = (p) => {
       municipio_entrega:    g.municipio_entrega    || null,
       departamento_entrega: g.departamento_entrega || null,
       domicilio_con_repartidor: !!g.domicilio_con_repartidor,
+      domicilio_estado:       g.domicilio_estado ?? null,
       barrio_entrega:         g.barrio_entrega || '',
       precio_domicilio_base:  g.precio_domicilio_base ?? null,
       precio_domicilio_final: g.precio_domicilio_final ?? null,
