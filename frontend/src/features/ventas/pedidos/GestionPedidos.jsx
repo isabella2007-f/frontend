@@ -774,9 +774,15 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
                   5:  { label: "Cancelado",  bg: "#ffebee", color: "#c62828", border: "#ef9a9a" },
                 };
                 const dominioActivo = g.tipo_entrega === "domicilio" && [9, 8, 5].includes(g.domicilio_estado);
-                const cfg = dominioActivo
+                // Para grupos domicilio en estado "enviado" (pendiente→listo en el flujo
+                // de admin) el label es "Listo": indica que la producción está completa y
+                // el grupo espera que el módulo de domicilios lo marque En camino.
+                const cfgBase = dominioActivo
                   ? (DOM_ESTADO[g.domicilio_estado] || ESTADO_GRUPO.pendiente)
                   : (ESTADO_GRUPO[g.estado] || ESTADO_GRUPO.pendiente);
+                const cfg = (!dominioActivo && g.tipo_entrega === "domicilio" && g.estado === "enviado")
+                  ? { ...cfgBase, label: "Listo" }
+                  : cfgBase;
                 // Domicilio: solo se puede avanzar de pendiente→enviado desde acá.
                 // El paso enviado→entregado lo cierra el módulo de domicilios.
                 const puedeAvanzar = !dominioActivo && (
@@ -884,7 +890,7 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
                           disabled={savingGrupo}
                           onClick={() => handleAvanzarGrupo(g.id_grupo, siguienteEstado)}
                           style={{ flex: 1, padding: "8px 0", borderRadius: 8, border: "none", background: savingGrupo ? "#b0bec5" : "#2e7d32", color: "#fff", fontWeight: 800, fontSize: 12, cursor: savingGrupo ? "not-allowed" : "pointer" }}>
-                          {savingGrupo ? "Guardando..." : siguienteEstado === "enviado" ? "Marcar como enviado" : "Marcar como entregado"}
+                          {savingGrupo ? "Guardando..." : (siguienteEstado === "enviado" && g.tipo_entrega === "domicilio") ? "Marcar como listo" : siguienteEstado === "enviado" ? "Marcar como enviado" : "Marcar como entregado"}
                         </button>
                       )}
                       {puedeEditar && editandoGrupo !== g.id_grupo && (
@@ -2844,7 +2850,7 @@ export default function GestionPedidos() {
                             const DOM_CLR = { 3:"#f57f17", 10:"#283593", 9:"#1565c0", 8:"#2e7d32", 5:"#c62828" };
                             const GRP_CLR = { pendiente:"#f57f17", enviado:"#1565c0", entregado:"#2e7d32", cancelado:"#c62828" };
                             const dominioActivo = [9,8,5].includes(g.domicilio_estado);
-                            const label = dominioActivo ? DOM_EST[g.domicilio_estado] : (g.estado === "pendiente" ? "Pendiente" : g.estado === "enviado" ? "Enviado" : g.estado === "entregado" ? "Entregado" : g.estado);
+                            const label = dominioActivo ? DOM_EST[g.domicilio_estado] : (g.estado === "pendiente" ? "Pendiente" : g.estado === "enviado" ? (g.tipo_entrega === "domicilio" ? "Listo" : "Enviado") : g.estado === "entregado" ? "Entregado" : g.estado);
                             const color = dominioActivo ? DOM_CLR[g.domicilio_estado] : (GRP_CLR[g.estado] || "#757575");
                             return (
                               <span key={i} style={{ fontSize: 9, fontWeight: 700, color, letterSpacing: 0.3, display: "flex", alignItems: "center", gap: 3 }}>
