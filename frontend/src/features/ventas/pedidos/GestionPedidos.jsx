@@ -762,9 +762,10 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
                   entregado:  { label: "Entregado",  bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7" },
                   cancelado:  { label: "Cancelado",  bg: "#ffebee", color: "#c62828", border: "#ef9a9a" },
                 };
-                // Para grupos con domicilio, el estado real es el del Domicilio asociado
-                // (Pendiente/Asignado/En camino/Entregado/Cancelado). GrupoEnvio.Estado
-                // solo se actualiza al final (entregado) y no refleja estados intermedios.
+                // Para grupos con domicilio: si el repartidor ya tomó el domicilio
+                // (EN_CAMINO/ENTREGADO/CANCELADO) el badge muestra ese estado real.
+                // Para estados anteriores (Pendiente/Asignado) o si el tipo es tienda,
+                // el badge refleja GrupoEnvio.Estado — que el admin puede avanzar aquí.
                 const DOM_ESTADO = {
                   3:  { label: "Pendiente",  bg: "#fff8e1", color: "#f57f17", border: "#ffe082" },
                   10: { label: "Asignado",   bg: "#e8eaf6", color: "#283593", border: "#9fa8da" },
@@ -772,10 +773,16 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
                   8:  { label: "Entregado",  bg: "#e8f5e9", color: "#2e7d32", border: "#a5d6a7" },
                   5:  { label: "Cancelado",  bg: "#ffebee", color: "#c62828", border: "#ef9a9a" },
                 };
-                const cfg = (g.tipo_entrega === "domicilio" && g.domicilio_estado != null)
+                const dominioActivo = g.tipo_entrega === "domicilio" && [9, 8, 5].includes(g.domicilio_estado);
+                const cfg = dominioActivo
                   ? (DOM_ESTADO[g.domicilio_estado] || ESTADO_GRUPO.pendiente)
                   : (ESTADO_GRUPO[g.estado] || ESTADO_GRUPO.pendiente);
-                const puedeAvanzar = (g.estado === "pendiente" || g.estado === "enviado") && g.tipo_entrega !== "domicilio";
+                // Domicilio: solo se puede avanzar de pendiente→enviado desde acá.
+                // El paso enviado→entregado lo cierra el módulo de domicilios.
+                const puedeAvanzar = !dominioActivo && (
+                  g.estado === "pendiente" ||
+                  (g.estado === "enviado" && g.tipo_entrega !== "domicilio")
+                );
                 const siguienteEstado = g.estado === "pendiente" ? "enviado" : g.estado === "enviado" ? "entregado" : null;
                 const puedeCancel = g.estado !== "entregado" && g.estado !== "cancelado";
                 const puedeEditar = g.estado === "pendiente";
