@@ -2651,6 +2651,34 @@ def crear_grupos_envio(
     return _formato_venta(venta, db)
 
 
+def _recalcular_estado_pedido(venta: Venta, grupos: list) -> "EstadoPedido | None":
+    """Deriva el estado de cabecera del pedido desde los estados de sus grupos de envío.
+
+    Solo aplica cuando el pedido tiene grupos (entrega dividida). Retorna el nuevo
+    EstadoPedido, o None si todavía no hay evento de despacho que lo determine.
+    """
+    if not grupos:
+        return None
+
+    estados = {g.Estado for g in grupos}
+
+    if estados == {"entregado"}:
+        return EstadoPedido.ENTREGADO
+
+    if estados == {"enviado"}:
+        return EstadoPedido.EN_CAMINO
+
+    # Todos los grupos terminaron cancelados sin ninguna entrega
+    if estados <= {"cancelado"}:
+        return EstadoPedido.CANCELADO
+
+    # Al menos un grupo fue despachado (enviado o entregado) pero no todos están entregados
+    if estados & {"enviado", "entregado"}:
+        return EstadoPedido.PARCIALMENTE_ENTREGADO
+
+    return None  # todos pendientes — el estado lo sigue manejando _sync_venta_por_ordenes
+
+
 def actualizar_estado_grupo(
     db: Session,
     id_venta: int,
@@ -2754,15 +2782,13 @@ def actualizar_estado_grupo(
 
     grupo.Estado = nuevo_estado
 
-    # Sincronizar estado general del pedido
+    # Sincronizar estado de cabecera desde los grupos
     grupos = db.query(GrupoEnvio).filter(GrupoEnvio.ID_Venta == id_venta).all()
-    estados = {g.Estado for g in grupos}
-    if estados == {"entregado"}:
-        venta.Estado = EstadoPedido.ENTREGADO
-        if not getattr(venta, "Fecha_entrega", None):
+    nuevo = _recalcular_estado_pedido(venta, grupos)
+    if nuevo is not None:
+        venta.Estado = nuevo
+        if nuevo == EstadoPedido.ENTREGADO and not getattr(venta, "Fecha_entrega", None):
             venta.Fecha_entrega = _now()
-    elif "entregado" in estados and estados != {"entregado"}:
-        venta.Estado = EstadoPedido.PARCIALMENTE_ENTREGADO
 
     db.commit()
     db.refresh(venta)
@@ -2933,18 +2959,11 @@ def cancelar_grupo_pendiente(
 
     grupo.Estado = "cancelado"
 
-    # Determinar nuevo estado de la venta según estados finales de todos los grupos.
+    # Sincronizar estado de cabecera desde los grupos
     todos_grupos = db.query(GrupoEnvio).filter(GrupoEnvio.ID_Venta == id_venta).all()
-    estados_grupos = {g.Estado if g.ID_Grupo != id_grupo else "cancelado" for g in todos_grupos}
-    TERMINALES = {"entregado", "cancelado"}
-    if estados_grupos <= TERMINALES:
-        # Todos en estado terminal
-        if "entregado" in estados_grupos:
-            venta.Estado = EstadoPedido.PARCIALMENTE_ENTREGADO
-        else:
-            venta.Estado = EstadoPedido.CANCELADO
-    else:
-        venta.Estado = EstadoPedido.PARCIALMENTE_ENTREGADO
+    nuevo = _recalcular_estado_pedido(venta, todos_grupos)
+    if nuevo is not None:
+        venta.Estado = nuevo
 
     db.commit()
     db.refresh(venta)

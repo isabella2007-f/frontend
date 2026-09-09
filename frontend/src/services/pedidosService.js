@@ -20,6 +20,17 @@ const ESTADO_PEDIDO_MAP = {
 
 const adaptPedido = (p) => {
   const estado = ESTADO_PEDIDO_MAP[p.Estado] || p.estado_label || "Pendiente";
+
+  // Build product list first so grupos_envio can cross-reference names without JSX logic.
+  const productosItems = (p.productos || p.Productos || []).map(i => ({
+    idProducto:        i.ID_Producto     || i.id_producto,
+    nombre:            i.nombre_producto || i.Nombre || i.nombre || "",
+    precio:            i.precio_unitario || i.Precio_venta || i.precio || 0,
+    cantidad:          i.Cantidad        || i.cantidad || 0,
+    cantidad_preorden: i.cantidad_preorden || 0,
+  }));
+  const productosPorId = Object.fromEntries(productosItems.map(pi => [pi.idProducto, pi]));
+
   return {
     id:               p.ID_Venta          || p.id,
     numero:           p.Numero_Pedido     || p.numero_pedido   || p.numero || `V-${p.ID_Venta || p.id}`,
@@ -95,24 +106,20 @@ const adaptPedido = (p) => {
       precio_domicilio_base:  g.precio_domicilio_base ?? null,
       precio_domicilio_final: g.precio_domicilio_final ?? null,
       desglose_domicilio:     g.desglose_domicilio ?? null,
-      // productos: [{id_producto, cantidad}] — un producto puede aparecer en dos
-      // grupos con cantidades distintas si está parcialmente cubierto por stock
-      productos:   (g.productos || []).map(pr =>
-        typeof pr === 'object' ? pr : { id_producto: pr, cantidad: null }
-      ),
+      // Productos del grupo con nombre resuelto desde productosItems del mismo pedido.
+      // Un producto puede aparecer en dos grupos si está parcialmente cubierto por stock.
+      productos: (g.productos || []).map(pr => {
+        const base = typeof pr === 'object' ? pr : { id_producto: pr, cantidad: null };
+        const item = productosPorId[base.id_producto];
+        return { ...base, nombre: item?.nombre || '', precio: item?.precio ?? null };
+      }),
     })),
     cliente: {
       nombre:   p.nombre_cliente   || "",
       correo:   p.correo_cliente   || "",
       telefono: p.telefono_cliente || "",
     },
-    productosItems: (p.productos || p.Productos || []).map(i => ({
-      idProducto:       i.ID_Producto    || i.id_producto,
-      nombre:           i.nombre_producto || i.Nombre || i.nombre || "",
-      precio:           i.precio_unitario || i.Precio_venta || i.precio || 0,
-      cantidad:         i.Cantidad        || i.cantidad || 0,
-      cantidad_preorden: i.cantidad_preorden || 0,
-    })),
+    productosItems,
   };
 };
 
@@ -188,6 +195,12 @@ export const getMisVentas = async ({ pagina = 1, porPagina = 100 } = {}) => {
     total:   data.total,
     pedidos: (data.pedidos || data.ventas || []).map(adaptPedido),
   };
+};
+
+// Detalle de una venta propia: devuelve grupos_envio completos (la lista batch los omite).
+export const getMiVenta = async (id) => {
+  const data = await apiFetch(`/ventas/mis-ventas/${id}`);
+  return adaptPedido(data);
 };
 
 export const cancelarMiPedido = async (id) =>

@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useRef, useCallback } from 'react';
-import { getMisVentas, cancelarMiPedido, editarMiPedido, aceptarFechaProduccion, rechazarFechaProduccion, guardarEnvioCompletoDomingo, getItemsListos, crearGruposEnvio } from '../../../services/pedidosService';
+import { getMisVentas, getMiVenta, cancelarMiPedido, editarMiPedido, aceptarFechaProduccion, rechazarFechaProduccion, guardarEnvioCompletoDomingo, getItemsListos, crearGruposEnvio } from '../../../services/pedidosService';
 import { subirImagenCloudinary } from '../../../utils/cloudinary.js';
 import { crearDevolucion } from '../../../services/devolucionesService';
 import { fmtFecha } from '../../../utils/dateUtils.js';
@@ -403,6 +403,7 @@ const PedidosClientePage = () => {
   const [creandoGrupos,        setCreandoGrupos]        = useState(false);
   const [gruposError,          setGruposError]          = useState('');
   const [itemsListosError,     setItemsListosError]     = useState(null);
+  const [modalDetailLoading,   setModalDetailLoading]   = useState(false);
   const [editModal,            setEditModal]            = useState(null);
   const [editMetodoPago,       setEditMetodoPago]       = useState('');
   const [editQuiereDomicilio,  setEditQuiereDomicilio]  = useState(null);
@@ -425,11 +426,16 @@ const PedidosClientePage = () => {
     getMisVentas({ porPagina: 100 }).then(data => {
       const lista = data.pedidos || [];
       setPedidos(lista);
-      // Actualizar el modal si está abierto
+      // Actualizar el modal si está abierto.
+      // La lista devuelve grupos_envio: [] (evita N+1); preservamos los ya cargados.
       const curr = selectedPedidoRef.current;
       if (curr) {
         const actualizado = lista.find(p => p.id === curr.id);
-        if (actualizado) setSelectedPedido(actualizado);
+        if (actualizado) {
+          setSelectedPedido(prev =>
+            prev ? { ...actualizado, grupos_envio: prev.grupos_envio } : actualizado
+          );
+        }
       }
     }).catch(() => {});
   }, []);
@@ -683,9 +689,18 @@ const PedidosClientePage = () => {
   };
 
   const openModal = (pedido) => {
+    // Muestra el pedido del listado de inmediato (el modal no queda en blanco).
     setSelectedPedido(pedido);
     setConfirmCancel(false);
     setCancelError('');
+    // Carga el detalle completo (con grupos_envio) en segundo plano.
+    setModalDetailLoading(true);
+    getMiVenta(pedido.id)
+      .then(full => {
+        if (selectedPedidoRef.current?.id === full.id) setSelectedPedido(full);
+      })
+      .catch(() => {})
+      .finally(() => setModalDetailLoading(false));
   };
 
   if (!user)
@@ -1202,6 +1217,14 @@ const PedidosClientePage = () => {
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Spinner mientras se cargan los grupos desde el endpoint de detalle */}
+              {modalDetailLoading && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#f3f4f6', borderRadius: 10 }}>
+                  <RefreshCw size={14} className="animate-spin" style={{ color: '#9ca3af' }} />
+                  <span style={{ fontSize: 11, color: '#6b7280', fontWeight: 600 }}>Cargando detalle del pedido…</span>
                 </div>
               )}
 
