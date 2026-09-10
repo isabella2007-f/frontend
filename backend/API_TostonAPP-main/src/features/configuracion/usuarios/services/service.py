@@ -447,6 +447,12 @@ def eliminar_persona(db: Session, id_persona: int, actual: dict) -> dict:
         )
 
     try:
+        # Las verificaciones pendientes son metadatos técnicos de la cuenta,
+        # no historial del cliente; no deben impedir borrar un cliente sin
+        # ventas, devoluciones ni saldo a favor.
+        db.query(VerificacionEmail).filter(
+            VerificacionEmail.ID_Usuario == id_persona
+        ).delete(synchronize_session=False)
         db.delete(registro)
         db.commit()
     except IntegrityError:
