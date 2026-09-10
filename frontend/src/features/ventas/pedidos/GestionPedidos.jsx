@@ -1,4 +1,5 @@
 ﻿import { esEmpleadoRepartidor } from "../../../utils/roles.js";
+import { FEATURE_DIVISION_PEDIDOS } from "../../../config/featureFlags";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { fmtFecha, getRecordDate } from "../../../utils/dateUtils.js";
@@ -388,7 +389,7 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
         <div className="ver-ped-tabs">
           <button className={`ver-ped-tab${tab === "resumen"   ? " ver-ped-tab--active" : ""}`} onClick={() => setTab("resumen")} style={{display:"inline-flex",alignItems:"center",gap:5}}><ClipboardList size={14} /> Resumen</button>
           <button className={`ver-ped-tab${tab === "productos" ? " ver-ped-tab--active" : ""}`} onClick={() => setTab("productos")} style={{display:"inline-flex",alignItems:"center",gap:5}}><Package size={14} /> Productos</button>
-          {pedido.grupos_envio?.length > 0 && (
+          {FEATURE_DIVISION_PEDIDOS && pedido.grupos_envio?.length > 0 && (
             <button className={`ver-ped-tab${tab === "grupos" ? " ver-ped-tab--active" : ""}`} onClick={() => setTab("grupos")} style={{display:"inline-flex",alignItems:"center",gap:5}}><Truck size={14} /> Grupos</button>
           )}
           <button className={`ver-ped-tab${tab === "pago"      ? " ver-ped-tab--active" : ""}`} onClick={() => setTab("pago")} style={{display:"inline-flex",alignItems:"center",gap:5}}>
@@ -520,7 +521,7 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
               )}
 
               {/* ── Dividir entrega (admin inicia la división) ── */}
-              {mostrarDividir && (
+              {FEATURE_DIVISION_PEDIDOS && mostrarDividir && (
                 <div style={{ gridColumn: "1 / -1", background: "#e3f2fd", border: "1.5px solid #90caf9", borderRadius: 14, padding: "14px 16px" }}>
                   <p style={{ fontSize: 10, fontWeight: 800, color: "#1565c0", letterSpacing: 1, textTransform: "uppercase", margin: "0 0 8px", display: "flex", alignItems: "center", gap: 5 }}>
                     <Truck size={12} /> Dividir entrega
@@ -747,7 +748,7 @@ function ModalVerPedido({ pedido: pedidoProp, empleados, onClose, onEdit, onUpda
           )}
 
           {/* ── Tab Grupos ── */}
-          {tab === "grupos" && (
+          {FEATURE_DIVISION_PEDIDOS && tab === "grupos" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               {errorGrupo && (
                 <div className="info-box info-box--danger" style={{ background: "#ffebee", borderColor: "#ef9a9a" }}>
@@ -2845,7 +2846,7 @@ export default function GestionPedidos() {
                               </span>
                             );
                           })()}
-                          {(ped.grupos_resumen || []).map((g, i) => {
+                          {FEATURE_DIVISION_PEDIDOS && (ped.grupos_resumen || []).map((g, i) => {
                             const DOM_EST = { 3:"Pendiente", 10:"Asignado", 9:"En camino", 8:"Entregado", 5:"Cancelado" };
                             const DOM_CLR = { 3:"#f57f17", 10:"#283593", 9:"#1565c0", 8:"#2e7d32", 5:"#c62828" };
                             const GRP_CLR = { pendiente:"#f57f17", enviado:"#1565c0", entregado:"#2e7d32", cancelado:"#c62828" };

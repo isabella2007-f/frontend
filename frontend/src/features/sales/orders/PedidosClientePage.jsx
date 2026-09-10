@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect, useRef, useCallback } from 'react';
+import { FEATURE_DIVISION_PEDIDOS } from '../../../config/featureFlags';
 import { getMisVentas, getMiVenta, cancelarMiPedido, editarMiPedido, aceptarFechaProduccion, rechazarFechaProduccion, guardarEnvioCompletoDomingo, getItemsListos, crearGruposEnvio } from '../../../services/pedidosService';
 import { subirImagenCloudinary } from '../../../utils/cloudinary.js';
 import { crearDevolucion } from '../../../services/devolucionesService';
@@ -826,7 +827,7 @@ const PedidosClientePage = () => {
                         </span>
                       </div>
                     </div>
-                    {pedido.grupos_envio && pedido.grupos_envio.length > 0 ? (
+                    {(FEATURE_DIVISION_PEDIDOS && pedido.grupos_envio && pedido.grupos_envio.length > 0) ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
                         {pedido.grupos_envio.map((g, i) => {
                           const gLabel = g.estado === 'entregado' ? 'Entregado' : g.estado === 'enviado' ? 'En camino' : 'Pendiente';
@@ -1045,7 +1046,7 @@ const PedidosClientePage = () => {
               )}
 
               {/* ── Pregunta: ¿envío completo el domingo? ── */}
-              {(selectedPedido.requiereFechaPropuesta || selectedPedido.sobre_stock) && (
+              {FEATURE_DIVISION_PEDIDOS && (selectedPedido.requiereFechaPropuesta || selectedPedido.sobre_stock) && selectedPedido.fecha_propuesta && (
                 <div style={{ background: selectedPedido.envio_completo_domingo === null ? '#fffde7' : '#e8f5e9', border: `1.5px solid ${selectedPedido.envio_completo_domingo === null ? '#ffe082' : '#a5d6a7'}`, borderRadius: 14, padding: '14px 16px' }}>
                   <p style={{ fontSize: 10, fontWeight: 800, color: '#f57f17', letterSpacing: 1, textTransform: 'uppercase', margin: '0 0 6px', display: 'flex', alignItems: 'center', gap: 5 }}>
                     <Truck size={12} /> Coordinar entrega
@@ -1090,7 +1091,7 @@ const PedidosClientePage = () => {
               )}
 
               {/* ── Entrega anticipada (cuando eligió recibir antes lo disponible) ── */}
-              {selectedPedido.envio_completo_domingo === false && selectedPedido.fecha_propuesta && (!selectedPedido.grupos_envio || selectedPedido.grupos_envio.length === 0) && (
+              {FEATURE_DIVISION_PEDIDOS && selectedPedido.envio_completo_domingo === false && selectedPedido.fecha_propuesta && (!selectedPedido.grupos_envio || selectedPedido.grupos_envio.length === 0) && (
                 <div style={{ background: '#e3f2fd', border: '1.5px solid #90caf9', borderRadius: 14, padding: '14px 16px' }}>
                   <p style={{ fontSize: 10, fontWeight: 800, color: '#1565c0', letterSpacing: 1, textTransform: 'uppercase', margin: '0 0 8px', display: 'flex', alignItems: 'center', gap: 5 }}>
                     <Truck size={12} /> Entrega anticipada
@@ -1229,7 +1230,7 @@ const PedidosClientePage = () => {
               )}
 
               {/* ── Grupos de envío activos ── */}
-              {selectedPedido.grupos_envio && selectedPedido.grupos_envio.length > 0 && (
+              {FEATURE_DIVISION_PEDIDOS && selectedPedido.grupos_envio && selectedPedido.grupos_envio.length > 0 && (
                 <div style={{ background: '#f3e5f5', border: '1.5px solid #ce93d8', borderRadius: 14, padding: '14px 16px' }}>
                   <p style={{ fontSize: 10, fontWeight: 800, color: '#6a1b9a', letterSpacing: 1, textTransform: 'uppercase', margin: '0 0 10px', display: 'flex', alignItems: 'center', gap: 5 }}>
                     <Package size={12} /> División de entrega
