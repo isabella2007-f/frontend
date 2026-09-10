@@ -324,6 +324,64 @@ function DetallesModal({ domicilio, onClose, onCambiarEstado, onCobrar }) {
             <div className="du-dato__valor">{fmt(domicilio.total || 0)}</div>
           </div>
 
+          {(domicilio.productos || []).length > 0 && (
+            <div className="du-dato">
+              <div className="du-dato__label">Productos del pedido</div>
+              <div className="du-dato__valor" style={{ display: "grid", gap: 8 }}>
+                {(domicilio.productos || []).map((p, i) => (
+                  <div key={p.ID_Producto ?? i} style={{
+                    display: "flex", alignItems: "center", gap: 10,
+                    padding: "8px 10px", borderRadius: 10,
+                    border: "1px solid #ececec", background: "#fafafa"
+                  }}>
+                    <div style={{
+                      width: 34, height: 34, borderRadius: 8, overflow: "hidden",
+                      background: "#e8f5e9", display: "flex", alignItems: "center",
+                      justifyContent: "center", flexShrink: 0
+                    }}>
+                      {p.imagen ? (
+                        <img src={p.imagen} alt={p.nombre_producto || "Producto"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      ) : (
+                        <Package size={16} style={{ color: "#2e7d32" }} />
+                      )}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 700, color: "#1a1a1a" }}>
+                        {p.nombre_producto || "Producto"}
+                      </div>
+                      <div style={{ fontSize: 11, color: "#9e9e9e", marginTop: 2 }}>
+                        {p.Cantidad} × {fmt(p.precio_unitario || 0)}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 12.5, fontWeight: 800, color: "#2e7d32" }}>
+                      {fmt(p.subtotal || 0)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(domicilio.metodo_pago || domicilio.estado_pago || domicilio.comprobante_pago) && (
+            <div className="du-dato">
+              <div className="du-dato__label">Pago del pedido</div>
+              <div className="du-dato__valor" style={{ display: "flex", flexDirection: "column", gap: 8, alignItems: "flex-start" }}>
+                {domicilio.metodo_pago && <span>{domicilio.metodo_pago}</span>}
+                {domicilio.estado_pago && <EstadoPagoBadge estadoPago={domicilio.estado_pago} />}
+                {domicilio.comprobante_pago && (
+                  <a
+                    href={domicilio.comprobante_pago}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: 12, fontWeight: 700, color: "#1b5e20", textDecoration: "underline" }}
+                  >
+                    Ver comprobante
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+
           {domicilio.obs_domicilio && (
             <div className="du-dato du-dato--obs">
               <div className="du-dato__label">Observaciones</div>
