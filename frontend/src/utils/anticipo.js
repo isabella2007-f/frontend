@@ -48,4 +48,9 @@ export const pideAnticipo = (lineas, totalPedido) =>
  * producir, y el pedido se rechazaría al confirmar.
  */
 export const esFabricable = (producto = {}) =>
-  !!(producto.Requiere_Produccion || producto.requiereProduccion || producto.ficha_tecnica);
+  !!(
+    producto.Requiere_Produccion ||
+    producto.requiere_produccion ||
+    producto.requiereProduccion ||
+    producto.ficha_tecnica
+  );
