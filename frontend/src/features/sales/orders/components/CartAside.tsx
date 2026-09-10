@@ -134,9 +134,13 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
 
   const handleCheckout = () => {
     if (cart.length === 0) return;
-    // La dirección la valida el checkout, que es donde se elige.
     setCheckoutError('');
     if (!isAuthenticated()) { onClose(); onLoginRequired(); return; }
+    const minimo = Number((cfgHorario as any).pedidoMinimo) || 0;
+    if (tieneDomicilio && minimo > 0 && total < minimo) {
+      setCheckoutError(`El mínimo para domicilio es $${minimo.toLocaleString('es-CO')} COP. Agrega más productos o elige recogida en tienda.`);
+      return;
+    }
     onCheckout({ address, departamento: '', municipio: '', date: '', observaciones, tieneDomicilio });
   };
 
@@ -216,6 +220,18 @@ const CartAside: React.FC<CartAsideProps> = ({ isOpen, onClose, onCheckout, onLo
                   decimos el costo del domicilio.
                 </p>
               ) : null}
+              {(() => {
+                const minimo = Number((cfgHorario as any).pedidoMinimo) || 0;
+                if (minimo > 0 && total < minimo) {
+                  return (
+                    <p className="text-[11px] font-bold text-amber-700 flex items-start gap-1.5 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                      <AlertTriangle size={11} className="shrink-0 mt-0.5" />
+                      Mínimo para domicilio: ${minimo.toLocaleString('es-CO')} COP. Te faltan ${(minimo - total).toLocaleString('es-CO')} COP.
+                    </p>
+                  );
+                }
+                return null;
+              })()}
 
               {!loggedIn && (
                 <div className="flex items-center gap-2 py-2 px-3 bg-amber-50 border border-amber-200 rounded-xl">

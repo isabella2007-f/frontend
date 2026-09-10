@@ -5,6 +5,9 @@ const adaptDomicilio = (d) => {
   // El estado se normaliza a la numeración canónica (ver estadosDomicilio.js) y
   // la etiqueta se deriva de ahí, para no depender de dos mapas distintos.
   const estadoId = normalizarEstadoDom(d.Estado, Boolean(d.ID_Empleado));
+  const observaciones = d.Observaciones ?? d.observaciones ?? d.observaciones_domicilio ?? d.obs_domicilio ?? "";
+  const indicaciones = d.indicaciones_cliente ?? d.indicaciones ?? "";
+
   return {
     id:                 d.ID_Domicilio,
     idVenta:            d.ID_Venta            || null,
@@ -18,8 +21,8 @@ const adaptDomicilio = (d) => {
     departamento_entrega: d.Departamento_entrega || "",
     // Observaciones = nota de esta entrega; indicaciones = referencia que el
     // cliente guardó en su perfil. El backend las envía separadas.
-    obs_domicilio:      d.Observaciones       || "",
-    indicaciones_cliente: d.indicaciones_cliente || "",
+    obs_domicilio:      observaciones,
+    indicaciones_cliente: indicaciones,
     fecha_pedido:       d.Fecha_asignacion    || "",
     fecha_entrega_real: d.Fecha_entrega       || null,
     total:              d.total               || 0,

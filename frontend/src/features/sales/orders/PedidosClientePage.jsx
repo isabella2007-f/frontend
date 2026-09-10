@@ -7,6 +7,7 @@ import { fmtFecha } from '../../../utils/dateUtils.js';
 import { getCurrentUser } from '../../client/profile/services/profileService.js';
 import { descargarFacturaPedido } from '../../../utils/facturaGenerator.js';
 import SelectorBarrioEntrega from '../../../shared/components/SelectorBarrioEntrega';
+import ImageLightbox from '../../../shared/components/ImageLightbox.jsx';
 import { formatCOP } from "../../../utils/formato";
 import {
   Package, Calendar, MapPin, DollarSign, Leaf, Search,
@@ -14,7 +15,7 @@ import {
   XCircle, ShoppingBag, RefreshCw, ChefHat, Inbox, Store,
   Gift, Check, X, FileText, Ban, CreditCard, Building2,
   Banknote, ClipboardList, CornerUpLeft, AlertCircle, PenLine,
-  Upload, Paperclip,
+  Upload, Paperclip, Download,
 } from 'lucide-react';
 import '../../../styles/Client.css';
 
@@ -82,6 +83,36 @@ function PedidoStepper({ estado, domicilio }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+const VENTANA_EDICION_MS = 10 * 60 * 1000;
+
+function CountdownBanner({ fechaVenta }) {
+  const [secsLeft, setSecsLeft] = useState(() => {
+    if (!fechaVenta) return 0;
+    const diff = VENTANA_EDICION_MS - (Date.now() - new Date(fechaVenta).getTime());
+    return Math.max(0, Math.floor(diff / 1000));
+  });
+
+  useEffect(() => {
+    const id = setInterval(() => setSecsLeft(s => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (secsLeft <= 0) return null;
+  const m = String(Math.floor(secsLeft / 60)).padStart(2, '0');
+  const s = String(secsLeft % 60).padStart(2, '0');
+  return (
+    <div style={{
+      background: '#fffde7', borderBottom: '1px solid #fff176',
+      padding: '6px 16px', display: 'flex', alignItems: 'center', gap: 6,
+    }}>
+      <Clock size={12} style={{ color: '#f59e0b', flexShrink: 0 }} />
+      <span style={{ fontSize: 11, fontWeight: 700, color: '#92400e' }}>
+        Puedes editar o cancelar este pedido durante {m}:{s}
+      </span>
     </div>
   );
 }
@@ -756,10 +787,19 @@ const PedidosClientePage = () => {
             <input
               type="text"
               placeholder="Buscar por número de pedido..."
-              className="w-full bg-white border-2 border-gray-100 rounded-2xl py-4 pl-12 pr-4 text-sm font-bold focus:border-green-500 outline-none shadow-sm hover:shadow-md transition-all"
+              className="w-full bg-white border-2 border-gray-100 rounded-2xl py-4 pl-12 pr-10 text-sm font-bold focus:border-green-500 outline-none shadow-sm hover:shadow-md transition-all"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
             />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                title="Limpiar búsqueda"
+              >
+                <X size={16} />
+              </button>
+            )}
           </div>
 
           <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0 no-scrollbar items-center">
@@ -852,6 +892,8 @@ const PedidosClientePage = () => {
                     )}
                   </div>
 
+                  {!pedido.requiere_anticipo && <CountdownBanner fechaVenta={pedido.fecha_venta} />}
+
                   {/* Card Body */}
                   <div className="p-6 flex-1 space-y-4">
                     <div className="flex justify-between items-end">
@@ -900,13 +942,31 @@ const PedidosClientePage = () => {
                         </span>
                       </div>
 
-                      <button
-                        onClick={() => openModal(pedido)}
-                        className="w-full flex items-center justify-center gap-2 py-3 bg-gray-50 hover:bg-green-700 hover:text-white rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all duration-300 group/btn shadow-sm"
-                      >
-                        Ver Detalle Completo
-                        <ChevronRight size={14} className="group-hover/btn:translate-x-1 transition-transform" strokeWidth={3} />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => openModal(pedido)}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-gray-50 hover:bg-green-700 hover:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 group/btn shadow-sm"
+                        >
+                          Ver detalles
+                          <ChevronRight size={12} className="group-hover/btn:translate-x-1 transition-transform" strokeWidth={3} />
+                        </button>
+                        {!['Cancelado', 'Entregado'].includes(pedido.estado) && !pedido.requiere_anticipo && (
+                          <button
+                            onClick={() => abrirEditModal(pedido)}
+                            className="w-10 h-10 flex items-center justify-center bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl transition-colors shadow-sm"
+                            title="Editar pedido"
+                          >
+                            <PenLine size={15} />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => descargarFacturaPedido(pedido, user)}
+                          className="w-10 h-10 flex items-center justify-center bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl transition-colors shadow-sm"
+                          title="Descargar factura"
+                        >
+                          <Download size={15} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1442,7 +1502,33 @@ const PedidosClientePage = () => {
                   {/* Info adicional sobre_stock */}
                   {selectedPedido.sobre_stock && (
                     <div style={{ background: '#fff3e0', border: '1px solid #ffcc02', borderRadius: 10, padding: '10px 12px', fontSize: 11, color: '#e65100', lineHeight: 1.5, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-                      <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 1 }} /> Este pedido tiene productos por encima del stock disponible. Se requirió un anticipo del 50% para procesarlo.
+                      <AlertTriangle size={13} style={{ flexShrink: 0, marginTop: 1 }} /> Este pedido tiene productos por encargo y supera los $100.000: requirió un anticipo del 50% para procesarlo.
+                    </div>
+                  )}
+
+                  {/* Banner anticipo: no puede editarse ni cancelarse */}
+                  {selectedPedido.requiere_anticipo && !['Cancelado', 'Entregado'].includes(selectedPedido.estado) && (
+                    <div style={{ background: '#f3e5f5', border: '1.5px solid #ce93d8', borderRadius: 10, padding: '10px 12px', fontSize: 11, color: '#6a1b9a', lineHeight: 1.6, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                      <AlertCircle size={13} style={{ flexShrink: 0, marginTop: 1 }} />
+                      <span>Este pedido no puede editarse ni cancelarse porque requiere anticipo. Si necesitas un cambio, escríbenos directamente.</span>
+                    </div>
+                  )}
+
+                  {/* Comprobante rechazado — banner prominente */}
+                  {selectedPedido.estado_pago === 'comprobante_rechazado' && (
+                    <div style={{ background: 'linear-gradient(135deg,#fce4ec 0%,#fff3e0 100%)', border: '2px solid #ef9a9a', borderRadius: 14, padding: '14px 16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <AlertTriangle size={18} color="#c62828" style={{ flexShrink: 0 }} />
+                        <p style={{ fontSize: 13, fontWeight: 800, color: '#c62828', margin: 0 }}>Comprobante rechazado</p>
+                      </div>
+                      {selectedPedido.motivo_rechazo_comprobante && (
+                        <div style={{ background: '#fff', border: '1px solid #ffcdd2', borderRadius: 10, padding: '8px 12px', marginBottom: 8, fontSize: 12, color: '#b71c1c', lineHeight: 1.5 }}>
+                          <strong>Motivo:</strong> {selectedPedido.motivo_rechazo_comprobante}
+                        </div>
+                      )}
+                      <p style={{ fontSize: 11, color: '#e53935', margin: 0, lineHeight: 1.5 }}>
+                        Sube un nuevo comprobante de pago para continuar con tu pedido.
+                      </p>
                     </div>
                   )}
 
@@ -1455,15 +1541,23 @@ const PedidosClientePage = () => {
                     <div>
                       <p style={{ fontSize: 9, fontWeight: 700, color: '#9e9e9e', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>Comprobante de pago</p>
                       {selectedPedido.comprobante ? (
-                        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 10, padding: '10px 12px' }}>
-                          <p style={{ fontSize: 11, fontWeight: 700, color: '#15803d', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}><Check size={13} /> Comprobante adjuntado</p>
-                          <img src={normalizeComprobanteSrc(selectedPedido.comprobante)} alt="Comprobante de pago"
-                            style={{ width: '100%', maxHeight: 180, objectFit: 'contain', borderRadius: 8, marginBottom: 6, background: '#fff' }}
-                            onError={e => { e.target.style.display = 'none'; }} />
-                          <a href={normalizeComprobanteSrc(selectedPedido.comprobante)} target="_blank" rel="noopener noreferrer"
-                            style={{ fontSize: 11, color: '#2563eb', fontWeight: 600 }}>
-                            Abrir en nueva pestaña ↗
-                          </a>
+                        <div style={{
+                          background: selectedPedido.estado_pago === 'comprobante_rechazado' ? '#fff5f5' : '#f0fdf4',
+                          border: `1px solid ${selectedPedido.estado_pago === 'comprobante_rechazado' ? '#fca5a5' : '#bbf7d0'}`,
+                          borderRadius: 10, padding: '10px 12px',
+                        }}>
+                          <p style={{ fontSize: 11, fontWeight: 700, color: selectedPedido.estado_pago === 'comprobante_rechazado' ? '#dc2626' : '#15803d', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
+                            {selectedPedido.estado_pago === 'comprobante_rechazado'
+                              ? <><AlertCircle size={13} /> Comprobante rechazado</>
+                              : <><Check size={13} /> Comprobante adjuntado</>
+                            }
+                          </p>
+                          <ImageLightbox
+                            src={normalizeComprobanteSrc(selectedPedido.comprobante)}
+                            alt="Comprobante de pago"
+                            label="Ver comprobante"
+                            thumbStyle={{ width: '100%', maxHeight: 160, objectFit: 'contain', borderRadius: 8, background: '#fff', cursor: 'zoom-in' }}
+                          />
                         </div>
                       ) : !selectedPedido.pago_final_registrado && (
                         <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 10, padding: '8px 12px', fontSize: 12, color: '#f57f17', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1552,7 +1646,7 @@ const PedidosClientePage = () => {
             </div>
 
             {/* Footer */}
-            <div className="modal-footer" style={{ flexWrap: 'wrap' }}>
+            <div className="modal-footer" style={{ flexWrap: 'nowrap', overflowX: 'auto', gap: 8 }}>
               {confirmCancel ? (
                 <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <p style={{ fontSize: 12, fontWeight: 700, color: '#b91c1c', margin: 0, display: 'flex', alignItems: 'flex-start', gap: 5 }}>
@@ -1589,7 +1683,7 @@ const PedidosClientePage = () => {
                   >
                     <FileText size={14} /> Descargar factura
                   </button>
-                  {ESTADOS_CANCELABLES.includes(selectedPedido.estado) && (
+                  {ESTADOS_CANCELABLES.includes(selectedPedido.estado) && !selectedPedido.requiere_anticipo && (
                     <button
                       className="btn-cancel"
                       style={{ background: '#fff5f5', color: '#dc2626', border: '1.5px solid #fca5a5', display: 'flex', alignItems: 'center', gap: 6 }}
@@ -1598,7 +1692,16 @@ const PedidosClientePage = () => {
                       <Ban size={14} /> Cancelar pedido
                     </button>
                   )}
-                  {!['Cancelado', 'Entregado'].includes(selectedPedido.estado) && (
+                  {selectedPedido.estado_pago === 'comprobante_rechazado' && !['Cancelado', 'Entregado'].includes(selectedPedido.estado) && (
+                    <button
+                      className="btn-save"
+                      style={{ background: '#1565c0', border: 'none', display: 'flex', alignItems: 'center', gap: 6 }}
+                      onClick={() => abrirEditModal(selectedPedido)}
+                    >
+                      <Upload size={14} /> Enviar comprobante
+                    </button>
+                  )}
+                  {!['Cancelado', 'Entregado'].includes(selectedPedido.estado) && !selectedPedido.requiere_anticipo && (
                     <button
                       className="btn-cancel"
                       style={{ background: '#f0f4ff', color: '#3730a3', border: '1.5px solid #a5b4fc', display: 'flex', alignItems: 'center', gap: 6 }}
@@ -1713,11 +1816,12 @@ const PedidosClientePage = () => {
                     Comprobante de {editMetodoPago === 'Mixto' ? 'la transferencia' : 'pago'} <span style={{ color: '#c62828' }}>*</span>
                   </label>
                   {editComprobantePreview ? (
-                    <div style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', background: '#000', marginBottom: 6 }}>
-                      <img
+                    <div style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', marginBottom: 6 }}>
+                      <ImageLightbox
                         src={editComprobantePreview}
                         alt="Comprobante"
-                        style={{ width: '100%', maxHeight: 160, objectFit: 'contain', display: 'block' }}
+                        label="Ver comprobante"
+                        thumbStyle={{ width: '100%', maxHeight: 160, objectFit: 'contain', display: 'block', borderRadius: 10 }}
                       />
                       <button
                         type="button"

@@ -56,7 +56,7 @@ ESTADO_DOMICILIO_CANCELADO = 5
 # Monto a partir del cual un pedido por encargo pide anticipo. Por debajo el
 # trámite le cuesta más al cliente de lo que protege al negocio: un pedido chico
 # que no se recoge se le vende al siguiente que entre.
-UMBRAL_ANTICIPO = Decimal("50000")
+UMBRAL_ANTICIPO = Decimal("100000")
 
 
 def _pide_anticipo(necesita_produccion: bool, total_pedido) -> bool:
@@ -524,6 +524,7 @@ def _formato_venta(venta: Venta, db: Session, *, dxv_map=None) -> dict:
         "pago_final_comprobante_url": getattr(venta, "Pago_Final_Comprobante_Url", None),
         "pago_final_fecha":          getattr(venta, "Pago_Final_Fecha", None),
         "estado_pago":               getattr(venta, "Estado_Pago", "pendiente"),
+        "motivo_rechazo_comprobante": getattr(venta, "Motivo_Rechazo_Comprobante", None),
         # True solo en los pedidos a los que hay que proponerles fecha
         # (sobre stock o producción). Los normales no la necesitan.
         "requiere_fecha_propuesta": requiere_fecha_propuesta(db, venta),
@@ -845,6 +846,7 @@ def _batch_ventas(ventas: list, db: Session) -> list:
             "pago_final_comprobante_url": getattr(venta, "Pago_Final_Comprobante_Url", None),
             "pago_final_fecha":          getattr(venta, "Pago_Final_Fecha", None),
             "estado_pago":               getattr(venta, "Estado_Pago", "pendiente"),
+            "motivo_rechazo_comprobante": getattr(venta, "Motivo_Rechazo_Comprobante", None),
             "requiere_fecha_propuesta": rfp,
             "fecha_rechazada":  getattr(venta, "Fecha_Rechazada", None),
             "intentos_rechazo": int(getattr(venta, "intentos_rechazo", 0) or 0),
@@ -1395,21 +1397,19 @@ def crear_venta(db: Session, datos: VentaCreate) -> dict:
     db.flush()
     db.refresh(nueva_venta)
 
-    # Órdenes de producción del faltante. Se abren en cuanto el pedido está
-    # comprometido: el admin lo creó ya confirmado, o el cliente dejó el
-    # anticipo. El anticipo es justamente la garantía que permite mandar a
-    # fabricar antes de entregar; sin él se espera a que el pedido se confirme.
-    _anticipo_cubierto = bool(getattr(nueva_venta, "Anticipo_Registrado", 0))
-    if datos.creado_por_admin or _anticipo_cubierto:
+    # Órdenes de producción del faltante. Se abren solo cuando el pedido ya
+    # está confirmado, porque el cliente no puede mandar a fabricar sin que un
+    # administrador lo confirme primero. El pedido creado por el personal ya
+    # nace en Confirmado, así que en ese caso sí se resuelven las órdenes al
+    # crear la venta; en el flujo del cliente, la orden queda pendiente hasta
+    # que se confirme el pedido.
+    if datos.creado_por_admin:
         _ordenes = _crear_ordenes_produccion_para_venta(
             db, nueva_venta.ID_Venta, nueva_venta.Fecha_entrega_esperada
         )
         # Con producción pendiente el pedido NO está listo para despachar:
         # queda "En producción" hasta que se completen sus órdenes, momento en
-        # que el módulo de producción lo pasa a Listo. Antes nacía "Confirmado"
-        # aunque no se hubiera fabricado nada. El pedido del cliente que todavía
-        # espera confirmación no se mueve: su orden queda Pendiente y él sigue
-        # Pendiente hasta que el admin lo confirme.
+        # que el módulo de producción lo pasa a Listo.
         if _ordenes > 0 and nueva_venta.Estado == EstadoPedido.CONFIRMADO:
             nueva_venta.Estado = EstadoPedido.PREPARANDO
 
@@ -1495,10 +1495,22 @@ def registrar_pago_final(db: Session, id_venta: int, datos) -> dict:
     return _formato_venta(venta, db)
 
 
+_VENTANA_PROTECCION = timedelta(minutes=10)
+
+
 def cambiar_estado(db: Session, id_venta: int, nuevo_estado: int) -> dict:
     venta = db.query(Venta).filter(Venta.ID_Venta == id_venta).first()
     if not venta:
         raise HTTPException(status_code=404, detail="Venta no encontrada")
+
+    # Durante los primeros 10 minutos el pedido es exclusivo del cliente para
+    # que pueda modificarlo o cancelarlo sin que un empleado lo procese antes.
+    if venta.Fecha_Venta and (datetime.utcnow() - venta.Fecha_Venta) < _VENTANA_PROTECCION:
+        mins_restantes = int((_VENTANA_PROTECCION - (datetime.utcnow() - venta.Fecha_Venta)).total_seconds() / 60) + 1
+        raise HTTPException(
+            status_code=400,
+            detail=f"Este pedido está en período de edición del cliente ({mins_restantes} min restantes). Espera antes de procesarlo.",
+        )
 
     tiene_domicilio = db.query(Domicilio).filter(Domicilio.ID_Venta == id_venta).first() is not None
 

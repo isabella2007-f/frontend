@@ -919,9 +919,9 @@ class OrdenProduccionDelFaltanteTests(CrearVentaBase):
         self.assertEqual(ordenes[0].Estado, 1)        # nace Pendiente
         self.assertEqual(ordenes[0].ID_Venta, self.venta_creada().ID_Venta)
 
-    def test_el_pedido_del_cliente_sigue_esperando_confirmacion(self):
-        # La orden se abre, pero el pedido no se autoconfirma.
+    def test_el_anticipo_no_abre_orden_hasta_que_se_confirme(self):
         self.crear(self.con_anticipo())
+        self.assertEqual(self.ordenes(), [])
         self.assertEqual(self.venta_creada().Estado, EstadoPedido.PENDIENTE)
 
     def test_dentro_del_stock_no_abre_ninguna_orden(self):

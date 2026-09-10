@@ -290,6 +290,7 @@ const LandingPage = ({ hideNavbar = false }) => {
   const [user, setUser] = useState(null);
   const [productos, setProductos] = useState([]);
   const [categoriasMap, setCategoriasMap] = useState({});
+  const [searchTerm, setSearchTerm] = useState('');
 
   const [cartCount, setCartCount] = useState(0);
   const [cartOpen, setCartOpen] = useState(false);
@@ -498,9 +499,12 @@ const LandingPage = ({ hideNavbar = false }) => {
 
   const getCat = (id) => categoriasMap[id] || { nombre: 'Sin categoría', descripcion: '', icon: '🍌' };
   const categories = ['Todos', ...Object.values(categoriasMap).map(c => c.nombre)];
-  const filteredProducts = activeTab === 'Todos'
-    ? productos
-    : productos.filter(p => getCat(p.idCategoria).nombre === activeTab);
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const filteredProducts = productos.filter((p) => {
+    const matchesTab = activeTab === 'Todos' || getCat(p.idCategoria).nombre === activeTab;
+    const matchesSearch = !normalizedSearch || p.nombre.toLowerCase().includes(normalizedSearch);
+    return matchesTab && matchesSearch;
+  });
 
   const totalProductPages  = Math.max(1, Math.ceil(filteredProducts.length / PRODUCTS_PER_PAGE));
   const safeProductsPage   = Math.min(productsPage, totalProductPages);
@@ -665,7 +669,7 @@ const LandingPage = ({ hideNavbar = false }) => {
             <div className="w-24 h-2 bg-[#1b5e20] mx-auto rounded-full" />
           </div>
           <p className="text-center text-xs font-black uppercase tracking-[0.25em] text-[#4caf50] mb-4">Categorías</p>
-          <div className="flex flex-wrap justify-center gap-3 mb-16">
+          <div className="flex flex-wrap justify-center gap-3 mb-8">
             {categories.map(cat => (
               <button key={cat} onClick={() => { setActiveTab(cat); setProductsPage(1); }}
                 data-tooltip={cat === 'Todos' ? 'Ver todos los productos' : `Filtrar por ${cat}`}
@@ -674,6 +678,32 @@ const LandingPage = ({ hideNavbar = false }) => {
               </button>
             ))}
           </div>
+
+          <div className="mb-16 max-w-xl mx-auto">
+            <label className="block text-left text-xs font-black uppercase tracking-[0.25em] text-[#4caf50] mb-3">
+              Buscar producto
+            </label>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => { setSearchTerm(e.target.value); setProductsPage(1); }}
+              placeholder="Escribe el nombre del producto..."
+              className="w-full rounded-2xl border border-[#c8e6c9] bg-[#f7faf8] px-4 py-3 text-sm text-[#1b5e20] placeholder:text-[#9e9e9e] focus:outline-none focus:border-[#4caf50] focus:ring-2 focus:ring-[#4caf50]/20"
+            />
+          </div>
+
+          {filteredProducts.length === 0 ? (
+            <div className="rounded-[28px] border border-dashed border-[#c8e6c9] bg-[#f7faf8] p-12 text-center">
+              <p className="text-lg font-black text-[#1b5e20] mb-2">No encontramos productos que coincidan con tu búsqueda.</p>
+              <p className="text-sm text-[#6b7d6a]">Prueba con otro nombre o limpia el filtro para volver a ver todos los productos.</p>
+              <button
+                onClick={() => { setSearchTerm(''); setActiveTab('Todos'); setProductsPage(1); }}
+                className="mt-5 px-5 py-3 rounded-2xl bg-[#1b5e20] text-white font-black hover:bg-[#0d3300] transition-colors"
+              >
+                Limpiar búsqueda
+              </button>
+            </div>
+          ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-10">
             {paginatedProducts.map((p) => {
               const cat = getCat(p.idCategoria);
@@ -727,17 +757,19 @@ const LandingPage = ({ hideNavbar = false }) => {
                       </p>
                     )}
                     <p className="text-[#555] font-medium text-sm mb-4 flex-1 leading-relaxed">{cat.descripcion || 'Sabor auténtico y natural en cada bocado.'}</p>
-                    {!agotado && (
-                      <div className="mb-4">
-                        <span className={`inline-flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-xl border ${
-                          p.stock <= 5  ? 'bg-red-50 text-red-600 border-red-100' :
-                          p.stock <= 15 ? 'bg-amber-50 text-amber-700 border-amber-100' :
-                                          'bg-green-50 text-[#1b5e20] border-green-100'
-                        }`}>
-                          📦 {p.stock} disponible{p.stock !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                    )}
+                    <div className="mb-4">
+                      <span className={`inline-flex items-center gap-1.5 text-xs font-black px-3 py-1.5 rounded-xl border ${
+                        p.requiereProduccion
+                          ? 'bg-blue-50 text-blue-700 border-blue-100'
+                          : p.stock <= 5
+                            ? 'bg-red-50 text-red-600 border-red-100'
+                            : p.stock <= 15
+                              ? 'bg-amber-50 text-amber-700 border-amber-100'
+                              : 'bg-green-50 text-[#1b5e20] border-green-100'
+                      }`}>
+                        {p.requiereProduccion ? '🛠️ Requiere producción' : `📦 ${p.stock} disponible${p.stock !== 1 ? 's' : ''} en stock`}
+                      </span>
+                    </div>
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-1 bg-[#f7faf8] rounded-2xl border border-[#e8f5e9] p-1.5">
                         <button onClick={() => setQty(p.id, qty - 1)} data-tooltip="Disminuir cantidad" className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-[#e8f5e9] transition-colors active:scale-90">
@@ -770,6 +802,7 @@ const LandingPage = ({ hideNavbar = false }) => {
               );
             })}
           </div>
+          )}
 
           {/* ── Paginación ── */}
           {totalProductPages > 1 && (

@@ -656,6 +656,12 @@ def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observacio
     # directamente contra OrdenProduccion filtrada por los productos del grupo,
     # sin usar el pool compartido de _items_listos_venta (que incluiría las
     # unidades del grupo anticipado y produciría un falso positivo).
+    if nuevo_estado == EstadoDomicilio.EN_CAMINO and not dom.ID_Empleado:
+        raise HTTPException(
+            status_code=400,
+            detail="Asigná un repartidor antes de marcar el domicilio como 'En camino'.",
+        )
+
     if nuevo_estado in (EstadoDomicilio.EN_CAMINO, EstadoDomicilio.ENTREGADO) and dom.ID_Venta:
         if es_domicilio_grupo:
             grupo_obj = db.query(GrupoEnvio).filter(GrupoEnvio.ID_Grupo == dom.ID_Grupo).first()

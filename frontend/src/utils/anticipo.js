@@ -13,7 +13,7 @@
  */
 
 /** Monto a partir del cual un pedido por encargo pide anticipo (COP). */
-export const UMBRAL_ANTICIPO = 50000;
+export const UMBRAL_ANTICIPO = 100000;
 
 /** Porcentaje del pedido que se anticipa. */
 export const PORCENTAJE_ANTICIPO = 0.5;

@@ -301,6 +301,35 @@ def obtener_notificaciones_cliente(db: Session, id_usuario: int) -> dict:
                 "fecha":          v.Fecha_Venta,
             })
 
+    # Pedidos con comprobante rechazado (activos, no cancelados ni entregados)
+    ventas_rechazadas = (
+        db.query(Venta)
+        .filter(
+            Venta.ID_Usuario == id_usuario,
+            Venta.Estado_Pago == "comprobante_rechazado",
+            Venta.Estado.notin_([5, 8, 12]),
+        )
+        .order_by(Venta.Fecha_Venta.desc())
+        .limit(5)
+        .all()
+    )
+    for v in ventas_rechazadas:
+        motivo = getattr(v, "Motivo_Rechazo_Comprobante", None) or ""
+        mensaje = (
+            f"Motivo: {motivo}"
+            if motivo
+            else "Sube un nuevo comprobante para continuar con tu pedido."
+        )
+        notifs.append({
+            "id_ref":   f"venta_{v.ID_Venta}_comprobante_rechazado",
+            "tipo":     "comprobante_rechazado",
+            "titulo":   f"Comprobante rechazado — Pedido #{v.ID_Venta}",
+            "mensaje":  mensaje,
+            "id_venta": v.ID_Venta,
+            "ruta":     "/cliente/pedidos",
+            "fecha":    v.Fecha_Venta,
+        })
+
     devs = (
         db.query(Devolucion)
         .filter(Devolucion.ID_Usuario == id_usuario, Devolucion.Estado.in_([6, 7]))

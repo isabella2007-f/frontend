@@ -57,8 +57,9 @@ class PedidoResponse(BaseModel):
     pago_final_comprobante_url:   Optional[str]     = None
     pago_final_fecha:             Optional[datetime] = None
     # Estado del pago y metadatos adicionales
-    estado_pago:                  Optional[str]     = None
-    fecha_rechazada:              Optional[datetime] = None
+    estado_pago:                       Optional[str]     = None
+    motivo_rechazo_comprobante:        Optional[str]     = None
+    fecha_rechazada:                   Optional[datetime] = None
     ID_Empleado:                  Optional[int]     = None
     observaciones_domicilio:      Optional[str]     = None
     Numero_Pedido:                Optional[str]     = None

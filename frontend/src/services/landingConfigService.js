@@ -23,6 +23,9 @@ export const LANDING_DEFAULTS = {
   horaApertura:          "08:00",
   horaCierre:            "20:00",
   diasAtencion:          "1,2,3,4,5,6,7",
+  // Monto mínimo del pedido (sin domicilio) para habilitar entrega a domicilio.
+  // 0 = sin mínimo requerido.
+  pedidoMinimo:          0,
 };
 
 export async function getLandingConfig() {

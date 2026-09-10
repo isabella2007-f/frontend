@@ -24,6 +24,7 @@ _MAPPING = {
     "horaApertura":           "hora_apertura",
     "horaCierre":             "hora_cierre",
     "diasAtencion":           "dias_atencion",
+    "pedidoMinimo":           "pedido_minimo",
 }
 
 

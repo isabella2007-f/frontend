@@ -22,6 +22,7 @@ class LandingConfigResponse(BaseModel):
     horaApertura:           Optional[str] = None   # "08:00"
     horaCierre:             Optional[str] = None   # "20:00"
     diasAtencion:           Optional[str] = None   # CSV ISO 1..7 (1=Lun)
+    pedidoMinimo:           Optional[int] = None   # mínimo para domicilio (0 = sin mínimo)
 
     class Config:
         from_attributes = True
@@ -46,3 +47,4 @@ class LandingConfigUpdate(BaseModel):
     horaApertura:           Optional[str] = None
     horaCierre:             Optional[str] = None
     diasAtencion:           Optional[str] = None
+    pedidoMinimo:           Optional[int] = None

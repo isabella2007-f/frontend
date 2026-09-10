@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Mail, Phone, MapPin, CreditCard,
-  Building2, Map, ShieldCheck, Edit2, LogOut, User, Info
+  Building2, Map, ShieldCheck, Edit2, LogOut, User, Info, Briefcase
 } from 'lucide-react';
 import { clearSession } from '../../../../utils/api';
 import LogoutModal from '../../../../shared/components/LogoutModal';
@@ -132,7 +132,11 @@ const ProfileView = ({ user, totalPedidos, onEdit }) => {
 
         <InfoBlock icon={Mail}  label="Correo"   value={user.correo}   span={2} />
         <InfoBlock icon={Phone} label="Teléfono" value={user.telefono} />
-        <InfoBlock icon={ShieldCheck} label="Rol" value={user.rol || 'Cliente'} />
+        <InfoBlock
+          icon={user.rol === 'Admin' ? ShieldCheck : user.rol === 'Empleado' || user.rol === 'Domiciliario' ? Briefcase : User}
+          label="Rol"
+          value={user.rol || 'Cliente'}
+        />
 
         {/* Ubicación */}
         <div style={{ gridColumn: 'span 2', marginTop: 8 }}>
@@ -144,8 +148,8 @@ const ProfileView = ({ user, totalPedidos, onEdit }) => {
         </div>
 
         <InfoBlock icon={MapPin}   label="Dirección"    value={user.direccion}    span={2} />
-        <InfoBlock icon={Building2} label="Municipio"   value={user.municipio} />
-        <InfoBlock icon={Map}       label="Departamento" value={user.departamento} />
+        {!user.barrio && <InfoBlock icon={Building2} label="Municipio"   value={user.municipio} />}
+        {!user.barrio && <InfoBlock icon={Map}       label="Departamento" value={user.departamento} />}
         {/* Barrio de referencia (módulo Ubicaciones). Dato guía: no condiciona
             el domicilio, que se elige en cada pedido. */}
         <InfoBlock icon={Info} label="Barrio (referencia)" span={2}

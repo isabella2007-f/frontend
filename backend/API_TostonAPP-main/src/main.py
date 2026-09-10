@@ -156,6 +156,8 @@ def migrate_db():
             "ALTER TABLE Configuracion_Landing ADD COLUMN hora_apertura VARCHAR(5) NULL",
             "ALTER TABLE Configuracion_Landing ADD COLUMN hora_cierre VARCHAR(5) NULL",
             "ALTER TABLE Configuracion_Landing ADD COLUMN dias_atencion VARCHAR(20) NULL",
+            # Monto mínimo de compra para habilitar domicilio (0 = sin mínimo).
+            "ALTER TABLE Configuracion_Landing ADD COLUMN pedido_minimo INT NULL DEFAULT 0",
             # Marca que el propio cliente eliminó su cuenta (para distinguirla de
             # una desactivada por un admin y poder recuperarla).
             "ALTER TABLE Usuarios ADD COLUMN Auto_Eliminado TINYINT(1) NOT NULL DEFAULT 0",
@@ -729,6 +731,16 @@ def migrate_db():
                 conn.commit()
             except Exception:
                 pass  # columna ya existe
+
+    # ── Comprobante rechazado: guardar motivo visible al cliente ──────────────
+    with engine.connect() as conn:
+        try:
+            conn.execute(text(
+                "ALTER TABLE Ventas ADD COLUMN Motivo_Rechazo_Comprobante TEXT NULL"
+            ))
+            conn.commit()
+        except Exception:
+            pass  # columna ya existe
 
 
 def _migrar_catalogo_permisos(engine):

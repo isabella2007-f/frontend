@@ -193,7 +193,11 @@ export default function Navbar({ isLanding = false, onToggleSidebar }) {
 
             {/* Carrito */}
             {(user?.tipo === "cliente" || (!user && isLanding)) && (
-              <button className="cart-btn" onClick={() => setIsCartOpen(true)} data-tooltip="Ver carrito">
+              <button
+                className="cart-btn"
+                onClick={() => setIsCartOpen(prev => !prev)}
+                data-tooltip={isCartOpen ? "Cerrar carrito" : "Ver carrito"}
+              >
                 <ShoppingCart size={22} />
                 {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
               </button>

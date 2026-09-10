@@ -58,9 +58,11 @@ const esAdminUser = (u) =>
 export default function EditarLanding() {
   const [form,       setForm]       = useState({ ...LANDING_DEFAULTS });
   const [saved,      setSaved]      = useState(false);
+  const [saveError,  setSaveError]  = useState('');
   const [sinCambios, setSinCambios] = useState(false);
   const [confirm,    setConfirm]    = useState(false);
   const [loading,    setLoading]    = useState(true);
+  const [isSaving,   setIsSaving]   = useState(false);
   const snapshotGuardado = useRef(snapshot({ ...LANDING_DEFAULTS }));
   const esAdmin = esAdminUser(getUser());
 
@@ -91,13 +93,25 @@ export default function EditarLanding() {
   const handleSave = async () => {
     if (snapshot(form) === snapshotGuardado.current) {
       setSinCambios(true);
+      setSaveError('');
       setTimeout(() => setSinCambios(false), 3000);
       return;
     }
-    await saveLandingConfig(form);
-    snapshotGuardado.current = snapshot(form);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+
+    setIsSaving(true);
+    setSaveError('');
+
+    try {
+      await saveLandingConfig(form);
+      snapshotGuardado.current = snapshot(form);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      setSaveError(err?.message || "No se pudieron guardar los cambios.");
+      setSaved(false);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleReset = async () => {
@@ -159,6 +173,13 @@ export default function EditarLanding() {
         <div className="flex items-center gap-3 px-5 py-4 bg-[#e8f5e9] border border-[#a5d6a7] rounded-2xl text-[#1b5e20] font-bold">
           <CheckCircle2 className="w-5 h-5 text-[#4caf50]" />
           Cambios guardados correctamente
+        </div>
+      )}
+
+      {saveError && (
+        <div className="flex items-center gap-3 px-5 py-4 bg-red-50 border border-red-200 rounded-2xl text-red-700 font-bold">
+          <Info className="w-5 h-5 text-red-500" />
+          {saveError}
         </div>
       )}
 
@@ -303,16 +324,53 @@ export default function EditarLanding() {
         </div>
       </section>
 
+      {/* Mínimo para domicilio — solo admin */}
+      <section className="bg-white rounded-2xl border border-[#e8f5e9] overflow-hidden shadow-sm">
+        <div className="px-6 py-4 bg-[#f7faf8] border-b border-[#e8f5e9] flex items-center gap-2">
+          <h2 className="font-black text-[#1b5e20] text-sm uppercase tracking-wider">Mínimo para domicilio</h2>
+          {!esAdmin && (
+            <span className="ml-auto flex items-center gap-1 text-[11px] font-bold text-gray-400">
+              <Lock className="w-3 h-3" /> Solo un administrador puede cambiarlo
+            </span>
+          )}
+        </div>
+        <div className="p-6 space-y-4">
+          <p className="text-xs text-gray-500">
+            Monto mínimo del pedido (sin contar el domicilio) para que el cliente pueda elegir entrega a domicilio.
+            Escribe <strong>0</strong> para no exigir un mínimo.
+          </p>
+          <div>
+            <label className="block text-sm font-bold text-gray-700 mb-1.5">Monto mínimo (COP)</label>
+            <input
+              type="number"
+              min="0"
+              step="1000"
+              inputMode="numeric"
+              disabled={!esAdmin}
+              value={form.pedidoMinimo ?? 0}
+              onChange={e => handleChange("pedidoMinimo", e.target.value === "" ? 0 : Number(e.target.value))}
+              placeholder="0"
+              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-[#4caf50] focus:ring-2 focus:ring-[#4caf50]/20 text-sm transition disabled:bg-gray-50 disabled:text-gray-400"
+            />
+            {form.pedidoMinimo > 0 && (
+              <p className="text-xs text-gray-400 mt-1">
+                El cliente debe pedir al menos ${Number(form.pedidoMinimo).toLocaleString("es-CO")} COP para optar por domicilio.
+              </p>
+            )}
+          </div>
+        </div>
+      </section>
+
       {/* Botón guardar fijo */}
       <div className="sticky bottom-0 bg-white/80 backdrop-blur-md border-t border-[#e8f5e9] -mx-6 px-6 py-4 flex justify-end">
         <button
           onClick={handleSave}
-          disabled={loading}
+          disabled={loading || isSaving}
           data-tooltip="Guardar todos los cambios en la landing page"
           className="flex items-center gap-2 px-8 py-3 bg-[#1b5e20] text-white font-black rounded-2xl hover:bg-[#0d3300] transition-all shadow-lg active:scale-95 disabled:opacity-50"
         >
-          <Save className="w-4 h-4" />
-          Guardar cambios
+          <Save className={`w-4 h-4 ${isSaving ? 'animate-pulse' : ''}`} />
+          {isSaving ? 'Guardando...' : 'Guardar cambios'}
         </button>
       </div>
     </div>

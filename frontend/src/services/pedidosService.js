@@ -55,6 +55,7 @@ const adaptPedido = (p) => {
     total:            p.Total             || p.total            || 0,
     notas:            p.Notas             || p.notas            || "",
     fecha_pedido:     p.Fecha_pedido      || p.Fecha_Pedido     || p.fecha_pedido || "",
+    fecha_venta:      p.Fecha_Venta       || p.fecha_venta      || null,
     // Entrega real. De acá sale el plazo de devolución: sin esta fecha
     // habría que contar desde que se hizo el pedido, que es otra cosa.
     fecha_entrega:    p.Fecha_entrega     || p.fecha_entrega    || null,
@@ -85,6 +86,7 @@ const adaptPedido = (p) => {
     pago_final_comprobante_url: p.pago_final_comprobante_url || null,
     pago_final_fecha:          p.pago_final_fecha    || null,
     estado_pago:               p.estado_pago         || null,
+    motivo_rechazo_comprobante: p.motivo_rechazo_comprobante || null,
     envio_completo_domingo:
       p.envio_completo_domingo == null ? null : !!p.envio_completo_domingo,
     // Un domicilio por viaje: si el pedido está dividido, es la suma de los

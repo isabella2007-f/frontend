@@ -60,6 +60,14 @@ function PanelIzquierdo() {
   );
 }
 
+const DOC_LIMITS = {
+  CC:        { min: 6, max: 10, label: 'dígitos',                   alpha: false },
+  CE:        { min: 6, max: 9,  label: 'dígitos',                   alpha: false },
+  Pasaporte: { min: 8, max: 12, label: 'caracteres alfanuméricos',  alpha: true  },
+  NIT:       { min: 9, max: 10, label: 'dígitos',                   alpha: false },
+  PPT:       { min: 6, max: 10, label: 'dígitos',                   alpha: false },
+};
+
 const Register = () => {
   const navigate = useNavigate();
   const [loading,      setLoading]      = useState(false);
@@ -68,6 +76,8 @@ const Register = () => {
   const [showConf,     setShowConf]     = useState(false);
   const [success,        setSuccess]        = useState(false);
   const [successEmail,   setSuccessEmail]   = useState('');
+  const [reenviarLoading, setReenviarLoading] = useState(false);
+  const [reenviarDone,    setReenviarDone]    = useState(false);
   const [emailChecking,  setEmailChecking]  = useState(false);
   const [emailTaken,     setEmailTaken]     = useState(false);
   const emailDebounceRef = useRef(null);
@@ -89,7 +99,17 @@ const Register = () => {
   const set = (k) => (e) => {
     let val = e.target.value;
     if (k === 'Nombre' || k === 'Apellidos') val = soloLetras(val);
-    if (k === 'Numero_documento') val = val.replace(/\D/g, '');
+    if (k === 'Numero_documento') {
+      const esAlpha = (DOC_LIMITS[form.Tipo_documento] || {}).alpha;
+      val = esAlpha ? val.replace(/[^A-Za-z0-9]/g, '').toUpperCase() : val.replace(/\D/g, '');
+    }
+    // Al cambiar tipo, re-filtrar el número según el nuevo tipo
+    if (k === 'Tipo_documento' && newForm.Numero_documento) {
+      const esAlpha = (DOC_LIMITS[val] || {}).alpha;
+      newForm = { ...newForm, Numero_documento: esAlpha
+        ? newForm.Numero_documento.replace(/[^A-Za-z0-9]/g, '').toUpperCase()
+        : newForm.Numero_documento.replace(/\D/g, '') };
+    }
     let newForm = { ...form, [k]: val };
     // Al cambiar tipo de documento, limpiar los campos del tipo contrario
     if (k === 'Tipo_documento') {
@@ -123,17 +143,16 @@ const Register = () => {
         }
       }
       if (k === 'Numero_documento' || k === 'Tipo_documento') {
-        const tipo  = newForm.Tipo_documento;
+        const tipo   = newForm.Tipo_documento;
         const numDoc = newForm.Numero_documento;
-        const minD  = tipo === 'NIT' ? 9 : tipo === 'CE' ? 6 : 8;
-        const maxD  = tipo === 'NIT' ? 11 : tipo === 'CE' ? 15 : 11;
+        const lim    = DOC_LIMITS[tipo] || { min: 6, max: 12, label: 'caracteres', alpha: false };
         setDocTaken(false);
         clearTimeout(docDebounceRef.current);
         if (!numDoc.trim()) {
           n.Numero_documento = 'El número de documento es obligatorio';
           setDocChecking(false);
-        } else if (numDoc.length < minD || numDoc.length > maxD) {
-          n.Numero_documento = `Debe tener entre ${minD} y ${maxD} dígitos`;
+        } else if (numDoc.length < lim.min || numDoc.length > lim.max) {
+          n.Numero_documento = `Debe tener entre ${lim.min} y ${lim.max} ${lim.label}`;
           setDocChecking(false);
         } else {
           delete n.Numero_documento;
@@ -220,10 +239,10 @@ const Register = () => {
       if (!form.Nombre.trim())    e.Nombre    = 'El nombre es obligatorio';
       if (!form.Apellidos.trim()) e.Apellidos = 'Los apellidos son obligatorios';
     }
-    const _minD = form.Tipo_documento === 'NIT' ? 9 : form.Tipo_documento === 'CE' ? 6 : 8;
-    const _maxD = form.Tipo_documento === 'NIT' ? 11 : form.Tipo_documento === 'CE' ? 15 : 11;
+    const _lim = DOC_LIMITS[form.Tipo_documento] || { min: 6, max: 12, label: 'caracteres', alpha: false };
     if (!form.Numero_documento.trim()) e.Numero_documento = 'El número de documento es obligatorio';
-    else if (form.Numero_documento.length < _minD || form.Numero_documento.length > _maxD) e.Numero_documento = `Debe tener entre ${_minD} y ${_maxD} dígitos`;
+    else if (form.Numero_documento.length < _lim.min || form.Numero_documento.length > _lim.max)
+      e.Numero_documento = `Debe tener entre ${_lim.min} y ${_lim.max} ${_lim.label}`;
     if (!form.Correo.trim())           e.Correo           = 'El correo es obligatorio';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.Correo)) e.Correo = 'Formato de correo inválido';
     if (!form.Contrasena) {
@@ -264,6 +283,21 @@ const Register = () => {
     }
   };
 
+  const handleReenviar = async () => {
+    setReenviarLoading(true);
+    try {
+      await apiFetch('/auth/reenviar-verificacion', {
+        method: 'POST',
+        body: JSON.stringify({ correo: successEmail }),
+      });
+      setReenviarDone(true);
+    } catch {
+      setReenviarDone(true); // el endpoint siempre responde igual por seguridad
+    } finally {
+      setReenviarLoading(false);
+    }
+  };
+
   if (success) {
     return (
       <div className="auth-page">
@@ -279,11 +313,34 @@ const Register = () => {
             <p style={{ fontSize: 15, fontWeight: 700, color: '#2e7d32', marginBottom: 12 }}>
               {successEmail}
             </p>
-            <p style={{ fontSize: 13, color: '#90a4a1', marginBottom: 28, lineHeight: 1.6 }}>
+            <p style={{ fontSize: 13, color: '#90a4a1', marginBottom: 20, lineHeight: 1.6 }}>
               Haz clic en el enlace del correo para activar tu cuenta. El enlace expira en 24 horas.
             </p>
-            <button className="auth-submit" onClick={() => navigate('/login')}>
+            <button className="auth-submit" onClick={() => navigate('/login')} style={{ marginBottom: 12 }}>
               Ir al inicio de sesión <span className="auth-arrow"><ChevronRight size={18} /></span>
+            </button>
+            <button
+              onClick={handleReenviar}
+              disabled={reenviarLoading || reenviarDone}
+              style={{
+                width: '100%', padding: '11px 0', borderRadius: 10,
+                border: '1.5px solid #a5d6a7', background: reenviarDone ? '#e8f5e9' : '#fff',
+                color: reenviarDone ? '#2e7d32' : '#388e3c', fontWeight: 700,
+                fontSize: 13, cursor: reenviarLoading || reenviarDone ? 'default' : 'pointer',
+                marginBottom: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+              }}
+            >
+              {reenviarLoading
+                ? <><span className="auth-spinner" style={{ width: 14, height: 14, borderColor: '#388e3c', borderTopColor: 'transparent' }} /> Enviando...</>
+                : reenviarDone
+                ? <><Check size={14} /> Correo reenviado</>
+                : 'Reenviar correo de verificación'}
+            </button>
+            <button
+              onClick={() => { setSuccess(false); setReenviarDone(false); }}
+              style={{ background: 'none', border: 'none', color: '#9e9e9e', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              ¿El correo es incorrecto? Corregirlo
             </button>
           </div>
         </div>
@@ -373,8 +430,8 @@ const Register = () => {
                     className="auth-input"
                     value={form.Numero_documento}
                     onChange={set('Numero_documento')}
-                    inputMode="numeric"
-                    maxLength={form.Tipo_documento === 'CE' ? 15 : form.Tipo_documento === 'NIT' ? 11 : 11}
+                    inputMode={(DOC_LIMITS[form.Tipo_documento] || {}).alpha ? 'text' : 'numeric'}
+                    maxLength={(DOC_LIMITS[form.Tipo_documento] || { max: 12 }).max}
                   />
                   {docChecking && (
                     <span className="auth-spinner" style={{ width: 14, height: 14, marginRight: 10, flexShrink: 0 }} />

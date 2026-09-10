@@ -18,6 +18,7 @@ import FilasRelleno from "../../../shared/components/FilasRelleno";
 import { puedeEditarsePedido } from "./permisosEdicion.js";
 import { esPagoEfectivo, esPagoMixto, esPagoTransferencia, montoACobrar, montoTransferido } from "../../../utils/metodosPago.js";
 import SearchableSelect from "../../../shared/components/SearchableSelect.jsx";
+import ImageLightbox from "../../../shared/components/ImageLightbox.jsx";
 import { formatCOP } from "../../../utils/formato.js";
 import {
   Trash2, Truck, Package,
@@ -166,7 +167,7 @@ function ModalConfirmarEstado({ pedido, nuevoEstado, onClose, onConfirm }) {
   );
 }
 
-/* Comprobante adjunto: aviso + imagen ampliable. Se usa para el del pedido y
+/* Comprobante adjunto: aviso + imagen con zoom. Se usa para el del pedido y
    para el del anticipo, que el cliente sube por separado desde su checkout. */
 function ComprobanteAdjunto({ url, titulo }) {
   return (
@@ -174,18 +175,13 @@ function ComprobanteAdjunto({ url, titulo }) {
       <div className="info-box info-box--success" style={{ marginBottom: 10 }}>
         <span className="info-box__icon"><CheckCircle2 size={16} /></span>
         <span className="info-box__text">{titulo}</span>
-        <a href={url} target="_blank" rel="noopener noreferrer"
-          style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, color: "#2e7d32", flexShrink: 0 }}>
-          Abrir →
-        </a>
       </div>
-      <a href={url} target="_blank" rel="noopener noreferrer">
-        <img
-          src={url}
-          alt={titulo}
-          style={{ width: "100%", maxHeight: 320, objectFit: "contain", borderRadius: 10, border: "1.5px solid #c8e6c9", background: "#f9fdf9", cursor: "zoom-in" }}
-        />
-      </a>
+      <ImageLightbox
+        src={url}
+        alt={titulo}
+        label="Ver imagen completa"
+        thumbStyle={{ width: "100%", maxHeight: 320, objectFit: "contain", borderRadius: 10, border: "1.5px solid #c8e6c9", background: "#f9fdf9", cursor: "zoom-in" }}
+      />
     </div>
   );
 }
@@ -1945,12 +1941,76 @@ function ModalRechazarComprobante({ pedido, saving, onClose, onConfirm }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   MODAL — VER COMPROBANTE (con zoom + Aprobar / Rechazar)
+   ═══════════════════════════════════════════════════════════ */
+function ModalVerComprobante({ pedido, saving, onClose, onAprobar, onRechazar }) {
+  return (
+    <div className="modal-overlay">
+      <div
+        className="modal-box bg-white w-full max-w-md shadow-2xl flex flex-col"
+        style={{ borderRadius: 24, maxHeight: '90vh', overflow: 'hidden' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div style={{ background: 'linear-gradient(135deg,#1565c0,#1976d2)', padding: '18px 22px', borderRadius: '24px 24px 0 0', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <p style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.6)', letterSpacing: 1, textTransform: 'uppercase', margin: 0 }}>Pedido #{pedido.numero}</p>
+            <h2 style={{ margin: '2px 0 0', fontSize: 17, fontWeight: 800, color: '#fff' }}>Comprobante de pago</h2>
+          </div>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: 32, height: 32, cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} /></button>
+        </div>
+
+        {/* Body */}
+        <div style={{ overflowY: 'auto', flex: 1, padding: '18px 22px' }}>
+          {pedido.comprobante ? (
+            <ImageLightbox
+              src={pedido.comprobante}
+              alt="Comprobante de pago"
+              label="Ver imagen completa"
+              thumbStyle={{ width: '100%', maxHeight: 380, objectFit: 'contain', borderRadius: 12, background: '#f0f4f8', cursor: 'zoom-in' }}
+            />
+          ) : (
+            <div style={{ textAlign: 'center', padding: '40px 0', color: '#9e9e9e' }}>
+              <AlertCircle size={32} style={{ margin: '0 auto 8px', display: 'block' }} />
+              <p style={{ fontSize: 13, margin: 0 }}>Sin comprobante adjuntado</p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ flexShrink: 0, padding: '14px 22px', borderTop: '1px solid #f0f0f0', display: 'flex', gap: 10 }}>
+          <button onClick={onClose} style={{ padding: '10px 20px', borderRadius: 10, border: '1px solid #e0e0e0', background: '#fff', color: '#616161', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            Cerrar
+          </button>
+          <button
+            onClick={onRechazar}
+            disabled={saving}
+            style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: saving ? '#ef9a9a' : '#c62828', color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+          >
+            <Ban size={14} /> Rechazar
+          </button>
+          <button
+            onClick={onAprobar}
+            disabled={saving}
+            style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: saving ? '#a5d6a7' : '#2e7d32', color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+          >
+            <Check size={14} /> Aprobar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
    MENÚ DE ACCIONES POR FILA
    ═══════════════════════════════════════════════════════════ */
-function AccionesCell({ ped, saving, onVer, onEditar, onConfirmar, onMarcarListo, onEntregar, onAsignarDomicilio, onCancelar, onProponerFecha, onResolverEscalado, onAprobarComprobante, onRechazarComprobante, onSubirComprobante, onRegistrarCobro }) {
+function AccionesCell({ ped, saving, onVer, onEditar, onConfirmar, onMarcarListo, onEntregar, onAsignarDomicilio, onCancelar, onProponerFecha, onResolverEscalado, onVerComprobante, onSubirComprobante, onRegistrarCobro }) {
   const necesitaProduccion  = ped.requiereFechaPropuesta;
   const canEdit             = puedeEditarsePedido(ped.estado);
-  const canAdvance          = ped.estado === "Pendiente" && !necesitaProduccion;
+  const canAdvance          = ped.estado === "Pendiente" && !necesitaProduccion
+    && (!esPagoTransferencia(ped.metodo_pago)
+        || ["pagado_completo", "anticipo_pagado"].includes(ped.estado_pago));
   const canProponerFecha    = ["Pendiente", "Fecha rechazada"].includes(ped.estado) && necesitaProduccion;
   const canResolverEscalado = ped.estado === "Escalado a admin";
   // canMarcarListo: no debe quedar desbloqueado solo porque no hay OPs pendientes.
@@ -1974,8 +2034,7 @@ function AccionesCell({ ped, saving, onVer, onEditar, onConfirmar, onMarcarListo
   // coincidía con ninguna y se quedaba sin los dos botones.
   const esTransferencia     = esPagoTransferencia(ped.metodo_pago);
   const esEfectivo          = esPagoEfectivo(ped.metodo_pago);
-  const canAprobar          = esTransferencia && ped.comprobante && ped.estado_pago === "pendiente_validacion";
-  const canRechazar         = esTransferencia && ped.comprobante && ped.estado_pago === "pendiente_validacion";
+  const canVerComprobante   = esTransferencia && ped.comprobante && ped.estado_pago === "pendiente_validacion";
   const _terminalState      = ["Entregado","Cancelado"].includes(ped.estado);
   const _pagoRegistrado     = ["efectivo_recibido","pagado_completo","anticipo_pagado"].includes(ped.estado_pago);
   const canSubirComprobante = esTransferencia && !_terminalState &&
@@ -1997,8 +2056,7 @@ function AccionesCell({ ped, saving, onVer, onEditar, onConfirmar, onMarcarListo
       {canEntregar         && <button className="act-btn act-btn--success" data-tooltip="Registrar entrega"      disabled={saving} onClick={() => onEntregar(ped)}><Truck size={15} /></button>}
       {canSubirComprobante && <button className="act-btn act-btn--info"    data-tooltip="Subir comprobante"    disabled={saving} onClick={() => onSubirComprobante(ped)}><Paperclip size={15} /></button>}
       {canRegistrarCobro   && <button className="act-btn act-btn--success" data-tooltip="Registrar cobro efectivo" disabled={saving} onClick={() => onRegistrarCobro(ped)}><Banknote size={15} /></button>}
-      {canAprobar && <button className="act-btn act-btn--success" data-tooltip="Aprobar comprobante" disabled={saving} onClick={() => onAprobarComprobante(ped)}><CheckCircle2 size={15} /></button>}
-      {canRechazar && <button className="act-btn act-btn--delete"  data-tooltip="Rechazar comprobante" disabled={saving} onClick={() => onRechazarComprobante(ped)}><Ban size={15} /></button>}
+      {canVerComprobante && <button className="act-btn act-btn--info" data-tooltip="Ver comprobante" disabled={saving} onClick={() => onVerComprobante(ped)}><Eye size={15} /></button>}
       {canCancel           && <button className="act-btn act-btn--delete"  data-tooltip="Cancelar pedido"        disabled={saving} onClick={() => onCancelar(ped)}><X size={15} /></button>}
     </div>
   );
@@ -2317,21 +2375,22 @@ export default function GestionPedidos() {
     }
   };
 
+  const handleVerComprobante = (ped) => {
+    setModal({ type: "verComprobante", pedido: ped });
+  };
+
   const handleAprobarComprobante = async (ped) => {
     setActionSaving(true);
     try {
       await aprobarComprobante(ped.id);
       setPedidos(prev => prev.map(p => p.id === ped.id ? { ...p, estado_pago: "pagado_completo" } : p));
       showToast(`Comprobante de ${ped.numero} aprobado`);
+      setModal(null);
     } catch (err) {
       setModal({ type: "errorEstado", mensaje: err.message || "No se pudo aprobar el comprobante." });
     } finally {
       setActionSaving(false);
     }
-  };
-
-  const handleRechazarComprobante = (ped) => {
-    setModal({ type: "rechazarComprobante", pedido: ped });
   };
 
   const handleRegistrarCobro = (ped) => {
@@ -2881,8 +2940,7 @@ export default function GestionPedidos() {
                             onCancelar={handleCancelarPedido}
                             onProponerFecha={handleProponerFecha}
                             onResolverEscalado={handleResolverEscalado}
-                            onAprobarComprobante={handleAprobarComprobante}
-                            onRechazarComprobante={handleRechazarComprobante}
+                            onVerComprobante={handleVerComprobante}
                             onSubirComprobante={handleSubirComprobante}
                             onRegistrarCobro={handleRegistrarCobro}
                           />
@@ -2916,13 +2974,22 @@ export default function GestionPedidos() {
       {modal?.type === "cancelar" && <ModalCancelarPedido pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleConfirmarCancelacion} />}
       {modal?.type === "asignarDomiciliario" && <ModalAsignarDomiciliario pedido={modal.pedido} empleados={empleados} repartidores={repartidores} onClose={() => setModal(null)} onConfirm={handleAsignarDomiciliario} />}
       {modal?.type === "crear" && <CrearPedido onClose={() => setModal(null)} onSave={handleCrearPedido} />}
-      {modal?.type === "editar" && <EditarPedido pedido={modal.pedido} onClose={() => setModal(null)} onSave={handleEditarPedido} />}
+      {modal?.type === "editar" && <EditarPedido pedido={modal.pedido} onClose={() => setModal(null)} onSave={handleEditarPedido} onAprobarComprobante={handleAprobarComprobante} onRechazarComprobante={(ped) => setModal({ type: "rechazarComprobante", pedido: ped })} />}
       {modal?.type === "proponerFecha"    && <ModalProponerFecha    pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleConfirmarFechaPropuesta} />}
       {modal?.type === "resolverEscalado" && <ModalResolverEscalado pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirmarAcuerdo={handleConfirmarAcuerdoEscalado} onConfirmarCancelacion={handleConfirmarCancelacionEscalado} />}
       {modal?.type === "registrarSaldo" && <ModalRegistrarSaldo pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleRegistrarSaldo} />}
       {modal?.type === "registrarCobro"      && <ModalRegistrarCobro      pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleConfirmarCobro} />}
       {modal?.type === "subirComprobante"    && <ModalSubirComprobante    pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleConfirmarSubirComprobante} />}
       {modal?.type === "rechazarComprobante" && <ModalRechazarComprobante pedido={modal.pedido} saving={actionSaving} onClose={() => setModal(null)} onConfirm={handleConfirmarRechazoComprobante} />}
+      {modal?.type === "verComprobante" && (
+        <ModalVerComprobante
+          pedido={modal.pedido}
+          saving={actionSaving}
+          onClose={() => setModal(null)}
+          onAprobar={() => handleAprobarComprobante(modal.pedido)}
+          onRechazar={() => setModal({ type: "rechazarComprobante", pedido: modal.pedido })}
+        />
+      )}
       {modal?.type === "errorEstado" && <ModalErrorEstadoPedido mensaje={modal.mensaje} onClose={() => setModal(null)} />}
       {modal?.type === "avisoProduccion" && <ModalAvisoProduccion items={modal.items} pedidoNumero={modal.pedidoNumero} onClose={() => setModal(null)} />}
 

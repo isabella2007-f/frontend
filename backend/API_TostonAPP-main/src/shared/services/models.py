@@ -422,6 +422,7 @@ class Venta(Base):
     Monto_Efectivo           = Column(Numeric(30, 2),                    nullable=True)
     Monto_Transferencia      = Column(Numeric(30, 2),                    nullable=True)
     Estado_Pago              = Column(String(30),   default="pendiente", nullable=True)
+    Motivo_Rechazo_Comprobante = Column(Text,                           nullable=True)
     Fecha_Rechazada          = Column(DateTime,                          nullable=True)
     # Guardado al crear la venta: True si algún producto de producción no tenía stock suficiente.
     # Usar este valor (snapshot) evita que el botón "proponer fecha" aparezca incorrectamente
@@ -673,6 +674,9 @@ class ConfiguracionLanding(Base):
     hora_apertura            = Column(String(5),   nullable=True)   # "08:00"
     hora_cierre              = Column(String(5),   nullable=True)   # "20:00"
     dias_atencion            = Column(String(20),  nullable=True)   # CSV ISO 1..7 (1=Lun)
+    # Monto mínimo del pedido (sin domicilio) para habilitar entrega a domicilio.
+    # 0 o NULL = sin mínimo. Editable solo por admin.
+    pedido_minimo            = Column(Integer,     nullable=True,   default=0)
 
 # ─────────────────────────────────────────
 # SALIDAS (daños, vencimientos, ajustes)

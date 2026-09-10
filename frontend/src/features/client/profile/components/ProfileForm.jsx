@@ -8,7 +8,15 @@ import { soloDigitos } from '../../../../utils/inputFilters';
 import { subirImagenCloudinary } from '../../../../utils/cloudinary.js';
 import Avatar from '../../../../shared/components/Avatar';
 
-const TIPO_DOC_OPTS = ['CC', 'CE', 'TI', 'NIT', 'PP'];
+const TIPO_DOC_OPTS = ['CC', 'CE', 'Pasaporte', 'NIT', 'PPT'];
+
+const DOC_LIMITS = {
+  CC:        { min: 6, max: 10, label: 'dígitos',                  alpha: false },
+  CE:        { min: 6, max: 9,  label: 'dígitos',                  alpha: false },
+  Pasaporte: { min: 8, max: 12, label: 'caracteres alfanuméricos', alpha: true  },
+  NIT:       { min: 9, max: 10, label: 'dígitos',                  alpha: false },
+  PPT:       { min: 6, max: 10, label: 'dígitos',                  alpha: false },
+};
 
 const inputBase = {
   width: '100%', boxSizing: 'border-box',
@@ -60,6 +68,7 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
   const [showPassSection, setShowPassSection] = useState(false);
   const [passForm,        setPassForm]        = useState({ nueva: '', confirmar: '', showNueva: false, showConf: false });
   const [uploadingFoto,   setUploadingFoto]   = useState(false);
+  const [saving,          setSaving]          = useState(false);
 
   /// Barrio de referencia (módulo Ubicaciones). Solo dato guía: no condiciona
   /// el domicilio. `id_barrio_actual` es el guardado; `id_barrio` el elegido
@@ -143,9 +152,19 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
 
   const set = (k) => (e) => {
     let val = e.target.value;
-    if (k === 'cedula') val = soloDigitos(val);
+    if (k === 'cedula') {
+      const lim = DOC_LIMITS[form.tipo_documento] || { alpha: false };
+      val = lim.alpha ? val.replace(/[^A-Za-z0-9]/g, '').toUpperCase() : soloDigitos(val);
+    }
     if (k === 'telefono') val = soloDigitos(val, 10);
-    const newForm = { ...form, [k]: val };
+    let newForm = { ...form, [k]: val };
+    // Al cambiar tipo, reformatear el número existente
+    if (k === 'tipo_documento' && newForm.cedula) {
+      const lim = DOC_LIMITS[val] || { alpha: false };
+      newForm = { ...newForm, cedula: lim.alpha
+        ? newForm.cedula.replace(/[^A-Za-z0-9]/g, '').toUpperCase()
+        : newForm.cedula.replace(/\D/g, '') };
+    }
     setForm(newForm);
     setErrors(p => {
       const n = { ...p };
@@ -159,7 +178,13 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
       }
       if (k === 'cedula') {
         if (val.trim() && !newForm.tipo_documento) n.tipo_documento = 'Selecciona el tipo de documento';
-        else delete n.tipo_documento;
+        else {
+          const lim = DOC_LIMITS[newForm.tipo_documento];
+          if (lim && val.trim() && (val.length < lim.min || val.length > lim.max))
+            n.cedula = `Debe tener entre ${lim.min} y ${lim.max} ${lim.label}`;
+          else delete n.cedula;
+          delete n.tipo_documento;
+        }
       }
       return n;
     });
@@ -222,7 +247,7 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
           b: idBarrio ?? idBarrioActual,
           i: (via.indicaciones || '').trim(),
         }) === snapshotInicial.current) {
-      onSave({ sinCambios: true });
+      await onSave({ sinCambios: true });
       return;
     }
 
@@ -279,7 +304,12 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
         .catch(() => {});
     }
 
-    onSave(payload);
+    setSaving(true);
+    try {
+      await onSave(payload);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const correoMostrar = perfil?.Correo || user?.Correo || user?.correo || '';
@@ -398,11 +428,16 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
                 onChange={set('cedula')}
                 placeholder="Ej: 1234567890"
                 style={inputBase}
+                inputMode={(DOC_LIMITS[form.tipo_documento] || {}).alpha ? 'text' : 'numeric'}
+                maxLength={(DOC_LIMITS[form.tipo_documento] || { max: 12 }).max}
                 onFocus={focusOn} onBlur={focusOff}
               />
             </div>
             {errors.tipo_documento && (
               <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--accent-red)' }}>{errors.tipo_documento}</p>
+            )}
+            {errors.cedula && (
+              <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--accent-red)' }}>{errors.cedula}</p>
             )}
             <p style={{ margin: '6px 0 0', fontSize: 11, color: '#f57f17', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
               <AlertTriangle size={11} /> Solo puedes establecerlo una vez. Verifica bien antes de guardar.
@@ -441,19 +476,6 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
             la dirección de entrega, y el costo del domicilio se calcula en ese
             momento según el barrio. Si tu barrio no tiene cobertura de domicilio,
             guardarlo aquí no la habilita.</span>
-        </div>
-
-        {/* Municipio y departamento salen del barrio: son los mismos datos
-            y escribirlos aparte permitía que no coincidieran. */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <Field label="Municipio">
-            <input type="text" value={form.municipio || '—'} readOnly
-              style={disabledStyle} title="Sale del barrio que elijas arriba" />
-          </Field>
-          <Field label="Departamento">
-            <input type="text" value={form.departamento || '—'} readOnly
-              style={disabledStyle} title="Sale del barrio que elijas arriba" />
-          </Field>
         </div>
 
         <Field label="Barrio (opcional)">
@@ -569,8 +591,8 @@ const ProfileForm = ({ user, onSave, onCancel }) => {
         <button type="button" className="btn-secondary" onClick={onCancel} style={{ flex: 1, justifyContent: 'center' }}>
           <X size={15} /> Cancelar
         </button>
-        <button type="submit" className="btn-primary" disabled={uploadingFoto} style={{ flex: 2, justifyContent: 'center' }}>
-          <Save size={15} /> {uploadingFoto ? 'Subiendo imagen…' : 'Guardar cambios'}
+        <button type="submit" className="btn-primary" disabled={uploadingFoto || saving} style={{ flex: 2, justifyContent: 'center' }}>
+          <Save size={15} /> {uploadingFoto ? 'Subiendo imagen…' : saving ? 'Guardando…' : 'Guardar cambios'}
         </button>
       </div>
     </form>

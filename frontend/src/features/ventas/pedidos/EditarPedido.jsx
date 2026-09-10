@@ -9,6 +9,7 @@ import { registrarPagoFinal, editarPedido, getItemsListos, crearGruposEnvio, act
 import { PERMISOS_POR_ESTADO, puedeEditarsePedido } from "./permisosEdicion.js";
 import { X, Ban, AlertTriangle, CheckCircle2, CreditCard, PenLine, Check, Paperclip, Upload, Bike, Store, Truck, Pencil, Calendar, AlertCircle } from "lucide-react";
 import SelectorBarrioEntrega from "../../../shared/components/SelectorBarrioEntrega.jsx";
+import ImageLightbox from "../../../shared/components/ImageLightbox.jsx";
 import "./Pedidos.css";
 import { formatCOP } from "../../../utils/formato";
 
@@ -155,7 +156,7 @@ function BuscadorProducto({ productosSeleccionados, onAgregar, productos = [] })
 /* ═══════════════════════════════════════════════════════════
    MODAL EDITAR PEDIDO
 ═══════════════════════════════════════════════════════════ */
-export default function EditarPedido({ pedido, onClose, onSave }) {
+export default function EditarPedido({ pedido, onClose, onSave, onAprobarComprobante, onRechazarComprobante }) {
   const [clientes,  setClientes]  = useState([]);
   const [productos, setProductos] = useState([]);
   // Copia local del pedido que se actualiza cuando se operan grupos (sin
@@ -1065,7 +1066,12 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
               <div className="comprobante-upload">
                 {form.comprobantePreview ? (
                   <div className="comprobante-preview-wrap">
-                    <img src={form.comprobantePreview} alt="Comprobante" className="comprobante-preview-img" />
+                    <ImageLightbox
+                      src={form.comprobantePreview}
+                      alt="Comprobante"
+                      label="Ver imagen completa"
+                      thumbStyle={{ width: "100%", maxHeight: 200, objectFit: "contain", borderRadius: 8, background: "#000", cursor: "zoom-in" }}
+                    />
                     <button className="comprobante-remove-btn" onClick={() => setForm(f => ({ ...f, comprobante: null, comprobantePreview: null }))}><X size={14}/></button>
                   </div>
                 ) : (
@@ -1078,6 +1084,26 @@ export default function EditarPedido({ pedido, onClose, onSave }) {
                 )}
               </div>
               {errors.comprobante && <span className="field-error">{errors.comprobante}</span>}
+
+              {/* Aprobar/Rechazar cuando el comprobante está en revisión */}
+              {pedido.comprobante && pedido.estado_pago === "pendiente_validacion" && onAprobarComprobante && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => onRechazarComprobante(pedido)}
+                    style={{ flex: 1, padding: '9px 0', borderRadius: 9, border: 'none', background: '#c62828', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+                  >
+                    <Ban size={13} /> Rechazar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onAprobarComprobante(pedido)}
+                    style={{ flex: 1, padding: '9px 0', borderRadius: 9, border: 'none', background: '#2e7d32', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+                  >
+                    <Check size={13} /> Aprobar comprobante
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

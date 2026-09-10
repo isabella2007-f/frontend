@@ -1009,8 +1009,10 @@ function VerCompra({ compraBase, onClose, getProveedorById, insumosActivos }) {
               <div className="compra-det-lotes-info" style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <CheckCircle2 size={13} /> Compra completada el {fmtFecha(compra.fecha_llegada || compra.fecha)}. Stock aplicado al inventario.
               </div>
-              {cargando && items.length === 0 ? (
+              {cargando ? (
                 <div style={{ textAlign: "center", padding: "40px 0", color: "#9e9e9e", fontSize: 13 }}>Cargando lotes…</div>
+              ) : items.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "40px 0", color: "#9e9e9e", fontSize: 13 }}>Sin lotes registrados</div>
               ) : (
                 items.map((d, idx) => <LotesInsumoGrupo key={d.idInsumo || idx} item={d} insumosActivos={insumosActivos} />)
               )}

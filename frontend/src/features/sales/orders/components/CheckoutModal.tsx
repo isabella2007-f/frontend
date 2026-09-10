@@ -12,6 +12,7 @@ import { desdeTexto, lineaVia } from '../../../../utils/direccionEntrega';
 import { pideAnticipo } from '../../../../utils/anticipo';
 import SaldoMonto from '../../../../shared/components/SaldoMonto';
 import SplitPagoMonto from '../../../../shared/components/SplitPagoMonto';
+import ImageLightbox from '../../../../shared/components/ImageLightbox.jsx';
 import TerminosCondicionesModal from '../../../../shared/components/TerminosCondicionesModal';
 import { getLandingConfig, LANDING_DEFAULTS } from '../../../../services/landingConfigService';
 import { estaAbierto, mensajeFueraHorario, rangoHorario } from '../../../../utils/horario';
@@ -95,6 +96,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
   const [efectivoMonto,      setEfectivoMonto]      = useState<number | ''>('');
   const [mixtoError,         setMixtoError]         = useState('');
   const [comprobante,        setComprobante]        = useState<File | null>(null);
+  const [comprobantePreview, setComprobantePreview] = useState<string | null>(null);
   const [comprobanteError,   setComprobanteError]   = useState('');
   const [isConfirming,       setIsConfirming]       = useState(false);
   const [credito,            setCredito]            = useState(0);
@@ -155,6 +157,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
     setTime('');
     setObservaciones(orderDetails.observaciones || '');
     setComprobante(null);
+    setComprobantePreview(null);
     setTelefonoTocado(false);
     setDireccionTocada(false);
 
@@ -757,24 +760,46 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                     ten listos {COP(Number(efectivoMonto) || 0)} en efectivo para la entrega.
                   </p>
                 )}
-                <div className="relative group">
-                  <input type="file" accept="image/*"
-                    onChange={e => { setComprobante(e.target.files?.[0] || null); setComprobanteError(''); }}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
-                  <div className="border-2 border-dashed border-green-200 bg-white group-hover:bg-green-50 transition-all rounded-xl p-3 text-center">
-                    {comprobante ? (
-                      <div className="flex items-center justify-center gap-2">
-                        <CheckCircle2 size={14} className="text-green-500" />
-                        <p className="text-xs font-black text-green-700 truncate max-w-[160px]">{comprobante.name}</p>
-                      </div>
-                    ) : (
+                {comprobantePreview ? (
+                  <div className="relative rounded-xl overflow-hidden border border-green-200 bg-black">
+                    <ImageLightbox
+                      src={comprobantePreview}
+                      alt="Comprobante"
+                      label="Ver comprobante"
+                      thumbStyle={{ width: '100%', maxHeight: 140, objectFit: 'contain', display: 'block', borderRadius: 10 }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => { setComprobante(null); setComprobantePreview(null); setComprobanteError(''); }}
+                      className="absolute top-1.5 right-1.5 bg-black/60 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-black/80 transition-colors"
+                    >
+                      <X size={11} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative group">
+                    <input type="file" accept="image/*"
+                      onChange={e => {
+                        const f = e.target.files?.[0] || null;
+                        setComprobante(f);
+                        setComprobanteError('');
+                        if (f) {
+                          const r = new FileReader();
+                          r.onload = ev => setComprobantePreview(ev.target?.result as string);
+                          r.readAsDataURL(f);
+                        } else {
+                          setComprobantePreview(null);
+                        }
+                      }}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                    <div className="border-2 border-dashed border-green-200 bg-white group-hover:bg-green-50 transition-all rounded-xl p-3 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <UploadCloud size={15} className="text-green-300" />
                         <p className="text-xs font-bold text-gray-400">Subir comprobante de pago</p>
                       </div>
-                    )}
+                    </div>
                   </div>
-                </div>
+                )}
                 {comprobanteError && (
                   <p className="text-[11px] font-bold text-red-600">{comprobanteError}</p>
                 )}
@@ -790,7 +815,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                 <Banknote size={20} className="text-yellow-600 shrink-0" />
                 <div>
                   <p className="text-xs font-black text-yellow-800">Anticipo requerido</p>
-                  <p className="text-[10px] font-bold text-yellow-700">Este pedido lleva productos por encargo y supera los $50.000: requiere un anticipo del 50%. El saldo restante se paga al recibir.</p>
+                  <p className="text-[10px] font-bold text-yellow-700">Este pedido lleva productos por encargo y supera los $100.000: requiere un anticipo del 50%. El saldo restante se paga al recibir.</p>
                   <p className="text-[10px] font-bold text-yellow-700 mt-1">El pago mixto no está disponible: su parte en efectivo se paga al recibir y el anticipo va antes.</p>
                 </div>
               </div>
@@ -869,28 +894,17 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose, orderDet
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { id: 'efectivo', icon: <Banknote size={13} />, label: 'Efectivo' },
-                      { id: 'digital',  icon: <CreditCard size={13} />, label: 'Transferencia' },
-                    ].map(m => (
-                      <button key={m.id}
-                        onClick={() => { setAnticipoMetodo(m.id); setAnticipoEfectivo(false); setAnticipoComprobante(null); setAnticipoError(''); }}
-                        className={`flex items-center gap-2 p-2.5 rounded-xl border-2 text-xs font-black transition-all ${anticipoMetodo === m.id ? 'border-yellow-500 bg-yellow-100 text-yellow-900' : 'border-gray-200 bg-white text-gray-400 hover:border-yellow-200'}`}>
-                        <div className={`p-1.5 rounded-lg ${anticipoMetodo === m.id ? 'bg-yellow-500 text-white' : 'bg-gray-100 text-gray-400'}`}>{m.icon}</div>
-                        {m.label}
-                      </button>
-                    ))}
+                  <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2">
+                    <CreditCard size={13} className="text-blue-600 shrink-0" />
+                    <p className="text-xs font-bold text-blue-800">El anticipo debe pagarse por <strong>transferencia bancaria</strong>.</p>
                   </div>
 
-                  {anticipoMetodo === 'efectivo' && (
-                    <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
-                      <Banknote size={14} className="text-amber-600 shrink-0" />
-                      <p className="text-xs font-bold text-amber-800">
-                        Paga <strong>{COP(montoAnticipo)}</strong> en efectivo al empleado. Él lo registrará desde su panel.
-                      </p>
-                    </div>
-                  )}
+                  <button
+                    onClick={() => { setAnticipoMetodo('digital'); setAnticipoEfectivo(false); setAnticipoComprobante(null); setAnticipoError(''); }}
+                    className={`w-full flex items-center gap-2 p-2.5 rounded-xl border-2 text-xs font-black transition-all ${anticipoMetodo === 'digital' ? 'border-yellow-500 bg-yellow-100 text-yellow-900' : 'border-gray-200 bg-white text-gray-400 hover:border-yellow-200'}`}>
+                    <div className={`p-1.5 rounded-lg ${anticipoMetodo === 'digital' ? 'bg-yellow-500 text-white' : 'bg-gray-100 text-gray-400'}`}><CreditCard size={13} /></div>
+                    Transferencia bancaria
+                  </button>
 
                   {anticipoMetodo === 'digital' && (
                     <div className="space-y-2">

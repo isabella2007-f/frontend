@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session, selectinload
 from fastapi import HTTPException
@@ -245,6 +246,10 @@ def confirmar_pedido(db: Session, id_venta: int) -> dict:
     Si el pedido pide más unidades de las que hay en stock, al confirmarlo se
     abren las órdenes de producción del faltante y queda En producción (13) en
     vez de Confirmado: pasa a Listo cuando esas órdenes se completan.
+
+    Regla de negocio: pedidos con pago por transferencia no pueden confirmarse
+    hasta que el comprobante haya sido aprobado (Estado_Pago = pagado_completo
+    o anticipo_pagado para mixto).
     """
     pedido = db.query(Venta).filter(
         Venta.ID_Venta == id_venta,
@@ -256,6 +261,14 @@ def confirmar_pedido(db: Session, id_venta: int) -> dict:
             detail="Solo se puede confirmar un pedido en estado Pendiente. "
                    "Si el pedido está En producción, espera a que se completen las órdenes de producción."
         )
+
+    if _lleva_transferencia(pedido.Metodo_Pago):
+        ep = (getattr(pedido, "Estado_Pago", None) or "pendiente").strip()
+        if ep not in {"pagado_completo", "anticipo_pagado"}:
+            raise HTTPException(
+                status_code=400,
+                detail="El comprobante de transferencia debe ser aprobado antes de confirmar el pedido.",
+            )
 
     return _gv_cambiar_estado(db, id_venta, EstadoPedido.CONFIRMADO)
 
@@ -289,6 +302,16 @@ def cancelar_pedido(db: Session, id_venta: int, actual: dict = None) -> dict:
         id_usuario = actual["registro"].ID_Usuario
         if pedido.ID_Usuario != id_usuario:
             raise HTTPException(status_code=403, detail="No puedes cancelar pedidos de otros clientes")
+        if getattr(pedido, "Requiere_Anticipo", None):
+            raise HTTPException(
+                status_code=400,
+                detail="Este pedido no puede cancelarse porque requiere anticipo. Si necesitas cancelarlo, escríbenos.",
+            )
+        if not _dentro_ventana_edicion(pedido):
+            raise HTTPException(
+                status_code=400,
+                detail="Solo puedes cancelar tu pedido durante los primeros 10 minutos después de crearlo. Escríbenos si necesitas cancelarlo.",
+            )
         if pedido.Estado not in _ESTADOS_CANCELABLES_CLIENTE:
             raise HTTPException(
                 status_code=400,
@@ -304,6 +327,15 @@ def cancelar_pedido(db: Session, id_venta: int, actual: dict = None) -> dict:
 _ESTADOS_PAGO_BLOQUEADO_EDICION = {"efectivo_recibido", "pagado_completo", "no_recibido"}
 
 _ESTADOS_FINALES = frozenset({EstadoPedido.CANCELADO, EstadoPedido.ENTREGADO})
+
+_VENTANA_EDICION = timedelta(minutes=10)
+
+
+def _dentro_ventana_edicion(venta: Venta) -> bool:
+    """True si el pedido fue creado hace menos de 10 minutos."""
+    if not venta.Fecha_Venta:
+        return False
+    return datetime.utcnow() - venta.Fecha_Venta < _VENTANA_EDICION
 
 
 def editar_mi_pedido(db: Session, id_venta: int, datos: dict, actual: dict) -> dict:
@@ -325,6 +357,16 @@ def editar_mi_pedido(db: Session, id_venta: int, datos: dict, actual: dict) -> d
     if actual.get("tipo") == "cliente":
         if pedido.ID_Usuario != actual["registro"].ID_Usuario:
             raise HTTPException(status_code=403, detail="No puedes editar pedidos de otros clientes")
+        if getattr(pedido, "Requiere_Anticipo", None):
+            raise HTTPException(
+                status_code=400,
+                detail="Este pedido no puede editarse porque requiere anticipo. Si necesitas un cambio, escríbenos.",
+            )
+        if not _dentro_ventana_edicion(pedido):
+            raise HTTPException(
+                status_code=400,
+                detail="Solo puedes editar tu pedido durante los primeros 10 minutos después de crearlo. Escríbenos si necesitas un cambio.",
+            )
 
     if pedido.Estado in _ESTADOS_FINALES:
         raise HTTPException(status_code=400, detail="Este pedido ya fue completado y no puede editarse")
@@ -360,6 +402,16 @@ def editar_mi_pedido(db: Session, id_venta: int, datos: dict, actual: dict) -> d
     comprobante_nuevo = datos.get("Comprobante_Pago")
     if comprobante_nuevo:
         pedido.Comprobante_Pago = comprobante_nuevo
+        # Si no viene cambio de método, actualizar Estado_Pago aquí para que
+        # el admin pueda ver y aprobar el comprobante. El bloque de Metodo_Pago
+        # lo sobreescribiría si ambos llegan juntos, por lo que solo corre cuando
+        # Metodo_Pago no está en el request.
+        if not datos.get("Metodo_Pago"):
+            _metodo_actual = (pedido.Metodo_Pago or "").strip()
+            _ep_actual = (getattr(pedido, "Estado_Pago", None) or "pendiente").strip()
+            _estados_finales_pago = {"pagado_completo", "efectivo_recibido", "anticipo_pagado"}
+            if _lleva_transferencia(_metodo_actual) and _ep_actual not in _estados_finales_pago:
+                pedido.Estado_Pago = "pendiente_validacion"
 
     # Actualizar Estado_Pago y montos según el método de pago resultante
     if datos.get("Metodo_Pago"):
@@ -551,6 +603,7 @@ def rechazar_comprobante(db: Session, id_venta: int, motivo: str, id_usuario_act
         raise HTTPException(status_code=409, detail="El comprobante ya fue rechazado")
 
     pedido.Estado_Pago = "comprobante_rechazado"
+    pedido.Motivo_Rechazo_Comprobante = motivo.strip()
 
     notificar(
         db,
