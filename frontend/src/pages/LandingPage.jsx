@@ -350,7 +350,9 @@ const LandingPage = ({ hideNavbar = false }) => {
           imagenes:           p.imagenes?.map(i => i.url) || [],
           descripcion_corta:  p.Descripcion_Corta ?? "",
           descripcion_larga:  p.Descripcion_Larga ?? "",
-          requiereProduccion: !!p.Requiere_Produccion,
+          // La lista pública devuelve este campo en snake_case; aceptar ambas
+          // formas evita que el checkout pierda la regla de anticipo.
+          requiereProduccion: !!(p.Requiere_Produccion ?? p.requiere_produccion),
         }));
       setProductos(vendibles);
       // Sincronizar campos del carrito con datos frescos de la API.
