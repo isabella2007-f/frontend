@@ -79,6 +79,35 @@ def cobro_efectivo_pendiente(venta) -> bool:
     return True
 
 
+def saldo_final_pendiente(venta) -> bool:
+    """¿Este pedido pidió anticipo y todavía debe el resto?
+
+    El anticipo es la mitad: cubre los insumos, no el pedido. Entregar con solo
+    esa mitad registrada es despachar la mercancía y quedarse esperando el
+    resto, que es justo lo que el anticipo existe para evitar.
+
+    No aplica a los pedidos normales, ni cuando el cliente decidió pagar todo
+    por adelantado, ni cuando su saldo a favor cubre lo que faltaba.
+    """
+    anticipo = float(getattr(venta, "Anticipo_Monto", 0) or 0)
+    if anticipo <= 0:
+        return False
+    # Si ni el anticipo entró, el pedido ni siquiera llegó hasta acá: de eso se
+    # encarga la validación general del estado de pago.
+    if not getattr(venta, "Anticipo_Registrado", 0):
+        return False
+    if getattr(venta, "Pago_Final_Registrado", 0):
+        return False
+    if _estado_pago(venta) == "pagado_completo":
+        return False
+    total     = float(getattr(venta, "Total", 0) or 0)
+    descuento = float(getattr(venta, "Descuento", 0) or 0)
+    # Pagó todo por adelantado, o el saldo a favor tapó la diferencia.
+    if total > 0 and (anticipo + descuento) >= total:
+        return False
+    return True
+
+
 def comprobante_sin_aprobar(venta) -> bool:
     """¿Hay un comprobante adjunto que el admin todavía no aprobó?
 

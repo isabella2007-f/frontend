@@ -417,6 +417,11 @@ const PedidosClientePage = () => {
   const [cancelError,    setCancelError]    = useState('');
   const [accionFecha,    setAccionFecha]    = useState(null); // "aceptar" | "rechazar"
   const [accionFechaErr, setAccionFechaErr] = useState('');
+  /// Por qué el cliente no puede recibir en la fecha propuesta.
+  ///
+  /// Es opcional, pero es lo que le permite al administrador proponer algo que
+  /// sirva en vez de tirar otra fecha a ver si pega.
+  const [motivoRechazo, setMotivoRechazo] = useState('');
   const [devModal,             setDevModal]             = useState(null);
   const [devToast,             setDevToast]             = useState(null);
   const [guardandoEnvio,       setGuardandoEnvio]       = useState(false);
@@ -697,7 +702,8 @@ const PedidosClientePage = () => {
     setAccionFecha("rechazar");
     setAccionFechaErr('');
     try {
-      await rechazarFechaProduccion(pedido.id);
+      await rechazarFechaProduccion(pedido.id, motivoRechazo.trim() || null);
+      setMotivoRechazo('');
       fetchPedidos();
       // keep modal open so user sees the "Fecha rechazada" / "Escalado a admin" state
     } catch (e) {
@@ -1064,6 +1070,23 @@ const PedidosClientePage = () => {
                   <p style={{ fontSize: 11, color: '#3949ab', marginBottom: 12, lineHeight: 1.5 }}>
                     ¿Puedes recibir tu pedido en esta fecha? Si rechazas, te propondremos una nueva fecha.
                   </p>
+                  {/* Si rechaza, por qué. Sin esto el administrador propone la
+                      siguiente fecha a ciegas: no es lo mismo "ese día viajo"
+                      que "la necesito antes". */}
+                  <textarea
+                    value={motivoRechazo}
+                    onChange={e => setMotivoRechazo(e.target.value)}
+                    rows={2}
+                    maxLength={255}
+                    placeholder="Si no te sirve, cuéntanos por qué (opcional)"
+                    style={{
+                      width: '100%', boxSizing: 'border-box', marginBottom: 10,
+                      padding: '9px 11px', borderRadius: 10,
+                      border: '1.5px solid #c5cae9', background: '#fff',
+                      fontFamily: 'inherit', fontSize: 12, color: '#1a237e',
+                      resize: 'vertical', outline: 'none',
+                    }}
+                  />
                   {accionFechaErr && <p style={{ fontSize: 11, color: '#c62828', fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}><AlertTriangle size={12} /> {accionFechaErr}</p>}
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button disabled={!!accionFecha} onClick={() => handleAceptarFecha(selectedPedido)}

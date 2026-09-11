@@ -670,6 +670,9 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; color: #1a1a1a; }
   gap: 8px;
   position: relative;
   flex: 1;
+  /* Sin esto, un paso con etiqueta larga se estira más que los otros y los
+     círculos dejan de estar a la misma distancia. */
+  min-width: 0;
 }
 .wizard-step-circle {
   width: 28px;
@@ -703,6 +706,12 @@ body { margin: 0; font-family: 'DM Sans', sans-serif; color: #1a1a1a; }
   color: #bdbdbd;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  text-align: center;
+  max-width: 100%;
+  /* Corta antes que empujar: el paso mantiene su ancho. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .wizard-step-label.active {
   color: var(--g);

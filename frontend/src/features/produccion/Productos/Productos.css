@@ -390,6 +390,9 @@
   align-items: center;
   gap: 8px;
   flex: 1;
+  /* Un elemento flexible no baja de lo que mide su contenido: una etiqueta
+     larga se comía el ancho de los demás y los pasos quedaban corridos. */
+  min-width: 0;
 }
 .wizard-step-item:last-child { flex: none; }
 

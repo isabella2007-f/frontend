@@ -21,6 +21,7 @@ from src.features.ventas.gestion_ventas.services.service import (
 from src.shared.services.observaciones_utils import observaciones_limpias
 from src.shared.services.pagos_utils import (
     cobro_efectivo_pendiente, es_pago_efectivo, es_pago_mixto,
+    saldo_final_pendiente,
 )
 from .estados import (
     EstadoDomicilio, ESTADO_DOM_A_VENTA, normalizar_estado, puede_reasignarse,
@@ -720,6 +721,17 @@ def cambiar_estado(db: Session, id_domicilio: int, nuevo_estado: int, observacio
                     detail=(
                         "Registrá el cobro en efectivo antes de entregar: este pedido "
                         "se paga (total o en parte) en mano."
+                    ),
+                )
+            # El anticipo es la mitad: cubre los insumos, no el pedido. Con
+            # solo esa mitad registrada se estaría entregando la mercancía y
+            # quedándose esperando el resto.
+            if saldo_final_pendiente(venta_check):
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        "Falta cobrar el saldo de este pedido: solo entró el anticipo. "
+                        "Registrá el pago final antes de entregar."
                     ),
                 )
 

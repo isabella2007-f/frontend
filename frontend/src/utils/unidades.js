@@ -104,3 +104,49 @@ export function convertir(cantidad, desde, hasta) {
   }
   return { valor: (cantidad * FACTOR[d]) / FACTOR[h], error: null };
 }
+
+/**
+ * La cantidad escrita como la diría alguien, no como la devuelve la división.
+ *
+ * `toFixed(2)` sobre una cantidad convertida daba cosas ilegibles: 2 gramos de
+ * levadura en una ficha medida en kilos salían como "0.00 kg" —que se lee como
+ * "no se necesita"— y kilo y medio como "1500.00 g". Acá se baja a la unidad
+ * chica cuando el número queda en nada, se sube a la grande cuando queda
+ * enorme, y se muestran solo los decimales que aportan.
+ */
+const UNIDAD_CHICA = { masa: "g", volumen: "ml" };
+const UNIDAD_GRANDE = { masa: "kg", volumen: "l" };
+
+const sinCerosSobrantes = (n, decimales) => {
+  const texto = n.toFixed(decimales);
+  return texto.includes(".") ? texto.replace(/\.?0+$/, "") : texto;
+};
+
+export function formatCantidad(cantidad, simbolo) {
+  const n = Number(cantidad);
+  if (!Number.isFinite(n)) return `— ${simbolo || ""}`.trim();
+
+  const u = normalizarUnidad(simbolo);
+  const familia = FAMILIA[u];
+  let valor = n;
+  let unidad = simbolo || "";
+
+  if (familia === "masa" || familia === "volumen") {
+    const chica = UNIDAD_CHICA[familia];
+    const grande = UNIDAD_GRANDE[familia];
+    const enBase = n * FACTOR[u];
+    // Menos de una unidad grande se dice en la chica: "2 g", no "0.00 kg".
+    if (Math.abs(n) < 1 && Math.abs(enBase) >= 0.001) {
+      valor = enBase / FACTOR[chica];
+      unidad = chica;
+    } else if (Math.abs(n) >= 1000 && u === chica) {
+      // Y al revés: "1.5 kg" se lee mejor que "1500 g".
+      valor = enBase / FACTOR[grande];
+      unidad = grande;
+    }
+  }
+
+  // Los decimales que aportan: tres para lo menudo, dos para lo demás.
+  const decimales = Math.abs(valor) < 1 ? 3 : 2;
+  return `${sinCerosSobrantes(valor, decimales)} ${unidad}`.trim();
+}

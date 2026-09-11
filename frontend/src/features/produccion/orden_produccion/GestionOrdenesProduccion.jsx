@@ -10,7 +10,7 @@ import {
 } from "../../../services/ordenesProduccionService.js";
 import { getProducto, getProductos } from "../../../services/productosService.js";
 import { getInsumos }   from "../../../services/insumosService.js";
-import { convertir }    from "../../../utils/unidades.js";
+import { convertir, formatCantidad } from "../../../utils/unidades.js";
 import SearchableSelect from "../../../shared/components/SearchableSelect.jsx";
 import "./OrdenesProduccion.css";
 
@@ -694,8 +694,8 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
                                   </span>
                                 ) : (
                                   <>
-                                    Stock: <strong style={{ color: "#c62828" }}>{item.stock.toFixed(2)} {item.simboloInsumo}</strong>
-                                    {" · "}Necesario: <strong>{item.necesario.toFixed(2)} {item.simboloInsumo}</strong>
+                                    Stock: <strong style={{ color: "#c62828" }}>{formatCantidad(item.stock, item.simboloInsumo)}</strong>
+                                    {" · "}Necesario: <strong>{formatCantidad(item.necesario, item.simboloInsumo)}</strong>
                                   </>
                                 )}
                               </div>
@@ -704,7 +704,7 @@ function ModalCambiarEstado({ orden, onClose, onConfirm, saving }) {
                               {!item.error && (
                                 <>
                                   <div style={{ fontSize: 10, color: "#9e9e9e", textTransform: "uppercase" }}>Faltante</div>
-                                  <div style={{ fontSize: 13, fontWeight: 800, color: "#c62828" }}>{item.faltante.toFixed(2)} {item.simboloInsumo}</div>
+                                  <div style={{ fontSize: 13, fontWeight: 800, color: "#c62828" }}>{formatCantidad(item.faltante, item.simboloInsumo)}</div>
                                 </>
                               )}
                             </div>
