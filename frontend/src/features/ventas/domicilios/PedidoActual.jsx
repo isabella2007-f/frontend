@@ -252,6 +252,12 @@ export default function PedidoActual() {
   const [saving, setSaving]         = useState(false);
   const [toast, setToast]           = useState(null);
   const [confirmando,    setConfirmando]    = useState(null);
+  /// La novedad que escribe el repartidor sobre esta entrega.
+  ///
+  /// Se manda junto con el cambio de estado —que es cuando pasa lo que hay que
+  /// contar— y también se puede guardar sola, sin mover el pedido.
+  const [novedad,        setNovedad]        = useState("");
+  const [guardandoNota,  setGuardandoNota]  = useState(false);
   const [cobrandoOpen,   setCobrandoOpen]   = useState(false);
 
   const showToast = (msg, type = "success") => {
@@ -317,7 +323,7 @@ export default function PedidoActual() {
       setCobrandoOpen("entregar");
       return;
     }
-    await ejecutarCambio(accion.valor, accion.label);
+    await ejecutarCambio(accion.valor, accion.label, novedad.trim() || null);
   };
 
   /* Viniendo del botón de Entregado, el cobro cierra la entrega en el mismo
@@ -333,11 +339,32 @@ export default function PedidoActual() {
     }
     setCobrandoOpen(false);
     if (cerrarEntrega) {
-      await ejecutarCambio(ESTADO_DOMICILIO.ENTREGADO, "Entregado");
+      await ejecutarCambio(ESTADO_DOMICILIO.ENTREGADO, "Entregado",
+                           novedad.trim() || null);
       return;
     }
     showToast(recibido ? "Cobro registrado" : "Se registró que no se pudo cobrar");
     await cargar();
+  };
+
+  /// Guarda la novedad sin cambiar de estado.
+  ///
+  /// A veces hay algo que contar antes de cerrar la entrega —el portón no
+  /// abre, el cliente pidió esperar— y obligar a cambiar el estado para poder
+  /// anotarlo es pedirle al repartidor que mienta sobre dónde va.
+  const guardarNovedad = async () => {
+    const texto = novedad.trim();
+    if (!texto || !pedido) return;
+    setGuardandoNota(true);
+    try {
+      await cambiarEstadoDomicilio(pedido.id, pedido.estadoId, texto);
+      showToast("Novedad guardada");
+      await cargar();
+    } catch (e) {
+      showToast(e.message || "No se pudo guardar la novedad", "error");
+    } finally {
+      setGuardandoNota(false);
+    }
   };
 
   const ejecutarCambio = async (valor, label, observacion = null) => {
@@ -597,6 +624,35 @@ export default function PedidoActual() {
               <div className="du-dato du-dato--obs">
                 <div className="du-dato__label">Observaciones</div>
                 <div className="du-dato__valor">{pedido.obs_domicilio}</div>
+              </div>
+            )}
+
+            {/* Dónde contar lo que pasó. Antes esto solo se mostraba: para
+                escribirlo había que salir a "Mis entregas", que es otra
+                pantalla, así que casi nunca se escribía. */}
+            {esDomicilioActivo(pedido.estadoId) && (
+              <div className="du-dato du-dato--obs">
+                <div className="du-dato__label">
+                  {pedido.obs_domicilio ? "Agregar novedad" : "Novedad de la entrega"}
+                </div>
+                <textarea
+                  className="du-textarea"
+                  rows={2}
+                  value={novedad}
+                  onChange={e => setNovedad(e.target.value)}
+                  placeholder="No había nadie, se dejó con el portero…"
+                />
+                <button
+                  className="du-btn du-btn--fantasma du-btn--bloque"
+                  onClick={guardarNovedad}
+                  disabled={guardandoNota || !novedad.trim()}
+                  style={{ marginTop: 8 }}
+                >
+                  {guardandoNota ? "Guardando…" : "Guardar novedad"}
+                </button>
+                <p className="du-nota" style={{ marginTop: 6 }}>
+                  Se guarda también al cambiar el estado del pedido.
+                </p>
               </div>
             )}
 

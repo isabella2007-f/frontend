@@ -26,19 +26,17 @@ function buildHTML({ numero, fecha, estado, cliente, entrega, metodoPago, items,
     .page{max-width:780px;margin:0 auto;background:#fff;border-radius:28px;overflow:hidden;box-shadow:0 24px 64px rgba(46,125,50,.18)}
 
     /* HEADER */
-    .hd{background:linear-gradient(135deg,#1b5e20 0%,#2e7d32 55%,#43a047 100%);padding:44px 52px 36px;display:flex;justify-content:space-between;align-items:flex-start;position:relative;overflow:hidden}
-    .hd::before{content:'';position:absolute;top:-80px;right:-80px;width:260px;height:260px;border-radius:50%;background:rgba(255,255,255,.06)}
-    .hd::after{content:'';position:absolute;bottom:-60px;left:28%;width:200px;height:200px;border-radius:50%;background:rgba(255,255,255,.04)}
-    .brand{position:relative;z-index:1}
+    .hd{background:#fff;border-bottom:2.5px solid #2e7d32;padding:44px 52px 36px;display:flex;justify-content:space-between;align-items:flex-start;position:relative;overflow:hidden}
+            .brand{position:relative;z-index:1}
     .brand-row{display:flex;align-items:center;gap:12px;margin-bottom:8px}
-    .brand-icon{width:52px;height:52px;border-radius:14px;background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-size:26px}
-    .brand-name{font-size:28px;font-weight:900;color:#fff;letter-spacing:-.5px}
-    .brand-sub{font-size:11px;color:rgba(255,255,255,.6);font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-left:64px}
+    .brand-icon{width:52px;height:52px;border-radius:14px;background:#f4f5f4;border:1.5px solid #e0e2e0;display:flex;align-items:center;justify-content:center;font-size:26px}
+    .brand-name{font-size:28px;font-weight:900;color:#1a1a1a;letter-spacing:-.5px}
+    .brand-sub{font-size:11px;color:#8a8a8a;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-left:64px}
     .inv{text-align:right;position:relative;z-index:1}
-    .inv-label{font-size:11px;font-weight:800;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:2px;margin-bottom:6px}
-    .inv-num{font-size:36px;font-weight:900;color:#fff;letter-spacing:-1px;line-height:1;margin-bottom:8px}
-    .inv-date{font-size:13px;color:rgba(255,255,255,.75);font-weight:700}
-    .inv-badge{display:inline-block;margin-top:10px;padding:5px 16px;border-radius:20px;background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.25);font-size:11px;font-weight:800;color:#fff;letter-spacing:1px;text-transform:uppercase}
+    .inv-label{font-size:11px;font-weight:800;color:#8a8a8a;text-transform:uppercase;letter-spacing:2px;margin-bottom:6px}
+    .inv-num{font-size:36px;font-weight:900;color:#1a1a1a;letter-spacing:-1px;line-height:1;margin-bottom:8px}
+    .inv-date{font-size:13px;color:#5a5a5a;font-weight:700}
+    .inv-badge{display:inline-block;margin-top:10px;padding:5px 16px;border-radius:20px;background:#f4f5f4;border:1.5px solid #e0e2e0;font-size:11px;font-weight:800;color:#1a1a1a;letter-spacing:1px;text-transform:uppercase}
 
     /* WAVE */
     .wave{height:36px;background:#fff;clip-path:ellipse(55% 100% at 50% 100%)}
@@ -48,21 +46,21 @@ function buildHTML({ numero, fecha, estado, cliente, entrega, metodoPago, items,
 
     /* INFO CARDS */
     .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:32px 0}
-    .icard{background:#f9fdf9;border:1.5px solid #c8e6c9;border-radius:18px;padding:22px}
-    .icard-lbl{font-size:10px;font-weight:800;color:#2e7d32;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+    .icard{background:#fafafa;border:1.5px solid #e0e2e0;border-radius:18px;padding:22px}
+    .icard-lbl{font-size:10px;font-weight:800;color:#1a1a1a;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
     .icard-val{font-size:14px;font-weight:800;color:#1a1a1a;line-height:1.5}
     .icard-sub{font-size:12px;color:#9e9e9e;margin-top:4px;font-weight:600}
-    .pay-badge{display:inline-flex;align-items:center;gap:5px;margin-top:8px;padding:4px 12px;border-radius:20px;background:#e8f5e9;border:1px solid #c8e6c9;font-size:12px;font-weight:800;color:#2e7d32}
+    .pay-badge{display:inline-flex;align-items:center;gap:5px;margin-top:8px;padding:4px 12px;border-radius:20px;background:#f4f5f4;border:1px solid #e0e2e0;font-size:12px;font-weight:800;color:#1a1a1a}
 
     /* SECTION TITLE */
-    .sec{display:flex;align-items:center;gap:10px;font-size:11px;font-weight:800;color:#2e7d32;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:16px}
-    .sec::after{content:'';flex:1;height:1.5px;background:linear-gradient(90deg,#c8e6c9,transparent)}
+    .sec{display:flex;align-items:center;gap:10px;font-size:11px;font-weight:800;color:#1a1a1a;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:16px}
+    .sec::after{content:'';flex:1;height:1.5px;background:linear-gradient(90deg,#e0e2e0,transparent)}
 
     /* TABLE */
-    .tbl-wrap{border-radius:16px;overflow:hidden;border:1.5px solid #e8f5e9;margin-bottom:6px}
+    .tbl-wrap{border-radius:16px;overflow:hidden;border:1.5px solid #f4f5f4;margin-bottom:6px}
     table{width:100%;border-collapse:collapse}
-    thead tr{background:linear-gradient(135deg,#2e7d32,#43a047)}
-    th{padding:13px 18px;font-size:10px;font-weight:800;color:rgba(255,255,255,.95);text-transform:uppercase;letter-spacing:1px;text-align:left}
+    thead tr{background:#f4f5f4;border-bottom:1.5px solid #2e7d32}
+    th{padding:13px 18px;font-size:10px;font-weight:800;color:#1a1a1a;text-transform:uppercase;letter-spacing:1px;text-align:left}
     th.r{text-align:right}
     th.c{text-align:center}
     tbody tr{border-bottom:1px solid #f0faf0}
@@ -71,38 +69,38 @@ function buildHTML({ numero, fecha, estado, cliente, entrega, metodoPago, items,
     .td-name{font-weight:800;color:#1a1a1a}
     .td-name span{display:block;font-size:11px;color:#9e9e9e;font-weight:600;margin-top:2px}
     .td-c{text-align:center}
-    .td-r{text-align:right;font-weight:800;color:#2e7d32;font-size:14px}
+    .td-r{text-align:right;font-weight:800;color:#1a1a1a;font-size:14px}
     .td-price{text-align:center;color:#616161;font-weight:700}
-    .qty{display:inline-block;padding:3px 10px;border-radius:20px;background:#e8f5e9;border:1px solid #c8e6c9;color:#2e7d32;font-size:12px;font-weight:900}
+    .qty{display:inline-block;padding:3px 10px;border-radius:20px;background:#f4f5f4;border:1px solid #e0e2e0;color:#1a1a1a;font-size:12px;font-weight:900}
 
     /* TOTALS */
-    .totals{background:#f9fdf9;border:1.5px solid #c8e6c9;border-radius:18px;padding:22px 26px;margin-top:22px}
+    .totals{background:#fafafa;border:1.5px solid #e0e2e0;border-radius:18px;padding:22px 26px;margin-top:22px}
     .t-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:13px}
     .t-row .lbl{color:#616161;font-weight:700}
     .t-row .val{font-weight:800;color:#1a1a1a}
     .t-row.disc .val{color:#c62828}
-    .t-div{height:1.5px;background:#c8e6c9;margin:12px 0}
+    .t-div{height:1.5px;background:#e0e2e0;margin:12px 0}
     .t-total{padding-top:14px}
     .t-total .lbl{font-size:15px;font-weight:900;color:#1a1a1a;text-transform:uppercase;letter-spacing:.5px}
-    .t-total .val{font-size:26px;font-weight:900;color:#2e7d32}
-    .t-row.anticipo-row .lbl{color:#2e7d32;font-weight:700}
-    .t-row.anticipo-row .val{color:#2e7d32}
+    .t-total .val{font-size:26px;font-weight:900;color:#1a1a1a}
+    .t-row.anticipo-row .lbl{color:#1a1a1a;font-weight:700}
+    .t-row.anticipo-row .val{color:#1a1a1a}
     .t-row.saldo-row{padding:10px 0}
     .t-row.saldo-pending .lbl{font-size:14px;font-weight:900;color:#e65100;text-transform:uppercase;letter-spacing:.4px}
     .t-row.saldo-pending .val{font-size:22px;font-weight:900;color:#e65100}
-    .t-row.saldo-paid .lbl{font-size:14px;font-weight:900;color:#2e7d32;text-transform:uppercase;letter-spacing:.4px}
-    .t-row.saldo-paid .val{font-size:18px;font-weight:900;color:#2e7d32}
+    .t-row.saldo-paid .lbl{font-size:14px;font-weight:900;color:#1a1a1a;text-transform:uppercase;letter-spacing:.4px}
+    .t-row.saldo-paid .val{font-size:18px;font-weight:900;color:#1a1a1a}
 
     /* FOOTER */
-    .footer{background:linear-gradient(135deg,#1b5e20,#2e7d32);padding:32px 52px;text-align:center;margin-top:40px}
-    .footer-msg{font-size:18px;font-weight:900;color:#fff;margin-bottom:6px}
-    .footer-sub{font-size:12px;color:rgba(255,255,255,.6);font-weight:700;letter-spacing:.5px}
+    .footer{background:#fafafa;border-top:1.5px solid #e0e2e0;padding:32px 52px;text-align:center;margin-top:40px}
+    .footer-msg{font-size:18px;font-weight:900;color:#1a1a1a;margin-bottom:6px}
+    .footer-sub{font-size:12px;color:#5a5a5a;font-weight:700;letter-spacing:.5px}
     .footer-dots{display:flex;justify-content:center;gap:6px;margin-top:16px}
-    .footer-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.3)}
-    .footer-dot.active{background:rgba(255,255,255,.8)}
+    .footer-dot{width:6px;height:6px;border-radius:50%;background:#d0d2d0}
+    .footer-dot.active{background:#2e7d32}
 
     /* PRINT BTN */
-    .print-btn{display:block;width:100%;padding:16px;margin-top:28px;background:linear-gradient(135deg,#2e7d32,#43a047);color:#fff;border:none;border-radius:16px;font-family:'Nunito',sans-serif;font-size:15px;font-weight:900;cursor:pointer;letter-spacing:.3px;box-shadow:0 6px 20px rgba(46,125,50,.3)}
+    .print-btn{display:block;width:100%;padding:16px;margin-top:28px;background:#1a1a1a;color:#fff;border:none;border-radius:16px;font-family:'Nunito',sans-serif;font-size:15px;font-weight:900;cursor:pointer;letter-spacing:.3px}
     .print-btn:hover{filter:brightness(1.08);transform:translateY(-1px)}
 
     /* PRINT */
@@ -204,7 +202,7 @@ function buildHTML({ numero, fecha, estado, cliente, entrega, metodoPago, items,
       <div class="t-div"></div>
       <div class="t-row" style="font-size:13px">
         <span class="lbl" style="color:#555">💵 Efectivo</span>
-        <span class="val" style="color:#2e7d32;font-size:14px">${COP(montoEfectivo ?? 0)}</span>
+        <span class="val" style="color:#1a1a1a;font-size:14px">${COP(montoEfectivo ?? 0)}</span>
       </div>
       <div class="t-row" style="font-size:13px;margin-top:4px">
         <span class="lbl" style="color:#555">🏦 Transferencia</span>
